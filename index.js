@@ -1,8 +1,20 @@
+/**
+ * 3D Live Edge Mesh Combined Plugin — Server-Side Engine
+ * Handles Z compensation, mesh persistence, and G-code processing.
+ */
+
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 
-// ── Paths ────────────────────────────────────────────────────────────────────
+// Z values above this threshold (mm) are considered retracted / safe — rapid moves
+// at or above this height won't have Z compensation injected.
+const WORKING_HEIGHT_THRESHOLD_MM = 10;
+
+// ncSender local API base URL used for loading compensated G-code files
+const NCSENDER_API_BASE = 'http://localhost:8090';
+
+// ── File path utilities ───────────────────────────────────────────────────────
 
 function getUserDataDir() {
   const platform = os.platform();
@@ -20,16 +32,25 @@ function getUserDataDir() {
 }
 
 function getMeshFilePath() {
-  return path.join(getUserDataDir(), 'plugin-config', 'com.ncsender.edgeprobe.combined', 'mesh.json');
+  return path.join(
+    getUserDataDir(),
+    'plugin-config',
+    'com.ncsender.edgeprobe.combined',
+    'mesh.json'
+  );
 }
 
-// ── In-memory mesh storage ───────────────────────────────────────────────────
+// ── In-memory mesh storage ────────────────────────────────────────────────────
 
 let currentMesh = null;
 let meshGridParams = null;
 
-// ── G-code bounds analysis ───────────────────────────────────────────────────
+// ── G-code bounds analysis ────────────────────────────────────────────────────
 
+/**
+ * Parse G-code and return the XYZ bounding box.
+ * Respects G90/G91 modes, skips comments and G53 machine-coordinate moves.
+ */
 function analyzeGCodeBounds(gcodeContent) {
   const bounds = {
     min: { x: Infinity, y: Infinity, z: Infinity },
@@ -39,18 +60,18 @@ function analyzeGCodeBounds(gcodeContent) {
   let currentX = 0, currentY = 0, currentZ = 0;
   let isAbsolute = true;
 
-  const lines = gcodeContent.split('\n');
-
-  for (const line of lines) {
+  for (const line of gcodeContent.split('\n')) {
     const trimmed = line.trim().toUpperCase();
 
-    if (trimmed.startsWith('(') || trimmed.startsWith(';') || trimmed.startsWith('%')) {
+    // Skip comments and empty lines
+    if (!trimmed || trimmed.startsWith('(') || trimmed.startsWith(';') || trimmed.startsWith('%')) {
       continue;
     }
 
     if (trimmed.includes('G90') && !trimmed.includes('G90.1')) isAbsolute = true;
     if (trimmed.includes('G91') && !trimmed.includes('G91.1')) isAbsolute = false;
 
+    // Skip machine coordinate moves
     if (trimmed.includes('G53')) continue;
 
     const xMatch = trimmed.match(/X([+-]?\d*\.?\d+)/);
@@ -80,9 +101,10 @@ function analyzeGCodeBounds(gcodeContent) {
     }
   }
 
-  if (bounds.min.x === Infinity) bounds.min.x = 0;
-  if (bounds.min.y === Infinity) bounds.min.y = 0;
-  if (bounds.min.z === Infinity) bounds.min.z = 0;
+  // Clamp infinities to zero for empty files
+  if (bounds.min.x === Infinity)  bounds.min.x = 0;
+  if (bounds.min.y === Infinity)  bounds.min.y = 0;
+  if (bounds.min.z === Infinity)  bounds.min.z = 0;
   if (bounds.max.x === -Infinity) bounds.max.x = 0;
   if (bounds.max.y === -Infinity) bounds.max.y = 0;
   if (bounds.max.z === -Infinity) bounds.max.z = 0;
@@ -90,13 +112,18 @@ function analyzeGCodeBounds(gcodeContent) {
   return bounds;
 }
 
-// ── Bilinear interpolation for Z lookup ──────────────────────────────────────
-// Handles special cases: single row (1xN), single column (Nx1)
+// ── Bilinear Z interpolation ──────────────────────────────────────────────────
 
+/**
+ * Bilinear interpolation for Z lookup at an arbitrary XY coordinate within the mesh.
+ * Handles: single point (1×1), single row (1×N), single column (N×1), full 2D grid.
+ * mesh[row][col] must have a .z property (or be an object with z).
+ * gridParams: { startX, startY, spacingX, spacingY, rows, cols }
+ */
 function interpolateZ(x, y, mesh, gridParams) {
   const { startX, startY, spacingX, spacingY, rows, cols } = gridParams;
 
-  // Single column (Nx1): linear interpolation in Y only
+  // Single column (N×1): linear interpolation in Y only
   if (cols === 1) {
     if (rows === 1) return mesh[0][0]?.z ?? 0;
     const rowFloat = spacingY > 0 ? (y - startY) / spacingY : 0;
@@ -107,7 +134,7 @@ function interpolateZ(x, y, mesh, gridParams) {
     return z0 * (1 - ty) + z1 * ty;
   }
 
-  // Single row (1xN): linear interpolation in X only
+  // Single row (1×N): linear interpolation in X only
   if (rows === 1) {
     const colFloat = spacingX > 0 ? (x - startX) / spacingX : 0;
     const col = Math.max(0, Math.min(cols - 2, Math.floor(colFloat)));
@@ -135,8 +162,16 @@ function interpolateZ(x, y, mesh, gridParams) {
   return z00 * (1 - tx) * (1 - ty) + z10 * tx * (1 - ty) + z01 * (1 - tx) * ty + z11 * tx * ty;
 }
 
-// ── Z compensation with move subdivision ─────────────────────────────────────
+// ── Z compensation engine ─────────────────────────────────────────────────────
 
+/**
+ * Apply Z compensation to G-code with move subdivision for smooth surface following.
+ * @param {string} gcodeContent  Raw G-code text
+ * @param {Array}  mesh          2D array mesh[row][col] = { x, y, z }
+ * @param {object} gridParams    { startX, startY, spacingX, spacingY, rows, cols }
+ * @param {number} referenceZ    Z in mesh that represents "zero" — usually 0
+ * @returns {string} Compensated G-code text
+ */
 function applyZCompensation(gcodeContent, mesh, gridParams, referenceZ) {
   const lines = gcodeContent.split('\n');
   const output = [];
@@ -144,16 +179,16 @@ function applyZCompensation(gcodeContent, mesh, gridParams, referenceZ) {
   let currentX = 0, currentY = 0, currentZ = 0;
   let isAbsolute = true;
   let currentFeedRate = null;
-  let currentGMode = 'G1';
+  let currentGMode = 'G1'; // G0/G1/G2/G3
 
-  // Segment length for subdivision — use smaller of mesh spacing or 2mm
+  // Segment length for subdivision — smaller of mesh spacing or 2 mm for smooth curves
   const segmentLength = Math.min(
     gridParams.spacingX || 10,
     gridParams.spacingY || 10,
     2
   );
 
-  output.push('(Z-Compensated G-code generated by 3D Live Edge Mesh Combined Plugin)');
+  output.push('(Z-Compensated G-code — 3D Live Edge Mesh Combined Plugin)');
   output.push(`(Grid: ${gridParams.cols} x ${gridParams.rows} points)`);
   output.push(`(Reference Z: ${referenceZ.toFixed(3)})`);
   output.push(`(Segment length: ${segmentLength.toFixed(2)}mm)`);
@@ -162,7 +197,7 @@ function applyZCompensation(gcodeContent, mesh, gridParams, referenceZ) {
   for (const line of lines) {
     const trimmed = line.trim().toUpperCase();
 
-    // Pass through comments and empty lines
+    // Pass through comments and empty lines unchanged
     if (!trimmed || trimmed.startsWith('(') || trimmed.startsWith(';') || trimmed.startsWith('%')) {
       output.push(line);
       continue;
@@ -172,15 +207,15 @@ function applyZCompensation(gcodeContent, mesh, gridParams, referenceZ) {
     if (trimmed.includes('G90') && !trimmed.includes('G90.1')) isAbsolute = true;
     if (trimmed.includes('G91') && !trimmed.includes('G91.1')) isAbsolute = false;
 
-    // Pass through machine coordinate moves unchanged
+    // Pass machine-coordinate moves through unchanged
     if (trimmed.includes('G53')) {
       output.push(line);
       continue;
     }
 
     // Track motion mode
-    if (trimmed.match(/^G0\b/) || trimmed.includes(' G0 ') || trimmed.includes(' G0')) currentGMode = 'G0';
-    if (trimmed.match(/^G1\b/) || trimmed.includes(' G1 ') || trimmed.includes(' G1')) currentGMode = 'G1';
+    if (trimmed.match(/^G0\b/) || trimmed.includes(' G0 ') || trimmed.endsWith(' G0')) currentGMode = 'G0';
+    if (trimmed.match(/^G1\b/) || trimmed.includes(' G1 ') || trimmed.endsWith(' G1')) currentGMode = 'G1';
     if (trimmed.match(/^G2\b/) || trimmed.includes(' G2 ')) currentGMode = 'G2';
     if (trimmed.match(/^G3\b/) || trimmed.includes(' G3 ')) currentGMode = 'G3';
 
@@ -199,18 +234,18 @@ function applyZCompensation(gcodeContent, mesh, gridParams, referenceZ) {
     if (zMatch) targetZ = isAbsolute ? parseFloat(zMatch[1]) : currentZ + parseFloat(zMatch[1]);
 
     const isLinearMove = currentGMode === 'G1';
-    const isRapidMove = currentGMode === 'G0';
+    const isRapidMove  = currentGMode === 'G0';
     const hasXY = xMatch || yMatch;
-    const hasZ = zMatch !== null;
+    const hasZ  = zMatch !== null;
 
     if (isLinearMove && hasXY && isAbsolute) {
-      // Calculate move distance in XY plane
+      // Linear move with XY component — subdivide for smooth surface following
       const dx = targetX - currentX;
       const dy = targetY - currentY;
       const distance = Math.sqrt(dx * dx + dy * dy);
 
       if (distance > segmentLength) {
-        // Subdivide the move for smooth surface following
+        // Subdivide into segments
         const segments = Math.ceil(distance / segmentLength);
         const dz = targetZ - currentZ;
 
@@ -218,30 +253,24 @@ function applyZCompensation(gcodeContent, mesh, gridParams, referenceZ) {
           const t = i / segments;
           const segX = currentX + dx * t;
           const segY = currentY + dy * t;
-          const segZ = currentZ + dz * t;
+          const segZ = currentZ + dz * t; // linear Z progression from original
 
           const meshZ = interpolateZ(segX, segY, mesh, gridParams);
-          const zOffset = meshZ - referenceZ;
-          const compensatedZ = segZ + zOffset;
+          const compensatedZ = segZ + (meshZ - referenceZ);
 
-          let segCmd = 'G1';
-          segCmd += ` X${segX.toFixed(3)}`;
-          segCmd += ` Y${segY.toFixed(3)}`;
-          segCmd += ` Z${compensatedZ.toFixed(3)}`;
+          let segCmd = `G1 X${segX.toFixed(3)} Y${segY.toFixed(3)} Z${compensatedZ.toFixed(3)}`;
           if (i === 1 && currentFeedRate) segCmd += ` F${currentFeedRate.toFixed(0)}`;
-
           output.push(segCmd);
         }
       } else {
-        // Short move — compensate endpoint, always add Z for surface following
+        // Short move — compensate endpoint Z only
         const meshZ = interpolateZ(targetX, targetY, mesh, gridParams);
-        const zOffset = meshZ - referenceZ;
-        const compensatedZ = targetZ + zOffset;
+        const compensatedZ = targetZ + (meshZ - referenceZ);
 
         if (hasZ) {
-          const newLine = line.replace(/Z([+-]?\d*\.?\d+)/i, `Z${compensatedZ.toFixed(3)}`);
-          output.push(newLine);
+          output.push(line.replace(/Z([+-]?\d*\.?\d+)/i, `Z${compensatedZ.toFixed(3)}`));
         } else {
+          // XY-only move — insert compensated Z before F, or append at end
           let newLine = line.trim();
           if (currentFeedRate && newLine.match(/F[\d.]+/i)) {
             newLine = newLine.replace(/(F[\d.]+)/i, `Z${compensatedZ.toFixed(3)} $1`);
@@ -252,32 +281,25 @@ function applyZCompensation(gcodeContent, mesh, gridParams, referenceZ) {
         }
       }
     } else if (isRapidMove && hasXY && isAbsolute) {
-      // Rapid move with XY — compensate Z at endpoint
+      // Rapid move with XY — compensate Z at endpoint (no subdivision)
       const meshZ = interpolateZ(targetX, targetY, mesh, gridParams);
-      const zOffset = meshZ - referenceZ;
-      const compensatedZ = targetZ + zOffset;
+      const compensatedZ = targetZ + (meshZ - referenceZ);
 
       if (hasZ) {
-        const newLine = line.replace(/Z([+-]?\d*\.?\d+)/i, `Z${compensatedZ.toFixed(3)}`);
-        output.push(newLine);
+        output.push(line.replace(/Z([+-]?\d*\.?\d+)/i, `Z${compensatedZ.toFixed(3)}`));
+      } else if (currentZ < WORKING_HEIGHT_THRESHOLD_MM) {
+        // Only inject Z on rapid moves that are at working height (not retracted)
+        output.push(line.trim() + ` Z${compensatedZ.toFixed(3)}`);
       } else {
-        // Only add Z to rapid moves at working height (below safe retract threshold of 10mm)
-        if (currentZ < 10) {
-          const newLine = line.trim() + ` Z${compensatedZ.toFixed(3)}`;
-          output.push(newLine);
-        } else {
-          output.push(line);
-        }
+        output.push(line);
       }
     } else if (hasZ && isAbsolute) {
       // Z-only move — compensate at current XY position
       const meshZ = interpolateZ(targetX, targetY, mesh, gridParams);
-      const zOffset = meshZ - referenceZ;
-      const compensatedZ = targetZ + zOffset;
-      const newLine = line.replace(/Z([+-]?\d*\.?\d+)/i, `Z${compensatedZ.toFixed(3)}`);
-      output.push(newLine);
+      const compensatedZ = targetZ + (meshZ - referenceZ);
+      output.push(line.replace(/Z([+-]?\d*\.?\d+)/i, `Z${compensatedZ.toFixed(3)}`));
     } else {
-      // No coordinates or not absolute — pass through
+      // No coordinates, arc move, or incremental — pass through unchanged
       output.push(line);
     }
 
@@ -290,13 +312,11 @@ function applyZCompensation(gcodeContent, mesh, gridParams, referenceZ) {
   return output.join('\n');
 }
 
-// ── Mesh file persistence ────────────────────────────────────────────────────
+// ── Mesh file persistence ─────────────────────────────────────────────────────
 
 async function saveMeshToFile(mesh, gridParams) {
   const filePath = getMeshFilePath();
-  const dir = path.dirname(filePath);
-
-  await fs.mkdir(dir, { recursive: true });
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
 
   const data = {
     version: 1,
@@ -310,47 +330,46 @@ async function saveMeshToFile(mesh, gridParams) {
 }
 
 async function loadMeshFromFile() {
-  const filePath = getMeshFilePath();
-
-  const content = await fs.readFile(filePath, 'utf8');
+  const content = await fs.readFile(getMeshFilePath(), 'utf8');
   const data = JSON.parse(content);
-
-  return {
-    mesh: data.mesh,
-    gridParams: data.gridParams
-  };
+  return { mesh: data.mesh, gridParams: data.gridParams };
 }
 
-// ── Plugin lifecycle ─────────────────────────────────────────────────────────
+// ── Apply-compensation polling state ─────────────────────────────────────────
 
 let lastProcessedTimestamp = 0;
 let checkIntervalId = null;
-let __edgeProbeTimer = null;
+
+// ── Plugin lifecycle ──────────────────────────────────────────────────────────
 
 export async function onLoad(ctx) {
-  ctx.log('3D Live Edge Mesh Combined v2.1.0 plugin loaded');
+  try { ctx.log('3D Live Edge Mesh Combined v19.0.0 plugin loaded'); } catch (e) {}
 
-  // Try to load saved mesh on startup
+  // Load persisted mesh on startup
   try {
     const { mesh, gridParams } = await loadMeshFromFile();
     currentMesh = mesh;
     meshGridParams = gridParams;
     ctx.log('Loaded saved mesh:', gridParams.cols, 'x', gridParams.rows);
-  } catch (error) {
-    // No saved mesh — that's fine
+  } catch (_err) {
+    // No saved mesh on disk — that is fine, start empty
   }
 
-  // Periodically check for applyCompensation flag in settings
+  // Poll every 500 ms for the applyCompensation trigger from the client
   checkIntervalId = setInterval(async () => {
     try {
       const settings = ctx.getSettings() || {};
 
-      if (settings.applyCompensation && settings.applyTimestamp && settings.applyTimestamp > lastProcessedTimestamp) {
+      if (
+        settings.applyCompensation &&
+        settings.applyTimestamp &&
+        settings.applyTimestamp > lastProcessedTimestamp
+      ) {
         ctx.log('Processing applyCompensation request, timestamp:', settings.applyTimestamp);
         lastProcessedTimestamp = settings.applyTimestamp;
 
-        const mesh = settings.meshData?.mesh || currentMesh;
-        const gridParams = settings.meshData?.gridParams || meshGridParams;
+        const mesh       = settings.meshData?.mesh       || currentMesh;
+        const gridParams = settings.meshData?.gridParams  || meshGridParams;
 
         if (!mesh || !gridParams) {
           ctx.log('No mesh data available for compensation');
@@ -362,15 +381,15 @@ export async function onLoad(ctx) {
           return;
         }
 
-        // Update in-memory mesh
+        // Update in-memory copy
         if (settings.meshData) {
-          currentMesh = settings.meshData.mesh;
-          meshGridParams = settings.meshData.gridParams;
+          currentMesh      = settings.meshData.mesh;
+          meshGridParams   = settings.meshData.gridParams;
         }
 
         try {
           const cacheFilePath = path.join(getUserDataDir(), 'gcode-cache', 'current.gcode');
-          const gcodeContent = await fs.readFile(cacheFilePath, 'utf8');
+          const gcodeContent  = await fs.readFile(cacheFilePath, 'utf8');
 
           const referenceZ = settings.referenceZ ?? 0;
           ctx.log('Applying Z compensation with referenceZ:', referenceZ);
@@ -378,18 +397,18 @@ export async function onLoad(ctx) {
 
           const compensatedGcode = applyZCompensation(gcodeContent, mesh, gridParams, referenceZ);
 
-          const serverState = ctx.getServerState();
+          const serverState      = ctx.getServerState();
           const originalFilename = serverState?.jobLoaded?.filename || 'program.nc';
-          const outputFilename = originalFilename.replace(/\.[^.]+$/, '') + '_compensated.nc';
+          const outputFilename   = originalFilename.replace(/\.[^.]+$/, '') + '_compensated.nc';
 
           ctx.log('Loading compensated file:', outputFilename);
 
-          const response = await fetch('http://localhost:8090/api/gcode-files/load-temp', {
-            method: 'POST',
+          const response = await fetch(`${NCSENDER_API_BASE}/api/gcode-files/load-temp`, {
+            method:  'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              content: compensatedGcode,
-              filename: outputFilename,
+            body:    JSON.stringify({
+              content:    compensatedGcode,
+              filename:   outputFilename,
               sourceFile: originalFilename
             })
           });
@@ -406,99 +425,69 @@ export async function onLoad(ctx) {
             ctx.setSettings({
               ...settings,
               applyCompensation: false,
-              lastApplyResult: { success: false, error: 'Failed to load compensated file' }
+              lastApplyResult: { success: false, error: 'Failed to load compensated file: HTTP ' + response.status }
             });
           }
-        } catch (error) {
-          ctx.log('Apply compensation error:', error.message);
+        } catch (err) {
+          ctx.log('Apply compensation error:', err.message);
           ctx.setSettings({
             ...settings,
             applyCompensation: false,
-            lastApplyResult: { success: false, error: error.message }
+            lastApplyResult: { success: false, error: err.message }
           });
         }
       }
 
-      // Handle saveMeshFile requests
-      if (settings.saveMeshFile && settings.meshData) {
-        try {
-          currentMesh = settings.meshData.mesh;
-          meshGridParams = settings.meshData.gridParams;
-          const filePath = await saveMeshToFile(currentMesh, meshGridParams);
-          ctx.log('Mesh saved to file:', filePath);
-          ctx.setSettings({
-            ...settings,
-            saveMeshFile: false
-          });
-        } catch (error) {
-          ctx.log('Failed to save mesh file:', error.message);
-          ctx.setSettings({
-            ...settings,
-            saveMeshFile: false
-          });
-        }
-      }
-
-      // Handle loadMeshFile requests
-      if (settings.loadMeshFile) {
-        try {
-          const { mesh: loadedMesh, gridParams: loadedParams } = await loadMeshFromFile();
-          currentMesh = loadedMesh;
-          meshGridParams = loadedParams;
-          ctx.log('Loaded mesh from file:', loadedParams.cols, 'x', loadedParams.rows);
-          ctx.setSettings({
-            ...settings,
-            loadMeshFile: false,
-            meshData: { mesh: currentMesh, gridParams: meshGridParams },
-            lastLoadResult: { success: true, cols: loadedParams.cols, rows: loadedParams.rows }
-          });
-        } catch (error) {
-          ctx.log('Failed to load mesh from file:', error.message);
-          ctx.setSettings({
-            ...settings,
-            loadMeshFile: false,
-            lastLoadResult: { success: false, error: error.message }
-          });
-        }
-      }
-
-      // Handle analyzeGCode requests
-      if (settings.analyzeGCode && settings.analyzeTimestamp && settings.analyzeTimestamp > (settings.lastAnalyzeTimestamp || 0)) {
+      // Handle requestBounds trigger — client wants G-code bounding box
+      if (settings.requestBounds === true) {
         try {
           const cacheFilePath = path.join(getUserDataDir(), 'gcode-cache', 'current.gcode');
-          const gcodeContent = await fs.readFile(cacheFilePath, 'utf8');
+          const gcodeContent  = await fs.readFile(cacheFilePath, 'utf8');
           const bounds = analyzeGCodeBounds(gcodeContent);
-          ctx.log('G-code bounds:', JSON.stringify(bounds));
           ctx.setSettings({
             ...settings,
-            analyzeGCode: false,
-            lastAnalyzeTimestamp: settings.analyzeTimestamp,
-            gcodeBounds: bounds
+            requestBounds: false,
+            lastBoundsResult: { success: true, bounds }
           });
-        } catch (error) {
-          ctx.log('Failed to analyze G-code:', error.message);
+        } catch (err) {
           ctx.setSettings({
             ...settings,
-            analyzeGCode: false,
-            lastAnalyzeTimestamp: settings.analyzeTimestamp,
-            gcodeBounds: null
+            requestBounds: false,
+            lastBoundsResult: { success: false, error: err.message }
           });
         }
       }
-    } catch (error) {
-      // Ignore check errors
+    } catch (_err) {
+      // Silently ignore polling errors
     }
   }, 500);
+
+  // Listen for mesh saves pushed from the client over WebSocket
+  try {
+    ctx.onWebSocketEvent('plugin:edgeprobe:save-mesh', async (data) => {
+      if (data && data.mesh && data.gridParams) {
+        currentMesh    = data.mesh;
+        meshGridParams = data.gridParams;
+        try {
+          await saveMeshToFile(currentMesh, meshGridParams);
+          ctx.log('Mesh saved to file via WebSocket event');
+        } catch (err) {
+          ctx.log('Failed to save mesh to file:', err.message);
+        }
+      }
+    });
+  } catch (_err) {
+    // ctx.onWebSocketEvent may not be available in all versions — ignore
+  }
 }
 
 export async function onUnload(ctx) {
-  try { if (__edgeProbeTimer) clearInterval(__edgeProbeTimer); } catch (e) {}
-  __edgeProbeTimer = null;
-
-  if (checkIntervalId) {
-    clearInterval(checkIntervalId);
-    checkIntervalId = null;
-  }
-
-  ctx.log('3D Live Edge Mesh Combined v2.1.0 plugin unloaded');
+  try {
+    if (checkIntervalId) clearInterval(checkIntervalId);
+  } catch (_e) {}
+  checkIntervalId = null;
+  try { ctx.log('3D Live Edge Mesh Combined v19.0.0 plugin unloaded'); } catch (e) {}
 }
+
+// Export core functions for testing
+export { analyzeGCodeBounds, interpolateZ, applyZCompensation, getUserDataDir, getMeshFilePath };

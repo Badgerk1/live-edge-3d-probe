@@ -6,7 +6,7 @@
   "entry": "index.js",
   "configUi": "config.html",
   "author": "Badgerk1",
-  "description": "Combined 3D Live Edge Mesh + Surface Mesh Probe — 1D/2D top probing, face probing, bilinear Z compensation with move subdivision, mesh visualization, G-code bounds analysis, server-side mesh persistence, workflow management.",
+  "description": "Combined 3D Live Edge Mesh + Surface Mesh Probe — 1D/2D top probing, face probing, bilinear Z compensation, mesh visualization, workflow management.",
   "category": "gcode-generator",
   "priority": 50,
   "platforms": { "v1": "0.3.131", "pro-v1": "0.3.131", "pro-v2": "2.0.0" },

@@ -90,6 +90,9 @@
     #surface-edge-mesh-root .jog-btn.stop{background:linear-gradient(180deg,#dd5a49,#c94036);border-color:#ef8f80}
     #surface-edge-mesh-root .jog-btn.resume{background:linear-gradient(180deg,#3a9d5d,#2d7a49);border-color:#7fd39a}
     #surface-edge-mesh-root .jog-btn.disabled,#surface-edge-mesh-root .jog-btn:disabled{opacity:.5;cursor:not-allowed}
+    #surface-edge-mesh-root .btn,#surface-edge-mesh-root .tab,#surface-edge-mesh-root .jog-btn,#surface-edge-mesh-root .jog-pill{transition:transform 0.1s ease,opacity 0.1s ease,background-color 0.15s ease,border-color 0.15s ease}
+    #surface-edge-mesh-root .btn:active:not(:disabled),#surface-edge-mesh-root .tab:active{transform:scale(0.96);opacity:0.85;transition:transform 0.05s ease,opacity 0.05s ease}
+    #surface-edge-mesh-root .jog-btn:active:not(:disabled),#surface-edge-mesh-root .jog-pill:active{transform:scale(0.94);opacity:0.82;transition:transform 0.05s ease,opacity 0.05s ease}
     #surface-edge-mesh-root .jog-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
     #surface-edge-mesh-root .jog-meta .field input{padding:9px 10px}
     #surface-edge-mesh-root .jog-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
@@ -170,7 +173,7 @@
       <img src="live_edge_icon_small.png" alt="Live edge wood slab with bark">
       <div class="brand-copy">
         <div class="title">3D Live Edge Mesh Combined</div>
-        <div class="subtitle" id="sm-version-subtitle"><span id="sm-version-tag">V19.0</span> &middot; Surface &amp; Face probe &middot; Unified 3D visualizer &middot; 2D bilinear Z compensation &middot; Move subdivision</div>
+        <div class="subtitle" id="sm-version-subtitle"><span id="sm-version-tag">V19.0.0</span> &middot; Surface &amp; Face probe &middot; Unified 3D visualizer &middot; 2D bilinear Z compensation</div>
       </div>
     </div>
     <div id="hdr-conn" class="mini" style="color:var(--muted)">Ready</div>
@@ -284,6 +287,9 @@
             </div>
 
             <div class="probe-note">All probe dimensions are editable so different 3D probes can be used. Auto total = upper section height + main body height + stylus length.</div>
+            <div class="btn-row" style="margin-top:8px">
+              <button class="btn" id="btn-save-probe-dims" type="button">&#128190; Save Probe Dimensions</button>
+            </div>
           </div>
         </div>
       </div>
@@ -891,6 +897,82 @@
         <button class="btn ghost" id="btn-export-face-obj" title="Export face mesh as OBJ">&#129518; Export OBJ</button>
       </div>
     </div>
+
+    <!-- ── Apply Face Compensation ───────────────────────────────────── -->
+    <div class="panel" id="face-apply-panel">
+      <div class="box-title">&#9881; Apply Face Compensation</div>
+      <div class="callout mini" style="margin-bottom:10px">Load a G-code file and apply face mesh compensation. The compensated G-code adjusts the face axis (Y or X) at each depth based on the probed face contour.</div>
+
+      <!-- G-code file loader -->
+      <div class="field" style="margin-bottom:10px">
+        <label>Load G-code File</label>
+        <input type="file" id="face-gcodeFile" accept=".nc,.gcode,.tap,.txt" style="display:block;margin-top:4px;width:100%;font-size:12px">
+        <div class="mini" id="face-gcode-file-status" style="color:var(--muted);margin-top:4px">No file loaded</div>
+      </div>
+
+      <!-- Face mesh grid info -->
+      <div class="status-line mini" id="face-comp-grid-info" style="margin-bottom:10px;color:var(--muted)">No face mesh loaded &mdash; run a face probe or load face mesh above.</div>
+
+      <!-- Reference position -->
+      <div class="field" style="max-width:280px;margin-bottom:14px">
+        <label>Reference Face Position (mm)</label>
+        <input type="number" id="face-compRefPos" value="0" step="0.1">
+        <div class="mini" style="margin-top:3px;color:var(--muted)">Nominal flat face Y (or X) position used as the zero offset for compensation.</div>
+      </div>
+
+      <!-- Apply parameters (xStep, zStep, feedCut, feedTravel) -->
+      <div style="font-size:12px;font-weight:600;color:var(--accent2);margin-bottom:8px">Compensation Parameters</div>
+      <div class="grid three" style="margin-bottom:14px">
+        <div class="field">
+          <label>X Step (mm)</label>
+          <input type="number" id="face-xStep" value="2" step="0.1" min="0.01">
+        </div>
+        <div class="field">
+          <label>Z Step (mm)</label>
+          <input type="number" id="face-zStep" value="1" step="0.1" min="0.01">
+        </div>
+        <div class="field">
+          <label>Feed Cut (mm/min)</label>
+          <input type="number" id="face-feedCut" value="300" step="10" min="1">
+        </div>
+        <div class="field">
+          <label>Feed Travel (mm/min)</label>
+          <input type="number" id="face-feedTravel" value="1200" step="10" min="1">
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="btn-row" style="margin-bottom:10px">
+        <button class="btn" id="face-btn-apply-comp">&#9654; Apply Compensation</button>
+        <button class="btn ghost" id="face-btn-preview-toolpath" disabled>&#128208; Preview Toolpath</button>
+        <button class="btn ghost" id="face-btn-download-comp" disabled>&#8659; Download .nc</button>
+        <button class="btn secondary" id="face-btn-send-ncsender" disabled>&#9654;&#9654; Send to ncSender</button>
+      </div>
+
+      <!-- Status and NCsender note -->
+      <div class="status-line" id="face-applyStatus" style="margin-bottom:8px"></div>
+      <div class="callout mini" id="face-ncsender-note" style="display:none;margin-bottom:10px"></div>
+
+      <!-- Toolpath preview (SVG, shown after apply + preview click) -->
+      <div id="face-toolpath-preview-wrap" style="display:none;margin-bottom:10px">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">
+          <span id="face-tp-axis-label">Toolpath Preview</span>
+        </div>
+        <svg id="face-toolpath-svg" width="100%" height="220" style="display:block;background:#0d111a;border:1px solid var(--line);border-radius:8px"></svg>
+        <div id="face-tp-legend" class="mini" style="color:var(--muted);margin-top:4px"></div>
+      </div>
+
+      <!-- G-code preview (first 30 lines) -->
+      <div id="face-apply-preview-wrap" style="display:none;margin-bottom:10px">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Compensated G-code preview (first 30 lines):</div>
+        <pre id="face-apply-preview" style="background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px;font-size:11px;max-height:160px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;margin:0"></pre>
+      </div>
+
+      <!-- Apply log -->
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Apply Log</div>
+      <div id="face-applyLog" class="log-area mono" style="height:100px;overflow-y:auto"></div>
+    </div><!-- /face-apply-panel -->
+
   </div><!-- /face-mesh-section -->
 
   <!-- ── Unified Probe Log ───────────────────────────────────────────── -->
@@ -1114,71 +1196,154 @@
     <!-- ── APPLY TAB ─────────────────────────────────────────────────── -->
     <div class="tab-panel" id="pane-apply">
 
-      <!-- G-code Source -->
+      <!-- Status indicators -->
       <div class="panel">
-        <div class="box-title">&#128196; G-code Source</div>
-        <div class="callout mini" style="margin-bottom:10px">Load the G-code program to apply Z compensation. You can paste G-code, load from a file, or use the currently loaded program in ncSender.</div>
-        <div class="btn-row" style="margin-bottom:10px">
-          <button class="btn" id="apply-btn-load-ncsender" onclick="applyLoadGcodeFromNcSender()">&#128268; Load from ncSender</button>
-          <button class="btn ghost" id="apply-btn-load-file" onclick="document.getElementById('apply-gcode-file-input').click()">&#128194; Load from File</button>
-          <input type="file" id="apply-gcode-file-input" accept=".nc,.gcode,.ngc,.tap,.txt" style="display:none">
-          <button class="btn ghost" id="apply-btn-analyze-bounds" onclick="applyAnalyzeGcodeBounds()" title="Analyze loaded G-code to get XY bounding box (uses server-side analysis)">&#128270; Analyze Bounds</button>
+        <div class="box-title">&#9889; Apply Z Compensation to G-code</div>
+        <div class="callout mini" style="margin-bottom:12px">
+          Load a G-code file in ncSender and run surface probing first, then use this tab to apply Z compensation.
+          The server-side engine subdivides long moves for smooth surface following.
         </div>
-        <div class="status-line" id="apply-gcode-status" style="margin-top:6px">No G-code loaded</div>
-        <div id="apply-gcode-bounds-info" class="callout mini" style="margin-top:8px;display:none"></div>
+        <div class="field" style="margin-bottom:12px">
+          <label>Mesh Source</label>
+          <select id="apply-mesh-source" onchange="applyTabRefresh()">
+            <option value="surface" selected>Top Surface (2D Grid)</option>
+            <option value="face">Face Surface</option>
+          </select>
+        </div>
+        <div id="apply-status-mesh" class="status-line" style="margin-bottom:6px">&#8226; Checking mesh&hellip;</div>
+        <div id="apply-status-gcode" class="status-line" style="margin-bottom:6px">&#8226; Checking G-code&hellip;</div>
+        <div id="apply-ready-status" class="status-line" style="margin-bottom:0"></div>
       </div>
 
-      <!-- Surface Z Compensation -->
-      <div class="panel">
-        <div class="box-title">&#9889; Surface Z Compensation</div>
-        <div class="callout mini" style="margin-bottom:10px">Apply bilinear Z compensation from the surface mesh to the loaded G-code. <strong>Subdivide moves</strong> splits long linear moves into short segments that follow the mesh surface for smooth curves.</div>
-        <div class="grid two" style="margin-bottom:10px">
-          <div class="field"><label>Reference Z (mm)</label><input type="number" id="apply-refZ" value="0" step="0.001"></div>
+      <!-- ── Surface-specific sections (shown when Mesh Source = surface) ── -->
+      <div id="apply-surface-sections">
+
+        <!-- G-code info + Auto Grid -->
+        <div class="panel">
+          <div class="box-title">G-code Information</div>
           <div class="field">
-            <label>&nbsp;</label>
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:6px">
-              <input type="checkbox" id="apply-subdivide" checked>
-              <span>Subdivide moves (smooth surface following)</span>
-            </label>
+            <label>Loaded file</label>
+            <input type="text" id="apply-gcode-filename" readonly placeholder="No G-code loaded" style="background:var(--input-bg,#181818)">
+          </div>
+          <div class="field">
+            <label>XY Bounds</label>
+            <input type="text" id="apply-gcode-bounds" readonly placeholder="&mdash;" style="background:var(--input-bg,#181818)">
+          </div>
+          <div class="btn-row" style="margin-top:10px">
+            <button class="btn ghost" id="apply-btn-auto-grid" title="Set probe grid Min/Max from loaded G-code bounds">&#8635; Auto Grid from G-code</button>
+            <button class="btn ghost" id="apply-btn-refresh" title="Refresh G-code and mesh status">&#8635; Refresh Status</button>
+          </div>
+          <div class="status-line" id="apply-auto-grid-status" style="margin-top:6px"></div>
+        </div>
+
+        <!-- Compensation settings -->
+        <div class="panel">
+          <div class="box-title">Compensation Settings</div>
+          <div class="field">
+            <label>Reference Z (mm)</label>
+            <input type="number" id="apply-refZ" value="0" step="0.1"
+                   title="The Z value in the mesh that represents the flat datum &mdash; usually 0">
+          </div>
+          <div class="callout mini" style="margin-top:8px">
+            Reference Z is subtracted from the mesh Z at each point to compute the height offset.
+            Leave at 0 if the probe touched the surface at Z=0 in machine coordinates.
           </div>
         </div>
-        <div class="btn-row">
-          <button class="btn secondary" id="apply-btn-surface-comp" onclick="applyServerSurfaceCompensation()" disabled>&#9889; Apply Surface Compensation</button>
-          <button class="btn ghost" id="apply-btn-download-surface" onclick="applyDownloadCompensatedGcode('surface')" disabled>&#8659; Download</button>
-          <button class="btn" id="apply-btn-send-ncsender-surface" onclick="applySendToNcSender('surface')" disabled>&#128640; Send to ncSender</button>
-        </div>
-        <div class="status-line" id="apply-surface-status" style="margin-top:8px"></div>
-        <div id="apply-surface-log" class="log-area" style="display:none;margin-top:8px"></div>
-      </div>
 
-      <!-- Face Compensation -->
-      <div class="panel">
-        <div class="box-title">&#128736; Face Compensation</div>
-        <div class="callout mini" style="margin-bottom:10px">Apply face probe compensation to adjust the depth axis (X or Y) based on the face mesh. Requires face probe data.</div>
-        <div class="grid two" style="margin-bottom:10px">
-          <div class="field"><label>Reference Face Position (mm)</label><input type="number" id="apply-face-refPos" value="0" step="0.001"></div>
-          <div class="field">
-            <label>Face Axis</label>
-            <select id="apply-face-axis">
-              <option value="Y" selected>Y</option>
-              <option value="X">X</option>
-            </select>
+        <!-- Apply button and result -->
+        <div class="panel">
+          <div class="box-title">Apply</div>
+          <div class="btn-row">
+            <button class="btn" id="apply-btn-apply" disabled>&#9889; Apply Z Compensation</button>
+          </div>
+          <div id="apply-result-status" class="status-line" style="margin-top:10px"></div>
+          <div id="apply-log" class="probe-log" style="margin-top:10px;max-height:160px;overflow-y:auto;display:none"></div>
+        </div>
+
+      </div><!-- /apply-surface-sections -->
+
+      <!-- ── Face-specific sections (shown when Mesh Source = face) ──── -->
+      <div id="apply-face-sections" style="display:none">
+
+        <div class="panel">
+          <div class="box-title">&#9881; Face Compensation</div>
+          <div class="callout mini" style="margin-bottom:10px">Load a G-code file and apply face mesh compensation. The compensated G-code adjusts the face axis (Y or X) at each depth based on the probed face contour.</div>
+
+          <!-- G-code file loader -->
+          <div class="field" style="margin-bottom:10px">
+            <label>Load G-code File</label>
+            <input type="file" id="apply-face-gcodeFile" accept=".nc,.gcode,.tap,.txt" style="display:block;margin-top:4px;width:100%;font-size:12px">
+            <div class="mini" id="apply-face-gcode-file-status" style="color:var(--muted);margin-top:4px">No file loaded</div>
+          </div>
+
+          <!-- Face mesh grid info -->
+          <div class="status-line mini" id="apply-face-comp-grid-info" style="margin-bottom:10px;color:var(--muted)">No face mesh loaded &mdash; run a face probe or load face mesh first.</div>
+
+          <!-- Reference position -->
+          <div class="field" style="max-width:280px;margin-bottom:14px">
+            <label>Reference Face Position (mm)</label>
+            <input type="number" id="apply-face-compRefPos" value="0" step="0.1">
+            <div class="mini" style="margin-top:3px;color:var(--muted)">Nominal flat face Y (or X) position used as the zero offset for compensation.</div>
           </div>
         </div>
-        <div class="btn-row">
-          <button class="btn secondary" id="apply-btn-face-comp" onclick="applyFaceCompensationFromTab()" disabled>&#128736; Apply Face Compensation</button>
-          <button class="btn ghost" id="apply-btn-download-face" onclick="applyDownloadCompensatedGcode('face')" disabled>&#8659; Download</button>
-          <button class="btn" id="apply-btn-send-ncsender-face" onclick="applySendToNcSender('face')" disabled>&#128640; Send to ncSender</button>
-        </div>
-        <div class="status-line" id="apply-face-status" style="margin-top:8px"></div>
-        <div id="apply-face-log" class="log-area" style="display:none;margin-top:8px"></div>
-      </div>
 
-      <!-- G-code Preview -->
-      <div class="panel">
-        <div class="box-title">&#128203; Compensated G-code Preview</div>
-        <pre id="apply-preview" class="mono" style="max-height:200px;overflow-y:auto;padding:10px;border:1px solid var(--line);border-radius:10px;background:#0d111a;font-size:11px;white-space:pre-wrap;color:var(--muted)">No compensated G-code yet</pre>
-      </div>
+        <!-- Compensation Parameters -->
+        <div class="panel">
+          <div class="box-title">Compensation Parameters</div>
+          <div class="grid three" style="margin-bottom:14px">
+            <div class="field">
+              <label>X Step (mm)</label>
+              <input type="number" id="apply-face-xStep" value="2" step="0.1" min="0.01">
+            </div>
+            <div class="field">
+              <label>Z Step (mm)</label>
+              <input type="number" id="apply-face-zStep" value="1" step="0.1" min="0.01">
+            </div>
+            <div class="field">
+              <label>Feed Cut (mm/min)</label>
+              <input type="number" id="apply-face-feedCut" value="300" step="10" min="1">
+            </div>
+            <div class="field">
+              <label>Feed Travel (mm/min)</label>
+              <input type="number" id="apply-face-feedTravel" value="1200" step="10" min="1">
+            </div>
+          </div>
+        </div>
+
+        <!-- Action buttons and results -->
+        <div class="panel">
+          <div class="box-title">Apply</div>
+          <div class="btn-row" style="margin-bottom:10px">
+            <button class="btn" id="apply-face-btn-apply" disabled>&#9654; Apply Compensation</button>
+            <button class="btn ghost" id="apply-face-btn-preview" disabled>&#128208; Preview Toolpath</button>
+            <button class="btn ghost" id="apply-face-btn-download" disabled>&#8659; Download .nc</button>
+            <button class="btn secondary" id="apply-face-btn-send" disabled>&#9654;&#9654; Send to ncSender</button>
+          </div>
+
+          <div class="status-line" id="apply-face-status" style="margin-bottom:8px"></div>
+          <div class="callout mini" id="apply-face-ncsender-note" style="display:none;margin-bottom:10px"></div>
+
+          <!-- Toolpath preview SVG -->
+          <div id="apply-face-toolpath-wrap" style="display:none;margin-bottom:10px">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">
+              <span id="apply-face-tp-axis-label">Toolpath Preview</span>
+            </div>
+            <svg id="apply-face-toolpath-svg" width="100%" height="220" style="display:block;background:#0d111a;border:1px solid var(--line);border-radius:8px"></svg>
+            <div id="apply-face-tp-legend" class="mini" style="color:var(--muted);margin-top:4px"></div>
+          </div>
+
+          <!-- G-code preview -->
+          <div id="apply-face-preview-wrap" style="display:none;margin-bottom:10px">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Compensated G-code preview (first 30 lines):</div>
+            <pre id="apply-face-preview" style="background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px;font-size:11px;max-height:160px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;margin:0"></pre>
+          </div>
+
+          <!-- Apply log -->
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Apply Log</div>
+          <div id="apply-face-log" class="log-area mono" style="height:100px;overflow-y:auto"></div>
+        </div>
+
+      </div><!-- /apply-face-sections -->
 
     </div><!-- /pane-apply -->
 
@@ -1192,14 +1357,14 @@
       <input type="checkbox" id="chk-plugin-debug" onchange="_pluginDebugMode=this.checked;pluginDebug('Debug logging '+(this.checked?'ENABLED':'DISABLED'));">
       <span>Debug Log</span>
     </label>
-    <div class="mini">3D Live Edge Mesh V19.0</div>
+    <div class="mini">3D Live Edge Mesh Combined V19.0.0</div>
   </div>
 
 </div><!-- /app -->
 
 
 <script>
-var SM_VERSION = 'V19.0';
+var SM_VERSION = 'V19.0.0';
 // ── State ─────────────────────────────────────────────────────────────────────
 var _running = false;
 var _stopRequested = false;
@@ -1216,6 +1381,10 @@ var faceCompensatedGcode = null;
 var faceLastAppliedAxis = 'Y'; // tracks face axis of most recently applied compensation
 var _facePvizRotX = 20, _facePvizRotY = -25, _facePvizRotZ = 0, _faceDragActive = false, _faceDragLastX = 0, _faceDragLastY = 0;
 var FACE_LOG_KEY = 'edgeProbeFaceLog';
+var FACE_APPLY_PARAMS_KEY = 'faceApplyParams';
+var FACE_APPLY_PARAM_DEFAULTS = { xStep: 2, zStep: 1, feedCut: 300, feedTravel: 1200 };
+var APPLY_FACE_PARAMS_KEY = 'applyFaceParams';
+var APPLY_FACE_PARAM_IDS = ['apply-face-xStep', 'apply-face-zStep', 'apply-face-feedCut', 'apply-face-feedTravel'];
 var SAVED_LOCATION_KEY = 'edgeProbeSavedLocation';
 var topLogLines = [];
 var faceLogLines = [];
@@ -1596,15 +1765,11 @@ function getJogSettingsFromUI(){
 }
 
 async function jogBy(dx, dy, dz){
-  var jog = getJogSettingsFromUI();
-  var feed = (dz != null && dx == null && dy == null) ? jog.feedZ : jog.feedXY;
-  if (!isFinite(feed) || feed <= 0) feed = (dz != null) ? 300 : 600;
-  // Use G91 (relative) move — no need to fetch current position first
-  var cmd = 'G91 G1';
+  // Use G91 (relative) rapid move — G0 avoids feed-rate timeouts
+  var cmd = 'G91 G0';
   if (dx != null) cmd += ' X' + Number(dx).toFixed(3);
   if (dy != null) cmd += ' Y' + Number(dy).toFixed(3);
   if (dz != null) cmd += ' Z' + Number(dz).toFixed(3);
-  cmd += ' F' + Number(feed).toFixed(0);
   try {
     await sendCommand(cmd);
     await sendCommand('G90'); // restore absolute positioning mode
@@ -2007,9 +2172,7 @@ async function finishRunMotion(logKind){
   if(returnXYZero){
     logLine(logKind, 'Finish move: returning to work X0.000 Y0.000');
     await moveAbs(0, 0, null, s.travelFeedRate || 600);
-    logLine(logKind, 'Finish move: lowering to work Z0.000');
-    await moveAbs(null, null, 0, s.travelFeedRate || 600);
-    logLine(logKind, 'Finish move: at work origin X0.000 Y0.000 Z0.000');
+    logLine(logKind, 'Finish move: at work X0.000 Y0.000 (Z held at safe height)');
   } else {
     logLine(logKind, 'Finish move: X/Y return disabled (check Return to XYZ Zero setting in Setup)');
   }
@@ -2056,6 +2219,27 @@ function validateSettings(){
   return true;
 }
 
+function saveProbeDimensions(){
+  try{
+    var existing = {};
+    try{ var raw = localStorage.getItem('edgeProbeSettings'); if(raw) existing = JSON.parse(raw); }catch(e){}
+    var dims = {
+      probeShankDiameter: Number((document.getElementById('probeShankDiameter')||{}).value) || 6,
+      probeBodyDiameter: Number((document.getElementById('probeBodyDiameter')||{}).value) || 33,
+      probeUpperHeight: Number((document.getElementById('probeUpperHeight')||{}).value) || 20,
+      probeMainBodyHeight: Number((document.getElementById('probeMainBodyHeight')||{}).value) || 21,
+      probeStylusLength: Number((document.getElementById('probeStylusLength')||{}).value) || 26,
+      probeStylusCalloutLength: Number((document.getElementById('probeStylusCalloutLength')||{}).value) || 14.75,
+      probeBallTipDiameter: Number((document.getElementById('probeBallTipDiameter')||{}).value) || 0,
+      probeTotalLength: Number((document.getElementById('probeTotalLength')||{}).value) || 67
+    };
+    localStorage.setItem('edgeProbeSettings', JSON.stringify(Object.assign(existing, dims)));
+    var el = document.getElementById('setup-status');
+    if(el){ el.textContent = 'Probe dimensions saved.'; el.className = 'status-line good'; }
+    setTimeout(function(){ var el = document.getElementById('setup-status'); if(el){ el.textContent = ''; el.className = 'status-line'; } }, 2500);
+  }catch(e){ console.error(e); }
+}
+
 function saveSettings(){
   validateSettings();
   try{
@@ -2099,7 +2283,9 @@ function _applySettingsToUI(cfg){
              'faceFixedCoord','faceStartOffset','faceFeed','faceDepthBelowSurface','faceProbeDistance',
              'faceLayerCount','faceMaxDepth',
              'finishHomeZ','useMachineHomeRetract','machineSafeTopZ','returnToXYZero',
-             'jogStepXY','jogStepZ','jogFeedXY','jogFeedZ'];
+             'jogStepXY','jogStepZ','jogFeedXY','jogFeedZ',
+             'probeShankDiameter','probeBodyDiameter','probeUpperHeight','probeMainBodyHeight',
+             'probeStylusLength','probeStylusCalloutLength','probeBallTipDiameter','probeTotalLength'];
   ids.forEach(function(id){
     var el = document.getElementById(id);
     if(el && cfg[id] != null) el.value = cfg[id];
@@ -2112,6 +2298,7 @@ function _applySettingsToUI(cfg){
   if(jogStepEl) setJogStepPreset(jogStepEl.value || '1');
   refreshFinishBehaviorPreview();
   refreshTravelRecoveryPreview();
+  try{ calcProbeAutoTotalLength(); updateProbeDimensionPreview(); }catch(e){}
 }
 
 
@@ -2170,6 +2357,20 @@ function makeFaceContactRecord(index, pos, axis, status, targetCoord, sampleCoor
     z: Number(pos.z),
     status: status || ('FACE ' + axis)
   };
+}
+
+// Handles early probe contact during a Z descent move. Lifts straight up in +Z only,
+// records an EARLY_CONTACT_FACE_Z_DESCENT result point, and returns true if contact occurred.
+async function _handleFaceZDescentContact(pos, axis, targetCoord, lineCoord, s, faceResults, label){
+    if(!pos.probeTriggered) return false;
+    var liftZ = Number(pos.z) + Math.max(0.1, Number(s.travelContactLift) || Number(s.topRetract) || 5);
+    var suffix = label ? ' (' + label + ')' : '';
+    logLine('face', 'EARLY CONTACT during Z descent at Z=' + Number(pos.z).toFixed(3) + suffix + '. Lifting to Z=' + liftZ.toFixed(3) + ' and skipping sample.');
+    var rec = makeFaceContactRecord(faceResults.length + 1, pos, axis, 'EARLY_CONTACT_FACE_Z_DESCENT', targetCoord, lineCoord);
+    faceResults.push(rec);
+    updateAllResultsUI();
+    await moveAbs(null, null, liftZ, s.travelRecoveryLiftFeedRate || s.travelFeedRate);
+    return true;
 }
 
 
@@ -2785,7 +2986,13 @@ async function runFaceProbe(axis, _calledFromCombined){
           }
           didOptimizedRetract = false;
 
-          await moveAbs(null, null, layerZ, s.travelRecoveryLiftFeedRate || s.travelFeedRate);
+          logLine('face', 'Layer ' + layerNum + ' sample ' + sampleNum + ': lowering to Z=' + layerZ.toFixed(3) + ' using probe move (G38.3 Z).');
+          await sendCommand('G90 G38.3 Z' + Number(layerZ).toFixed(3) + ' F' + Number(s.travelRecoveryLiftFeedRate || s.travelFeedRate).toFixed(0));
+          await waitForIdle();
+          var zDescentPos = await getWorkPosition();
+          if(await _handleFaceZDescentContact(zDescentPos, axis, targetCoord, lineCoord, s, faceResults, 'layer ' + layerNum + ' sample ' + sampleNum)){
+            continue;
+          }
 
           var _layerFeedLog = Number(s.faceFeed || s.topFeed || s.travelFeedRate || 0);
           logLine('face', 'Layer ' + layerNum + ' sample ' + sampleNum + ': probing toward ' + axis + ' ' + targetCoord.toFixed(3) + ' at feed ' + _layerFeedLog.toFixed(0) + ' mm/min.');
@@ -2901,8 +3108,13 @@ async function runFaceProbe(axis, _calledFromCombined){
         await moveAbs(null, startCoord, null, s.travelFeedRate);
       }
 
-      logLine('face', 'At face start. Lowering to face probe Z ' + zForProbe.toFixed(3));
-      await moveAbs(null, null, zForProbe, s.travelRecoveryLiftFeedRate || s.travelFeedRate);
+      logLine('face', 'At face start. Lowering to face probe Z ' + zForProbe.toFixed(3) + ' using probe move (G38.3 Z).');
+      await sendCommand('G90 G38.3 Z' + Number(zForProbe).toFixed(3) + ' F' + Number(s.travelRecoveryLiftFeedRate || s.travelFeedRate).toFixed(0));
+      await waitForIdle();
+      var zDescentPos = await getWorkPosition();
+      if(await _handleFaceZDescentContact(zDescentPos, axis, targetCoord, lineCoord, s, faceResults, null)){
+        continue;
+      }
 
       var _faceFeedLog = Number(s.faceFeed || s.topFeed || s.travelFeedRate || 0); logLine('face', 'At face start. Probing toward ' + axis + ' ' + targetCoord.toFixed(3) + ' at feed ' + _faceFeedLog.toFixed(0) + ' mm/min.');
       var faceAdvance = await segmentedFaceMoveWithRecovery(axis, targetCoord, lineCoord, zForProbe, s, 'probe', lineCoord);
@@ -5134,7 +5346,7 @@ function smSaveReplayHtml() {
     + '<div class="header">'
     +   '<div>'
     +     '<div class="title">3D Live Edge Mesh \u2014 Probe Replay</div>'
-    +     '<div class="subtitle">V18.2 \u00b7 Recorded probe sequence playback \u00b7 Drag to rotate</div>'
+    +     '<div class="subtitle">V19.0.0 \u00b7 Recorded probe sequence playback \u00b7 Drag to rotate</div>'
     +   '</div>'
     + '</div>\n'
     + '<div class="panel">\n'
@@ -5588,24 +5800,29 @@ function exportSurfaceMeshCSV() {
 
 
 function bilinearInterpolateZ(data, cfg, queryX, queryY) {
-  // Single column (Nx1): linear interpolation in Y only
-  if (cfg.colCount === 1) {
-    if (cfg.rowCount === 1) return data[0][0] || 0;
-    var rowF = cfg.rowSpacing > 0 ? (queryY - cfg.minY) / cfg.rowSpacing : 0;
-    var r0 = Math.max(0, Math.min(cfg.rowCount - 2, Math.floor(rowF)));
-    var tz = Math.max(0, Math.min(1, rowF - r0));
-    var za = data[r0][0] || 0;
-    var zb = (data[r0 + 1] ? data[r0 + 1][0] : null) || za;
-    return za * (1 - tz) + zb * tz;
+  // Single point
+  if (cfg.rowCount <= 1 && cfg.colCount <= 1) {
+    return (data[0] && data[0][0] != null) ? data[0][0] : 0;
   }
-  // Single row (1xN): linear interpolation in X only
-  if (cfg.rowCount === 1) {
+  // Single row (1×N): linear interpolation in X only
+  if (cfg.rowCount <= 1) {
     var colF = cfg.colSpacing > 0 ? (queryX - cfg.minX) / cfg.colSpacing : 0;
     var c0 = Math.max(0, Math.min(cfg.colCount - 2, Math.floor(colF)));
-    var tx = Math.max(0, Math.min(1, colF - c0));
-    var z0a = data[0][c0] || 0;
-    var z0b = data[0][c0 + 1] || z0a;
-    return z0a * (1 - tx) + z0b * tx;
+    var c1 = Math.min(cfg.colCount - 1, c0 + 1);
+    var fx2 = Math.max(0, Math.min(1, colF - c0));
+    var za = (data[0] && data[0][c0] != null) ? data[0][c0] : 0;
+    var zb = (data[0] && data[0][c1] != null) ? data[0][c1] : za;
+    return za * (1 - fx2) + zb * fx2;
+  }
+  // Single column (N×1): linear interpolation in Y only
+  if (cfg.colCount <= 1) {
+    var rowF = cfg.rowSpacing > 0 ? (queryY - cfg.minY) / cfg.rowSpacing : 0;
+    var r0 = Math.max(0, Math.min(cfg.rowCount - 2, Math.floor(rowF)));
+    var r1 = Math.min(cfg.rowCount - 1, r0 + 1);
+    var fy2 = Math.max(0, Math.min(1, rowF - r0));
+    var za = (data[r0] && data[r0][0] != null) ? data[r0][0] : 0;
+    var zb = (data[r1] && data[r1][0] != null) ? data[r1][0] : za;
+    return za * (1 - fy2) + zb * fy2;
   }
   // Standard bilinear interpolation for 2D grid
   var col = (queryX - cfg.minX) / cfg.colSpacing;
@@ -5616,10 +5833,10 @@ function bilinearInterpolateZ(data, cfg, queryX, queryY) {
   var row1 = row0 + 1;
   var fx = Math.max(0, Math.min(1, col - col0));
   var fy = Math.max(0, Math.min(1, row - row0));
-  var z00 = data[row0][col0];
-  var z10 = data[row0][col1];
-  var z01 = data[row1][col0];
-  var z11 = data[row1][col1];
+  var z00 = (data[row0] && data[row0][col0] != null) ? data[row0][col0] : 0;
+  var z10 = (data[row0] && data[row0][col1] != null) ? data[row0][col1] : z00;
+  var z01 = (data[row1] && data[row1][col0] != null) ? data[row1][col0] : z00;
+  var z11 = (data[row1] && data[row1][col1] != null) ? data[row1][col1] : z00;
   var z0 = z00 * (1 - fx) + z10 * fx;
   var z1 = z01 * (1 - fx) + z11 * fx;
   return z0 * (1 - fy) + z1 * fy;
@@ -5635,7 +5852,7 @@ function applySurfaceCompensation() {
     var result = smApplyCompensationCore(smOriginalGcode, smMeshData, smGridConfig, refZ);
     smCompensatedGcode = result.gcode;
     var statusEl = document.getElementById('sm-applyStatus');
-    if (statusEl) statusEl.textContent = 'Done. ' + result.modified + ' Z values modified.';
+    if (statusEl) statusEl.textContent = 'Done. ' + result.modified + ' lines compensated.';
     smLogApply('Compensation applied. ' + result.modified + ' lines modified.');
     var preview = smCompensatedGcode.split('\n').slice(0, 30).join('\n');
     var previewEl = document.getElementById('sm-apply-preview');
@@ -5652,7 +5869,9 @@ function applySurfaceCompensation() {
 function smApplyCompensationCore(gcodeText, data, cfg, referenceZ) {
   var lines = gcodeText.split('\n');
   var output = [];
-  var currentX = 0, currentY = 0;
+  var currentX = 0, currentY = 0, currentZ = 0;
+  var isAbsolute = true;
+  var currentGMode = 'G1'; // default motion mode
   var linesModified = 0;
   var zLinesFound = 0;
   var zLinesOutOfBounds = 0;
@@ -5662,22 +5881,39 @@ function smApplyCompensationCore(gcodeText, data, cfg, referenceZ) {
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i].trim();
     if (!line || line.startsWith(';') || line.startsWith('(')) { output.push(lines[i]); continue; }
-    var isMove = /^G[01]\b/i.test(line) || /\b[XYZ][-\d.]/i.test(line);
+
+    // Track absolute/incremental mode
+    if (/\bG90\b/i.test(line) && !/G90\.1/i.test(line)) isAbsolute = true;
+    if (/\bG91\b/i.test(line) && !/G91\.1/i.test(line)) isAbsolute = false;
+
+    // Skip machine-coordinate moves
+    if (/\bG53\b/i.test(line)) { output.push(lines[i]); continue; }
+
+    var isMove = /^G0*[01]\b/i.test(line) || /\b[XYZ][-\d.]/i.test(line);
     if (!isMove) { output.push(lines[i]); continue; }
+
+    // Track motion mode — support both G0/G1 and zero-padded G00/G01
+    if (/\bG0*0\b/i.test(line)) currentGMode = 'G0';
+    if (/\bG0*1\b/i.test(line)) currentGMode = 'G1';
+
     var xMatch = line.match(/X(-?[\d.]+)/i);
     var yMatch = line.match(/Y(-?[\d.]+)/i);
     var zMatch = line.match(/Z(-?[\d.]+)/i);
-    if (xMatch) currentX = parseFloat(xMatch[1]);
-    if (yMatch) currentY = parseFloat(yMatch[1]);
+
+    // Calculate target position
+    var targetX = currentX, targetY = currentY, targetZ = currentZ;
+    if (xMatch) targetX = isAbsolute ? parseFloat(xMatch[1]) : currentX + parseFloat(xMatch[1]);
+    if (yMatch) targetY = isAbsolute ? parseFloat(yMatch[1]) : currentY + parseFloat(yMatch[1]);
+    if (zMatch) targetZ = isAbsolute ? parseFloat(zMatch[1]) : currentZ + parseFloat(zMatch[1]);
 
     if (zMatch) {
       zLinesFound++;
-      var originalZ = parseFloat(zMatch[1]);
+      var originalZ = targetZ;
 
       // Check if within bounds
-      if (currentX >= cfg.minX && currentX <= cfg.maxX &&
-          currentY >= cfg.minY && currentY <= cfg.maxY) {
-        var meshZ = bilinearInterpolateZ(data, cfg, currentX, currentY);
+      if (targetX >= cfg.minX && targetX <= cfg.maxX &&
+          targetY >= cfg.minY && targetY <= cfg.maxY) {
+        var meshZ = bilinearInterpolateZ(data, cfg, targetX, targetY);
         var offset = meshZ - referenceZ;
         var newZ = originalZ + offset;
         line = line.replace(/Z(-?[\d.]+)/i, 'Z' + newZ.toFixed(3));
@@ -5687,8 +5923,8 @@ function smApplyCompensationCore(gcodeText, data, cfg, referenceZ) {
         if (!firstModification) {
           firstModification = {
             lineNum: i + 1,
-            x: currentX.toFixed(3),
-            y: currentY.toFixed(3),
+            x: targetX.toFixed(3),
+            y: targetY.toFixed(3),
             origZ: originalZ.toFixed(3),
             meshZ: meshZ.toFixed(3),
             offset: offset.toFixed(3),
@@ -5700,8 +5936,8 @@ function smApplyCompensationCore(gcodeText, data, cfg, referenceZ) {
         if (linesModified <= 3) {
           sampleModifications.push({
             lineNum: i + 1,
-            x: currentX.toFixed(3),
-            y: currentY.toFixed(3),
+            x: targetX.toFixed(3),
+            y: targetY.toFixed(3),
             origZ: originalZ.toFixed(3),
             meshZ: meshZ.toFixed(3),
             offset: offset.toFixed(3),
@@ -5711,7 +5947,22 @@ function smApplyCompensationCore(gcodeText, data, cfg, referenceZ) {
       } else {
         zLinesOutOfBounds++;
       }
+    } else if (currentGMode === 'G1' && (xMatch || yMatch) && isAbsolute) {
+      // XY-only linear move — add Z compensation so the tool follows the surface
+      if (targetX >= cfg.minX && targetX <= cfg.maxX &&
+          targetY >= cfg.minY && targetY <= cfg.maxY) {
+        var meshZ = bilinearInterpolateZ(data, cfg, targetX, targetY);
+        var compensatedZ = currentZ + (meshZ - referenceZ);
+        line = line + ' Z' + compensatedZ.toFixed(3);
+        linesModified++;
+      }
     }
+
+    // Update tracked position
+    currentX = targetX;
+    currentY = targetY;
+    currentZ = targetZ;
+
     output.push(line);
   }
 
@@ -5791,377 +6042,6 @@ async function sendCompToNcSender(gcodeText, label) {
   }
 }
 
-// ── Apply Tab — G-code loading, compensation, download ────────────────────────
-
-var applyOriginalGcode = null;       // loaded G-code text for Apply tab
-var applySurfaceCompGcode = null;    // compensated surface G-code
-var applyFaceCompGcode = null;       // compensated face G-code
-var PLUGIN_ID = 'com.ncsender.edgeprobe.combined';
-
-function applyLogSurface(msg) {
-  var el = document.getElementById('apply-surface-log');
-  if (!el) return;
-  el.style.display = 'block';
-  var ts = new Date().toTimeString().slice(0, 8);
-  var line = document.createElement('div');
-  line.textContent = '[' + ts + '] ' + msg;
-  el.appendChild(line);
-  el.scrollTop = el.scrollHeight;
-}
-
-function applyLogFace(msg) {
-  var el = document.getElementById('apply-face-log');
-  if (!el) return;
-  el.style.display = 'block';
-  var ts = new Date().toTimeString().slice(0, 8);
-  var line = document.createElement('div');
-  line.textContent = '[' + ts + '] ' + msg;
-  el.appendChild(line);
-  el.scrollTop = el.scrollHeight;
-}
-
-function applyUpdateButtons() {
-  var hasGcode = !!applyOriginalGcode;
-  var hasSurfaceMesh = !!smMeshData && !!smGridConfig;
-  var hasFaceMesh = (typeof _getFaceMeshData === 'function') && !!_getFaceMeshData();
-
-  var surfaceBtn = document.getElementById('apply-btn-surface-comp');
-  if (surfaceBtn) surfaceBtn.disabled = !(hasGcode && hasSurfaceMesh);
-
-  var faceBtn = document.getElementById('apply-btn-face-comp');
-  if (faceBtn) faceBtn.disabled = !(hasGcode && hasFaceMesh);
-
-  var dlSurface = document.getElementById('apply-btn-download-surface');
-  if (dlSurface) dlSurface.disabled = !applySurfaceCompGcode;
-
-  var sendSurface = document.getElementById('apply-btn-send-ncsender-surface');
-  if (sendSurface) sendSurface.disabled = !applySurfaceCompGcode;
-
-  var dlFace = document.getElementById('apply-btn-download-face');
-  if (dlFace) dlFace.disabled = !applyFaceCompGcode;
-
-  var sendFace = document.getElementById('apply-btn-send-ncsender-face');
-  if (sendFace) sendFace.disabled = !applyFaceCompGcode;
-}
-
-async function applyLoadGcodeFromNcSender() {
-  var statusEl = document.getElementById('apply-gcode-status');
-  try {
-    // Try /api/gcode-files/current to get loaded G-code content
-    var r = await fetch('/api/gcode-files/current');
-    if (r.ok) {
-      var data = await r.json();
-      if (data && data.content) {
-        applyOriginalGcode = data.content;
-        var lines = applyOriginalGcode.split('\n').length;
-        if (statusEl) statusEl.textContent = 'Loaded from ncSender: ' + lines + ' lines' + (data.filename ? ' (' + data.filename + ')' : '');
-        statusEl.className = 'status-line good';
-        applyUpdateButtons();
-        return;
-      }
-    }
-    // Fallback: try fetching from cache file path
-    var r2 = await fetch('/api/server-state');
-    if (r2.ok) {
-      var state = await r2.json();
-      var filename = state?.jobLoaded?.filename;
-      if (filename) {
-        // Try to get the file content via gcode-files endpoint
-        var r3 = await fetch('/api/gcode-files/' + encodeURIComponent(filename) + '/content');
-        if (r3.ok) {
-          applyOriginalGcode = await r3.text();
-          var lines = applyOriginalGcode.split('\n').length;
-          if (statusEl) statusEl.textContent = 'Loaded: ' + filename + ' (' + lines + ' lines)';
-          statusEl.className = 'status-line good';
-          applyUpdateButtons();
-          return;
-        }
-      }
-    }
-    if (statusEl) { statusEl.textContent = 'No G-code loaded in ncSender. Load a file first.'; statusEl.className = 'status-line warn'; }
-  } catch(e) {
-    if (statusEl) { statusEl.textContent = 'Error loading from ncSender: ' + e.message; statusEl.className = 'status-line bad'; }
-  }
-}
-
-async function applyAnalyzeGcodeBounds() {
-  if (!applyOriginalGcode) { alert('Load G-code first.'); return; }
-  var boundsEl = document.getElementById('apply-gcode-bounds-info');
-  // Client-side bounds analysis (same algorithm as server)
-  var bounds = { min: { x: Infinity, y: Infinity, z: Infinity }, max: { x: -Infinity, y: -Infinity, z: -Infinity } };
-  var currentX = 0, currentY = 0, currentZ = 0;
-  var isAbsolute = true;
-  var lines = applyOriginalGcode.split('\n');
-  for (var i = 0; i < lines.length; i++) {
-    var trimmed = lines[i].trim().toUpperCase();
-    if (trimmed.startsWith('(') || trimmed.startsWith(';') || trimmed.startsWith('%')) continue;
-    if (trimmed.indexOf('G90') >= 0 && trimmed.indexOf('G90.1') < 0) isAbsolute = true;
-    if (trimmed.indexOf('G91') >= 0 && trimmed.indexOf('G91.1') < 0) isAbsolute = false;
-    if (trimmed.indexOf('G53') >= 0) continue;
-    var xM = trimmed.match(/X([+-]?\d*\.?\d+)/);
-    var yM = trimmed.match(/Y([+-]?\d*\.?\d+)/);
-    var zM = trimmed.match(/Z([+-]?\d*\.?\d+)/);
-    if (xM) { var v = parseFloat(xM[1]); currentX = isAbsolute ? v : currentX + v; }
-    if (yM) { var v2 = parseFloat(yM[1]); currentY = isAbsolute ? v2 : currentY + v2; }
-    if (zM) { var v3 = parseFloat(zM[1]); currentZ = isAbsolute ? v3 : currentZ + v3; }
-    if (xM || yM || zM) {
-      bounds.min.x = Math.min(bounds.min.x, currentX);
-      bounds.min.y = Math.min(bounds.min.y, currentY);
-      bounds.min.z = Math.min(bounds.min.z, currentZ);
-      bounds.max.x = Math.max(bounds.max.x, currentX);
-      bounds.max.y = Math.max(bounds.max.y, currentY);
-      bounds.max.z = Math.max(bounds.max.z, currentZ);
-    }
-  }
-  if (bounds.min.x === Infinity) bounds.min.x = 0;
-  if (bounds.min.y === Infinity) bounds.min.y = 0;
-  if (bounds.min.z === Infinity) bounds.min.z = 0;
-  if (bounds.max.x === -Infinity) bounds.max.x = 0;
-  if (bounds.max.y === -Infinity) bounds.max.y = 0;
-  if (bounds.max.z === -Infinity) bounds.max.z = 0;
-
-  if (boundsEl) {
-    boundsEl.style.display = 'block';
-    boundsEl.innerHTML = '<strong>G-code Bounds:</strong> ' +
-      'X: ' + bounds.min.x.toFixed(2) + ' to ' + bounds.max.x.toFixed(2) +
-      ' &nbsp;|&nbsp; Y: ' + bounds.min.y.toFixed(2) + ' to ' + bounds.max.y.toFixed(2) +
-      ' &nbsp;|&nbsp; Z: ' + bounds.min.z.toFixed(2) + ' to ' + bounds.max.z.toFixed(2) +
-      ' &nbsp;|&nbsp; Size: ' + (bounds.max.x - bounds.min.x).toFixed(2) + ' &times; ' + (bounds.max.y - bounds.min.y).toFixed(2) + ' mm';
-  }
-}
-
-// Apply surface compensation — uses move subdivision for smooth surface following
-function applyServerSurfaceCompensation() {
-  if (!applyOriginalGcode) { alert('Load G-code first.'); return; }
-  if (!smMeshData || !smGridConfig) { alert('No surface mesh data. Run probing or load a mesh first.'); return; }
-
-  var refZ = Number(document.getElementById('apply-refZ').value) || 0;
-  var subdivide = document.getElementById('apply-subdivide').checked;
-  var statusEl = document.getElementById('apply-surface-status');
-  var surfLogEl = document.getElementById('apply-surface-log');
-  if (surfLogEl) surfLogEl.innerHTML = '';
-
-  applyLogSurface('Applying surface Z compensation (Reference Z=' + refZ + ', Subdivide=' + subdivide + ')...');
-
-  if (subdivide) {
-    // Use subdivision compensation — same algorithm as server-side applyZCompensation
-    try {
-      var result = applySubdividedCompensation(applyOriginalGcode, smMeshData, smGridConfig, refZ);
-      applySurfaceCompGcode = result.gcode;
-      applyLogSurface('Done! ' + result.modified + ' moves processed, ' + result.segments + ' segments generated.');
-      if (statusEl) { statusEl.textContent = 'Compensation applied: ' + result.modified + ' moves, ' + result.segments + ' segments (subdivided).'; statusEl.className = 'status-line good'; }
-      applyUpdatePreview(applySurfaceCompGcode);
-      applyUpdateButtons();
-    } catch(e) {
-      applyLogSurface('ERROR: ' + e.message);
-      if (statusEl) { statusEl.textContent = 'Error: ' + e.message; statusEl.className = 'status-line bad'; }
-    }
-  } else {
-    // Use simple compensation (existing smApplyCompensationCore)
-    try {
-      var result = smApplyCompensationCore(applyOriginalGcode, smMeshData, smGridConfig, refZ);
-      applySurfaceCompGcode = result.gcode;
-      applyLogSurface('Done! ' + result.modified + ' Z values modified.');
-      if (statusEl) { statusEl.textContent = 'Compensation applied: ' + result.modified + ' Z values modified.'; statusEl.className = 'status-line good'; }
-      applyUpdatePreview(applySurfaceCompGcode);
-      applyUpdateButtons();
-    } catch(e) {
-      applyLogSurface('ERROR: ' + e.message);
-      if (statusEl) { statusEl.textContent = 'Error: ' + e.message; statusEl.className = 'status-line bad'; }
-    }
-  }
-}
-
-// Client-side subdivided Z compensation (mirrors server-side applyZCompensation)
-function applySubdividedCompensation(gcodeText, meshData, gridCfg, referenceZ) {
-  var lines = gcodeText.split('\n');
-  var output = [];
-  var currentX = 0, currentY = 0, currentZ = 0;
-  var isAbsolute = true;
-  var currentFeedRate = null;
-  var currentGMode = 'G1';
-  var movesProcessed = 0;
-  var totalSegments = 0;
-
-  // When grid has only 1 column or 1 row, spacing is zero (all points at same position)
-  var spacingX = gridCfg.colSpacing || (gridCfg.colCount > 1 ? (gridCfg.maxX - gridCfg.minX) / (gridCfg.colCount - 1) : 0);
-  var spacingY = gridCfg.rowSpacing || (gridCfg.rowCount > 1 ? (gridCfg.maxY - gridCfg.minY) / (gridCfg.rowCount - 1) : 0);
-  var segmentLength = Math.min(spacingX || 10, spacingY || 10, 2);
-
-  output.push('(Z-Compensated G-code - 3D Live Edge Mesh Combined Plugin)');
-  output.push('(Grid: ' + gridCfg.colCount + ' x ' + gridCfg.rowCount + ' points)');
-  output.push('(Reference Z: ' + referenceZ.toFixed(3) + ')');
-  output.push('(Segment length: ' + segmentLength.toFixed(2) + 'mm)');
-  output.push('');
-
-  for (var i = 0; i < lines.length; i++) {
-    var line = lines[i];
-    var trimmed = line.trim().toUpperCase();
-
-    if (!trimmed || trimmed.startsWith('(') || trimmed.startsWith(';') || trimmed.startsWith('%')) {
-      output.push(line);
-      continue;
-    }
-
-    if (trimmed.indexOf('G90') >= 0 && trimmed.indexOf('G90.1') < 0) isAbsolute = true;
-    if (trimmed.indexOf('G91') >= 0 && trimmed.indexOf('G91.1') < 0) isAbsolute = false;
-
-    if (trimmed.indexOf('G53') >= 0) { output.push(line); continue; }
-
-    if (/^G0\b/.test(trimmed) || trimmed.indexOf(' G0 ') >= 0 || / G0$/.test(trimmed)) currentGMode = 'G0';
-    if (/^G1\b/.test(trimmed) || trimmed.indexOf(' G1 ') >= 0 || / G1$/.test(trimmed)) currentGMode = 'G1';
-    if (/^G2\b/.test(trimmed) || trimmed.indexOf(' G2 ') >= 0) currentGMode = 'G2';
-    if (/^G3\b/.test(trimmed) || trimmed.indexOf(' G3 ') >= 0) currentGMode = 'G3';
-
-    var xMatch = line.match(/X([+-]?\d*\.?\d+)/i);
-    var yMatch = line.match(/Y([+-]?\d*\.?\d+)/i);
-    var zMatch = line.match(/Z([+-]?\d*\.?\d+)/i);
-    var fMatch = line.match(/F([+-]?\d*\.?\d+)/i);
-
-    if (fMatch) currentFeedRate = parseFloat(fMatch[1]);
-
-    var targetX = currentX, targetY = currentY, targetZ = currentZ;
-    if (xMatch) targetX = isAbsolute ? parseFloat(xMatch[1]) : currentX + parseFloat(xMatch[1]);
-    if (yMatch) targetY = isAbsolute ? parseFloat(yMatch[1]) : currentY + parseFloat(yMatch[1]);
-    if (zMatch) targetZ = isAbsolute ? parseFloat(zMatch[1]) : currentZ + parseFloat(zMatch[1]);
-
-    var isLinearMove = (currentGMode === 'G1');
-    var isRapidMove = (currentGMode === 'G0');
-    var hasXY = !!(xMatch || yMatch);
-    var hasZ = zMatch !== null;
-
-    if (isLinearMove && hasXY && isAbsolute) {
-      var dx = targetX - currentX;
-      var dy = targetY - currentY;
-      var distance = Math.sqrt(dx * dx + dy * dy);
-
-      if (distance > segmentLength) {
-        var segments = Math.ceil(distance / segmentLength);
-        var dz = targetZ - currentZ;
-
-        for (var s = 1; s <= segments; s++) {
-          var t = s / segments;
-          var segX = currentX + dx * t;
-          var segY = currentY + dy * t;
-          var segZ = currentZ + dz * t;
-
-          var meshZ = bilinearInterpolateZ(meshData, gridCfg, segX, segY);
-          var zOffset = meshZ - referenceZ;
-          var compensatedZ = segZ + zOffset;
-
-          var segCmd = 'G1 X' + segX.toFixed(3) + ' Y' + segY.toFixed(3) + ' Z' + compensatedZ.toFixed(3);
-          if (s === 1 && currentFeedRate) segCmd += ' F' + currentFeedRate.toFixed(0);
-          output.push(segCmd);
-          totalSegments++;
-        }
-        movesProcessed++;
-      } else {
-        var meshZ2 = bilinearInterpolateZ(meshData, gridCfg, targetX, targetY);
-        var zOffset2 = meshZ2 - referenceZ;
-        var compensatedZ2 = targetZ + zOffset2;
-
-        if (hasZ) {
-          output.push(line.replace(/Z([+-]?\d*\.?\d+)/i, 'Z' + compensatedZ2.toFixed(3)));
-        } else {
-          var newLine = line.trim();
-          if (currentFeedRate && /F[\d.]+/i.test(newLine)) {
-            newLine = newLine.replace(/(F[\d.]+)/i, 'Z' + compensatedZ2.toFixed(3) + ' $1');
-          } else {
-            newLine += ' Z' + compensatedZ2.toFixed(3);
-          }
-          output.push(newLine);
-        }
-        movesProcessed++;
-        totalSegments++;
-      }
-    } else if (isRapidMove && hasXY && isAbsolute) {
-      var meshZ3 = bilinearInterpolateZ(meshData, gridCfg, targetX, targetY);
-      var zOffset3 = meshZ3 - referenceZ;
-      var compensatedZ3 = targetZ + zOffset3;
-
-      if (hasZ) {
-        output.push(line.replace(/Z([+-]?\d*\.?\d+)/i, 'Z' + compensatedZ3.toFixed(3)));
-      } else {
-        // Only add Z to rapid moves at working height (below safe retract threshold of 10mm)
-        if (currentZ < 10) {
-          output.push(line.trim() + ' Z' + compensatedZ3.toFixed(3));
-        } else {
-          output.push(line);
-        }
-      }
-      movesProcessed++;
-    } else if (hasZ && isAbsolute) {
-      var meshZ4 = bilinearInterpolateZ(meshData, gridCfg, targetX, targetY);
-      var zOffset4 = meshZ4 - referenceZ;
-      var compensatedZ4 = targetZ + zOffset4;
-      output.push(line.replace(/Z([+-]?\d*\.?\d+)/i, 'Z' + compensatedZ4.toFixed(3)));
-      movesProcessed++;
-    } else {
-      output.push(line);
-    }
-
-    currentX = targetX;
-    currentY = targetY;
-    currentZ = targetZ;
-  }
-
-  return { gcode: output.join('\n'), modified: movesProcessed, segments: totalSegments };
-}
-
-function applyFaceCompensationFromTab() {
-  if (!applyOriginalGcode) { alert('Load G-code first.'); return; }
-  var faceData = (typeof _getFaceMeshData === 'function') ? _getFaceMeshData() : null;
-  if (!faceData) { alert('No face mesh data. Run face probing first.'); return; }
-
-  var refPos = Number(document.getElementById('apply-face-refPos').value) || 0;
-  var axis = (document.getElementById('apply-face-axis').value || 'Y').toUpperCase();
-  var statusEl = document.getElementById('apply-face-status');
-  var faceLogEl = document.getElementById('apply-face-log');
-  if (faceLogEl) faceLogEl.innerHTML = '';
-
-  applyLogFace('Applying face compensation (axis=' + axis + ', refPos=' + refPos + ')...');
-
-  try {
-    if (typeof applyFaceCompensationCore !== 'function') {
-      throw new Error('Face compensation core function not available');
-    }
-    var result = applyFaceCompensationCore(applyOriginalGcode, faceData, refPos, axis);
-    applyFaceCompGcode = result.gcode;
-    applyLogFace('Done! ' + result.modified + ' ' + axis + ' values adjusted.');
-    if (statusEl) { statusEl.textContent = 'Face compensation applied: ' + result.modified + ' values adjusted.'; statusEl.className = 'status-line good'; }
-    applyUpdatePreview(applyFaceCompGcode);
-    applyUpdateButtons();
-  } catch(e) {
-    applyLogFace('ERROR: ' + e.message);
-    if (statusEl) { statusEl.textContent = 'Error: ' + e.message; statusEl.className = 'status-line bad'; }
-  }
-}
-
-function applyUpdatePreview(gcodeText) {
-  var el = document.getElementById('apply-preview');
-  if (!el || !gcodeText) return;
-  el.textContent = gcodeText.split('\n').slice(0, 40).join('\n');
-  if (gcodeText.split('\n').length > 40) {
-    el.textContent += '\n... (' + gcodeText.split('\n').length + ' total lines)';
-  }
-}
-
-function applyDownloadCompensatedGcode(type) {
-  var gcode = (type === 'face') ? applyFaceCompGcode : applySurfaceCompGcode;
-  if (!gcode) { alert('No compensated G-code. Apply compensation first.'); return; }
-  var blob = new Blob([gcode], { type: 'text/plain' });
-  var a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'compensated_' + type + '_' + Date.now() + '.nc';
-  a.click();
-}
-
-async function applySendToNcSender(type) {
-  var gcode = (type === 'face') ? applyFaceCompGcode : applySurfaceCompGcode;
-  if (!gcode) { alert('No compensated G-code. Apply compensation first.'); return; }
-  await sendCompToNcSender(gcode, 'compensated_' + type);
-}
-
 var SM_SURFACE_GRID_SETTINGS_KEY = 'smSurfaceGridSettings';
 
 function smSaveSettings() {
@@ -6237,6 +6117,7 @@ function smLoadSettings() {
   try{ renderLog('face'); }catch(e){}
   try{ smLoadSettings(); }catch(e){}
   try{ onProbeTypeChange(); }catch(e){}
+  try{ initApplyTab(); }catch(e){ console.warn('initApplyTab error:', e); }
 
   // Tab buttons
   document.querySelectorAll('.tab').forEach(function(t){
@@ -6254,6 +6135,8 @@ function smLoadSettings() {
   if(btnLoad) btnLoad.addEventListener('click', function(){ pluginDebug('btn-load-settings clicked'); loadSettings(); });
   var btnReset = document.getElementById('btn-reset-settings');
   if(btnReset) btnReset.addEventListener('click', function(){ pluginDebug('btn-reset-settings clicked'); resetSettings(); });
+  var btnSaveProbeDims = document.getElementById('btn-save-probe-dims');
+  if(btnSaveProbeDims) btnSaveProbeDims.addEventListener('click', function(){ pluginDebug('btn-save-probe-dims clicked'); saveProbeDimensions(); });
   var btnSaveLocation = document.getElementById('btn-save-location');
   if(btnSaveLocation) btnSaveLocation.addEventListener('click', function(){ pluginDebug('btn-save-location clicked'); saveCurrentLocation(); });
   var btnGoLocation = document.getElementById('btn-go-location');
@@ -6815,6 +6698,33 @@ function renderFacePVizMesh() {
 
 // ── Face Probe Compensation ───────────────────────────────────────────────────
 
+// Save/load Apply parameter fields to/from localStorage
+function saveFaceApplyParams() {
+  var d = FACE_APPLY_PARAM_DEFAULTS;
+  var params = {
+    xStep:      (document.getElementById('face-xStep')      || {value: String(d.xStep)}).value,
+    zStep:      (document.getElementById('face-zStep')      || {value: String(d.zStep)}).value,
+    feedCut:    (document.getElementById('face-feedCut')    || {value: String(d.feedCut)}).value,
+    feedTravel: (document.getElementById('face-feedTravel') || {value: String(d.feedTravel)}).value
+  };
+  try { localStorage.setItem(FACE_APPLY_PARAMS_KEY, JSON.stringify(params)); } catch(e) {}
+}
+
+function loadFaceApplyParams() {
+  try {
+    var raw = localStorage.getItem(FACE_APPLY_PARAMS_KEY);
+    if (!raw) return;
+    var params = JSON.parse(raw);
+    var ids = ['xStep', 'zStep', 'feedCut', 'feedTravel'];
+    ids.forEach(function(k) {
+      if (params[k] !== undefined) {
+        var el = document.getElementById('face-' + k);
+        if (el) el.value = params[k];
+      }
+    });
+  } catch(e) {}
+}
+
 function updateFaceCompGridInfo() {
   var el = document.getElementById('face-comp-grid-info');
   if (el) {
@@ -6847,8 +6757,28 @@ function applyFaceProbeCompensation() {
   if (!faceOriginalGcode) { alert('No G-code loaded. Load a G-code file first.'); return; }
   var data = getFaceMeshData();
   if (!data || !data.length) { alert('No face mesh data. Run a face probe or load face mesh first.'); return; }
+
+  // Read and validate Apply parameters
+  var d = FACE_APPLY_PARAM_DEFAULTS;
+  var xStep      = Number((document.getElementById('face-xStep')      || {value: String(d.xStep)}).value);
+  var zStep      = Number((document.getElementById('face-zStep')      || {value: String(d.zStep)}).value);
+  var feedCut    = Number((document.getElementById('face-feedCut')    || {value: String(d.feedCut)}).value);
+  var feedTravel = Number((document.getElementById('face-feedTravel') || {value: String(d.feedTravel)}).value);
+
+  var paramErrors = [];
+  if (!isFinite(xStep)      || xStep      <= 0) paramErrors.push('X Step must be a number > 0');
+  if (!isFinite(zStep)      || zStep      <= 0) paramErrors.push('Z Step must be a number > 0');
+  if (!isFinite(feedCut)    || feedCut    <= 0) paramErrors.push('Feed Cut must be a number > 0');
+  if (!isFinite(feedTravel) || feedTravel <= 0) paramErrors.push('Feed Travel must be a number > 0');
+  if (paramErrors.length) {
+    var statusEl0 = document.getElementById('face-applyStatus');
+    if (statusEl0) statusEl0.textContent = 'Invalid parameters: ' + paramErrors.join('; ');
+    faceLogApply('ERROR — Invalid parameters: ' + paramErrors.join('; '));
+    return;
+  }
+
   var refPos = Number((document.getElementById('face-compRefPos') || {value: 0}).value);
-  faceLogApply('Applying face compensation with Reference Face Position=' + refPos + '...');
+  faceLogApply('Applying face compensation with Reference Face Position=' + refPos + ', xStep=' + xStep + ', zStep=' + zStep + ', feedCut=' + feedCut + ', feedTravel=' + feedTravel + '...');
   try {
     var result = faceApplyCompensationCore(faceOriginalGcode, data, refPos);
     faceCompensatedGcode = result.gcode;
@@ -6859,6 +6789,10 @@ function applyFaceProbeCompensation() {
     var preview = faceCompensatedGcode.split('\n').slice(0, 30).join('\n');
     var previewEl = document.getElementById('face-apply-preview');
     if (previewEl) previewEl.textContent = preview;
+    var previewWrap = document.getElementById('face-apply-preview-wrap');
+    if (previewWrap) previewWrap.style.display = '';
+    var dlBtn = document.getElementById('face-btn-download-comp');
+    if (dlBtn) dlBtn.disabled = false;
     var ncBtn = document.getElementById('face-btn-send-ncsender');
     if (ncBtn) ncBtn.disabled = false;
     var prevBtn = document.getElementById('face-btn-preview-toolpath');
@@ -7305,29 +7239,6 @@ function bindProbeDimensionUI(){
     });
   } catch(e){}
 
-  // Apply tab: G-code file input
-  try {
-    var applyGcodeFileInput = document.getElementById('apply-gcode-file-input');
-    if (applyGcodeFileInput) applyGcodeFileInput.addEventListener('change', function(e) {
-      var file = e.target.files[0];
-      if (!file) return;
-      var reader = new FileReader();
-      reader.onload = function(ev) {
-        applyOriginalGcode = ev.target.result;
-        var statusEl = document.getElementById('apply-gcode-status');
-        if (statusEl) {
-          statusEl.textContent = 'Loaded: ' + file.name + ' (' + applyOriginalGcode.split('\n').length + ' lines)';
-          statusEl.className = 'status-line good';
-        }
-        applyUpdateButtons();
-      };
-      reader.readAsText(file);
-    });
-  } catch(e){}
-
-  // Apply tab: initialize button states
-  try { applyUpdateButtons(); } catch(e) {}
-
   // Allow free manual keyboard entry in all non-readonly number inputs.
   // Remove min/max permanently (not restored on blur) so that clearing a field
   // does not cause Chromium/Electron to snap the value back to the min value.
@@ -7335,6 +7246,31 @@ function bindProbeDimensionUI(){
     el.step = 'any';
     el.removeAttribute('min');
     el.removeAttribute('max');
+  });
+
+  // Face G-code file reader for Apply Compensation
+  try {
+    var faceGcodeFile = document.getElementById('face-gcodeFile');
+    if (faceGcodeFile) faceGcodeFile.addEventListener('change', function(e) {
+      var file = e.target.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function(ev) {
+        faceOriginalGcode = ev.target.result;
+        var span = document.getElementById('face-gcode-file-status');
+        if (span) span.textContent = 'Loaded: ' + file.name + ' (' + faceOriginalGcode.split('\n').length + ' lines)';
+      };
+      reader.readAsText(file);
+    });
+  } catch(e){}
+
+  // Load persisted Apply parameter values from localStorage
+  loadFaceApplyParams();
+
+  // Persist Apply parameter values to localStorage on change
+  ['face-xStep', 'face-zStep', 'face-feedCut', 'face-feedTravel'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('change', saveFaceApplyParams);
   });
 
 }
@@ -7786,6 +7722,556 @@ function clearCombinedMesh() {
   updateCombinedMeshUI();
   var statusEl = document.getElementById('comb-meshStorageStatus');
   if (statusEl) statusEl.textContent = 'Combined data cleared.';
+}
+
+// ── Apply Tab ─────────────────────────────────────────────────────────────────
+
+var _applyPollTimer = null;
+var _applyLastResultTs = 0;
+var _applyBoundsCache = null;
+var APPLY_MAX_BOUNDS_POLL_ATTEMPTS = 20;  // ~6s at 300ms interval
+var APPLY_MAX_APPLY_POLL_ATTEMPTS  = 60;  // ~30s at 500ms interval
+
+/** Format a bounds object { min:{x,y}, max:{x,y} } as a readable string. */
+function applyTabFormatBounds(b) {
+  return 'X: ' + b.min.x.toFixed(2) + ' to ' + b.max.x.toFixed(2) +
+         '  Y: ' + b.min.y.toFixed(2) + ' to ' + b.max.y.toFixed(2);
+}
+
+/** Build mesh payload from face probe data (sampleTopZ values across X positions). */
+function applyTabBuildFaceMeshPayload() {
+  var data = typeof getFaceMeshData === 'function' ? getFaceMeshData() : null;
+  if (!data || !data.length) return null;
+
+  // Collect unique X positions and their sampleTopZ values from the shallowest layer.
+  // Layer numbering: layer 1 = deepest (bottom), layer N = shallowest (top).
+  // We keep the highest layer number per X position to get the topmost measurement.
+  var xMap = {};
+  data.forEach(function(r) {
+    var key = Number(r.x).toFixed(3);
+    var layer = r.layer != null ? r.layer : 1;
+    if (!xMap[key] || layer > xMap[key].layer) {
+      xMap[key] = { x: Number(r.x), z: r.sampleTopZ != null ? Number(r.sampleTopZ) : Number(r.z), layer: layer };
+    }
+  });
+  var pts = Object.keys(xMap).map(function(k) { return xMap[k]; }).sort(function(a, b) { return a.x - b.x; });
+  if (pts.length < 2) return null;
+
+  var xMin = pts[0].x;
+  var xMax = pts[pts.length - 1].x;
+  var spacingX = (xMax - xMin) / (pts.length - 1);
+  // Face mesh is 1D along X, so Y dimension is fixed (single row)
+  var gridParams = { startX: xMin, startY: 0, spacingX: spacingX, spacingY: 1, rows: 1, cols: pts.length };
+  var mesh = [pts.map(function(p) { return { x: p.x, y: 0, z: p.z }; })];
+  return { mesh: mesh, gridParams: gridParams };
+}
+
+/** Get the currently selected mesh source from the Apply tab. */
+function applyTabGetMeshSource() {
+  var sel = document.getElementById('apply-mesh-source');
+  return sel ? sel.value : 'surface';
+}
+
+/** Convert mesh data to the format expected by the server engine, based on selected source. */
+function applyTabBuildMeshPayload() {
+  var source = applyTabGetMeshSource();
+  if (source === 'face') return applyTabBuildFaceMeshPayload();
+
+  if (!smMeshData || !smGridConfig) return null;
+  var cfg = smGridConfig;
+  var gridParams = {
+    startX:   cfg.minX,
+    startY:   cfg.minY,
+    spacingX: cfg.colSpacing,
+    spacingY: cfg.rowSpacing,
+    rows:     cfg.rowCount,
+    cols:     cfg.colCount
+  };
+  var mesh = [];
+  for (var r = 0; r < cfg.rowCount; r++) {
+    mesh.push([]);
+    for (var c = 0; c < cfg.colCount; c++) {
+      var x = cfg.minX + c * cfg.colSpacing;
+      var y = cfg.minY + r * cfg.rowSpacing;
+      var z = smMeshData[r][c];
+      mesh[r].push({ x: x, y: y, z: z != null ? z : 0 });
+    }
+  }
+  return { mesh: mesh, gridParams: gridParams };
+}
+
+function applyTabLog(msg) {
+  var el = document.getElementById('apply-log');
+  if (!el) return;
+  el.style.display = 'block';
+  var ts = new Date().toLocaleTimeString('en', { hour12: false });
+  var div = document.createElement('div');
+  div.className = 'log-entry';
+  div.textContent = '[' + ts + '] ' + msg;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function applyTabSetResult(msg, isError) {
+  var el = document.getElementById('apply-result-status');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'status-line ' + (isError ? 'warn' : 'ok');
+}
+
+function applyTabRefresh() {
+  var source   = applyTabGetMeshSource();
+  var hasMesh;
+  if (source === 'face') {
+    var faceData = typeof getFaceMeshData === 'function' ? getFaceMeshData() : null;
+    hasMesh = !!(faceData && faceData.length >= 2);
+  } else {
+    hasMesh = !!(smMeshData && smGridConfig);
+  }
+
+  // Toggle face / surface sections visibility
+  var surfSec = document.getElementById('apply-surface-sections');
+  var faceSec = document.getElementById('apply-face-sections');
+  if (surfSec) surfSec.style.display = source === 'face' ? 'none' : '';
+  if (faceSec) faceSec.style.display = source === 'face' ? '' : 'none';
+
+  var meshEl   = document.getElementById('apply-status-mesh');
+  var gcodeEl  = document.getElementById('apply-status-gcode');
+  var readyEl  = document.getElementById('apply-ready-status');
+  var applyBtn = document.getElementById('apply-btn-apply');
+  var fnEl     = document.getElementById('apply-gcode-filename');
+  var boundsEl = document.getElementById('apply-gcode-bounds');
+
+  if (meshEl) {
+    if (hasMesh) {
+      if (source === 'face') {
+        var fData = getFaceMeshData();
+        meshEl.textContent = '\u2705 Face mesh data loaded (' + fData.length + ' points)';
+      } else {
+        meshEl.textContent = '\u2705 Mesh data loaded (' + smGridConfig.colCount + '\u00d7' + smGridConfig.rowCount + ' = ' + (smGridConfig.colCount * smGridConfig.rowCount) + ' points)';
+      }
+      meshEl.className = 'status-line ok';
+    } else {
+      meshEl.textContent = source === 'face'
+        ? '\u26a0\ufe0f No face mesh data \u2014 run face probing first'
+        : '\u26a0\ufe0f No mesh data \u2014 run surface probing first';
+      meshEl.className = 'status-line warn';
+    }
+  }
+
+  // Face-specific status updates
+  if (source === 'face') {
+    var faceGridInfo = document.getElementById('apply-face-comp-grid-info');
+    if (faceGridInfo) {
+      if (hasMesh) {
+        var fd = getFaceMeshData();
+        faceGridInfo.textContent = '\u2705 Face mesh loaded (' + fd.length + ' contact points)';
+        faceGridInfo.style.color = '';
+      } else {
+        faceGridInfo.textContent = 'No face mesh loaded \u2014 run a face probe or load face mesh first.';
+        faceGridInfo.style.color = 'var(--muted)';
+      }
+    }
+    var faceApplyBtn = document.getElementById('apply-face-btn-apply');
+    var hasFile = !!faceOriginalGcode;
+    if (faceApplyBtn) faceApplyBtn.disabled = !(hasMesh && hasFile);
+    if (gcodeEl) {
+      if (hasFile) {
+        gcodeEl.textContent = '\u2705 G-code file loaded (client-side)';
+        gcodeEl.className = 'status-line ok';
+      } else {
+        gcodeEl.textContent = '\u26a0\ufe0f No G-code file loaded \u2014 use the file picker below';
+        gcodeEl.className = 'status-line warn';
+      }
+    }
+    if (readyEl) {
+      if (hasMesh && hasFile) {
+        readyEl.textContent = '\u2713 Ready to apply face compensation';
+        readyEl.className = 'status-line ok';
+      } else {
+        readyEl.textContent = '';
+        readyEl.className = 'status-line';
+      }
+    }
+    return;
+  }
+
+  // Fetch server state to check G-code (surface mode)
+  fetch('/api/server-state').then(function(r) {
+    return r.ok ? r.json() : null;
+  }).then(function(state) {
+    var hasGcode = !!(state && state.jobLoaded && state.jobLoaded.filename);
+    var filename  = hasGcode ? state.jobLoaded.filename : null;
+
+    if (gcodeEl) {
+      if (hasGcode) {
+        gcodeEl.textContent = '\u2705 G-code loaded: ' + filename;
+        gcodeEl.className = 'status-line ok';
+      } else {
+        gcodeEl.textContent = '\u26a0\ufe0f No G-code loaded \u2014 load a file in ncSender first';
+        gcodeEl.className = 'status-line warn';
+      }
+    }
+    if (fnEl)  fnEl.value  = filename || '';
+    if (boundsEl && _applyBoundsCache) {
+      boundsEl.value = applyTabFormatBounds(_applyBoundsCache);
+    } else if (boundsEl) {
+      boundsEl.value = hasGcode ? 'Click \u201cRefresh Status\u201d to fetch bounds' : '';
+    }
+
+    var ready = hasMesh && hasGcode;
+    if (applyBtn) applyBtn.disabled = !ready;
+    if (readyEl) {
+      if (ready) {
+        readyEl.textContent = '\u2713 Ready to apply compensation';
+        readyEl.className = 'status-line ok';
+      } else {
+        readyEl.textContent = '';
+        readyEl.className = 'status-line';
+      }
+    }
+  }).catch(function() {
+    if (gcodeEl) { gcodeEl.textContent = '\u26a0\ufe0f Could not reach ncSender'; gcodeEl.className = 'status-line warn'; }
+    if (applyBtn) applyBtn.disabled = true;
+  });
+}
+
+function applyTabAutoGrid() {
+  var statusEl = document.getElementById('apply-auto-grid-status');
+  if (statusEl) { statusEl.textContent = 'Requesting bounds from server\u2026'; statusEl.className = 'status-line'; }
+
+  // Ask server to analyse the G-code cache file
+  var ts = Date.now();
+  fetch('/api/plugins/com.ncsender.edgeprobe.combined/settings', {
+    method:  'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ requestBounds: true, _boundsTs: ts })
+  }).then(function(r) { return r.ok ? r.json() : null; }).then(function() {
+    // Poll for result
+    var attempts = 0;
+    var poll = setInterval(function() {
+      attempts++;
+      fetch('/api/plugins/com.ncsender.edgeprobe.combined/settings')
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(s) {
+          if (!s) return;
+          if (s.requestBounds === false && s.lastBoundsResult) {
+            clearInterval(poll);
+            var res = s.lastBoundsResult;
+            if (res.success && res.bounds) {
+              _applyBoundsCache = res.bounds;
+              var b = res.bounds;
+              var boundsEl = document.getElementById('apply-gcode-bounds');
+              if (boundsEl) boundsEl.value = applyTabFormatBounds(b);
+              // Populate probe grid inputs
+              var ids = { 'sm-minX': b.min.x, 'sm-maxX': b.max.x, 'sm-minY': b.min.y, 'sm-maxY': b.max.y };
+              Object.keys(ids).forEach(function(id) {
+                var el = document.getElementById(id);
+                if (el) el.value = ids[id].toFixed(2);
+              });
+              try { updateSurfaceGridSizeDisplay(); } catch(e) {}
+              if (statusEl) { statusEl.textContent = '\u2705 Grid updated from G-code bounds'; statusEl.className = 'status-line ok'; }
+            } else {
+              if (statusEl) { statusEl.textContent = '\u26a0\ufe0f ' + (res.error || 'Could not fetch bounds'); statusEl.className = 'status-line warn'; }
+            }
+          }
+        }).catch(function() { clearInterval(poll); });
+      if (attempts > APPLY_MAX_BOUNDS_POLL_ATTEMPTS) clearInterval(poll);
+    }, 300);
+  }).catch(function() {
+    if (statusEl) { statusEl.textContent = '\u26a0\ufe0f Settings API not available'; statusEl.className = 'status-line warn'; }
+  });
+}
+
+function applyTabApply() {
+  var meshPayload = applyTabBuildMeshPayload();
+  if (!meshPayload) { alert('No mesh data. Run surface probing first.'); return; }
+
+  var referenceZ = parseFloat(document.getElementById('apply-refZ').value) || 0;
+  var applyBtn   = document.getElementById('apply-btn-apply');
+  if (applyBtn) applyBtn.disabled = true;
+
+  var resultEl = document.getElementById('apply-result-status');
+  if (resultEl) { resultEl.textContent = 'Sending to server\u2026'; resultEl.className = 'status-line'; }
+
+  var ts = Date.now();
+  applyTabLog('Triggering server-side Z compensation (referenceZ=' + referenceZ + ')');
+
+  fetch('/api/plugins/com.ncsender.edgeprobe.combined/settings', {
+    method:  'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({
+      referenceZ:        referenceZ,
+      meshData:          meshPayload,
+      applyCompensation: true,
+      applyTimestamp:    ts
+    })
+  }).then(function(r) { return r.ok ? r.json() : null; }).then(function() {
+    applyTabLog('Request sent. Waiting for server\u2026');
+    if (resultEl) resultEl.textContent = 'Processing\u2026';
+
+    // Poll settings for lastApplyResult
+    var attempts = 0;
+    _applyPollTimer = setInterval(function() {
+      attempts++;
+      fetch('/api/plugins/com.ncsender.edgeprobe.combined/settings')
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(s) {
+          if (!s) return;
+          if (s.applyCompensation === false && s.lastApplyResult && s.lastApplyResult !== _applyLastResultTs) {
+            clearInterval(_applyPollTimer);
+            _applyPollTimer = null;
+            _applyLastResultTs = s.lastApplyResult;
+            var res = s.lastApplyResult;
+            if (res.success) {
+              applyTabLog('Done! Compensated file loaded: ' + res.filename);
+              applyTabSetResult('\u2705 Applied! Loaded as: ' + res.filename, false);
+            } else {
+              applyTabLog('Error: ' + res.error);
+              applyTabSetResult('\u274c Error: ' + res.error, true);
+            }
+            if (applyBtn) applyBtn.disabled = false;
+          }
+        }).catch(function() { clearInterval(_applyPollTimer); _applyPollTimer = null; });
+      if (attempts > APPLY_MAX_APPLY_POLL_ATTEMPTS) {
+        clearInterval(_applyPollTimer);
+        _applyPollTimer = null;
+        applyTabSetResult('\u274c Timed out waiting for server response', true);
+        if (applyBtn) applyBtn.disabled = false;
+      }
+    }, 500);
+  }).catch(function(err) {
+    applyTabLog('Error contacting server: ' + err.message);
+    applyTabSetResult('\u274c Error: ' + err.message, true);
+    if (applyBtn) applyBtn.disabled = false;
+  });
+}
+
+// ── Apply Tab — Face Compensation helpers ──────────────────────────────────────
+
+function saveApplyFaceParams() {
+  var d = FACE_APPLY_PARAM_DEFAULTS;
+  var params = {
+    xStep:      (document.getElementById('apply-face-xStep')      || {value: String(d.xStep)}).value,
+    zStep:      (document.getElementById('apply-face-zStep')      || {value: String(d.zStep)}).value,
+    feedCut:    (document.getElementById('apply-face-feedCut')    || {value: String(d.feedCut)}).value,
+    feedTravel: (document.getElementById('apply-face-feedTravel') || {value: String(d.feedTravel)}).value
+  };
+  try { localStorage.setItem(APPLY_FACE_PARAMS_KEY, JSON.stringify(params)); } catch(e) {}
+  // Sync to the face-apply-panel inputs as well
+  try {
+    var ids = ['xStep', 'zStep', 'feedCut', 'feedTravel'];
+    ids.forEach(function(k) {
+      var el = document.getElementById('face-' + k);
+      if (el && params[k] !== undefined) el.value = params[k];
+    });
+    saveFaceApplyParams();
+  } catch(e) {}
+}
+
+function loadApplyFaceParams() {
+  try {
+    // Prefer the apply-face key, fall back to the face-apply-panel key
+    var raw = localStorage.getItem(APPLY_FACE_PARAMS_KEY) || localStorage.getItem(FACE_APPLY_PARAMS_KEY);
+    if (!raw) return;
+    var params = JSON.parse(raw);
+    var ids = ['xStep', 'zStep', 'feedCut', 'feedTravel'];
+    ids.forEach(function(k) {
+      if (params[k] !== undefined) {
+        var el = document.getElementById('apply-face-' + k);
+        if (el) el.value = params[k];
+      }
+    });
+  } catch(e) {}
+}
+
+function applyTabFaceLog(msg) {
+  var el = document.getElementById('apply-face-log');
+  if (!el) return;
+  var ts = new Date().toLocaleTimeString('en', { hour12: false });
+  el.textContent += '[' + ts + '] ' + msg + '\n';
+  el.scrollTop = el.scrollHeight;
+}
+
+function applyTabFaceApply() {
+  if (!faceOriginalGcode) { alert('No G-code loaded. Load a G-code file first.'); return; }
+  var data = typeof getFaceMeshData === 'function' ? getFaceMeshData() : null;
+  if (!data || !data.length) { alert('No face mesh data. Run a face probe or load face mesh first.'); return; }
+
+  // Read and validate Apply parameters
+  var d = FACE_APPLY_PARAM_DEFAULTS;
+  var xStep      = Number((document.getElementById('apply-face-xStep')      || {value: String(d.xStep)}).value);
+  var zStep      = Number((document.getElementById('apply-face-zStep')      || {value: String(d.zStep)}).value);
+  var feedCut    = Number((document.getElementById('apply-face-feedCut')    || {value: String(d.feedCut)}).value);
+  var feedTravel = Number((document.getElementById('apply-face-feedTravel') || {value: String(d.feedTravel)}).value);
+
+  var paramErrors = [];
+  if (!isFinite(xStep)      || xStep      <= 0) paramErrors.push('X Step must be a number > 0');
+  if (!isFinite(zStep)      || zStep      <= 0) paramErrors.push('Z Step must be a number > 0');
+  if (!isFinite(feedCut)    || feedCut    <= 0) paramErrors.push('Feed Cut must be a number > 0');
+  if (!isFinite(feedTravel) || feedTravel <= 0) paramErrors.push('Feed Travel must be a number > 0');
+  if (paramErrors.length) {
+    var statusEl0 = document.getElementById('apply-face-status');
+    if (statusEl0) statusEl0.textContent = 'Invalid parameters: ' + paramErrors.join('; ');
+    applyTabFaceLog('ERROR \u2014 Invalid parameters: ' + paramErrors.join('; '));
+    return;
+  }
+
+  var refPos = Number((document.getElementById('apply-face-compRefPos') || {value: 0}).value);
+  applyTabFaceLog('Applying face compensation with Reference Face Position=' + refPos + ', xStep=' + xStep + ', zStep=' + zStep + ', feedCut=' + feedCut + ', feedTravel=' + feedTravel + '...');
+  try {
+    var result = faceApplyCompensationCore(faceOriginalGcode, data, refPos);
+    faceCompensatedGcode = result.gcode;
+    faceLastAppliedAxis = result.faceAxis || 'Y';
+    var statusEl = document.getElementById('apply-face-status');
+    if (statusEl) statusEl.textContent = 'Done. ' + result.modified + ' ' + result.faceAxis + ' values adjusted using bilinear face mesh interpolation.';
+    applyTabFaceLog('Compensation applied. ' + result.modified + ' lines modified. Face axis: ' + result.faceAxis + '.');
+    var preview = faceCompensatedGcode.split('\n').slice(0, 30).join('\n');
+    var previewEl = document.getElementById('apply-face-preview');
+    if (previewEl) previewEl.textContent = preview;
+    var previewWrap = document.getElementById('apply-face-preview-wrap');
+    if (previewWrap) previewWrap.style.display = '';
+    var dlBtn = document.getElementById('apply-face-btn-download');
+    if (dlBtn) dlBtn.disabled = false;
+    var ncBtn = document.getElementById('apply-face-btn-send');
+    if (ncBtn) ncBtn.disabled = false;
+    var prevBtn = document.getElementById('apply-face-btn-preview');
+    if (prevBtn) prevBtn.disabled = false;
+    var noteEl = document.getElementById('apply-face-ncsender-note');
+    if (noteEl) {
+      var depthAxis = faceLastAppliedAxis === 'Y' ? 'Y' : 'X';
+      var planeName = faceLastAppliedAxis === 'Y' ? 'XZ' : 'YZ';
+      noteEl.innerHTML = '&#9888; Note: ncSender&#39;s toolpath preview shows the XY plane (top-down view). Face compensation adjusts the <strong>' + depthAxis + ' axis</strong> at varying Z depths &mdash; the toolpath will appear flat in ncSender&#39;s default view. Use the &ldquo;Preview Toolpath&rdquo; button above to verify the face contour from the correct <strong>' + planeName + ' plane</strong> viewing angle.';
+      noteEl.style.display = '';
+    }
+  } catch(e) {
+    var statusEl2 = document.getElementById('apply-face-status');
+    if (statusEl2) statusEl2.textContent = 'Error: ' + e.message;
+    applyTabFaceLog('ERROR: ' + e.message);
+  }
+}
+
+function applyTabFacePreview() {
+  if (!faceCompensatedGcode) return;
+  var svg = document.getElementById('apply-face-toolpath-svg');
+  var wrapEl = document.getElementById('apply-face-toolpath-wrap');
+  var axisLabel = document.getElementById('apply-face-tp-axis-label');
+  var legendEl = document.getElementById('apply-face-tp-legend');
+  if (!svg || !wrapEl) return;
+
+  var lines = faceCompensatedGcode.split('\n');
+  var cx = 0, cy = 0, cz = 0;
+  var moves = [];
+  for (var i = 0; i < lines.length; i++) {
+    var ln = lines[i].trim();
+    if (!ln || ln.startsWith(';') || ln.startsWith('(')) continue;
+    var isMove = /^G[01]\b/i.test(ln) || /\b[XYZ][-\d.]/i.test(ln);
+    if (!isMove) continue;
+    var xm = ln.match(/X(-?[\d.]+)/i);
+    var ym = ln.match(/Y(-?[\d.]+)/i);
+    var zm = ln.match(/Z(-?[\d.]+)/i);
+    if (xm) cx = parseFloat(xm[1]);
+    if (ym) cy = parseFloat(ym[1]);
+    if (zm) cz = parseFloat(zm[1]);
+    if (xm || ym || zm) moves.push({ x: cx, y: cy, z: cz });
+  }
+  if (moves.length < 2) { wrapEl.style.display = 'none'; return; }
+
+  var faceAxis = faceLastAppliedAxis || 'Y';
+  var hVals = moves.map(function(m){ return faceAxis === 'Y' ? m.x : m.y; });
+  var vVals = moves.map(function(m){ return m.z; });
+  var dVals = moves.map(function(m){ return faceAxis === 'Y' ? m.y : m.x; });
+
+  var hMin = Math.min.apply(null, hVals), hMax = Math.max.apply(null, hVals);
+  var vMin = Math.min.apply(null, vVals), vMax = Math.max.apply(null, vVals);
+  var dMin = Math.min.apply(null, dVals), dMax = Math.max.apply(null, dVals);
+  var dRange = dMax - dMin || 1;
+
+  var W = svg.clientWidth || 500, H = 220;
+  var pad = 30;
+  var hRange = hMax - hMin || 1, vRange = vMax - vMin || 1;
+  var scaleH = (W - pad * 2) / hRange, scaleV = (H - pad * 2) / vRange;
+
+  svg.innerHTML = '';
+  for (var j = 1; j < moves.length; j++) {
+    var x1 = pad + (hVals[j-1] - hMin) * scaleH;
+    var y1 = H - pad - (vVals[j-1] - vMin) * scaleV;
+    var x2 = pad + (hVals[j] - hMin) * scaleH;
+    var y2 = H - pad - (vVals[j] - vMin) * scaleV;
+    var t = (dVals[j] - dMin) / dRange;
+    var r = Math.round(50 + 205 * t), g = Math.round(50 * (1 - t)), b = Math.round(205 * (1 - t));
+    var line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+    line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+    line.setAttribute('stroke', 'rgb(' + r + ',' + g + ',' + b + ')');
+    line.setAttribute('stroke-width', '1.5');
+    svg.appendChild(line);
+  }
+
+  if (axisLabel) axisLabel.textContent = (faceAxis === 'Y' ? 'X vs Z' : 'Y vs Z') + ' Toolpath Preview (color = ' + faceAxis + ' depth)';
+  if (legendEl) legendEl.textContent = 'Blue = shallow (near face), Red = deep (far from face). ' + faceAxis + ' range: ' + dMin.toFixed(2) + ' to ' + dMax.toFixed(2);
+  wrapEl.style.display = '';
+}
+
+function applyTabFaceDownload() {
+  if (!faceCompensatedGcode) { alert('No compensated G-code. Apply compensation first.'); return; }
+  var blob = new Blob([faceCompensatedGcode], { type: 'text/plain' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'compensated_face_' + Date.now() + '.nc';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+}
+
+// Initialise Apply tab
+function initApplyTab() {
+  var btnApply   = document.getElementById('apply-btn-apply');
+  var btnRefresh = document.getElementById('apply-btn-refresh');
+  var btnAuto    = document.getElementById('apply-btn-auto-grid');
+  if (btnApply)   btnApply.addEventListener('click',   function() { applyTabApply(); });
+  if (btnRefresh) btnRefresh.addEventListener('click', function() { applyTabRefresh(); });
+  if (btnAuto)    btnAuto.addEventListener('click',    function() { applyTabAutoGrid(); });
+
+  // Face compensation — G-code file reader
+  var faceGcodeInput = document.getElementById('apply-face-gcodeFile');
+  if (faceGcodeInput) faceGcodeInput.addEventListener('change', function(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      faceOriginalGcode = ev.target.result;
+      var span = document.getElementById('apply-face-gcode-file-status');
+      if (span) span.textContent = 'Loaded: ' + file.name + ' (' + faceOriginalGcode.split('\n').length + ' lines)';
+      applyTabRefresh();
+    };
+    reader.readAsText(file);
+  });
+
+  // Face compensation — action buttons
+  var faceBtnApply = document.getElementById('apply-face-btn-apply');
+  if (faceBtnApply) faceBtnApply.addEventListener('click', function() { applyTabFaceApply(); });
+  var faceBtnPreview = document.getElementById('apply-face-btn-preview');
+  if (faceBtnPreview) faceBtnPreview.addEventListener('click', function() { applyTabFacePreview(); });
+  var faceBtnDownload = document.getElementById('apply-face-btn-download');
+  if (faceBtnDownload) faceBtnDownload.addEventListener('click', function() { applyTabFaceDownload(); });
+  var faceBtnSend = document.getElementById('apply-face-btn-send');
+  if (faceBtnSend) faceBtnSend.addEventListener('click', function() { sendCompToNcSender(faceCompensatedGcode, 'compensated_face'); });
+
+  // Face compensation — load/save params from localStorage
+  loadApplyFaceParams();
+  APPLY_FACE_PARAM_IDS.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('change', saveApplyFaceParams);
+  });
+
+  // Refresh status when switching to the Apply tab
+  var origSwitch = window.switchTab;
+  window.switchTab = function(id) {
+    origSwitch(id);
+    if (id === 'apply') applyTabRefresh();
+  };
+  // Initial status refresh
+  applyTabRefresh();
 }
 
 
