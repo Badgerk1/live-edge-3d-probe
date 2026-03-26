@@ -182,6 +182,7 @@
     <button class="tab" data-tab="top" onclick="switchTab('top')">&#128269; Probe</button>
     <button class="tab" data-tab="results" onclick="switchTab('results')">&#9783; Results</button>
     <button class="tab" data-tab="meshdata" onclick="switchTab('meshdata')">&#128202; Mesh Data</button>
+    <button class="tab" data-tab="apply" onclick="switchTab('apply')">&#9889; Apply</button>
   </div>
 
   <!-- ── CONTENT ────────────────────────────────────────────────────────── -->
@@ -1186,6 +1187,64 @@
 
     </div><!-- /pane-meshdata -->
 
+    <!-- ── APPLY TAB ─────────────────────────────────────────────────── -->
+    <div class="tab-panel" id="pane-apply">
+
+      <!-- Status indicators -->
+      <div class="panel">
+        <div class="box-title">&#9889; Apply Z Compensation to G-code</div>
+        <div class="callout mini" style="margin-bottom:12px">
+          Load a G-code file in ncSender and run surface probing first, then use this tab to apply Z compensation.
+          The server-side engine subdivides long moves for smooth surface following.
+        </div>
+        <div id="apply-status-mesh" class="status-line" style="margin-bottom:6px">&#8226; Checking mesh&hellip;</div>
+        <div id="apply-status-gcode" class="status-line" style="margin-bottom:6px">&#8226; Checking G-code&hellip;</div>
+        <div id="apply-ready-status" class="status-line" style="margin-bottom:0"></div>
+      </div>
+
+      <!-- G-code info + Auto Grid -->
+      <div class="panel">
+        <div class="box-title">G-code Information</div>
+        <div class="field">
+          <label>Loaded file</label>
+          <input type="text" id="apply-gcode-filename" readonly placeholder="No G-code loaded" style="background:var(--input-bg,#181818)">
+        </div>
+        <div class="field">
+          <label>XY Bounds</label>
+          <input type="text" id="apply-gcode-bounds" readonly placeholder="&mdash;" style="background:var(--input-bg,#181818)">
+        </div>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn ghost" id="apply-btn-auto-grid" title="Set probe grid Min/Max from loaded G-code bounds">&#8635; Auto Grid from G-code</button>
+          <button class="btn ghost" id="apply-btn-refresh" title="Refresh G-code and mesh status">&#8635; Refresh Status</button>
+        </div>
+        <div class="status-line" id="apply-auto-grid-status" style="margin-top:6px"></div>
+      </div>
+
+      <!-- Compensation settings -->
+      <div class="panel">
+        <div class="box-title">Compensation Settings</div>
+        <div class="field">
+          <label>Reference Z (mm)</label>
+          <input type="number" id="apply-refZ" value="0" step="0.1"
+                 title="The Z value in the mesh that represents the flat datum &mdash; usually 0">
+        </div>
+        <div class="callout mini" style="margin-top:8px">
+          Reference Z is subtracted from the mesh Z at each point to compute the height offset.
+          Leave at 0 if the probe touched the surface at Z=0 in machine coordinates.
+        </div>
+      </div>
+
+      <!-- Apply button and result -->
+      <div class="panel">
+        <div class="box-title">Apply</div>
+        <div class="btn-row">
+          <button class="btn" id="apply-btn-apply" disabled>&#9889; Apply Z Compensation</button>
+        </div>
+        <div id="apply-result-status" class="status-line" style="margin-top:10px"></div>
+        <div id="apply-log" class="probe-log" style="margin-top:10px;max-height:160px;overflow-y:auto;display:none"></div>
+      </div>
+
+    </div><!-- /pane-apply -->
 
 
   </div><!-- /content -->
@@ -5853,6 +5912,7 @@ function smLoadSettings() {
   try{ renderLog('face'); }catch(e){}
   try{ smLoadSettings(); }catch(e){}
   try{ onProbeTypeChange(); }catch(e){}
+  try{ initApplyTab(); }catch(e){ console.warn('initApplyTab error:', e); }
 
   // Tab buttons
   document.querySelectorAll('.tab').forEach(function(t){
@@ -7455,6 +7515,252 @@ function clearCombinedMesh() {
   updateCombinedMeshUI();
   var statusEl = document.getElementById('comb-meshStorageStatus');
   if (statusEl) statusEl.textContent = 'Combined data cleared.';
+}
+
+// ── Apply Tab ─────────────────────────────────────────────────────────────────
+
+var _applyPollTimer = null;
+var _applyLastResultTs = 0;
+var _applyBoundsCache = null;
+var APPLY_MAX_BOUNDS_POLL_ATTEMPTS = 20;  // ~6s at 300ms interval
+var APPLY_MAX_APPLY_POLL_ATTEMPTS  = 60;  // ~30s at 500ms interval
+
+/** Format a bounds object { min:{x,y}, max:{x,y} } as a readable string. */
+function applyTabFormatBounds(b) {
+  return 'X: ' + b.min.x.toFixed(2) + ' to ' + b.max.x.toFixed(2) +
+         '  Y: ' + b.min.y.toFixed(2) + ' to ' + b.max.y.toFixed(2);
+}
+
+/** Convert smMeshData + smGridConfig to the format expected by the server engine. */
+function applyTabBuildMeshPayload() {
+  if (!smMeshData || !smGridConfig) return null;
+  var cfg = smGridConfig;
+  var gridParams = {
+    startX:   cfg.minX,
+    startY:   cfg.minY,
+    spacingX: cfg.colSpacing,
+    spacingY: cfg.rowSpacing,
+    rows:     cfg.rowCount,
+    cols:     cfg.colCount
+  };
+  var mesh = [];
+  for (var r = 0; r < cfg.rowCount; r++) {
+    mesh.push([]);
+    for (var c = 0; c < cfg.colCount; c++) {
+      var x = cfg.minX + c * cfg.colSpacing;
+      var y = cfg.minY + r * cfg.rowSpacing;
+      var z = smMeshData[r][c];
+      mesh[r].push({ x: x, y: y, z: z != null ? z : 0 });
+    }
+  }
+  return { mesh: mesh, gridParams: gridParams };
+}
+
+function applyTabLog(msg) {
+  var el = document.getElementById('apply-log');
+  if (!el) return;
+  el.style.display = 'block';
+  var ts = new Date().toLocaleTimeString('en', { hour12: false });
+  var div = document.createElement('div');
+  div.className = 'log-entry';
+  div.textContent = '[' + ts + '] ' + msg;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function applyTabSetResult(msg, isError) {
+  var el = document.getElementById('apply-result-status');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'status-line ' + (isError ? 'warn' : 'ok');
+}
+
+function applyTabRefresh() {
+  var hasMesh  = !!(smMeshData && smGridConfig);
+  var meshEl   = document.getElementById('apply-status-mesh');
+  var gcodeEl  = document.getElementById('apply-status-gcode');
+  var readyEl  = document.getElementById('apply-ready-status');
+  var applyBtn = document.getElementById('apply-btn-apply');
+  var fnEl     = document.getElementById('apply-gcode-filename');
+  var boundsEl = document.getElementById('apply-gcode-bounds');
+
+  if (meshEl) {
+    if (hasMesh) {
+      meshEl.textContent = '\u2705 Mesh data loaded (' + smGridConfig.colCount + '\u00d7' + smGridConfig.rowCount + ' = ' + (smGridConfig.colCount * smGridConfig.rowCount) + ' points)';
+      meshEl.className = 'status-line ok';
+    } else {
+      meshEl.textContent = '\u26a0\ufe0f No mesh data — run surface probing first';
+      meshEl.className = 'status-line warn';
+    }
+  }
+
+  // Fetch server state to check G-code
+  fetch('/api/server-state').then(function(r) {
+    return r.ok ? r.json() : null;
+  }).then(function(state) {
+    var hasGcode = !!(state && state.jobLoaded && state.jobLoaded.filename);
+    var filename  = hasGcode ? state.jobLoaded.filename : null;
+
+    if (gcodeEl) {
+      if (hasGcode) {
+        gcodeEl.textContent = '\u2705 G-code loaded: ' + filename;
+        gcodeEl.className = 'status-line ok';
+      } else {
+        gcodeEl.textContent = '\u26a0\ufe0f No G-code loaded — load a file in ncSender first';
+        gcodeEl.className = 'status-line warn';
+      }
+    }
+    if (fnEl)  fnEl.value  = filename || '';
+    if (boundsEl && _applyBoundsCache) {
+      boundsEl.value = applyTabFormatBounds(_applyBoundsCache);
+    } else if (boundsEl) {
+      boundsEl.value = hasGcode ? 'Click \u201cRefresh Status\u201d to fetch bounds' : '';
+    }
+
+    var ready = hasMesh && hasGcode;
+    if (applyBtn) applyBtn.disabled = !ready;
+    if (readyEl) {
+      if (ready) {
+        readyEl.textContent = '\u2713 Ready to apply compensation';
+        readyEl.className = 'status-line ok';
+      } else {
+        readyEl.textContent = '';
+        readyEl.className = 'status-line';
+      }
+    }
+  }).catch(function() {
+    if (gcodeEl) { gcodeEl.textContent = '\u26a0\ufe0f Could not reach ncSender'; gcodeEl.className = 'status-line warn'; }
+    if (applyBtn) applyBtn.disabled = true;
+  });
+}
+
+function applyTabAutoGrid() {
+  var statusEl = document.getElementById('apply-auto-grid-status');
+  if (statusEl) { statusEl.textContent = 'Requesting bounds from server\u2026'; statusEl.className = 'status-line'; }
+
+  // Ask server to analyse the G-code cache file
+  var ts = Date.now();
+  fetch('/api/plugins/com.ncsender.edgeprobe.combined/settings', {
+    method:  'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ requestBounds: true, _boundsTs: ts })
+  }).then(function(r) { return r.ok ? r.json() : null; }).then(function() {
+    // Poll for result
+    var attempts = 0;
+    var poll = setInterval(function() {
+      attempts++;
+      fetch('/api/plugins/com.ncsender.edgeprobe.combined/settings')
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(s) {
+          if (!s) return;
+          if (s.requestBounds === false && s.lastBoundsResult) {
+            clearInterval(poll);
+            var res = s.lastBoundsResult;
+            if (res.success && res.bounds) {
+              _applyBoundsCache = res.bounds;
+              var b = res.bounds;
+              var boundsEl = document.getElementById('apply-gcode-bounds');
+              if (boundsEl) boundsEl.value = applyTabFormatBounds(b);
+              // Populate probe grid inputs
+              var ids = { 'sm-minX': b.min.x, 'sm-maxX': b.max.x, 'sm-minY': b.min.y, 'sm-maxY': b.max.y };
+              Object.keys(ids).forEach(function(id) {
+                var el = document.getElementById(id);
+                if (el) el.value = ids[id].toFixed(2);
+              });
+              try { updateSurfaceGridSizeDisplay(); } catch(e) {}
+              if (statusEl) { statusEl.textContent = '\u2705 Grid updated from G-code bounds'; statusEl.className = 'status-line ok'; }
+            } else {
+              if (statusEl) { statusEl.textContent = '\u26a0\ufe0f ' + (res.error || 'Could not fetch bounds'); statusEl.className = 'status-line warn'; }
+            }
+          }
+        }).catch(function() { clearInterval(poll); });
+      if (attempts > APPLY_MAX_BOUNDS_POLL_ATTEMPTS) clearInterval(poll);
+    }, 300);
+  }).catch(function() {
+    if (statusEl) { statusEl.textContent = '\u26a0\ufe0f Settings API not available'; statusEl.className = 'status-line warn'; }
+  });
+}
+
+function applyTabApply() {
+  var meshPayload = applyTabBuildMeshPayload();
+  if (!meshPayload) { alert('No mesh data. Run surface probing first.'); return; }
+
+  var referenceZ = parseFloat(document.getElementById('apply-refZ').value) || 0;
+  var applyBtn   = document.getElementById('apply-btn-apply');
+  if (applyBtn) applyBtn.disabled = true;
+
+  var resultEl = document.getElementById('apply-result-status');
+  if (resultEl) { resultEl.textContent = 'Sending to server\u2026'; resultEl.className = 'status-line'; }
+
+  var ts = Date.now();
+  applyTabLog('Triggering server-side Z compensation (referenceZ=' + referenceZ + ')');
+
+  fetch('/api/plugins/com.ncsender.edgeprobe.combined/settings', {
+    method:  'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({
+      referenceZ:        referenceZ,
+      meshData:          meshPayload,
+      applyCompensation: true,
+      applyTimestamp:    ts
+    })
+  }).then(function(r) { return r.ok ? r.json() : null; }).then(function() {
+    applyTabLog('Request sent. Waiting for server\u2026');
+    if (resultEl) resultEl.textContent = 'Processing\u2026';
+
+    // Poll settings for lastApplyResult
+    var attempts = 0;
+    _applyPollTimer = setInterval(function() {
+      attempts++;
+      fetch('/api/plugins/com.ncsender.edgeprobe.combined/settings')
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(s) {
+          if (!s) return;
+          if (s.applyCompensation === false && s.lastApplyResult && s.lastApplyResult !== _applyLastResultTs) {
+            clearInterval(_applyPollTimer);
+            _applyPollTimer = null;
+            _applyLastResultTs = s.lastApplyResult;
+            var res = s.lastApplyResult;
+            if (res.success) {
+              applyTabLog('Done! Compensated file loaded: ' + res.filename);
+              applyTabSetResult('\u2705 Applied! Loaded as: ' + res.filename, false);
+            } else {
+              applyTabLog('Error: ' + res.error);
+              applyTabSetResult('\u274c Error: ' + res.error, true);
+            }
+            if (applyBtn) applyBtn.disabled = false;
+          }
+        }).catch(function() { clearInterval(_applyPollTimer); _applyPollTimer = null; });
+      if (attempts > APPLY_MAX_APPLY_POLL_ATTEMPTS) {
+        clearInterval(_applyPollTimer);
+        _applyPollTimer = null;
+        applyTabSetResult('\u274c Timed out waiting for server response', true);
+        if (applyBtn) applyBtn.disabled = false;
+      }
+    }, 500);
+  }).catch(function(err) {
+    applyTabLog('Error contacting server: ' + err.message);
+    applyTabSetResult('\u274c Error: ' + err.message, true);
+    if (applyBtn) applyBtn.disabled = false;
+  });
+}
+
+// Initialise Apply tab
+function initApplyTab() {
+  var btnApply   = document.getElementById('apply-btn-apply');
+  var btnRefresh = document.getElementById('apply-btn-refresh');
+  var btnAuto    = document.getElementById('apply-btn-auto-grid');
+  if (btnApply)   btnApply.addEventListener('click',   function() { applyTabApply(); });
+  if (btnRefresh) btnRefresh.addEventListener('click', function() { applyTabRefresh(); });
+  if (btnAuto)    btnAuto.addEventListener('click',    function() { applyTabAutoGrid(); });
+  // Refresh status when switching to the Apply tab
+  var origSwitch = window.switchTab;
+  window.switchTab = function(id) {
+    origSwitch(id);
+    if (id === 'apply') applyTabRefresh();
+  };
+  // Initial status refresh
+  applyTabRefresh();
 }
 
 
