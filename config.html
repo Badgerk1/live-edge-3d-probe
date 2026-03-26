@@ -2962,8 +2962,8 @@ async function runFaceProbe(axis, _calledFromCombined){
           }
           didOptimizedRetract = false;
 
-          logLine('face', 'Layer ' + layerNum + ' sample ' + sampleNum + ': lowering to Z=' + layerZ.toFixed(3) + ' using probe move (G38.2 Z).');
-          await sendCommand('G90 G38.2 Z' + Number(layerZ).toFixed(3) + ' F' + Number(s.travelRecoveryLiftFeedRate || s.travelFeedRate).toFixed(0));
+          logLine('face', 'Layer ' + layerNum + ' sample ' + sampleNum + ': lowering to Z=' + layerZ.toFixed(3) + ' using probe move (G38.3 Z).');
+          await sendCommand('G90 G38.3 Z' + Number(layerZ).toFixed(3) + ' F' + Number(s.travelRecoveryLiftFeedRate || s.travelFeedRate).toFixed(0));
           await waitForIdle();
           var zDescentPos = await getWorkPosition();
           if(await _handleFaceZDescentContact(zDescentPos, axis, targetCoord, lineCoord, s, faceResults, 'layer ' + layerNum + ' sample ' + sampleNum)){
@@ -3084,8 +3084,8 @@ async function runFaceProbe(axis, _calledFromCombined){
         await moveAbs(null, startCoord, null, s.travelFeedRate);
       }
 
-      logLine('face', 'At face start. Lowering to face probe Z ' + zForProbe.toFixed(3) + ' using probe move (G38.2 Z).');
-      await sendCommand('G90 G38.2 Z' + Number(zForProbe).toFixed(3) + ' F' + Number(s.travelRecoveryLiftFeedRate || s.travelFeedRate).toFixed(0));
+      logLine('face', 'At face start. Lowering to face probe Z ' + zForProbe.toFixed(3) + ' using probe move (G38.3 Z).');
+      await sendCommand('G90 G38.3 Z' + Number(zForProbe).toFixed(3) + ' F' + Number(s.travelRecoveryLiftFeedRate || s.travelFeedRate).toFixed(0));
       await waitForIdle();
       var zDescentPos = await getWorkPosition();
       if(await _handleFaceZDescentContact(zDescentPos, axis, targetCoord, lineCoord, s, faceResults, null)){
