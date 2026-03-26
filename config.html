@@ -7543,7 +7543,9 @@ function applyTabBuildFaceMeshPayload() {
   var data = typeof getFaceMeshData === 'function' ? getFaceMeshData() : null;
   if (!data || !data.length) return null;
 
-  // Collect unique X positions and their sampleTopZ values from the shallowest layer
+  // Collect unique X positions and their sampleTopZ values from the shallowest layer.
+  // Layer numbering: layer 1 = deepest (bottom), layer N = shallowest (top).
+  // We keep the highest layer number per X position to get the topmost measurement.
   var xMap = {};
   data.forEach(function(r) {
     var key = Number(r.x).toFixed(3);
@@ -7558,7 +7560,7 @@ function applyTabBuildFaceMeshPayload() {
   var xMin = pts[0].x;
   var xMax = pts[pts.length - 1].x;
   var spacingX = (xMax - xMin) / (pts.length - 1);
-  // Single-row mesh (1D profile along X)
+  // Face mesh is 1D along X, so Y dimension is fixed (single row)
   var gridParams = { startX: xMin, startY: 0, spacingX: spacingX, spacingY: 1, rows: 1, cols: pts.length };
   var mesh = [pts.map(function(p) { return { x: p.x, y: 0, z: p.z }; })];
   return { mesh: mesh, gridParams: gridParams };
