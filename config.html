@@ -2335,6 +2335,20 @@ function makeFaceContactRecord(index, pos, axis, status, targetCoord, sampleCoor
   };
 }
 
+// Handles early probe contact during a Z descent move. Lifts straight up in +Z only,
+// records an EARLY_CONTACT_FACE_Z_DESCENT result point, and returns true if contact occurred.
+async function _handleFaceZDescentContact(pos, axis, targetCoord, lineCoord, s, faceResults, label){
+    if(!pos.probeTriggered) return false;
+    var liftZ = Number(pos.z) + Math.max(0.1, Number(s.travelContactLift) || Number(s.topRetract) || 5);
+    var suffix = label ? ' (' + label + ')' : '';
+    logLine('face', 'EARLY CONTACT during Z descent at Z=' + Number(pos.z).toFixed(3) + suffix + '. Lifting to Z=' + liftZ.toFixed(3) + ' and skipping sample.');
+    var rec = makeFaceContactRecord(faceResults.length + 1, pos, axis, 'EARLY_CONTACT_FACE_Z_DESCENT', targetCoord, lineCoord);
+    faceResults.push(rec);
+    updateAllResultsUI();
+    await moveAbs(null, null, liftZ, s.travelRecoveryLiftFeedRate || s.travelFeedRate);
+    return true;
+}
+
 
 function updateEdgeProbeStorageUI(){
   var el = document.getElementById('edge-probe-results-summary');
@@ -2948,7 +2962,13 @@ async function runFaceProbe(axis, _calledFromCombined){
           }
           didOptimizedRetract = false;
 
-          await moveAbs(null, null, layerZ, s.travelRecoveryLiftFeedRate || s.travelFeedRate);
+          logLine('face', 'Layer ' + layerNum + ' sample ' + sampleNum + ': lowering to Z=' + layerZ.toFixed(3) + ' using probe move (G38.2 Z).');
+          await sendCommand('G90 G38.2 Z' + Number(layerZ).toFixed(3) + ' F' + Number(s.travelRecoveryLiftFeedRate || s.travelFeedRate).toFixed(0));
+          await waitForIdle();
+          var zDescentPos = await getWorkPosition();
+          if(await _handleFaceZDescentContact(zDescentPos, axis, targetCoord, lineCoord, s, faceResults, 'layer ' + layerNum + ' sample ' + sampleNum)){
+            continue;
+          }
 
           var _layerFeedLog = Number(s.faceFeed || s.topFeed || s.travelFeedRate || 0);
           logLine('face', 'Layer ' + layerNum + ' sample ' + sampleNum + ': probing toward ' + axis + ' ' + targetCoord.toFixed(3) + ' at feed ' + _layerFeedLog.toFixed(0) + ' mm/min.');
@@ -3064,8 +3084,13 @@ async function runFaceProbe(axis, _calledFromCombined){
         await moveAbs(null, startCoord, null, s.travelFeedRate);
       }
 
-      logLine('face', 'At face start. Lowering to face probe Z ' + zForProbe.toFixed(3));
-      await moveAbs(null, null, zForProbe, s.travelRecoveryLiftFeedRate || s.travelFeedRate);
+      logLine('face', 'At face start. Lowering to face probe Z ' + zForProbe.toFixed(3) + ' using probe move (G38.2 Z).');
+      await sendCommand('G90 G38.2 Z' + Number(zForProbe).toFixed(3) + ' F' + Number(s.travelRecoveryLiftFeedRate || s.travelFeedRate).toFixed(0));
+      await waitForIdle();
+      var zDescentPos = await getWorkPosition();
+      if(await _handleFaceZDescentContact(zDescentPos, axis, targetCoord, lineCoord, s, faceResults, null)){
+        continue;
+      }
 
       var _faceFeedLog = Number(s.faceFeed || s.topFeed || s.travelFeedRate || 0); logLine('face', 'At face start. Probing toward ' + axis + ' ' + targetCoord.toFixed(3) + ' at feed ' + _faceFeedLog.toFixed(0) + ' mm/min.');
       var faceAdvance = await segmentedFaceMoveWithRecovery(axis, targetCoord, lineCoord, zForProbe, s, 'probe', lineCoord);
