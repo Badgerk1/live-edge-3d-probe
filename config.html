@@ -5983,8 +5983,9 @@ function applySubdividedCompensation(gcodeText, meshData, gridCfg, referenceZ) {
   var movesProcessed = 0;
   var totalSegments = 0;
 
-  var spacingX = gridCfg.colSpacing || ((gridCfg.maxX - gridCfg.minX) / Math.max(1, gridCfg.colCount - 1));
-  var spacingY = gridCfg.rowSpacing || ((gridCfg.maxY - gridCfg.minY) / Math.max(1, gridCfg.rowCount - 1));
+  // When grid has only 1 column or 1 row, spacing is zero (all points at same position)
+  var spacingX = gridCfg.colSpacing || (gridCfg.colCount > 1 ? (gridCfg.maxX - gridCfg.minX) / (gridCfg.colCount - 1) : 0);
+  var spacingY = gridCfg.rowSpacing || (gridCfg.rowCount > 1 ? (gridCfg.maxY - gridCfg.minY) / (gridCfg.rowCount - 1) : 0);
   var segmentLength = Math.min(spacingX || 10, spacingY || 10, 2);
 
   output.push('(Z-Compensated G-code - 3D Live Edge Mesh Combined Plugin)');
@@ -6081,6 +6082,7 @@ function applySubdividedCompensation(gcodeText, meshData, gridCfg, referenceZ) {
       if (hasZ) {
         output.push(line.replace(/Z([+-]?\d*\.?\d+)/i, 'Z' + compensatedZ3.toFixed(3)));
       } else {
+        // Only add Z to rapid moves at working height (below safe retract threshold of 10mm)
         if (currentZ < 10) {
           output.push(line.trim() + ' Z' + compensatedZ3.toFixed(3));
         } else {

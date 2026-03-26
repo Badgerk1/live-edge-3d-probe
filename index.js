@@ -261,6 +261,7 @@ function applyZCompensation(gcodeContent, mesh, gridParams, referenceZ) {
         const newLine = line.replace(/Z([+-]?\d*\.?\d+)/i, `Z${compensatedZ.toFixed(3)}`);
         output.push(newLine);
       } else {
+        // Only add Z to rapid moves at working height (below safe retract threshold of 10mm)
         if (currentZ < 10) {
           const newLine = line.trim() + ` Z${compensatedZ.toFixed(3)}`;
           output.push(newLine);
