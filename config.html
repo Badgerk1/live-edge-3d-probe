@@ -284,6 +284,10 @@
             </div>
 
             <div class="probe-note">All probe dimensions are editable so different 3D probes can be used. Auto total = upper section height + main body height + stylus length.</div>
+            <div class="btn-row" style="margin-top:10px">
+              <button class="btn" id="btn-save-probe-dims" type="button">&#128190; Save Probe Dimensions</button>
+            </div>
+            <div id="probe-dims-status" class="status-line"></div>
           </div>
         </div>
       </div>
@@ -1221,6 +1225,7 @@ var topLogLines = [];
 var faceLogLines = [];
 var layeredFaceResults = [];
 var MESH_STORAGE_KEY = 'edgeProbeMeshData';
+var PROBE_DIMENSIONS_KEY = 'edgeProbeDimensions';
 
 // ── Debug logging ─────────────────────────────────────────────────────────────
 var _pluginDebugMode = false; // toggled by "Debug Log" checkbox in footer
@@ -6204,7 +6209,7 @@ function smLoadSettings() {
 
 (function init(){
   try{ var vTag=document.getElementById('sm-version-tag'); if(vTag) vTag.textContent=SM_VERSION; }catch(e){}
-  setTimeout(function(){ try{ bindProbeDimensionUI(); applyProbeDimensionSettings(getSettingsFromUI()); }catch(e){} }, 0);
+  setTimeout(function(){ try{ bindProbeDimensionUI(); applyProbeDimensionSettings(getSettingsFromUI()); loadProbeDimensions(); }catch(e){} }, 0);
   try{ loadPersistedLogs(); }catch(e){}
   try{ loadSettings(); }catch(e){}
   try{ loadProbeResults(); }catch(e){}
@@ -6254,6 +6259,8 @@ function smLoadSettings() {
   if(btnLoad) btnLoad.addEventListener('click', function(){ pluginDebug('btn-load-settings clicked'); loadSettings(); });
   var btnReset = document.getElementById('btn-reset-settings');
   if(btnReset) btnReset.addEventListener('click', function(){ pluginDebug('btn-reset-settings clicked'); resetSettings(); });
+  var btnSaveProbeDims = document.getElementById('btn-save-probe-dims');
+  if(btnSaveProbeDims) btnSaveProbeDims.addEventListener('click', function(){ pluginDebug('btn-save-probe-dims clicked'); saveProbeDimensions(); });
   var btnSaveLocation = document.getElementById('btn-save-location');
   if(btnSaveLocation) btnSaveLocation.addEventListener('click', function(){ pluginDebug('btn-save-location clicked'); saveCurrentLocation(); });
   var btnGoLocation = document.getElementById('btn-go-location');
@@ -7230,8 +7237,38 @@ function applyProbeDimensionSettings(s){
   updateProbeDimensionPreview();
 }
 
+var PROBE_DIM_IDS = ['probeShankDiameter','probeBodyDiameter','probeUpperHeight','probeMainBodyHeight','probeStylusLength','probeStylusCalloutLength','probeBallTipDiameter','probeTotalLength'];
+
+function saveProbeDimensions(){
+  try{
+    var data = {};
+    PROBE_DIM_IDS.forEach(function(id){
+      var el = document.getElementById(id);
+      if(el) data[id] = el.value;
+    });
+    localStorage.setItem(PROBE_DIMENSIONS_KEY, JSON.stringify(data));
+    var el = document.getElementById('probe-dims-status');
+    if(el){ el.textContent = 'Probe dimensions saved.'; el.className = 'status-line good'; }
+    setTimeout(function(){ if(el){ el.textContent = ''; el.className = 'status-line'; } }, 2500);
+  }catch(e){ console.error('saveProbeDimensions error:', e); }
+}
+
+function loadProbeDimensions(){
+  try{
+    var raw = localStorage.getItem(PROBE_DIMENSIONS_KEY);
+    if(!raw) return;
+    var data = JSON.parse(raw);
+    PROBE_DIM_IDS.forEach(function(id){
+      var el = document.getElementById(id);
+      if(el && data[id] != null && data[id] !== '') el.value = data[id];
+    });
+    calcProbeAutoTotalLength();
+    updateProbeDimensionPreview();
+  }catch(e){ console.error('loadProbeDimensions error:', e); }
+}
+
 function bindProbeDimensionUI(){
-  ['probeShankDiameter','probeBodyDiameter','probeUpperHeight','probeMainBodyHeight','probeStylusLength','probeStylusCalloutLength','probeBallTipDiameter','probeTotalLength'].forEach(function(id){
+  PROBE_DIM_IDS.forEach(function(id){
     var el = document.getElementById(id);
     if(el) el.addEventListener('input', function(){
       calcProbeAutoTotalLength();
