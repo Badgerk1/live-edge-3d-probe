@@ -5751,6 +5751,31 @@ function exportSurfaceMeshCSV() {
 
 
 function bilinearInterpolateZ(data, cfg, queryX, queryY) {
+  // Single point
+  if (cfg.rowCount <= 1 && cfg.colCount <= 1) {
+    return (data[0] && data[0][0] != null) ? data[0][0] : 0;
+  }
+  // Single row (1×N): linear interpolation in X only
+  if (cfg.rowCount <= 1) {
+    var colF = cfg.colSpacing > 0 ? (queryX - cfg.minX) / cfg.colSpacing : 0;
+    var c0 = Math.max(0, Math.min(cfg.colCount - 2, Math.floor(colF)));
+    var c1 = Math.min(cfg.colCount - 1, c0 + 1);
+    var fx2 = Math.max(0, Math.min(1, colF - c0));
+    var za = (data[0] && data[0][c0] != null) ? data[0][c0] : 0;
+    var zb = (data[0] && data[0][c1] != null) ? data[0][c1] : za;
+    return za * (1 - fx2) + zb * fx2;
+  }
+  // Single column (N×1): linear interpolation in Y only
+  if (cfg.colCount <= 1) {
+    var rowF = cfg.rowSpacing > 0 ? (queryY - cfg.minY) / cfg.rowSpacing : 0;
+    var r0 = Math.max(0, Math.min(cfg.rowCount - 2, Math.floor(rowF)));
+    var r1 = Math.min(cfg.rowCount - 1, r0 + 1);
+    var fy2 = Math.max(0, Math.min(1, rowF - r0));
+    var za = (data[r0] && data[r0][0] != null) ? data[r0][0] : 0;
+    var zb = (data[r1] && data[r1][0] != null) ? data[r1][0] : za;
+    return za * (1 - fy2) + zb * fy2;
+  }
+  // Standard bilinear interpolation for 2D grid
   var col = (queryX - cfg.minX) / cfg.colSpacing;
   var row = (queryY - cfg.minY) / cfg.rowSpacing;
   var col0 = Math.max(0, Math.min(cfg.colCount - 2, Math.floor(col)));
@@ -5759,10 +5784,10 @@ function bilinearInterpolateZ(data, cfg, queryX, queryY) {
   var row1 = row0 + 1;
   var fx = Math.max(0, Math.min(1, col - col0));
   var fy = Math.max(0, Math.min(1, row - row0));
-  var z00 = data[row0][col0];
-  var z10 = data[row0][col1];
-  var z01 = data[row1][col0];
-  var z11 = data[row1][col1];
+  var z00 = (data[row0] && data[row0][col0] != null) ? data[row0][col0] : 0;
+  var z10 = (data[row0] && data[row0][col1] != null) ? data[row0][col1] : z00;
+  var z01 = (data[row1] && data[row1][col0] != null) ? data[row1][col0] : z00;
+  var z11 = (data[row1] && data[row1][col1] != null) ? data[row1][col1] : z00;
   var z0 = z00 * (1 - fx) + z10 * fx;
   var z1 = z01 * (1 - fx) + z11 * fx;
   return z0 * (1 - fy) + z1 * fy;
@@ -5778,7 +5803,7 @@ function applySurfaceCompensation() {
     var result = smApplyCompensationCore(smOriginalGcode, smMeshData, smGridConfig, refZ);
     smCompensatedGcode = result.gcode;
     var statusEl = document.getElementById('sm-applyStatus');
-    if (statusEl) statusEl.textContent = 'Done. ' + result.modified + ' Z values modified.';
+    if (statusEl) statusEl.textContent = 'Done. ' + result.modified + ' lines compensated.';
     smLogApply('Compensation applied. ' + result.modified + ' lines modified.');
     var preview = smCompensatedGcode.split('\n').slice(0, 30).join('\n');
     var previewEl = document.getElementById('sm-apply-preview');
@@ -5795,7 +5820,9 @@ function applySurfaceCompensation() {
 function smApplyCompensationCore(gcodeText, data, cfg, referenceZ) {
   var lines = gcodeText.split('\n');
   var output = [];
-  var currentX = 0, currentY = 0;
+  var currentX = 0, currentY = 0, currentZ = 0;
+  var isAbsolute = true;
+  var currentGMode = 'G1'; // default motion mode
   var linesModified = 0;
   var zLinesFound = 0;
   var zLinesOutOfBounds = 0;
@@ -5805,22 +5832,39 @@ function smApplyCompensationCore(gcodeText, data, cfg, referenceZ) {
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i].trim();
     if (!line || line.startsWith(';') || line.startsWith('(')) { output.push(lines[i]); continue; }
-    var isMove = /^G[01]\b/i.test(line) || /\b[XYZ][-\d.]/i.test(line);
+
+    // Track absolute/incremental mode
+    if (/\bG90\b/i.test(line) && !/G90\.1/i.test(line)) isAbsolute = true;
+    if (/\bG91\b/i.test(line) && !/G91\.1/i.test(line)) isAbsolute = false;
+
+    // Skip machine-coordinate moves
+    if (/\bG53\b/i.test(line)) { output.push(lines[i]); continue; }
+
+    var isMove = /^G0*[01]\b/i.test(line) || /\b[XYZ][-\d.]/i.test(line);
     if (!isMove) { output.push(lines[i]); continue; }
+
+    // Track motion mode — support both G0/G1 and zero-padded G00/G01
+    if (/\bG0*0\b/i.test(line)) currentGMode = 'G0';
+    if (/\bG0*1\b/i.test(line)) currentGMode = 'G1';
+
     var xMatch = line.match(/X(-?[\d.]+)/i);
     var yMatch = line.match(/Y(-?[\d.]+)/i);
     var zMatch = line.match(/Z(-?[\d.]+)/i);
-    if (xMatch) currentX = parseFloat(xMatch[1]);
-    if (yMatch) currentY = parseFloat(yMatch[1]);
+
+    // Calculate target position
+    var targetX = currentX, targetY = currentY, targetZ = currentZ;
+    if (xMatch) targetX = isAbsolute ? parseFloat(xMatch[1]) : currentX + parseFloat(xMatch[1]);
+    if (yMatch) targetY = isAbsolute ? parseFloat(yMatch[1]) : currentY + parseFloat(yMatch[1]);
+    if (zMatch) targetZ = isAbsolute ? parseFloat(zMatch[1]) : currentZ + parseFloat(zMatch[1]);
 
     if (zMatch) {
       zLinesFound++;
-      var originalZ = parseFloat(zMatch[1]);
+      var originalZ = targetZ;
 
       // Check if within bounds
-      if (currentX >= cfg.minX && currentX <= cfg.maxX &&
-          currentY >= cfg.minY && currentY <= cfg.maxY) {
-        var meshZ = bilinearInterpolateZ(data, cfg, currentX, currentY);
+      if (targetX >= cfg.minX && targetX <= cfg.maxX &&
+          targetY >= cfg.minY && targetY <= cfg.maxY) {
+        var meshZ = bilinearInterpolateZ(data, cfg, targetX, targetY);
         var offset = meshZ - referenceZ;
         var newZ = originalZ + offset;
         line = line.replace(/Z(-?[\d.]+)/i, 'Z' + newZ.toFixed(3));
@@ -5830,8 +5874,8 @@ function smApplyCompensationCore(gcodeText, data, cfg, referenceZ) {
         if (!firstModification) {
           firstModification = {
             lineNum: i + 1,
-            x: currentX.toFixed(3),
-            y: currentY.toFixed(3),
+            x: targetX.toFixed(3),
+            y: targetY.toFixed(3),
             origZ: originalZ.toFixed(3),
             meshZ: meshZ.toFixed(3),
             offset: offset.toFixed(3),
@@ -5843,8 +5887,8 @@ function smApplyCompensationCore(gcodeText, data, cfg, referenceZ) {
         if (linesModified <= 3) {
           sampleModifications.push({
             lineNum: i + 1,
-            x: currentX.toFixed(3),
-            y: currentY.toFixed(3),
+            x: targetX.toFixed(3),
+            y: targetY.toFixed(3),
             origZ: originalZ.toFixed(3),
             meshZ: meshZ.toFixed(3),
             offset: offset.toFixed(3),
@@ -5854,7 +5898,22 @@ function smApplyCompensationCore(gcodeText, data, cfg, referenceZ) {
       } else {
         zLinesOutOfBounds++;
       }
+    } else if (currentGMode === 'G1' && (xMatch || yMatch) && isAbsolute) {
+      // XY-only linear move — add Z compensation so the tool follows the surface
+      if (targetX >= cfg.minX && targetX <= cfg.maxX &&
+          targetY >= cfg.minY && targetY <= cfg.maxY) {
+        var meshZ = bilinearInterpolateZ(data, cfg, targetX, targetY);
+        var compensatedZ = currentZ + (meshZ - referenceZ);
+        line = line + ' Z' + compensatedZ.toFixed(3);
+        linesModified++;
+      }
     }
+
+    // Update tracked position
+    currentX = targetX;
+    currentY = targetY;
+    currentZ = targetZ;
+
     output.push(line);
   }
 
