@@ -7,6 +7,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 
+// Z values above this threshold (mm) are considered retracted / safe — rapid moves
+// at or above this height won't have Z compensation injected.
+const WORKING_HEIGHT_THRESHOLD_MM = 10;
+
+// ncSender local API base URL used for loading compensated G-code files
+const NCSENDER_API_BASE = 'http://localhost:8090';
+
 // ── File path utilities ───────────────────────────────────────────────────────
 
 function getUserDataDir() {
@@ -280,7 +287,7 @@ function applyZCompensation(gcodeContent, mesh, gridParams, referenceZ) {
 
       if (hasZ) {
         output.push(line.replace(/Z([+-]?\d*\.?\d+)/i, `Z${compensatedZ.toFixed(3)}`));
-      } else if (currentZ < 10) {
+      } else if (currentZ < WORKING_HEIGHT_THRESHOLD_MM) {
         // Only inject Z on rapid moves that are at working height (not retracted)
         output.push(line.trim() + ` Z${compensatedZ.toFixed(3)}`);
       } else {
@@ -396,7 +403,7 @@ export async function onLoad(ctx) {
 
           ctx.log('Loading compensated file:', outputFilename);
 
-          const response = await fetch('http://localhost:8090/api/gcode-files/load-temp', {
+          const response = await fetch(`${NCSENDER_API_BASE}/api/gcode-files/load-temp`, {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify({

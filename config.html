@@ -7368,6 +7368,14 @@ function clearCombinedMesh() {
 var _applyPollTimer = null;
 var _applyLastResultTs = 0;
 var _applyBoundsCache = null;
+var APPLY_MAX_BOUNDS_POLL_ATTEMPTS = 20;  // ~6s at 300ms interval
+var APPLY_MAX_APPLY_POLL_ATTEMPTS  = 60;  // ~30s at 500ms interval
+
+/** Format a bounds object { min:{x,y}, max:{x,y} } as a readable string. */
+function applyTabFormatBounds(b) {
+  return 'X: ' + b.min.x.toFixed(2) + ' to ' + b.max.x.toFixed(2) +
+         '  Y: ' + b.min.y.toFixed(2) + ' to ' + b.max.y.toFixed(2);
+}
 
 /** Convert smMeshData + smGridConfig to the format expected by the server engine. */
 function applyTabBuildMeshPayload() {
@@ -7450,9 +7458,7 @@ function applyTabRefresh() {
     }
     if (fnEl)  fnEl.value  = filename || '';
     if (boundsEl && _applyBoundsCache) {
-      var b = _applyBoundsCache;
-      boundsEl.value = 'X: ' + b.min.x.toFixed(2) + ' to ' + b.max.x.toFixed(2) +
-                       '  Y: ' + b.min.y.toFixed(2) + ' to ' + b.max.y.toFixed(2);
+      boundsEl.value = applyTabFormatBounds(_applyBoundsCache);
     } else if (boundsEl) {
       boundsEl.value = hasGcode ? 'Click \u201cRefresh Status\u201d to fetch bounds' : '';
     }
@@ -7500,8 +7506,7 @@ function applyTabAutoGrid() {
               _applyBoundsCache = res.bounds;
               var b = res.bounds;
               var boundsEl = document.getElementById('apply-gcode-bounds');
-              if (boundsEl) boundsEl.value = 'X: ' + b.min.x.toFixed(2) + ' to ' + b.max.x.toFixed(2) +
-                                              '  Y: ' + b.min.y.toFixed(2) + ' to ' + b.max.y.toFixed(2);
+              if (boundsEl) boundsEl.value = applyTabFormatBounds(b);
               // Populate probe grid inputs
               var ids = { 'sm-minX': b.min.x, 'sm-maxX': b.max.x, 'sm-minY': b.min.y, 'sm-maxY': b.max.y };
               Object.keys(ids).forEach(function(id) {
@@ -7515,7 +7520,7 @@ function applyTabAutoGrid() {
             }
           }
         }).catch(function() { clearInterval(poll); });
-      if (attempts > 20) clearInterval(poll);
+      if (attempts > APPLY_MAX_BOUNDS_POLL_ATTEMPTS) clearInterval(poll);
     }, 300);
   }).catch(function() {
     if (statusEl) { statusEl.textContent = '\u26a0\ufe0f Settings API not available'; statusEl.className = 'status-line warn'; }
@@ -7572,7 +7577,7 @@ function applyTabApply() {
             if (applyBtn) applyBtn.disabled = false;
           }
         }).catch(function() { clearInterval(_applyPollTimer); _applyPollTimer = null; });
-      if (attempts > 60) {
+      if (attempts > APPLY_MAX_APPLY_POLL_ATTEMPTS) {
         clearInterval(_applyPollTimer);
         _applyPollTimer = null;
         applyTabSetResult('\u274c Timed out waiting for server response', true);

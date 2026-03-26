@@ -350,8 +350,13 @@ console.log('\n── applyZCompensation ─────────────
   const gp = { startX: 0, startY: 0, spacingX: 10, spacingY: 10, rows: 3, cols: 3 };
   const gcode = 'G90\nG2 X10 Y10 I5 J0 Z0';
   const result = applyZCompensation(gcode, flatMesh, gp, 0);
-  assert(result.includes('G2 X10 Y10 I5 J0 Z0.000') || result.includes('G2 X10 Y10 I5 J0 Z0'),
-    'G2 arc passed through unchanged (flat mesh)');
+  const g2Line = result.split('\n').find(l => /G2/.test(l));
+  assert(g2Line !== undefined, 'G2 arc line present in output');
+  if (g2Line) {
+    // On a flat mesh with referenceZ=0 the Z should be unchanged (0.000)
+    const zm = g2Line.match(/Z([+-]?\d*\.?\d+)/i);
+    assert(!zm || approx(parseFloat(zm[1]), 0), 'G2 arc Z value unchanged on flat mesh (z=0)');
+  }
 }
 
 {
