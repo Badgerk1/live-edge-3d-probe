@@ -890,6 +890,82 @@
         <button class="btn ghost" id="btn-export-face-obj" title="Export face mesh as OBJ">&#129518; Export OBJ</button>
       </div>
     </div>
+
+    <!-- ── Apply Face Compensation ───────────────────────────────────── -->
+    <div class="panel" id="face-apply-panel">
+      <div class="box-title">&#9881; Apply Face Compensation</div>
+      <div class="callout mini" style="margin-bottom:10px">Load a G-code file and apply face mesh compensation. The compensated G-code adjusts the face axis (Y or X) at each depth based on the probed face contour.</div>
+
+      <!-- G-code file loader -->
+      <div class="field" style="margin-bottom:10px">
+        <label>Load G-code File</label>
+        <input type="file" id="face-gcodeFile" accept=".nc,.gcode,.tap,.txt" style="display:block;margin-top:4px;width:100%;font-size:12px">
+        <div class="mini" id="face-gcode-file-status" style="color:var(--muted);margin-top:4px">No file loaded</div>
+      </div>
+
+      <!-- Face mesh grid info -->
+      <div class="status-line mini" id="face-comp-grid-info" style="margin-bottom:10px;color:var(--muted)">No face mesh loaded &mdash; run a face probe or load face mesh above.</div>
+
+      <!-- Reference position -->
+      <div class="field" style="max-width:280px;margin-bottom:14px">
+        <label>Reference Face Position (mm)</label>
+        <input type="number" id="face-compRefPos" value="0" step="0.1">
+        <div class="mini" style="margin-top:3px;color:var(--muted)">Nominal flat face Y (or X) position used as the zero offset for compensation.</div>
+      </div>
+
+      <!-- Apply parameters (xStep, zStep, feedCut, feedTravel) -->
+      <div style="font-size:12px;font-weight:600;color:var(--accent2);margin-bottom:8px">Compensation Parameters</div>
+      <div class="grid three" style="margin-bottom:14px">
+        <div class="field">
+          <label>X Step (mm)</label>
+          <input type="number" id="face-xStep" value="2" step="0.1" min="0.01">
+        </div>
+        <div class="field">
+          <label>Z Step (mm)</label>
+          <input type="number" id="face-zStep" value="1" step="0.1" min="0.01">
+        </div>
+        <div class="field">
+          <label>Feed Cut (mm/min)</label>
+          <input type="number" id="face-feedCut" value="300" step="10" min="1">
+        </div>
+        <div class="field">
+          <label>Feed Travel (mm/min)</label>
+          <input type="number" id="face-feedTravel" value="1200" step="10" min="1">
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="btn-row" style="margin-bottom:10px">
+        <button class="btn" id="face-btn-apply-comp">&#9654; Apply Compensation</button>
+        <button class="btn ghost" id="face-btn-preview-toolpath" disabled>&#128208; Preview Toolpath</button>
+        <button class="btn ghost" id="face-btn-download-comp" disabled>&#8659; Download .nc</button>
+        <button class="btn secondary" id="face-btn-send-ncsender" disabled>&#9654;&#9654; Send to ncSender</button>
+      </div>
+
+      <!-- Status and NCsender note -->
+      <div class="status-line" id="face-applyStatus" style="margin-bottom:8px"></div>
+      <div class="callout mini" id="face-ncsender-note" style="display:none;margin-bottom:10px"></div>
+
+      <!-- Toolpath preview (SVG, shown after apply + preview click) -->
+      <div id="face-toolpath-preview-wrap" style="display:none;margin-bottom:10px">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">
+          <span id="face-tp-axis-label">Toolpath Preview</span>
+        </div>
+        <svg id="face-toolpath-svg" width="100%" height="220" style="display:block;background:#0d111a;border:1px solid var(--line);border-radius:8px"></svg>
+        <div id="face-tp-legend" class="mini" style="color:var(--muted);margin-top:4px"></div>
+      </div>
+
+      <!-- G-code preview (first 30 lines) -->
+      <div id="face-apply-preview-wrap" style="display:none;margin-bottom:10px">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Compensated G-code preview (first 30 lines):</div>
+        <pre id="face-apply-preview" style="background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px;font-size:11px;max-height:160px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;margin:0"></pre>
+      </div>
+
+      <!-- Apply log -->
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Apply Log</div>
+      <div id="face-applyLog" class="log-area mono" style="height:100px;overflow-y:auto"></div>
+    </div><!-- /face-apply-panel -->
+
   </div><!-- /face-mesh-section -->
 
   <!-- ── Unified Probe Log ───────────────────────────────────────────── -->
@@ -1145,6 +1221,8 @@ var faceCompensatedGcode = null;
 var faceLastAppliedAxis = 'Y'; // tracks face axis of most recently applied compensation
 var _facePvizRotX = 20, _facePvizRotY = -25, _facePvizRotZ = 0, _faceDragActive = false, _faceDragLastX = 0, _faceDragLastY = 0;
 var FACE_LOG_KEY = 'edgeProbeFaceLog';
+var FACE_APPLY_PARAMS_KEY = 'faceApplyParams';
+var FACE_APPLY_PARAM_DEFAULTS = { xStep: 2, zStep: 1, feedCut: 300, feedTravel: 1200 };
 var SAVED_LOCATION_KEY = 'edgeProbeSavedLocation';
 var topLogLines = [];
 var faceLogLines = [];
@@ -6353,6 +6431,33 @@ function renderFacePVizMesh() {
 
 // ── Face Probe Compensation ───────────────────────────────────────────────────
 
+// Save/load Apply parameter fields to/from localStorage
+function saveFaceApplyParams() {
+  var d = FACE_APPLY_PARAM_DEFAULTS;
+  var params = {
+    xStep:      (document.getElementById('face-xStep')      || {value: String(d.xStep)}).value,
+    zStep:      (document.getElementById('face-zStep')      || {value: String(d.zStep)}).value,
+    feedCut:    (document.getElementById('face-feedCut')    || {value: String(d.feedCut)}).value,
+    feedTravel: (document.getElementById('face-feedTravel') || {value: String(d.feedTravel)}).value
+  };
+  try { localStorage.setItem(FACE_APPLY_PARAMS_KEY, JSON.stringify(params)); } catch(e) {}
+}
+
+function loadFaceApplyParams() {
+  try {
+    var raw = localStorage.getItem(FACE_APPLY_PARAMS_KEY);
+    if (!raw) return;
+    var params = JSON.parse(raw);
+    var ids = ['xStep', 'zStep', 'feedCut', 'feedTravel'];
+    ids.forEach(function(k) {
+      if (params[k] !== undefined) {
+        var el = document.getElementById('face-' + k);
+        if (el) el.value = params[k];
+      }
+    });
+  } catch(e) {}
+}
+
 function updateFaceCompGridInfo() {
   var el = document.getElementById('face-comp-grid-info');
   if (el) {
@@ -6385,8 +6490,28 @@ function applyFaceProbeCompensation() {
   if (!faceOriginalGcode) { alert('No G-code loaded. Load a G-code file first.'); return; }
   var data = getFaceMeshData();
   if (!data || !data.length) { alert('No face mesh data. Run a face probe or load face mesh first.'); return; }
+
+  // Read and validate Apply parameters
+  var d = FACE_APPLY_PARAM_DEFAULTS;
+  var xStep      = Number((document.getElementById('face-xStep')      || {value: String(d.xStep)}).value);
+  var zStep      = Number((document.getElementById('face-zStep')      || {value: String(d.zStep)}).value);
+  var feedCut    = Number((document.getElementById('face-feedCut')    || {value: String(d.feedCut)}).value);
+  var feedTravel = Number((document.getElementById('face-feedTravel') || {value: String(d.feedTravel)}).value);
+
+  var paramErrors = [];
+  if (!isFinite(xStep)      || xStep      <= 0) paramErrors.push('X Step must be a number > 0');
+  if (!isFinite(zStep)      || zStep      <= 0) paramErrors.push('Z Step must be a number > 0');
+  if (!isFinite(feedCut)    || feedCut    <= 0) paramErrors.push('Feed Cut must be a number > 0');
+  if (!isFinite(feedTravel) || feedTravel <= 0) paramErrors.push('Feed Travel must be a number > 0');
+  if (paramErrors.length) {
+    var statusEl0 = document.getElementById('face-applyStatus');
+    if (statusEl0) statusEl0.textContent = 'Invalid parameters: ' + paramErrors.join('; ');
+    faceLogApply('ERROR — Invalid parameters: ' + paramErrors.join('; '));
+    return;
+  }
+
   var refPos = Number((document.getElementById('face-compRefPos') || {value: 0}).value);
-  faceLogApply('Applying face compensation with Reference Face Position=' + refPos + '...');
+  faceLogApply('Applying face compensation with Reference Face Position=' + refPos + ', xStep=' + xStep + ', zStep=' + zStep + ', feedCut=' + feedCut + ', feedTravel=' + feedTravel + '...');
   try {
     var result = faceApplyCompensationCore(faceOriginalGcode, data, refPos);
     faceCompensatedGcode = result.gcode;
@@ -6397,6 +6522,10 @@ function applyFaceProbeCompensation() {
     var preview = faceCompensatedGcode.split('\n').slice(0, 30).join('\n');
     var previewEl = document.getElementById('face-apply-preview');
     if (previewEl) previewEl.textContent = preview;
+    var previewWrap = document.getElementById('face-apply-preview-wrap');
+    if (previewWrap) previewWrap.style.display = '';
+    var dlBtn = document.getElementById('face-btn-download-comp');
+    if (dlBtn) dlBtn.disabled = false;
     var ncBtn = document.getElementById('face-btn-send-ncsender');
     if (ncBtn) ncBtn.disabled = false;
     var prevBtn = document.getElementById('face-btn-preview-toolpath');
@@ -6850,6 +6979,31 @@ function bindProbeDimensionUI(){
     el.step = 'any';
     el.removeAttribute('min');
     el.removeAttribute('max');
+  });
+
+  // Face G-code file reader for Apply Compensation
+  try {
+    var faceGcodeFile = document.getElementById('face-gcodeFile');
+    if (faceGcodeFile) faceGcodeFile.addEventListener('change', function(e) {
+      var file = e.target.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function(ev) {
+        faceOriginalGcode = ev.target.result;
+        var span = document.getElementById('face-gcode-file-status');
+        if (span) span.textContent = 'Loaded: ' + file.name + ' (' + faceOriginalGcode.split('\n').length + ' lines)';
+      };
+      reader.readAsText(file);
+    });
+  } catch(e){}
+
+  // Load persisted Apply parameter values from localStorage
+  loadFaceApplyParams();
+
+  // Persist Apply parameter values to localStorage on change
+  ['face-xStep', 'face-zStep', 'face-feedCut', 'face-feedTravel'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('change', saveFaceApplyParams);
   });
 
 }
