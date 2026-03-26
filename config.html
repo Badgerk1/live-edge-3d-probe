@@ -90,6 +90,9 @@
     #surface-edge-mesh-root .jog-btn.stop{background:linear-gradient(180deg,#dd5a49,#c94036);border-color:#ef8f80}
     #surface-edge-mesh-root .jog-btn.resume{background:linear-gradient(180deg,#3a9d5d,#2d7a49);border-color:#7fd39a}
     #surface-edge-mesh-root .jog-btn.disabled,#surface-edge-mesh-root .jog-btn:disabled{opacity:.5;cursor:not-allowed}
+    #surface-edge-mesh-root .btn,#surface-edge-mesh-root .tab,#surface-edge-mesh-root .jog-btn,#surface-edge-mesh-root .jog-pill{transition:transform 0.1s ease,opacity 0.1s ease,background-color 0.15s ease,border-color 0.15s ease}
+    #surface-edge-mesh-root .btn:active:not(:disabled),#surface-edge-mesh-root .tab:active{transform:scale(0.96);opacity:0.85;transition:transform 0.05s ease,opacity 0.05s ease}
+    #surface-edge-mesh-root .jog-btn:active:not(:disabled),#surface-edge-mesh-root .jog-pill:active{transform:scale(0.94);opacity:0.82;transition:transform 0.05s ease,opacity 0.05s ease}
     #surface-edge-mesh-root .jog-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
     #surface-edge-mesh-root .jog-meta .field input{padding:9px 10px}
     #surface-edge-mesh-root .jog-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
@@ -1762,15 +1765,11 @@ function getJogSettingsFromUI(){
 }
 
 async function jogBy(dx, dy, dz){
-  var jog = getJogSettingsFromUI();
-  var feed = (dz != null && dx == null && dy == null) ? jog.feedZ : jog.feedXY;
-  if (!isFinite(feed) || feed <= 0) feed = (dz != null) ? 300 : 600;
-  // Use G91 (relative) move — no need to fetch current position first
-  var cmd = 'G91 G1';
+  // Use G91 (relative) rapid move — G0 avoids feed-rate timeouts
+  var cmd = 'G91 G0';
   if (dx != null) cmd += ' X' + Number(dx).toFixed(3);
   if (dy != null) cmd += ' Y' + Number(dy).toFixed(3);
   if (dz != null) cmd += ' Z' + Number(dz).toFixed(3);
-  cmd += ' F' + Number(feed).toFixed(0);
   try {
     await sendCommand(cmd);
     await sendCommand('G90'); // restore absolute positioning mode
@@ -2173,9 +2172,7 @@ async function finishRunMotion(logKind){
   if(returnXYZero){
     logLine(logKind, 'Finish move: returning to work X0.000 Y0.000');
     await moveAbs(0, 0, null, s.travelFeedRate || 600);
-    logLine(logKind, 'Finish move: lowering to work Z0.000');
-    await moveAbs(null, null, 0, s.travelFeedRate || 600);
-    logLine(logKind, 'Finish move: at work origin X0.000 Y0.000 Z0.000');
+    logLine(logKind, 'Finish move: at work X0.000 Y0.000 (Z held at safe height)');
   } else {
     logLine(logKind, 'Finish move: X/Y return disabled (check Return to XYZ Zero setting in Setup)');
   }
