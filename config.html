@@ -182,6 +182,7 @@
     <button class="tab" data-tab="top" onclick="switchTab('top')">&#128269; Probe</button>
     <button class="tab" data-tab="results" onclick="switchTab('results')">&#9783; Results</button>
     <button class="tab" data-tab="meshdata" onclick="switchTab('meshdata')">&#128202; Mesh Data</button>
+    <button class="tab" data-tab="apply" onclick="switchTab('apply')">&#9965; Apply</button>
   </div>
 
   <!-- ── CONTENT ────────────────────────────────────────────────────────── -->
@@ -1110,7 +1111,116 @@
 
     </div><!-- /pane-meshdata -->
 
+    <!-- ── APPLY TAB ─────────────────────────────────────────────────── -->
+    <div class="tab-panel" id="pane-apply">
 
+      <!-- Coordinate System Note -->
+      <div class="panel" style="border-left:3px solid var(--accent2)">
+        <div class="box-title">&#9888; Coordinate System — Important</div>
+        <div class="callout mini" style="line-height:1.7">
+          <strong>Send to ncSender uses your current active Work Coordinate System (WCS, e.g. G54).</strong><br>
+          The plugin does <strong>not</strong> prepend any G92/G10 offset commands and does <strong>not</strong> shift coordinates relative to Saved Location X/Y/Z.<br>
+          All probe data is recorded in <em>work coordinates</em> (WPos from ncSender).<br><br>
+          <strong>Operator checklist before running compensation:</strong>
+          <ol style="margin:6px 0 0 18px;padding:0">
+            <li>Set your work zero (X0/Y0/Z0) on the machine exactly where you want it.</li>
+            <li>Run the surface and/or face probe in that same WCS — do not re-zero in between.</li>
+            <li>Load your G-code, apply compensation, then Send to ncSender.</li>
+            <li>Run the job without changing the WCS between probing and running.</li>
+          </ol><br>
+          <strong>Saved Location X/Y/Z</strong> (Setup tab) is a <em>jog helper only</em> — it stores a position for &ldquo;Go To Saved Location&rdquo; and does not affect any generated or compensated G-code.<br><br>
+          <strong>Mesh origin</strong> is the MinX/MinY corner of your probe grid (as set in the Probe tab). This is a work-coordinate position — it must match your job G-code origin.
+        </div>
+      </div>
+
+      <!-- ── Surface Compensation ──────────────────────────────────────── -->
+      <div class="panel">
+        <div class="box-title">&#127774; Surface Mesh Compensation</div>
+        <div class="callout mini" style="margin-bottom:12px">Load a G-code file, set the reference Z, then apply the surface mesh offset to every Z move within the probed grid area.</div>
+        <div class="field" style="margin-bottom:12px">
+          <label>G-code File</label>
+          <input type="file" id="sm-gcodeFile" accept=".nc,.gcode,.ngc,.txt" style="width:100%;border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:10px;padding:8px;font:inherit">
+        </div>
+        <div class="grid two" style="margin-bottom:12px">
+          <div class="field">
+            <label>Reference Z (mm) <span class="mini" style="color:var(--muted)">— mesh Z at your work Z=0</span></label>
+            <input type="number" id="sm-compRefZ" value="0" step="0.01">
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn" id="sm-btn-apply-comp">&#9654; Apply Surface Compensation</button>
+          <button class="btn ghost" id="sm-btn-download-comp" disabled>&#8659; Download</button>
+          <button class="btn secondary" id="sm-btn-send-ncsender" disabled>&#128640; Send to ncSender</button>
+        </div>
+        <div class="status-line" id="sm-applyStatus" style="margin-top:8px"></div>
+        <div style="background:var(--panel2);border:1px solid var(--line);border-radius:10px;font-family:monospace;font-size:11px;color:var(--text);padding:8px;height:140px;overflow-y:auto;white-space:pre-wrap;margin-top:10px" id="sm-apply-preview"></div>
+        <div style="background:var(--panel2);border:1px solid var(--line);border-radius:10px;font-family:monospace;font-size:11px;color:var(--muted);padding:6px 8px;height:80px;overflow-y:auto;white-space:pre-wrap;margin-top:6px" id="sm-applyLog"></div>
+      </div>
+
+      <!-- ── Face Compensation ─────────────────────────────────────────── -->
+      <div class="panel">
+        <div class="box-title">&#128208; Face Mesh Compensation</div>
+        <div class="callout mini" style="margin-bottom:12px">Load a G-code file, adjust the parameters below, then apply the face mesh offset. The face axis (Y or X) is detected automatically from your probe data.</div>
+        <div class="field" style="margin-bottom:12px">
+          <label>G-code File</label>
+          <input type="file" id="face-gcodeFile" accept=".nc,.gcode,.ngc,.txt" style="width:100%;border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:10px;padding:8px;font:inherit">
+        </div>
+        <div class="grid two" style="margin-bottom:12px">
+          <div class="field">
+            <label>Reference Face Position (mm) <span class="mini" style="color:var(--muted)">— nominal flat face Y/X</span></label>
+            <input type="number" id="face-compRefPos" value="0" step="0.01">
+          </div>
+        </div>
+
+        <!-- Generation parameters (xStep / zStep / feedCut / feedTravel) -->
+        <div style="border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px;background:var(--panel2)">
+          <div style="font-size:12px;font-weight:700;color:var(--accent2);margin-bottom:10px">&#9881; Face Toolpath Parameters</div>
+          <div class="grid two">
+            <div class="field">
+              <label for="face-xStep">X Step (mm) <span class="mini" style="color:var(--muted)">— sampling interval along X</span></label>
+              <input type="number" id="face-xStep" value="2" min="0.1" step="0.1">
+            </div>
+            <div class="field">
+              <label for="face-zStep">Z Step (mm) <span class="mini" style="color:var(--muted)">— layer thickness in Z</span></label>
+              <input type="number" id="face-zStep" value="1" min="0.1" step="0.1">
+            </div>
+            <div class="field">
+              <label for="face-feedCut">Cut Feed (mm/min)</label>
+              <input type="number" id="face-feedCut" value="300" min="1" step="10">
+            </div>
+            <div class="field">
+              <label for="face-feedTravel">Travel Feed (mm/min)</label>
+              <input type="number" id="face-feedTravel" value="1200" min="1" step="100">
+            </div>
+          </div>
+          <div class="btn-row" style="margin-top:10px">
+            <button class="btn ghost" onclick="faceApplySaveParams()">&#128190; Save Parameters</button>
+          </div>
+          <div class="mini" style="color:var(--muted);margin-top:6px">Parameters are saved to browser storage and restored automatically.</div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn" id="face-btn-apply-comp">&#9654; Apply Face Compensation</button>
+          <button class="btn ghost" id="face-btn-preview-toolpath" disabled>&#128065; Preview Toolpath</button>
+          <button class="btn ghost" id="face-btn-download-comp" disabled>&#8659; Download</button>
+          <button class="btn secondary" id="face-btn-send-ncsender" disabled>&#128640; Send to ncSender</button>
+        </div>
+        <div class="status-line" id="face-applyStatus" style="margin-top:8px"></div>
+        <div id="face-ncsender-note" style="display:none;margin-top:8px;padding:8px 10px;border-radius:8px;background:#1a2230;border:1px solid var(--line);font-size:12px;color:var(--muted)"></div>
+
+        <!-- Toolpath preview SVG -->
+        <div id="face-toolpath-preview-wrap" style="display:none;margin-top:12px">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Toolpath Preview (XZ or YZ plane — depth shown as colour)</div>
+          <svg id="face-toolpath-svg" style="width:100%;height:260px;background:#0d111a;border:1px solid var(--line);border-radius:8px;display:block"></svg>
+          <div id="face-tp-axis-label" style="font-size:11px;color:var(--muted);margin-top:4px;text-align:center"></div>
+          <div id="face-tp-legend" style="font-size:11px;color:var(--muted);margin-top:2px;text-align:center"></div>
+        </div>
+
+        <div style="background:var(--panel2);border:1px solid var(--line);border-radius:10px;font-family:monospace;font-size:11px;color:var(--text);padding:8px;height:140px;overflow-y:auto;white-space:pre-wrap;margin-top:10px" id="face-apply-preview"></div>
+        <div style="background:var(--panel2);border:1px solid var(--line);border-radius:10px;font-family:monospace;font-size:11px;color:var(--muted);padding:6px 8px;height:80px;overflow-y:auto;white-space:pre-wrap;margin-top:6px" id="face-applyLog"></div>
+      </div>
+
+    </div><!-- /pane-apply -->
 
   </div><!-- /content -->
 
@@ -5568,6 +5678,16 @@ function smApplyCompensationCore(gcodeText, data, cfg, referenceZ) {
   var firstModification = null;
   var sampleModifications = [];
 
+  // Prepend informational header comments
+  output.push('; Surface-compensated G-code generated by 3D Live Edge Mesh');
+  output.push('; Compensation type: Surface (Z-axis height map)');
+  output.push('; Probe grid: X=' + cfg.minX + ' to ' + cfg.maxX + ', Y=' + cfg.minY + ' to ' + cfg.maxY);
+  output.push('; Reference Z: ' + referenceZ);
+  output.push('; COORDINATE SYSTEM: No G92/G10 offsets are applied. All coordinates are in your');
+  output.push(';   active Work Coordinate System (WCS, e.g. G54). Probe and job must share the');
+  output.push(';   same work zero. Saved Location X/Y/Z does not affect these coordinates.');
+  output.push('');
+
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i].trim();
     if (!line || line.startsWith(';') || line.startsWith('(')) { output.push(lines[i]); continue; }
@@ -5930,7 +6050,7 @@ function smLoadSettings() {
   var btnClearMeshStorage = document.getElementById('btn-clear-mesh-storage');
   if(btnClearMeshStorage) btnClearMeshStorage.addEventListener('click', function(){ pluginDebug('btn-clear-mesh-storage clicked'); clearMeshStorage(); });
 
-  // 2D Surface Compensation buttons (legacy — kept for backward compatibility)
+  // 2D Surface Compensation buttons (Apply tab)
   var btnApply2d = document.getElementById('sm-btn-apply-comp');
   if(btnApply2d) btnApply2d.addEventListener('click', function(){ pluginDebug('sm-btn-apply-comp clicked'); applySurfaceCompensation(); });
   var btnDownload2d = document.getElementById('sm-btn-download-comp');
@@ -5952,8 +6072,7 @@ function smLoadSettings() {
   var faceBtnImportMesh = document.getElementById('face-btn-import-mesh');
   if (faceBtnImportMesh) faceBtnImportMesh.addEventListener('click', function(){ pluginDebug('face-btn-import-mesh clicked'); importFaceMeshData(); });
 
-  // Face Probe Apply / Compensation buttons (legacy — elements no longer in DOM after Apply tab redesign)
-  // These are kept in case of DOM restoration; they fail silently when elements don't exist.
+  // Face Probe Apply / Compensation buttons (Apply tab)
   var faceBtnApplyComp = document.getElementById('face-btn-apply-comp');
   if (faceBtnApplyComp) faceBtnApplyComp.addEventListener('click', function(){ pluginDebug('face-btn-apply-comp clicked'); applyFaceProbeCompensation(); });
   var faceBtnDownloadComp = document.getElementById('face-btn-download-comp');
@@ -6381,6 +6500,36 @@ function faceLogApply(msg) {
   el.scrollTop = el.scrollHeight;
 }
 
+// ── Face toolpath parameter persistence ──────────────────────────────────────
+var FACE_APPLY_PARAMS_KEY = 'faceApplyToolpathParams';
+
+function faceApplySaveParams() {
+  var params = {
+    xStep:       Number((document.getElementById('face-xStep')      || {value: 2}).value),
+    zStep:       Number((document.getElementById('face-zStep')      || {value: 1}).value),
+    feedCut:     Number((document.getElementById('face-feedCut')    || {value: 300}).value),
+    feedTravel:  Number((document.getElementById('face-feedTravel') || {value: 1200}).value)
+  };
+  try { localStorage.setItem(FACE_APPLY_PARAMS_KEY, JSON.stringify(params)); } catch(e) {}
+  var statusEl = document.getElementById('face-applyStatus');
+  if (statusEl) statusEl.textContent = 'Parameters saved.';
+  faceLogApply('Parameters saved: xStep=' + params.xStep + ' zStep=' + params.zStep +
+    ' feedCut=' + params.feedCut + ' feedTravel=' + params.feedTravel);
+}
+
+function faceApplyLoadParams() {
+  try {
+    var raw = localStorage.getItem(FACE_APPLY_PARAMS_KEY);
+    if (!raw) return;
+    var params = JSON.parse(raw);
+    var el;
+    if (params.xStep      != null) { el = document.getElementById('face-xStep');       if (el) el.value = params.xStep; }
+    if (params.zStep      != null) { el = document.getElementById('face-zStep');       if (el) el.value = params.zStep; }
+    if (params.feedCut    != null) { el = document.getElementById('face-feedCut');     if (el) el.value = params.feedCut; }
+    if (params.feedTravel != null) { el = document.getElementById('face-feedTravel');  if (el) el.value = params.feedTravel; }
+  } catch(e) {}
+}
+
 function applyFaceProbeCompensation() {
   if (!faceOriginalGcode) { alert('No G-code loaded. Load a G-code file first.'); return; }
   var data = getFaceMeshData();
@@ -6541,6 +6690,9 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact) {
   output.push('; Compensation axis: ' + faceAxis + ' adjusted based on face contour at each (sampleCoord, Z) position');
   output.push('; View orientation: ' + viewOrientation);
   output.push('; NOTE: ncSender shows XY plane (top-down). Use the plugin toolpath preview to verify face contour.');
+  output.push('; COORDINATE SYSTEM: No G92/G10 offsets are applied. All coordinates are in your');
+  output.push(';   active Work Coordinate System (WCS, e.g. G54). Probe and job must share the');
+  output.push(';   same work zero. Saved Location X/Y/Z does not affect these coordinates.');
   output.push('');
 
   for (var i = 0; i < lines.length; i++) {
@@ -6827,10 +6979,10 @@ function bindProbeDimensionUI(){
   // Load saved mesh on startup
   try { loadSurfaceMesh(); } catch(e){}
 
-  // G-code file reader (legacy sm-gcodeFile — no longer in DOM after Apply tab redesign, kept for safety)
+  // G-code file reader for Surface Compensation (Apply tab)
   try {
-    var legacyGcodeFile = document.getElementById('sm-gcodeFile');
-    if (legacyGcodeFile) legacyGcodeFile.addEventListener('change', function(e) {
+    var smGcodeFileEl = document.getElementById('sm-gcodeFile');
+    if (smGcodeFileEl) smGcodeFileEl.addEventListener('change', function(e) {
       var file = e.target.files[0];
       if (!file) return;
       var reader = new FileReader();
@@ -6838,10 +6990,32 @@ function bindProbeDimensionUI(){
         smOriginalGcode = ev.target.result;
         var span = document.getElementById('sm-gcode-file-status');
         if (span) span.textContent = 'Loaded: ' + file.name + ' (' + smOriginalGcode.split('\n').length + ' lines)';
+        var statusEl = document.getElementById('sm-applyStatus');
+        if (statusEl) statusEl.textContent = 'Loaded: ' + file.name + ' (' + smOriginalGcode.split('\n').length + ' lines)';
       };
       reader.readAsText(file);
     });
   } catch(e){}
+
+  // G-code file reader for Face Compensation (Apply tab)
+  try {
+    var faceGcodeFile = document.getElementById('face-gcodeFile');
+    if (faceGcodeFile) faceGcodeFile.addEventListener('change', function(e) {
+      var file = e.target.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function(ev) {
+        faceOriginalGcode = ev.target.result;
+        var statusEl = document.getElementById('face-applyStatus');
+        if (statusEl) statusEl.textContent = 'Loaded: ' + file.name + ' (' + faceOriginalGcode.split('\n').length + ' lines)';
+        faceLogApply('G-code file loaded: ' + file.name + ' (' + faceOriginalGcode.split('\n').length + ' lines)');
+      };
+      reader.readAsText(file);
+    });
+  } catch(e){}
+
+  // Load persisted face toolpath parameters on startup
+  try { faceApplyLoadParams(); } catch(e){}
 
   // Allow free manual keyboard entry in all non-readonly number inputs.
   // Remove min/max permanently (not restored on blur) so that clearing a field
