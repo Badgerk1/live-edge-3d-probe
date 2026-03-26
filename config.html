@@ -1197,6 +1197,13 @@
           Load a G-code file in ncSender and run surface probing first, then use this tab to apply Z compensation.
           The server-side engine subdivides long moves for smooth surface following.
         </div>
+        <div class="field" style="margin-bottom:12px">
+          <label>Mesh Source</label>
+          <select id="apply-mesh-source" onchange="applyTabRefresh()">
+            <option value="surface" selected>Top Surface (2D Grid)</option>
+            <option value="face">Face Surface</option>
+          </select>
+        </div>
         <div id="apply-status-mesh" class="status-line" style="margin-bottom:6px">&#8226; Checking mesh&hellip;</div>
         <div id="apply-status-gcode" class="status-line" style="margin-bottom:6px">&#8226; Checking G-code&hellip;</div>
         <div id="apply-ready-status" class="status-line" style="margin-bottom:0"></div>
@@ -7531,8 +7538,45 @@ function applyTabFormatBounds(b) {
          '  Y: ' + b.min.y.toFixed(2) + ' to ' + b.max.y.toFixed(2);
 }
 
-/** Convert smMeshData + smGridConfig to the format expected by the server engine. */
+/** Build mesh payload from face probe data (sampleTopZ values across X positions). */
+function applyTabBuildFaceMeshPayload() {
+  var data = typeof getFaceMeshData === 'function' ? getFaceMeshData() : null;
+  if (!data || !data.length) return null;
+
+  // Collect unique X positions and their sampleTopZ values from the shallowest layer.
+  // Layer numbering: layer 1 = deepest (bottom), layer N = shallowest (top).
+  // We keep the highest layer number per X position to get the topmost measurement.
+  var xMap = {};
+  data.forEach(function(r) {
+    var key = Number(r.x).toFixed(3);
+    var layer = r.layer != null ? r.layer : 1;
+    if (!xMap[key] || layer > xMap[key].layer) {
+      xMap[key] = { x: Number(r.x), z: r.sampleTopZ != null ? Number(r.sampleTopZ) : Number(r.z), layer: layer };
+    }
+  });
+  var pts = Object.keys(xMap).map(function(k) { return xMap[k]; }).sort(function(a, b) { return a.x - b.x; });
+  if (pts.length < 2) return null;
+
+  var xMin = pts[0].x;
+  var xMax = pts[pts.length - 1].x;
+  var spacingX = (xMax - xMin) / (pts.length - 1);
+  // Face mesh is 1D along X, so Y dimension is fixed (single row)
+  var gridParams = { startX: xMin, startY: 0, spacingX: spacingX, spacingY: 1, rows: 1, cols: pts.length };
+  var mesh = [pts.map(function(p) { return { x: p.x, y: 0, z: p.z }; })];
+  return { mesh: mesh, gridParams: gridParams };
+}
+
+/** Get the currently selected mesh source from the Apply tab. */
+function applyTabGetMeshSource() {
+  var sel = document.getElementById('apply-mesh-source');
+  return sel ? sel.value : 'surface';
+}
+
+/** Convert mesh data to the format expected by the server engine, based on selected source. */
 function applyTabBuildMeshPayload() {
+  var source = applyTabGetMeshSource();
+  if (source === 'face') return applyTabBuildFaceMeshPayload();
+
   if (!smMeshData || !smGridConfig) return null;
   var cfg = smGridConfig;
   var gridParams = {
@@ -7576,7 +7620,14 @@ function applyTabSetResult(msg, isError) {
 }
 
 function applyTabRefresh() {
-  var hasMesh  = !!(smMeshData && smGridConfig);
+  var source   = applyTabGetMeshSource();
+  var hasMesh;
+  if (source === 'face') {
+    var faceData = typeof getFaceMeshData === 'function' ? getFaceMeshData() : null;
+    hasMesh = !!(faceData && faceData.length >= 2);
+  } else {
+    hasMesh = !!(smMeshData && smGridConfig);
+  }
   var meshEl   = document.getElementById('apply-status-mesh');
   var gcodeEl  = document.getElementById('apply-status-gcode');
   var readyEl  = document.getElementById('apply-ready-status');
@@ -7586,10 +7637,17 @@ function applyTabRefresh() {
 
   if (meshEl) {
     if (hasMesh) {
-      meshEl.textContent = '\u2705 Mesh data loaded (' + smGridConfig.colCount + '\u00d7' + smGridConfig.rowCount + ' = ' + (smGridConfig.colCount * smGridConfig.rowCount) + ' points)';
+      if (source === 'face') {
+        var fData = getFaceMeshData();
+        meshEl.textContent = '\u2705 Face mesh data loaded (' + fData.length + ' points)';
+      } else {
+        meshEl.textContent = '\u2705 Mesh data loaded (' + smGridConfig.colCount + '\u00d7' + smGridConfig.rowCount + ' = ' + (smGridConfig.colCount * smGridConfig.rowCount) + ' points)';
+      }
       meshEl.className = 'status-line ok';
     } else {
-      meshEl.textContent = '\u26a0\ufe0f No mesh data — run surface probing first';
+      meshEl.textContent = source === 'face'
+        ? '\u26a0\ufe0f No face mesh data \u2014 run face probing first'
+        : '\u26a0\ufe0f No mesh data \u2014 run surface probing first';
       meshEl.className = 'status-line warn';
     }
   }
@@ -7606,7 +7664,7 @@ function applyTabRefresh() {
         gcodeEl.textContent = '\u2705 G-code loaded: ' + filename;
         gcodeEl.className = 'status-line ok';
       } else {
-        gcodeEl.textContent = '\u26a0\ufe0f No G-code loaded — load a file in ncSender first';
+        gcodeEl.textContent = '\u26a0\ufe0f No G-code loaded \u2014 load a file in ncSender first';
         gcodeEl.className = 'status-line warn';
       }
     }
