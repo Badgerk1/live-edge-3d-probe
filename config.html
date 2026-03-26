@@ -284,6 +284,9 @@
             </div>
 
             <div class="probe-note">All probe dimensions are editable so different 3D probes can be used. Auto total = upper section height + main body height + stylus length.</div>
+            <div class="btn-row" style="margin-top:8px">
+              <button class="btn" id="btn-save-probe-dims" type="button">&#128190; Save Probe Dimensions</button>
+            </div>
           </div>
         </div>
       </div>
@@ -2219,6 +2222,27 @@ function validateSettings(){
   return true;
 }
 
+function saveProbeDimensions(){
+  try{
+    var existing = {};
+    try{ var raw = localStorage.getItem('edgeProbeSettings'); if(raw) existing = JSON.parse(raw); }catch(e){}
+    var dims = {
+      probeShankDiameter: Number((document.getElementById('probeShankDiameter')||{}).value) || 6,
+      probeBodyDiameter: Number((document.getElementById('probeBodyDiameter')||{}).value) || 33,
+      probeUpperHeight: Number((document.getElementById('probeUpperHeight')||{}).value) || 20,
+      probeMainBodyHeight: Number((document.getElementById('probeMainBodyHeight')||{}).value) || 21,
+      probeStylusLength: Number((document.getElementById('probeStylusLength')||{}).value) || 26,
+      probeStylusCalloutLength: Number((document.getElementById('probeStylusCalloutLength')||{}).value) || 14.75,
+      probeBallTipDiameter: Number((document.getElementById('probeBallTipDiameter')||{}).value) || 0,
+      probeTotalLength: Number((document.getElementById('probeTotalLength')||{}).value) || 67
+    };
+    localStorage.setItem('edgeProbeSettings', JSON.stringify(Object.assign(existing, dims)));
+    var el = document.getElementById('setup-status');
+    if(el){ el.textContent = 'Probe dimensions saved.'; el.className = 'status-line good'; }
+    setTimeout(function(){ var el = document.getElementById('setup-status'); if(el){ el.textContent = ''; el.className = 'status-line'; } }, 2500);
+  }catch(e){ console.error(e); }
+}
+
 function saveSettings(){
   validateSettings();
   try{
@@ -2262,7 +2286,9 @@ function _applySettingsToUI(cfg){
              'faceFixedCoord','faceStartOffset','faceFeed','faceDepthBelowSurface','faceProbeDistance',
              'faceLayerCount','faceMaxDepth',
              'finishHomeZ','useMachineHomeRetract','machineSafeTopZ','returnToXYZero',
-             'jogStepXY','jogStepZ','jogFeedXY','jogFeedZ'];
+             'jogStepXY','jogStepZ','jogFeedXY','jogFeedZ',
+             'probeShankDiameter','probeBodyDiameter','probeUpperHeight','probeMainBodyHeight',
+             'probeStylusLength','probeStylusCalloutLength','probeBallTipDiameter','probeTotalLength'];
   ids.forEach(function(id){
     var el = document.getElementById(id);
     if(el && cfg[id] != null) el.value = cfg[id];
@@ -2275,6 +2301,7 @@ function _applySettingsToUI(cfg){
   if(jogStepEl) setJogStepPreset(jogStepEl.value || '1');
   refreshFinishBehaviorPreview();
   refreshTravelRecoveryPreview();
+  try{ calcProbeAutoTotalLength(); updateProbeDimensionPreview(); }catch(e){}
 }
 
 
@@ -6111,6 +6138,8 @@ function smLoadSettings() {
   if(btnLoad) btnLoad.addEventListener('click', function(){ pluginDebug('btn-load-settings clicked'); loadSettings(); });
   var btnReset = document.getElementById('btn-reset-settings');
   if(btnReset) btnReset.addEventListener('click', function(){ pluginDebug('btn-reset-settings clicked'); resetSettings(); });
+  var btnSaveProbeDims = document.getElementById('btn-save-probe-dims');
+  if(btnSaveProbeDims) btnSaveProbeDims.addEventListener('click', function(){ pluginDebug('btn-save-probe-dims clicked'); saveProbeDimensions(); });
   var btnSaveLocation = document.getElementById('btn-save-location');
   if(btnSaveLocation) btnSaveLocation.addEventListener('click', function(){ pluginDebug('btn-save-location clicked'); saveCurrentLocation(); });
   var btnGoLocation = document.getElementById('btn-go-location');
