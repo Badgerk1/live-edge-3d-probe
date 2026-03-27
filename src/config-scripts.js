@@ -69,7 +69,7 @@ function switchTab(id){
   });
   // Re-render relief maps when switching to their tabs (canvas needs visible width)
   if(id === 'meshdata') { setTimeout(renderSurfaceReliefMap, 60); setTimeout(renderRelief3D, 120); setTimeout(renderFaceReliefMap, 90); }
-  if(id === 'results')  { setTimeout(renderSurfaceReliefMap, 60); setTimeout(renderFaceReliefMap, 90); setTimeout(renderResFaceVizMesh, 120); }
+  if(id === 'results')  { setTimeout(populateSurfaceResults, 30); setTimeout(renderSurfaceReliefMap, 60); setTimeout(renderFaceReliefMap, 90); setTimeout(renderResVizMesh, 100); setTimeout(renderResFaceVizMesh, 120); }
   // Re-render probe-tab heatmap canvases when switching to probe tab
   if(id === 'top')      { setTimeout(renderSurfaceReliefMap, 60); setTimeout(renderFaceReliefMap, 90); }
   pluginDebug('switchTab: tab "' + id + '" active');
@@ -3548,12 +3548,13 @@ function populateSurfaceResults() {
   // Show/hide top surface panel based on surface data
   panel.style.display = hasSurface ? 'block' : 'none';
 
-  // Show/hide face surface panel based on face data
-  if (facePanel) facePanel.style.display = hasFace ? 'block' : 'none';
+  // Show face panel whenever any data is present so both 3D views appear together
+  var hasAnyProbeData = hasSurface || hasFace;
+  if (facePanel) facePanel.style.display = hasAnyProbeData ? 'block' : 'none';
 
   // Show/hide Results tab relief map panels based on available data
   var reliefMapsPanel = document.getElementById('res-relief-maps-panel');
-  if (reliefMapsPanel) reliefMapsPanel.style.display = (hasSurface || hasFace) ? '' : 'none';
+  if (reliefMapsPanel) reliefMapsPanel.style.display = hasAnyProbeData ? '' : 'none';
   var resSurfRelief = document.getElementById('res-surface-relief-panel');
   if (resSurfRelief) resSurfRelief.style.display = hasSurface ? '' : 'none';
   var resFaceRelief = document.getElementById('res-face-relief-panel');
@@ -3563,8 +3564,8 @@ function populateSurfaceResults() {
   resVizResetView();
   renderResVizMesh();
 
-  // Initialize and render face 3D view if face data available
-  if (hasFace) {
+  // Always initialize and render face 3D view when the panel is shown
+  if (hasAnyProbeData) {
     initResFaceVizRotation();
     resFaceVizResetView();
     renderResFaceVizMesh();
@@ -6682,8 +6683,16 @@ window.addEventListener('beforeunload', function() {
     // Clear in-memory logs
     topLogLines = [];
     faceLogLines = [];
+    // Clear in-memory probe results
+    topResults = [];
+    faceResults = [];
+    layeredFaceResults = [];
+    smMeshData = null;
+    smGridConfig = null;
     // Clear persisted logs from localStorage
     localStorage.removeItem(FACE_LOG_KEY);
+    // Clear persisted probe results from localStorage
+    clearPersistedProbeResults();
   } catch(e) {}
   // Dispose Three.js resources to prevent memory leaks
   try {
