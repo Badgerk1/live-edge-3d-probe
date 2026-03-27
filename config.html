@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <title>3D Live Edge Mesh Combined</title>
   <style>
+    html,body{margin:0;padding:0;background:#10131a}
     #surface-edge-mesh-root{--bg:#10131a;--panel:#171c26;--panel2:#1c2330;--line:#2b3444;--text:#e8eef9;--muted:#9aa8bf;--accent:#6ea8ff;--accent2:#845ef7;--good:#5fd38d;--warn:#f0b35c;--bad:#ff6b6b;}
     #surface-edge-mesh-root *{box-sizing:border-box}
     #surface-edge-mesh-root{background:var(--bg);color:var(--text);font:13px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
@@ -1309,6 +1310,8 @@ function switchTab(id){
   if(id === 'results')  { setTimeout(populateSurfaceResults, 30); setTimeout(renderSurfaceReliefMap, 60); setTimeout(renderFaceReliefMap, 90); setTimeout(renderResVizMesh, 100); setTimeout(renderResFaceVizMesh, 120); }
   // Re-render probe-tab heatmap canvases when switching to probe tab
   if(id === 'top')      { setTimeout(renderSurfaceReliefMap, 60); setTimeout(renderFaceReliefMap, 90); }
+  // Refresh Apply tab button states when switching to it so mesh availability is reflected
+  if(id === 'apply')    { try { applyUpdateButtons(); } catch(e) {} }
   pluginDebug('switchTab: tab "' + id + '" active');
 }
 
