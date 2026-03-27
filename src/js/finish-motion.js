@@ -828,12 +828,15 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, o
     currentY = targetY;
     currentZ = targetZ;
 
-    // Only compensate lines that have an explicit face-axis coordinate
+    // Compensate any G1 move that has an explicit face-axis coordinate, OR that moves
+    // along the sample axis or changes Z (face position varies with both).
+    // This ensures lines like "G1 X10 Z-2" (no Y) also get face compensation applied.
+    var isG1Linear = /^G1\b/i.test(line);
     var hasFaceCoord = faceAxis === 'Y' ? !!yMatch : !!xMatch;
-    if (hasFaceCoord) {
-      var isG1Linear = /^G1\b/i.test(line);
-      var sampleAxisDist = faceAxis === 'Y' ? Math.abs(targetX - startX) : Math.abs(targetY - startY);
+    var sampleAxisDist = faceAxis === 'Y' ? Math.abs(targetX - startX) : Math.abs(targetY - startY);
+    var needsCompensation = hasFaceCoord || (isG1Linear && (sampleAxisDist > 0 || targetZ !== startZ));
 
+    if (needsCompensation) {
       if (isG1Linear && sampleAxisDist > segmentLength) {
         // Subdivide into N segments for smooth face-contour following
         var nSegs = Math.ceil(sampleAxisDist / segmentLength);
@@ -870,10 +873,18 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, o
         if (offset !== null) {
           if (faceAxis === 'Y') {
             var newY = currentY + offset;
-            line = line.replace(/Y(-?[\d.]+)/i, 'Y' + newY.toFixed(3));
+            if (hasFaceCoord) {
+              line = line.replace(/Y(-?[\d.]+)/i, 'Y' + newY.toFixed(3));
+            } else {
+              line = line + ' Y' + newY.toFixed(3);
+            }
           } else {
             var newX = currentX + offset;
-            line = line.replace(/X(-?[\d.]+)/i, 'X' + newX.toFixed(3));
+            if (hasFaceCoord) {
+              line = line.replace(/X(-?[\d.]+)/i, 'X' + newX.toFixed(3));
+            } else {
+              line = line + ' X' + newX.toFixed(3);
+            }
           }
           linesModified++;
         }

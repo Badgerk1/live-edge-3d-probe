@@ -1007,7 +1007,7 @@ function applyLogFace(msg) {
 function applyUpdateButtons() {
   var hasGcode = !!applyOriginalGcode;
   var hasSurfaceMesh = !!smMeshData && !!smGridConfig;
-  var hasFaceMesh = (typeof _getFaceMeshData === 'function') && !!_getFaceMeshData();
+  var hasFaceMesh = (typeof getFaceMeshData === 'function') && !!getFaceMeshData();
 
   var surfaceBtn = document.getElementById('apply-btn-surface-comp');
   if (surfaceBtn) surfaceBtn.disabled = !(hasGcode && hasSurfaceMesh);
