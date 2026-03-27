@@ -1347,33 +1347,111 @@ async function runCombinedProbeMode(axis) {
     }
     smLogProbe('COMBINED: Phase 1 complete — surface probe done. smMeshData rows=' + (smMeshData ? smMeshData.length : 'null'));
 
-    smLogProbe('COMBINED: Phase 2 — populating face probe references from surface mesh row 0...');
-    setFooterStatus('Combined probe: running face probe phase (' + axis + ')\u2026', 'warn');
+    smLogProbe('COMBINED: Phase 1.5 — probing top surface at face line Y coordinate...');
+    setFooterStatus('Combined probe: running top-surface reference phase\u2026', 'warn');
 
-    // Populate topResults from row 0 of the 2D surface mesh so that the face probe
-    // has correct per-sample-X top-Z references (row 0 = top edge of the live edge).
+    // Phase 1.5: Physically probe the top surface at the exact face line Y coordinate
+    // for each face sample X position so the face probe gets real measured top-Z values
+    // rather than interpolated grid row 0 values.
     topResults = [];
-    if (smMeshData && smGridConfig) {
-      var _cfg = smGridConfig;
-      var _row0 = smMeshData[0];
-      if (_row0) {
-        for (var _ci = 0; _ci < _cfg.colCount; _ci++) {
-          var _zVal = _row0[_ci];
-          if (_zVal != null && isFinite(_zVal)) {
-            var _xCoord = _cfg.minX + _ci * _cfg.colSpacing;
-            topResults.push({
-              type: 'top', index: _ci + 1,
-              sampleCoord: _xCoord, targetSamplePos: _xCoord,
-              x: _xCoord, y: _cfg.minY, z: Number(_zVal), status: 'TOP'
-            });
+    var _phase15FallbackNeeded = false;
+    try {
+      var _p15Settings = getSettingsFromUI();
+      var _p15FaceY = _p15Settings.faceFixedCoord;
+      var _p15ClearanceZ = Number(document.getElementById('sm-clearanceZ').value) || 5;
+      var _p15TravelFeed = Number(document.getElementById('sm-travelFeed').value) || 600;
+      var _p15ProbeFeed = _p15Settings.topFeed;
+      var _p15MaxPlunge = _p15Settings.topProbeDepth;
+      var _p15Retract = _p15Settings.topRetract;
+
+      // Compute face sample X positions — prefer fpBuildFaceSamplesFromConfig() when
+      // mesh data is available (same logic used in runFaceProbe).
+      var _p15Samples = null;
+      if (smMeshData && smGridConfig) {
+        _p15Samples = fpBuildFaceSamplesFromConfig();
+      }
+      // Fallback: use grid column X positions when face config is unavailable.
+      if (!_p15Samples || _p15Samples.length === 0) {
+        if (smGridConfig) {
+          _p15Samples = [];
+          for (var _p15ci = 0; _p15ci < smGridConfig.colCount; _p15ci++) {
+            _p15Samples.push({ index: _p15ci + 1, sampleCoord: smGridConfig.minX + _p15ci * smGridConfig.colSpacing });
           }
         }
-        smLogProbe('COMBINED: populated ' + topResults.length + ' top-profile reference points from surface mesh row 0.');
-        console.log('COMBINED: topResults =', JSON.stringify(topResults.slice(0, 3)));
       }
-    } else {
-      smLogProbe('COMBINED: WARNING — smMeshData or smGridConfig is null after surface probe; topResults will be empty.');
-      pluginDebug('runCombinedProbeMode WARNING: smMeshData=' + smMeshData + ' smGridConfig=' + smGridConfig);
+
+      if (!_p15Samples || _p15Samples.length === 0) {
+        throw new Error('No face sample X positions available for Phase 1.5');
+      }
+
+      var _p15Total = _p15Samples.length;
+      pluginDebug('runCombinedProbeMode Phase 1.5: faceY=' + _p15FaceY + ' samples=' + _p15Total + ' maxPlunge=' + _p15MaxPlunge + ' probeFeed=' + _p15ProbeFeed);
+
+      for (var _p15i = 0; _p15i < _p15Total; _p15i++) {
+        if (_stopRequested) { checkStop(); }
+        var _p15xPos = _p15Samples[_p15i].sampleCoord;
+        smLogProbe('COMBINED Phase 1.5: probing top surface at X=' + _p15xPos.toFixed(3) + ' Y=' + _p15FaceY.toFixed(3) + ' (' + (_p15i + 1) + '/' + _p15Total + ')');
+        pluginDebug('runCombinedProbeMode Phase 1.5: sample ' + (_p15i + 1) + '/' + _p15Total + ' X=' + _p15xPos.toFixed(3) + ' Y=' + _p15FaceY.toFixed(3));
+
+        await smSafeLateralMove(_p15xPos, _p15FaceY, _p15TravelFeed, _p15ClearanceZ);
+        await smEnsureProbeClear(_p15ClearanceZ, _p15TravelFeed);
+        var _p15Contact = await smPlungeProbe(_p15MaxPlunge, _p15ProbeFeed);
+        if (!_p15Contact || !isFinite(_p15Contact.z)) {
+          throw new Error('Phase 1.5 probe returned invalid contact position at X=' + _p15xPos.toFixed(3));
+        }
+
+        topResults.push({
+          type: 'top',
+          index: _p15i + 1,
+          sampleCoord: _p15xPos,
+          targetSamplePos: _p15xPos,
+          x: Number(_p15Contact.x),
+          y: Number(_p15Contact.y),
+          z: Number(_p15Contact.z),
+          machineZ: _p15Contact.machineZ != null ? Number(_p15Contact.machineZ) : null,
+          status: 'TOP'
+        });
+
+        smLogProbe('COMBINED Phase 1.5: contact at Z=' + _p15Contact.z.toFixed(3));
+        await smRetractSmall(_p15Contact.z, _p15Retract, _p15TravelFeed);
+      }
+
+      smLogProbe('COMBINED Phase 1.5: measured ' + topResults.length + ' top-surface reference points at face line Y=' + _p15FaceY.toFixed(3));
+      pluginDebug('runCombinedProbeMode Phase 1.5 complete: ' + topResults.length + ' points at faceY=' + _p15FaceY.toFixed(3));
+      saveProbeResults();
+
+    } catch (_p15Err) {
+      smLogProbe('COMBINED Phase 1.5 ERROR: ' + (_p15Err && _p15Err.message ? _p15Err.message : String(_p15Err)) + ' — falling back to surface mesh row 0 interpolation.');
+      pluginDebug('runCombinedProbeMode Phase 1.5 ERROR (fallback): ' + (_p15Err && _p15Err.message ? _p15Err.message : String(_p15Err)));
+      console.error('COMBINED Phase 1.5 error (falling back to grid row 0):', _p15Err);
+      _phase15FallbackNeeded = true;
+    }
+
+    // Fallback: populate topResults from surface mesh row 0 if Phase 1.5 failed.
+    if (_phase15FallbackNeeded || topResults.length === 0) {
+      topResults = [];
+      if (smMeshData && smGridConfig) {
+        var _cfg = smGridConfig;
+        var _row0 = smMeshData[0];
+        if (_row0) {
+          for (var _ci = 0; _ci < _cfg.colCount; _ci++) {
+            var _zVal = _row0[_ci];
+            if (_zVal != null && isFinite(_zVal)) {
+              var _xCoord = _cfg.minX + _ci * _cfg.colSpacing;
+              topResults.push({
+                type: 'top', index: _ci + 1,
+                sampleCoord: _xCoord, targetSamplePos: _xCoord,
+                x: _xCoord, y: _cfg.minY, z: Number(_zVal), status: 'TOP'
+              });
+            }
+          }
+          smLogProbe('COMBINED: (fallback) populated ' + topResults.length + ' top-profile reference points from surface mesh row 0.');
+          console.log('COMBINED: topResults (fallback) =', JSON.stringify(topResults.slice(0, 3)));
+        }
+      } else {
+        smLogProbe('COMBINED: WARNING — smMeshData or smGridConfig is null; topResults will be empty.');
+        pluginDebug('runCombinedProbeMode WARNING: smMeshData=' + smMeshData + ' smGridConfig=' + smGridConfig);
+      }
     }
 
     // Phase 2: Run face probe.
@@ -1408,6 +1486,7 @@ async function runCombinedProbeMode(axis) {
       return;
     }
 
+    setFooterStatus('Combined probe: running face probe phase (' + axis + ')\u2026', 'warn');
     smLogProbe('COMBINED: Phase 2 — calling runFaceProbe(axis=' + axis + ')...');
     pluginDebug('runCombinedProbeMode: Phase 2 calling runFaceProbe axis=' + axis + ' _running=' + _running + ' _stopRequested=' + _stopRequested);
     logLine('face', 'COMBINED MODE: starting face probe phase (axis=' + axis + ')...');
