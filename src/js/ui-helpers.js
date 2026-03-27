@@ -123,7 +123,7 @@ async function raiseFaceTravelSafeZ(label){
     return await getWorkPosition();
   }
 
-  logLine('face', label + ': raising to local safe Z ' + localSafeZ.toFixed(3) + ' (' + safeZSource + ' + ' + retractClearance.toFixed(1) + 'mm clearance)');
+  logLine('face', label + ': raising to local safe Z ' + localSafeZ.toFixed(3) + ' (' + safeZSource + ' + ' + retractClearance.toFixed(1) + ' coords clearance)');
   await moveAbs(null, null, localSafeZ, s.travelRecoveryLiftFeedRate || s.travelFeedRate || 600);
   return await getWorkPosition();
 }

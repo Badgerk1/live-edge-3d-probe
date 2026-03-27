@@ -379,13 +379,13 @@ function fpReadRow1ZStart() {
   if (el) el.value = avgZ.toFixed(3);
   fpUpdateStylusCapInfo();
   var statusEl = document.getElementById('face-meshStorageStatus');
-  if (statusEl) statusEl.textContent = 'Z Start loaded from Row 1 average: ' + avgZ.toFixed(3) + ' mm (' + validZ.length + ' points).';
+  if (statusEl) statusEl.textContent = 'Z Start loaded from Row 1 average: ' + avgZ.toFixed(3) + ' coords (' + validZ.length + ' points).';
 }
 
 function fpUpdateStylusCapInfo() {
   var stylusLen = Number((document.getElementById('probeStylusCalloutLength') || {}).value) || FACE_PROBE_DEFAULT_MAX_DEPTH;
   var infoEl = document.getElementById('fp-stylus-cap-info');
-  if (infoEl) infoEl.textContent = 'Max = ' + stylusLen.toFixed(3) + ' mm (probe stylus callout length from Setup)';
+  if (infoEl) infoEl.textContent = 'Max = ' + stylusLen.toFixed(3) + ' coords (probe stylus callout length from Setup)';
   fpValidateZEnd();
 }
 
@@ -955,8 +955,8 @@ function renderFaceGcodePreview() {
   svgParts.push('<line x1="' + pad.l + '" y1="' + (H - pad.b) + '" x2="' + (W - pad.r) + '" y2="' + (H - pad.b) + '" stroke="#334" stroke-width="1"/>');
   svgParts.push('<line x1="' + pad.l + '" y1="' + pad.t + '" x2="' + pad.l + '" y2="' + (H - pad.b) + '" stroke="#334" stroke-width="1"/>');
   // Axis labels
-  var hAxisLbl = faceAxis === 'Y' ? 'X (mm)' : 'Y (mm)';
-  var vAxisLbl = 'Z (mm)';
+  var hAxisLbl = faceAxis === 'Y' ? 'X (coords)' : 'Y (coords)';
+  var vAxisLbl = 'Z (coords)';
   svgParts.push('<text x="' + (pad.l + pw / 2) + '" y="' + (H - 4) + '" text-anchor="middle" font-size="10" fill="#8899aa">' + hAxisLbl + '</text>');
   svgParts.push('<text x="10" y="' + (pad.t + ph / 2) + '" text-anchor="middle" font-size="10" fill="#8899aa" transform="rotate(-90,10,' + (pad.t + ph / 2) + ')">' + vAxisLbl + '</text>');
   // Tick values
@@ -988,9 +988,9 @@ function renderFaceGcodePreview() {
     '&#9679; <span style="color:#00e676">start</span>&nbsp;&nbsp;' +
     '&#9679; <span style="color:#ff5252">end</span>&nbsp;&nbsp;' +
     moves.length + ' moves &middot; ' +
-    (faceAxis === 'Y' ? 'X' : 'Y') + ': ' + hMin.toFixed(1) + '&ndash;' + hMax.toFixed(1) + 'mm &middot; ' +
-    'Z: ' + vMin.toFixed(1) + '&ndash;' + vMax.toFixed(1) + 'mm &middot; ' +
-    depthAxisName + ': ' + dMin.toFixed(2) + '&ndash;' + dMax.toFixed(2) + 'mm';
+    (faceAxis === 'Y' ? 'X' : 'Y') + ': ' + hMin.toFixed(1) + '&ndash;' + hMax.toFixed(1) + ' coords &middot; ' +
+    'Z: ' + vMin.toFixed(1) + '&ndash;' + vMax.toFixed(1) + ' coords &middot; ' +
+    depthAxisName + ': ' + dMin.toFixed(2) + '&ndash;' + dMax.toFixed(2) + ' coords';
 }
 
 // ── Face Probe Tab — sample builder from config fields ────────────────────────

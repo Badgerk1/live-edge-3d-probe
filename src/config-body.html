@@ -61,12 +61,12 @@
               <line x1="105" y1="112" x2="205" y2="112" stroke="#d8e6ff" stroke-width="2" marker-start="url(#arrowStart)" marker-end="url(#arrowEnd)"/>
               <text x="18" y="96" fill="#ffffff" font-size="16">Shank Ø</text>
               <text x="18" y="118" fill="#87f86d" font-size="26" font-weight="700" id="probeLabelShank">6</text>
-              <text x="48" y="118" fill="#c2d3f2" font-size="16">mm</text>
+              <text x="48" y="118" fill="#c2d3f2" font-size="16">coords</text>
 
               <line x1="372" y1="214" x2="505" y2="214" stroke="#d8e6ff" stroke-width="2" marker-start="url(#arrowStart)" marker-end="url(#arrowEnd)"/>
               <text x="390" y="190" fill="#ffffff" font-size="16">Body Ø</text>
               <text x="390" y="214" fill="#87f86d" font-size="26" font-weight="700" id="probeLabelBody">33</text>
-              <text x="430" y="214" fill="#c2d3f2" font-size="16">mm</text>
+              <text x="430" y="214" fill="#c2d3f2" font-size="16">coords</text>
 
               <line x1="330" y1="40" x2="330" y2="168" stroke="#d8e6ff" stroke-width="2"/>
               <line x1="316" y1="40" x2="344" y2="40" stroke="#d8e6ff" stroke-width="2"/>
@@ -74,7 +74,7 @@
               <line x1="330" y1="44" x2="330" y2="164" stroke="#d8e6ff" stroke-width="2" marker-start="url(#arrowStart)" marker-end="url(#arrowEnd)"/>
               <text x="350" y="88" fill="#ffffff" font-size="16">Upper</text>
               <text x="350" y="110" fill="#87f86d" font-size="26" font-weight="700" id="probeLabelUpper">20</text>
-              <text x="383" y="110" fill="#c2d3f2" font-size="16">mm</text>
+              <text x="383" y="110" fill="#c2d3f2" font-size="16">coords</text>
 
               <line x1="330" y1="170" x2="330" y2="342" stroke="#d8e6ff" stroke-width="2"/>
               <line x1="316" y1="170" x2="344" y2="170" stroke="#d8e6ff" stroke-width="2"/>
@@ -82,7 +82,7 @@
               <line x1="330" y1="174" x2="330" y2="338" stroke="#d8e6ff" stroke-width="2" marker-start="url(#arrowStart)" marker-end="url(#arrowEnd)"/>
               <text x="350" y="238" fill="#ffffff" font-size="16">Main body</text>
               <text x="350" y="260" fill="#87f86d" font-size="26" font-weight="700" id="probeLabelMain">21</text>
-              <text x="383" y="260" fill="#c2d3f2" font-size="16">mm</text>
+              <text x="383" y="260" fill="#c2d3f2" font-size="16">coords</text>
 
               <line x1="105" y1="342" x2="105" y2="490" stroke="#d8e6ff" stroke-width="2"/>
               <line x1="92" y1="342" x2="118" y2="342" stroke="#d8e6ff" stroke-width="2"/>
@@ -90,36 +90,36 @@
               <line x1="105" y1="346" x2="105" y2="486" stroke="#d8e6ff" stroke-width="2" marker-start="url(#arrowStart)" marker-end="url(#arrowEnd)"/>
               <text x="18" y="408" fill="#ffffff" font-size="16">Stylus</text>
               <text x="18" y="430" fill="#87f86d" font-size="26" font-weight="700" id="probeLabelStylus">26</text>
-              <text x="48" y="430" fill="#c2d3f2" font-size="16">mm</text>
+              <text x="48" y="430" fill="#c2d3f2" font-size="16">coords</text>
 
               <text x="282" y="450" fill="#ffffff" font-size="16">Probe stylus length</text>
               <text x="282" y="472" fill="#87f86d" font-size="22" font-weight="700" id="probeLabelStylusCallout">14.75</text>
-              <text x="327" y="472" fill="#c2d3f2" font-size="15">mm</text>
+              <text x="327" y="472" fill="#c2d3f2" font-size="15">coords</text>
 
               <line x1="205" y1="502" x2="275" y2="502" stroke="#d8e6ff" stroke-width="2" marker-start="url(#arrowStart)" marker-end="url(#arrowEnd)"/>
               <text x="282" y="496" fill="#ffffff" font-size="16">Ball tip Ø</text>
               <text x="282" y="518" fill="#87f86d" font-size="22" font-weight="700" id="probeLabelBall">0</text>
-              <text x="312" y="518" fill="#c2d3f2" font-size="15">mm</text>
+              <text x="312" y="518" fill="#c2d3f2" font-size="15">coords</text>
 
               <text x="24" y="28" fill="#cfe0ff" font-size="18" font-weight="700">Live probe geometry preview</text>
               <text x="24" y="500" fill="#ffffff" font-size="16">Total length</text>
               <text x="24" y="522" fill="#87f86d" font-size="28" font-weight="700" id="probeLabelTotal">67</text>
-              <text x="60" y="522" fill="#c2d3f2" font-size="16">mm</text>
+              <text x="60" y="522" fill="#c2d3f2" font-size="16">coords</text>
             </svg>
           </div>
 
           <div class="probe-fields">
-            <div class="field"><label>Shank Diameter (mm)</label><input id="probeShankDiameter" type="number" step="0.001" value="6"></div>
-            <div class="field"><label>Body Diameter (mm)</label><input id="probeBodyDiameter" type="number" step="0.001" value="33"></div>
-            <div class="field"><label>Upper Section Height (mm)</label><input id="probeUpperHeight" type="number" step="0.001" value="20"></div>
-            <div class="field"><label>Main Body Height (mm)</label><input id="probeMainBodyHeight" type="number" step="0.001" value="21"></div>
-            <div class="field"><label>Stylus Length (mm)</label><input id="probeStylusLength" type="number" step="0.001" value="26"></div>
-            <div class="field"><label>Probe Stylus Length (mm)</label><input id="probeStylusCalloutLength" type="number" step="0.001" value="14.75"></div>
-            <div class="field"><label>Ball Tip Diameter (mm)</label><input id="probeBallTipDiameter" type="number" step="0.001" value="0"></div>
-            <div class="field"><label>Total Probe Length (mm)</label><input id="probeTotalLength" type="number" step="0.001" value="67"></div>
+            <div class="field"><label>Shank Diameter (coords)</label><input id="probeShankDiameter" type="number" step="0.001" value="6"></div>
+            <div class="field"><label>Body Diameter (coords)</label><input id="probeBodyDiameter" type="number" step="0.001" value="33"></div>
+            <div class="field"><label>Upper Section Height (coords)</label><input id="probeUpperHeight" type="number" step="0.001" value="20"></div>
+            <div class="field"><label>Main Body Height (coords)</label><input id="probeMainBodyHeight" type="number" step="0.001" value="21"></div>
+            <div class="field"><label>Stylus Length (coords)</label><input id="probeStylusLength" type="number" step="0.001" value="26"></div>
+            <div class="field"><label>Probe Stylus Length (coords)</label><input id="probeStylusCalloutLength" type="number" step="0.001" value="14.75"></div>
+            <div class="field"><label>Ball Tip Diameter (coords)</label><input id="probeBallTipDiameter" type="number" step="0.001" value="0"></div>
+            <div class="field"><label>Total Probe Length (coords)</label><input id="probeTotalLength" type="number" step="0.001" value="67"></div>
 
             <div class="probe-total-row">
-              <div class="field"><label>Auto-Calculated Total (mm)</label><input id="probeAutoTotalLength" type="text" value="67.000" readonly></div>
+              <div class="field"><label>Auto-Calculated Total (coords)</label><input id="probeAutoTotalLength" type="text" value="67.000" readonly></div>
               <div></div>
               <button class="btn" id="calcProbeTotalBtn" type="button">Auto-Calc Total Length</button>
             </div>
@@ -147,18 +147,18 @@
           </div>
           <div class="field">
             <label>
-              <span class="tooltip">Top Fixed Coord (mm)<span class="tip-icon">?</span>
+              <span class="tooltip">Top Fixed Coord (coords)<span class="tip-icon">?</span>
                 <span class="tip">The non-sampled axis coordinate held constant during the top profile scan.</span>
               </span>
             </label>
             <input type="number" id="topFixedCoord" value="0" step="0.1">
           </div>
           <div class="field">
-            <label>Sample Start (mm)</label>
+            <label>Sample Start (coords)</label>
             <input type="number" id="topSampleStart" value="0" step="0.1">
           </div>
           <div class="field">
-            <label>Sample End (mm)</label>
+            <label>Sample End (coords)</label>
             <input type="number" id="topSampleEnd" value="100" step="0.1">
           </div>
           <div class="field">
@@ -175,7 +175,7 @@
           </div>
           <div class="field">
             <label>
-              <span class="tooltip">Initial Clearance Lift (mm)<span class="tip-icon">?</span>
+              <span class="tooltip">Initial Clearance Lift (coords)<span class="tip-icon">?</span>
                 <span class="tip">Relative Z raise used only when Initial Clearance Lift is enabled.</span>
               </span>
             </label>
@@ -187,14 +187,14 @@
           </div>
           <div class="field">
             <label>
-              <span class="tooltip">Probe Depth (mm)<span class="tip-icon">?</span>
+              <span class="tooltip">Probe Depth (coords)<span class="tip-icon">?</span>
                 <span class="tip">Maximum Z distance to probe downward from the current Z position at each sample point.</span>
               </span>
             </label>
             <input type="number" id="topProbeDepth" value="5" min="0.5" max="50" step="0.5">
           </div>
           <div class="field">
-            <label>Retract (mm)</label>
+            <label>Retract (coords)</label>
             <input type="number" id="topRetract" value="2" min="0.5" max="20" step="0.5">
           </div>
           <div class="field">
@@ -218,15 +218,15 @@
             <select id="useTravelContactRecovery"><option value="yes">Yes</option><option value="no">No</option></select>
           </div>
           <div class="field">
-            <label>Travel Contact Step (mm)</label>
+            <label>Travel Contact Step (coords)</label>
             <input type="number" id="travelContactStep" value="5" min="0.2" max="50" step="0.1">
           </div>
           <div class="field">
-            <label>Travel Backoff (mm)</label>
+            <label>Travel Backoff (coords)</label>
             <input type="number" id="travelContactBackoff" value="5" min="0.2" max="50" step="0.1">
           </div>
           <div class="field">
-            <label>Travel Lift After Contact (mm)</label>
+            <label>Travel Lift After Contact (coords)</label>
             <input type="number" id="travelContactLift" value="5" min="0.2" max="50" step="0.1">
           </div>
           <div class="field">
@@ -234,7 +234,7 @@
             <input type="number" id="travelContactMaxRetries" value="5" min="1" max="20" step="1">
           </div>
           <div class="field">
-            <label>Max Possible Recovery Lift (mm)</label>
+            <label>Max Possible Recovery Lift (coords)</label>
             <input type="text" id="travelContactMaxLiftPreview" value="25.000" readonly>
           </div>
         </div>
@@ -245,7 +245,7 @@
         <div class="grid three">
           <div class="field">
             <label>
-              <span class="tooltip">Face Fixed Coord (mm)<span class="tip-icon">?</span>
+              <span class="tooltip">Face Fixed Coord (coords)<span class="tip-icon">?</span>
                 <span class="tip">The non-probed axis coordinate held constant during face probing.</span>
               </span>
             </label>
@@ -253,7 +253,7 @@
           </div>
           <div class="field">
             <label>
-              <span class="tooltip">Face Start Offset (mm)<span class="tip-icon">?</span>
+              <span class="tooltip">Face Start Offset (coords)<span class="tip-icon">?</span>
                 <span class="tip">Starting offset from the face fixed coordinate before probing. Negative = start before the face.</span>
               </span>
             </label>
@@ -265,7 +265,7 @@
           </div>
           <div class="field">
             <label>
-              <span class="tooltip">Depth Below Surface (mm)<span class="tip-icon">?</span>
+              <span class="tooltip">Depth Below Surface (coords)<span class="tip-icon">?</span>
                 <span class="tip">How far below the top profile Z surface to position for face probing. Uses nearest top profile point.</span>
               </span>
             </label>
@@ -273,7 +273,7 @@
           </div>
           <div class="field">
             <label>
-              <span class="tooltip">Face Probe Distance (mm)<span class="tip-icon">?</span>
+              <span class="tooltip">Face Probe Distance (coords)<span class="tip-icon">?</span>
                 <span class="tip">Total distance to probe along the face axis from the start offset position.</span>
               </span>
             </label>
@@ -293,7 +293,7 @@
           </div>
           <div class="field">
             <label>
-              <span class="tooltip">Face Max Depth (mm)<span class="tip-icon">?</span>
+              <span class="tooltip">Face Max Depth (coords)<span class="tip-icon">?</span>
                 <span class="tip">Starting depth (deepest Z below surface zero) for layered face probing. Can match probe stylus length from 3D Probe Dimensions.</span>
               </span>
             </label>
@@ -308,15 +308,15 @@
           <div class="stack">
             <div class="grid three">
               <div class="field">
-                <label>Saved Location X (mm)</label>
+                <label>Saved Location X (coords)</label>
                 <input type="number" id="savedLocX" value="0" step="0.001" readonly>
               </div>
               <div class="field">
-                <label>Saved Location Y (mm)</label>
+                <label>Saved Location Y (coords)</label>
                 <input type="number" id="savedLocY" value="0" step="0.001">
               </div>
               <div class="field">
-                <label>Saved Location Z (mm)</label>
+                <label>Saved Location Z (coords)</label>
                 <input type="number" id="savedLocZ" value="0" step="0.001">
               </div>
               <div class="field">
@@ -337,15 +337,15 @@
               <div class="box-title">Current Position</div>
               <div class="grid three">
                 <div class="field">
-                  <label>Current Work X (mm)</label>
+                  <label>Current Work X (coords)</label>
                   <input type="number" id="currentPosX" value="0" step="0.001" readonly>
                 </div>
                 <div class="field">
-                  <label>Current Work Y (mm)</label>
+                  <label>Current Work Y (coords)</label>
                   <input type="number" id="currentPosY" value="0" step="0.001" readonly>
                 </div>
                 <div class="field">
-                  <label>Current Work Z (mm)</label>
+                  <label>Current Work Z (coords)</label>
                   <input type="number" id="currentPosZ" value="0" step="0.001" readonly>
                 </div>
               </div>
@@ -355,7 +355,7 @@
             <div class="grid three">
               <div class="field">
                 <label>
-                  <span class="tooltip">Finish Lift Z / Fallback Z (mm)<span class="tip-icon">?</span>
+                  <span class="tooltip">Finish Lift Z / Fallback Z (coords)<span class="tip-icon">?</span>
                     <span class="tip">Absolute work Z used if machine-home retract is disabled, or as a fallback if the controller is unexpectedly not homed at finish.</span>
                   </span>
                 </label>
@@ -371,7 +371,7 @@
               </div>
               <div class="field">
                 <label>
-                  <span class="tooltip">Machine Safe Top Z (mm)<span class="tip-icon">?</span>
+                  <span class="tooltip">Machine Safe Top Z (coords)<span class="tip-icon">?</span>
                     <span class="tip">Machine-coordinate Z target used for safe retract before X/Y travel when the machine is homed.</span>
                   </span>
                 </label>
@@ -439,7 +439,7 @@
             </div>
             <div class="jog-meta">
               <div class="field">
-                <label>Jog Step Z (mm)</label>
+                <label>Jog Step Z (coords)</label>
                 <input type="number" id="jogStepZ" value="2" min="0.001" step="0.1">
               </div>
               <div class="field">
@@ -493,12 +493,12 @@
     <div class="panel">
       <div class="box-title">2D Grid Configuration</div>
       <div class="grid three">
-        <div class="field"><label>Min X (mm)</label><input type="number" id="sm-minX" value="0" step="1"></div>
-        <div class="field"><label>Max X (mm)</label><input type="number" id="sm-maxX" value="100" step="1"></div>
-        <div class="field"><label>Spacing X (mm)</label><input type="number" id="sm-spacingX" value="20" step="1" min="1"></div>
-        <div class="field"><label>Min Y (mm)</label><input type="number" id="sm-minY" value="0" step="1"></div>
-        <div class="field"><label>Max Y (mm)</label><input type="number" id="sm-maxY" value="100" step="1"></div>
-        <div class="field"><label>Spacing Y (mm)</label><input type="number" id="sm-spacingY" value="20" step="1" min="1"></div>
+        <div class="field"><label>Min X (coords)</label><input type="number" id="sm-minX" value="0" step="1"></div>
+        <div class="field"><label>Max X (coords)</label><input type="number" id="sm-maxX" value="100" step="1"></div>
+        <div class="field"><label>Spacing X (coords)</label><input type="number" id="sm-spacingX" value="20" step="1" min="1"></div>
+        <div class="field"><label>Min Y (coords)</label><input type="number" id="sm-minY" value="0" step="1"></div>
+        <div class="field"><label>Max Y (coords)</label><input type="number" id="sm-maxY" value="100" step="1"></div>
+        <div class="field"><label>Spacing Y (coords)</label><input type="number" id="sm-spacingY" value="20" step="1" min="1"></div>
       </div>
       <div style="margin-top:8px;display:inline-block;padding:6px 10px;border-radius:5px;background:var(--panel2);border:1px solid var(--line);color:var(--accent2);font-size:13px;font-weight:600" id="sm-gridSizeDisplay">6 &times; 6 = 36 points</div>
       <div class="mini" style="color:var(--muted);margin-top:6px">&#128161; Set Min Y = Max Y = 0 for single-row (linear) probing along X axis</div>
@@ -508,9 +508,9 @@
       <div class="grid three">
         <div class="field"><label>Probe Feed (mm/min)</label><input type="number" id="sm-probeFeed" value="100" step="10" min="1"></div>
         <div class="field"><label>Travel Feed (mm/min)</label><input type="number" id="sm-travelFeed" value="2000" step="100" min="1"></div>
-        <div class="field"><label>Clearance Z (mm)</label><input type="number" id="sm-clearanceZ" value="5" step="0.5" min="0.5"></div>
-        <div class="field"><label>Max Plunge (mm)</label><input type="number" id="sm-maxPlunge" value="20" step="1" min="1"></div>
-        <div class="field"><label>Reference Z (mm)</label><input type="number" id="sm-referenceZ" value="0" step="0.1"></div>
+        <div class="field"><label>Clearance Z (coords)</label><input type="number" id="sm-clearanceZ" value="5" step="0.5" min="0.5"></div>
+        <div class="field"><label>Max Plunge (coords)</label><input type="number" id="sm-maxPlunge" value="20" step="1" min="1"></div>
+        <div class="field"><label>Reference Z (coords)</label><input type="number" id="sm-referenceZ" value="0" step="0.1"></div>
       </div>
       <div class="btn-row" style="margin-top:10px">
         <button class="btn ghost" id="sm-btn-save-settings" onclick="smSaveSettings()">&#128190; Save Settings</button>
@@ -524,19 +524,19 @@
       <div class="box-title">Face Probe Configuration</div>
       <div class="grid three">
         <div class="field">
-          <label><span class="tooltip">Y Start Distance (mm)<span class="tip-icon">?</span><span class="tip">How far from the face (along the probe axis) to start the approach. Negative = start before the face. Overrides Setup &rarr; Face Start Offset when set.</span></span></label>
+          <label><span class="tooltip">Y Start Distance (coords)<span class="tip-icon">?</span><span class="tip">How far from the face (along the probe axis) to start the approach. Negative = start before the face. Overrides Setup &rarr; Face Start Offset when set.</span></span></label>
           <input type="number" id="fp-yStart" value="-10" step="0.1">
         </div>
         <div class="field">
-          <label>X Start (mm)</label>
+          <label>X Start (coords)</label>
           <input type="number" id="fp-xStart" value="0" step="1">
         </div>
         <div class="field">
-          <label>X End (mm)</label>
+          <label>X End (coords)</label>
           <input type="number" id="fp-xEnd" value="100" step="1">
         </div>
         <div class="field">
-          <label><span class="tooltip">Z Start (mm)<span class="tip-icon">?</span><span class="tip">Z depth below surface zero where face probing starts. Click "Auto Row 1" to populate from Surface Row 1 (top edge = zero reference).</span></span></label>
+          <label><span class="tooltip">Z Start (coords)<span class="tip-icon">?</span><span class="tip">Z depth below surface zero where face probing starts. Click "Auto Row 1" to populate from Surface Row 1 (top edge = zero reference).</span></span></label>
           <div style="display:flex;gap:6px;align-items:center">
             <input type="number" id="fp-zStart" value="0" step="0.1" style="flex:1;min-width:0">
             <button class="btn ghost" style="white-space:nowrap;flex-shrink:0;padding:6px 10px;font-size:11px" onclick="fpReadRow1ZStart()">&#8635; Auto Row 1</button>
@@ -544,7 +544,7 @@
         </div>
         <div class="field">
           <label>
-            <span class="tooltip">Z End / Max Depth (mm)<span class="tip-icon">?</span><span class="tip">Deepest Z below surface zero for face probing. Cannot exceed probe stylus length (Setup &rarr; 3D Probe Dimensions).</span></span>
+            <span class="tooltip">Z End / Max Depth (coords)<span class="tip-icon">?</span><span class="tip">Deepest Z below surface zero for face probing. Cannot exceed probe stylus length (Setup &rarr; 3D Probe Dimensions).</span></span>
             <span id="fp-stylus-warning" style="color:var(--bad);font-size:11px;font-weight:600;display:none"> &#9888; Exceeds stylus!</span>
           </label>
           <input type="number" id="fp-zEnd" value="14.75" step="0.25" oninput="fpValidateZEnd()">
@@ -563,7 +563,7 @@
           <input type="number" id="fp-feedRate" value="150" min="10" max="3000" step="10">
         </div>
         <div class="field">
-          <label>Retract Distance (mm)</label>
+          <label>Retract Distance (coords)</label>
           <input type="number" id="fp-retractDist" value="2" min="0.1" max="20" step="0.1">
         </div>
       </div>
@@ -1008,7 +1008,7 @@
         <div class="box-title">&#9889; Surface Z Compensation</div>
         <div class="callout mini" style="margin-bottom:10px">Apply bilinear Z compensation from the surface mesh to the loaded G-code. <strong>Subdivide moves</strong> splits long linear moves into short segments that follow the mesh surface for smooth curves.</div>
         <div class="grid two" style="margin-bottom:10px">
-          <div class="field"><label>Reference Z (mm)</label><input type="number" id="apply-refZ" value="0" step="0.001"></div>
+          <div class="field"><label>Reference Z (coords)</label><input type="number" id="apply-refZ" value="0" step="0.001"></div>
           <div class="field">
             <label>&nbsp;</label>
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:6px">
@@ -1031,7 +1031,7 @@
         <div class="box-title">&#128736; Face Compensation</div>
         <div class="callout mini" style="margin-bottom:10px">Apply face probe compensation to adjust the depth axis (X or Y) based on the face mesh. Requires face probe data.</div>
         <div class="grid two" style="margin-bottom:10px">
-          <div class="field"><label>Reference Face Position (mm)</label><input type="number" id="apply-face-refPos" value="0" step="0.001"></div>
+          <div class="field"><label>Reference Face Position (coords)</label><input type="number" id="apply-face-refPos" value="0" step="0.001"></div>
           <div class="field">
             <label>Face Axis</label>
             <select id="apply-face-axis">

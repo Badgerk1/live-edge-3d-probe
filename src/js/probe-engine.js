@@ -270,7 +270,7 @@ function smGetProbeTriggered() {
 }
 
 // Verify probe input is open before issuing a plunge. If triggered, raises Z above
-// clearanceZ + 2mm and waits 200ms, then re-checks. Up to maxAttempts retries.
+// clearanceZ + 2 coords and waits 200ms, then re-checks. Up to maxAttempts retries.
 async function smEnsureProbeClear(clearanceZ, travelFeed) {
   pluginDebug('smEnsureProbeClear ENTER: clearanceZ=' + clearanceZ + ' travelFeed=' + travelFeed);
   var maxAttempts = 3;
@@ -284,7 +284,7 @@ async function smEnsureProbeClear(clearanceZ, travelFeed) {
     smLogProbe('Probe triggered before plunge (attempt ' + (attempt + 1) + '/' + maxAttempts + '); raising Z to clear...');
     pluginDebug('smEnsureProbeClear: probe triggered attempt=' + (attempt + 1) + '/' + maxAttempts + ', raising Z');
     var pos = await getWorkPosition();
-    var targetZ = Math.max(pos.z, clearanceZ) + 2; // 2mm above clearance to ensure probe clears
+    var targetZ = Math.max(pos.z, clearanceZ) + 2; // 2 coords above clearance to ensure probe clears
     var clearCmd = 'G90 G1 Z' + targetZ.toFixed(3) + ' F' + travelFeed;
     smLogProbe('[PLUGIN DEBUG] smEnsureProbeClear: sending command: ' + clearCmd);
     pluginDebug('smEnsureProbeClear: sending: ' + clearCmd);
@@ -300,7 +300,7 @@ async function smSafeLateralMove(targetX, targetY, travelFeed, clearanceZ) {
   var lift = Math.max(0.1, Number(document.getElementById('travelContactLift').value) || 5);
   var maxRetries = Math.max(1, Math.round(Number(document.getElementById('travelContactMaxRetries').value) || 5));
 
-  smLogProbe('TRAVEL: lifting Z by ' + clearanceZ.toFixed(3) + 'mm (relative), then moving to X' + targetX.toFixed(3) + ' Y' + targetY.toFixed(3));
+  smLogProbe('TRAVEL: lifting Z by ' + clearanceZ.toFixed(3) + ' coords (relative), then moving to X' + targetX.toFixed(3) + ' Y' + targetY.toFixed(3));
 
   // Move a single axis to target using one full-distance G38.3 command.
   // If the probe triggers mid-move (stopped short), back off opposite to travel direction,
@@ -337,7 +337,7 @@ async function smSafeLateralMove(targetX, targetY, travelFeed, clearanceZ) {
     await attempt();
   }
 
-  // Lift Z by clearanceZ mm relative from current position (contact point), then travel X/Y.
+  // Lift Z by clearanceZ coords relative from current position (contact point), then travel X/Y.
   // This ensures clearance is always clearanceZ above wherever the probe last touched,
   // regardless of absolute work Z.
   var liftCmd = 'G91 G1 Z' + clearanceZ.toFixed(3) + ' F' + travelFeed;
@@ -377,20 +377,20 @@ async function smPlungeProbe(maxPlunge, probeFeed) {
   smLogProbe('[PLUGIN DEBUG] smPlungeProbe: idle confirmed after probe move');
   var endPos = await getWorkPosition();
   var distanceTraveled = startZ - endPos.z;
-  smLogProbe('[PLUGIN DEBUG] smPlungeProbe: startZ=' + startZ.toFixed(3) + ' endZ=' + endPos.z.toFixed(3) + ' traveled=' + distanceTraveled.toFixed(3) + 'mm');
-  pluginDebug('smPlungeProbe: travel startZ=' + startZ.toFixed(3) + ' endZ=' + endPos.z.toFixed(3) + ' traveled=' + distanceTraveled.toFixed(3) + 'mm');
+  smLogProbe('[PLUGIN DEBUG] smPlungeProbe: startZ=' + startZ.toFixed(3) + ' endZ=' + endPos.z.toFixed(3) + ' traveled=' + distanceTraveled.toFixed(3) + ' coords');
+  pluginDebug('smPlungeProbe: travel startZ=' + startZ.toFixed(3) + ' endZ=' + endPos.z.toFixed(3) + ' traveled=' + distanceTraveled.toFixed(3) + ' coords');
   // Contact detected if machine stopped short of maxPlunge (position-based, robust when
   // probe pin clears before idle query) or if Pn still shows 'P' (pin-based)
-  var probeContactTolerance = 0.5; // mm; machine must stop at least this far short of maxPlunge
+  var probeContactTolerance = 0.5; // coords; machine must stop at least this far short of maxPlunge
   var stoppedShort = distanceTraveled < (maxPlunge - probeContactTolerance);
   var triggered = await smGetProbeTriggered();
   if (!triggered && !stoppedShort) {
-    smLogProbe('[PLUGIN DEBUG] smPlungeProbe ERROR: No contact within max plunge ' + maxPlunge.toFixed(3) + ' mm');
+    smLogProbe('[PLUGIN DEBUG] smPlungeProbe ERROR: No contact within max plunge ' + maxPlunge.toFixed(3) + ' coords');
     pluginDebug('smPlungeProbe ERROR: no contact within maxPlunge=' + maxPlunge.toFixed(3));
     throw new Error('No contact within max plunge');
   }
   if (!triggered && stoppedShort) {
-    smLogProbe('[PLUGIN DEBUG] smPlungeProbe NOTE: probe pin not active after idle but machine stopped at Z=' + endPos.z.toFixed(3) + ' (' + distanceTraveled.toFixed(3) + 'mm/' + maxPlunge.toFixed(3) + 'mm) — contact detected by position');
+    smLogProbe('[PLUGIN DEBUG] smPlungeProbe NOTE: probe pin not active after idle but machine stopped at Z=' + endPos.z.toFixed(3) + ' (' + distanceTraveled.toFixed(3) + ' coords/' + maxPlunge.toFixed(3) + ' coords) — contact detected by position');
     pluginDebug('smPlungeProbe: contact by position (pin cleared), Z=' + endPos.z.toFixed(3));
   }
   pluginDebug('smPlungeProbe EXIT: contact Z=' + endPos.z.toFixed(3));
@@ -421,8 +421,8 @@ async function smRetractUp(clearanceZ, travelFeed) {
 async function smRetractSmall(contactZ, retractMm, travelFeed) {
   var targetZ = contactZ + retractMm;
   var cmd = 'G90 G1 Z' + targetZ.toFixed(3) + ' F' + travelFeed;
-  smLogProbe('[PLUGIN DEBUG] smRetractSmall: sending command: ' + cmd + ' (contact=' + contactZ.toFixed(3) + ' retract=' + retractMm + 'mm)');
-  pluginDebug('smRetractSmall: contact=' + contactZ.toFixed(3) + ' retract=' + retractMm + 'mm cmd: ' + cmd);
+  smLogProbe('[PLUGIN DEBUG] smRetractSmall: sending command: ' + cmd + ' (contact=' + contactZ.toFixed(3) + ' retract=' + retractMm + ' coords)');
+  pluginDebug('smRetractSmall: contact=' + contactZ.toFixed(3) + ' retract=' + retractMm + ' coords cmd: ' + cmd);
   await sendCommand(cmd);
   smLogProbe('[PLUGIN DEBUG] smRetractSmall: waiting for idle...');
   await waitForIdleWithTimeout();
@@ -435,7 +435,7 @@ async function smRetractToZ(targetZ, travelFeed) {
   var delta = targetZ - pos.z;
   if (delta <= 0.001){ pluginDebug('smRetractToZ SKIP: already at/above targetZ=' + targetZ.toFixed(3)); return; }
   var cmd = 'G90 G1 Z' + targetZ.toFixed(3) + ' F' + travelFeed;
-  smLogProbe('[PLUGIN DEBUG] smRetractToZ: sending command: ' + cmd + ' (delta=' + delta.toFixed(3) + 'mm)');
+  smLogProbe('[PLUGIN DEBUG] smRetractToZ: sending command: ' + cmd + ' (delta=' + delta.toFixed(3) + ' coords)');
   pluginDebug('smRetractToZ: current Z=' + pos.z.toFixed(3) + ' target=' + targetZ.toFixed(3) + ' delta=' + delta.toFixed(3));
   await sendCommand(cmd);
   smLogProbe('[PLUGIN DEBUG] smRetractToZ: waiting for idle...');

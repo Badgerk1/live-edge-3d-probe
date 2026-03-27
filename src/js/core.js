@@ -2,7 +2,7 @@ var SM_VERSION = 'V19.0';
 // ── State ─────────────────────────────────────────────────────────────────────
 var _running = false;
 var _stopRequested = false;
-var _faceSurfRefZ = null; // surface reference Z captured by Surface Reference Probe button
+var _faceSurfRefZ = null; // surface reference Z in WORK coords captured by Surface Reference Probe button
 var topResults = [];
 var faceResults = [];
 var s = {}; // current run settings — set by runFaceProbe
@@ -10,7 +10,7 @@ var TOP_RESULTS_KEY = 'edgeProbeTopResults';
 var FACE_RESULTS_KEY = 'edgeProbeFaceResults';
 var FACE_LAYERED_RESULTS_KEY = 'edgeProbeFaceLayeredResults';
 var FACE_MESH_STORAGE_KEY = 'faceProbe.faceMeshData';
-var FACE_PROBE_DEFAULT_MAX_DEPTH = 14.75; // default probe stylus callout length (mm) — cap for Z End
+var FACE_PROBE_DEFAULT_MAX_DEPTH = 14.75; // default probe stylus callout length (coords) — cap for Z End
 var faceOriginalGcode = null;
 var faceCompensatedGcode = null;
 var faceLastAppliedAxis = 'Y'; // tracks face axis of most recently applied compensation
