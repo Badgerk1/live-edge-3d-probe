@@ -1231,18 +1231,52 @@ function bindProbeDimensionUI(){
 // ── Probe Type Dropdown ───────────────────────────────────────────────────────
 
 function onProbeTypeChange() {
-  // Face probe is the only mode — ensure face sections are always visible
+  var type = (document.getElementById('probe-type-select') || {}).value || '2d-surface';
+
+  // Face axis row
+  var axisRow = document.getElementById('probe-axis-row');
+  if (axisRow) axisRow.style.display = (type === 'face' || type === 'combined') ? 'flex' : 'none';
+
+  // Surface config section (grid + probe settings)
+  var showSurface = (type === '2d-surface' || type === 'combined');
+  var surfCfg = document.getElementById('surface-config-section');
+  if (surfCfg) surfCfg.style.display = showSurface ? '' : 'none';
+
+  // Face config section
+  var showFace = (type === 'face' || type === 'combined');
   var faceCfg = document.getElementById('face-config-section');
-  if (faceCfg) faceCfg.style.display = '';
+  if (faceCfg) faceCfg.style.display = showFace ? '' : 'none';
+
+  // Surface mesh section (visualizer)
+  var surfMesh = document.getElementById('surface-mesh-section');
+  if (surfMesh) surfMesh.style.display = showSurface ? '' : 'none';
+
+  // Face mesh section (face visualizer, relief map, data mgmt)
   var faceMesh = document.getElementById('face-mesh-section');
-  if (faceMesh) faceMesh.style.display = '';
+  if (faceMesh) faceMesh.style.display = showFace ? '' : 'none';
+
+  // Unified log sections
+  var surfLogWrap = document.getElementById('unified-log-surface-wrap');
+  if (surfLogWrap) surfLogWrap.style.display = showSurface ? '' : 'none';
   var faceLogWrap = document.getElementById('unified-log-face-wrap');
-  if (faceLogWrap) faceLogWrap.style.display = '';
+  if (faceLogWrap) faceLogWrap.style.display = showFace ? '' : 'none';
+
+  // Run button label
+  var runBtn = document.getElementById('sm-btn-run-probe');
+  if (runBtn) {
+    if (type === '2d-surface') runBtn.textContent = '\u25b6 Run Surface Probe';
+    else if (type === 'face') runBtn.textContent = '\u25b6 Run Face Probe';
+    else runBtn.textContent = '\u25b6\u25b6 Run Combined Probe';
+  }
 }
 
 function saveUnifiedProbeLog() {
+  var surfLog = (document.getElementById('sm-probeLog') || {}).textContent || '';
   var faceLog = (document.getElementById('face-log') || {}).textContent || '';
-  var combined = '=== Face Probe Log ===\n' + faceLog + '\n';
+  var type = (document.getElementById('probe-type-select') || {}).value || '2d-surface';
+  var combined = '';
+  if (type === '2d-surface' || type === 'combined') combined += '=== Surface Probe Log ===\n' + surfLog + '\n';
+  if (type === 'face' || type === 'combined') combined += '=== Face Probe Log ===\n' + faceLog + '\n';
   var blob = new Blob([combined], { type: 'text/plain' });
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -1251,13 +1285,269 @@ function saveUnifiedProbeLog() {
 }
 
 function clearUnifiedProbeLog() {
+  var surfLog = document.getElementById('sm-probeLog');
+  if (surfLog) surfLog.textContent = '';
   var faceLog = document.getElementById('face-log');
   if (faceLog) faceLog.textContent = '';
 }
 
 function startProbeByType() {
+  var type = (document.getElementById('probe-type-select') || {}).value || '2d-surface';
   var axis = (document.getElementById('probe-face-axis-select') || {}).value || 'Y';
-  runFaceProbe(axis);
+  if (type === '2d-surface') {
+    runSurfaceProbing();
+  } else if (type === 'face') {
+    runFaceProbe(axis);
+  } else if (type === 'combined') {
+    runCombinedProbeMode(axis);
+  }
+}
+
+// ── Combined Probe Mode ───────────────────────────────────────────────────────
+
+async function runCombinedProbeMode(axis) {
+  if (_running) { smLogProbe('COMBINED: cannot start — another probe operation is already running (_running=true).'); pluginDebug('runCombinedProbeMode SKIP: _running=true'); setFooterStatus('Already running', 'warn'); return; }
+  axis = String(axis || 'Y').toUpperCase();
+  // Reset stop flags so a previously-stopped run does not block this one.
+  smStopFlag = false;
+  _stopRequested = false;
+  smLogProbe('=== 3D Live Edge Mesh Plugin ' + SM_VERSION + ' ===');
+  smLogProbe('COMBINED: Starting combined probe (surface + face axis=' + axis + ')...');
+  pluginDebug('runCombinedProbeMode ENTER: axis=' + axis);
+  setFooterStatus('Combined probe: running surface phase\u2026', 'warn');
+
+  // Disable all probe controls
+  var runBtn = document.getElementById('sm-btn-run-probe');
+  var stopBtn = document.getElementById('sm-btn-stop-probe');
+  var btnFaceX = document.getElementById('btn-face-x');
+  var btnFaceY = document.getElementById('btn-face-y');
+  if (runBtn) runBtn.disabled = true;
+  if (stopBtn) stopBtn.disabled = false;
+  if (btnFaceX) btnFaceX.disabled = true;
+  if (btnFaceY) btnFaceY.disabled = true;
+
+  try {
+    // Phase 1: Run surface probe and await its completion via Promise wrapper.
+    // _smProbingCompleteCallback is called by runSurfaceProbing when done;
+    // wrapping it in a Promise lets us properly await the result here.
+    smLogProbe('COMBINED: Phase 1 — running surface probe...');
+    pluginDebug('runCombinedProbeMode: Phase 1 starting surface probe, setting _smProbingCompleteCallback');
+    var surfaceSuccess = await new Promise(function(resolve) {
+      _smProbingCompleteCallback = function(success) {
+        pluginDebug('runCombinedProbeMode: _smProbingCompleteCallback called success=' + success + ' smMeshData=' + !!smMeshData + ' smStopFlag=' + smStopFlag);
+        resolve(!!success);
+      };
+      runSurfaceProbing();
+    });
+    pluginDebug('runCombinedProbeMode: surface probe promise resolved, surfaceSuccess=' + surfaceSuccess);
+
+    if (!surfaceSuccess) {
+      smLogProbe('COMBINED: Phase 1 FAILED — surface probe failed or was stopped. Face probe skipped.');
+      pluginDebug('runCombinedProbeMode: Phase 1 FAILED. smMeshData=' + !!smMeshData + ' smStopFlag=' + smStopFlag);
+      setFooterStatus('Combined probe: surface phase failed/stopped.', 'bad');
+      return;
+    }
+    smLogProbe('COMBINED: Phase 1 complete — surface probe done. smMeshData rows=' + (smMeshData ? smMeshData.length : 'null'));
+
+    smLogProbe('COMBINED: Phase 1.5 — probing top surface at face line Y coordinate...');
+    setFooterStatus('Combined probe: running top-surface reference phase\u2026', 'warn');
+
+    // Phase 1.5: Physically probe the top surface at the exact face line Y coordinate
+    // for each face sample X position so the face probe gets real measured top-Z values
+    // rather than interpolated grid row 0 values.
+    topResults = [];
+    var _phase15FallbackNeeded = false;
+    try {
+      var _p15Settings = getSettingsFromUI();
+      var _p15FaceY = _p15Settings.faceFixedCoord;
+      var _p15ClearanceZ = Number((document.getElementById('sm-clearanceZ') || {}).value) || 5;
+      var _p15TravelFeed = Number((document.getElementById('sm-travelFeed') || {}).value) || 600;
+      var _p15ProbeFeed = _p15Settings.topFeed;
+      var _p15MaxPlunge = _p15Settings.topProbeDepth;
+      var _p15Retract = _p15Settings.topRetract;
+
+      // Compute face sample X positions — prefer fpBuildFaceSamplesFromConfig() when
+      // mesh data is available (same logic used in runFaceProbe).
+      var _p15Samples = null;
+      if (smMeshData && smGridConfig) {
+        _p15Samples = fpBuildFaceSamplesFromConfig();
+      }
+      // Fallback: use grid column X positions when face config is unavailable.
+      if (!_p15Samples || _p15Samples.length === 0) {
+        if (smGridConfig) {
+          _p15Samples = [];
+          for (var _p15ci = 0; _p15ci < smGridConfig.colCount; _p15ci++) {
+            _p15Samples.push({ index: _p15ci + 1, sampleCoord: smGridConfig.minX + _p15ci * smGridConfig.colSpacing });
+          }
+        }
+      }
+
+      if (!_p15Samples || _p15Samples.length === 0) {
+        throw new Error('No face sample X positions available for Phase 1.5');
+      }
+
+      var _p15Total = _p15Samples.length;
+      pluginDebug('runCombinedProbeMode Phase 1.5: faceY=' + _p15FaceY + ' samples=' + _p15Total + ' maxPlunge=' + _p15MaxPlunge + ' probeFeed=' + _p15ProbeFeed);
+
+      for (var _p15i = 0; _p15i < _p15Total; _p15i++) {
+        if (_stopRequested) { checkStop(); }
+        var _p15xPos = _p15Samples[_p15i].sampleCoord;
+        smLogProbe('COMBINED Phase 1.5: probing top surface at X=' + _p15xPos.toFixed(3) + ' Y=' + _p15FaceY.toFixed(3) + ' (' + (_p15i + 1) + '/' + _p15Total + ')');
+        pluginDebug('runCombinedProbeMode Phase 1.5: sample ' + (_p15i + 1) + '/' + _p15Total + ' X=' + _p15xPos.toFixed(3) + ' Y=' + _p15FaceY.toFixed(3));
+
+        await smSafeLateralMove(_p15xPos, _p15FaceY, _p15TravelFeed, _p15ClearanceZ);
+        await smEnsureProbeClear(_p15ClearanceZ, _p15TravelFeed);
+        var _p15Contact = await smPlungeProbe(_p15MaxPlunge, _p15ProbeFeed);
+        if (!_p15Contact || !isFinite(_p15Contact.z)) {
+          throw new Error('Phase 1.5 probe returned invalid contact position at X=' + _p15xPos.toFixed(3));
+        }
+
+        topResults.push({
+          type: 'top',
+          index: _p15i + 1,
+          sampleCoord: _p15xPos,
+          targetSamplePos: _p15xPos,
+          x: Number(_p15Contact.x),
+          y: Number(_p15Contact.y),
+          z: Number(_p15Contact.z),
+          machineZ: _p15Contact.machineZ != null ? Number(_p15Contact.machineZ) : null,
+          status: 'TOP'
+        });
+
+        smLogProbe('COMBINED Phase 1.5: contact at Z=' + _p15Contact.z.toFixed(3));
+        await smRetractSmall(_p15Contact.z, _p15Retract, _p15TravelFeed);
+      }
+
+      smLogProbe('COMBINED Phase 1.5: measured ' + topResults.length + ' top-surface reference points at face line Y=' + _p15FaceY.toFixed(3));
+      pluginDebug('runCombinedProbeMode Phase 1.5 complete: ' + topResults.length + ' points at faceY=' + _p15FaceY.toFixed(3));
+      saveProbeResults();
+
+    } catch (_p15Err) {
+      smLogProbe('COMBINED Phase 1.5 ERROR: ' + (_p15Err && _p15Err.message ? _p15Err.message : String(_p15Err)) + ' — falling back to surface mesh row 0 interpolation.');
+      pluginDebug('runCombinedProbeMode Phase 1.5 ERROR (fallback): ' + (_p15Err && _p15Err.message ? _p15Err.message : String(_p15Err)));
+      console.error('COMBINED Phase 1.5 error (falling back to grid row 0):', _p15Err);
+      _phase15FallbackNeeded = true;
+    }
+
+    // Fallback: populate topResults from surface mesh row 0 if Phase 1.5 failed.
+    if (_phase15FallbackNeeded || topResults.length === 0) {
+      topResults = [];
+      if (smMeshData && smGridConfig) {
+        var _cfg = smGridConfig;
+        var _row0 = smMeshData[0];
+        if (_row0) {
+          for (var _ci = 0; _ci < _cfg.colCount; _ci++) {
+            var _zVal = _row0[_ci];
+            if (_zVal != null && isFinite(_zVal)) {
+              var _xCoord = _cfg.minX + _ci * _cfg.colSpacing;
+              topResults.push({
+                type: 'top', index: _ci + 1,
+                sampleCoord: _xCoord, targetSamplePos: _xCoord,
+                x: _xCoord, y: _cfg.minY, z: Number(_zVal), status: 'TOP'
+              });
+            }
+          }
+          smLogProbe('COMBINED: (fallback) populated ' + topResults.length + ' top-profile reference points from surface mesh row 0.');
+          console.log('COMBINED: topResults (fallback) =', JSON.stringify(topResults.slice(0, 3)));
+        }
+      } else {
+        smLogProbe('COMBINED: WARNING — smMeshData or smGridConfig is null; topResults will be empty.');
+        pluginDebug('runCombinedProbeMode WARNING: smMeshData=' + smMeshData + ' smGridConfig=' + smGridConfig);
+      }
+    }
+
+    // Phase 2: Run face probe.
+    // Reset _running in case surface probing left it in a non-false state —
+    // runFaceProbe() guards on _running and returns early (no-op) if it is true.
+    if (_running) {
+      smLogProbe('COMBINED: WARNING — _running flag was true before face probe; resetting to allow face probe to execute.');
+      pluginDebug('runCombinedProbeMode WARNING: _running was true before face probe — resetting');
+      _running = false;
+    }
+    // Also reset _stopRequested so face probe does not abort immediately
+    _stopRequested = false;
+
+    // Retract probe and wait for it to clear before starting the face probe.
+    // After the surface probe's last point the pin may still be in contact with the
+    // surface (triggered state). runFaceProbe calls requireStartupHomingPreflight
+    // which aborts immediately if the probe is triggered, so we must lift Z first.
+    smLogProbe('COMBINED: Retracting probe before face phase...');
+    var combinedClearZ = Number((document.getElementById('sm-clearanceZ') || {}).value) || 5;
+    var combinedTravelFeed = Number((document.getElementById('sm-travelFeed') || {}).value) || 600;
+    var probeCleared = false;
+    try {
+      await smEnsureProbeClear(combinedClearZ, combinedTravelFeed);
+      probeCleared = true;
+      smLogProbe('COMBINED: Probe cleared. Starting face probe phase...');
+    } catch (clearErr) {
+      smLogProbe('ERROR: Could not clear probe after surface phase. Aborting face probe. ' + (clearErr && clearErr.message ? clearErr.message : String(clearErr)));
+      console.error('COMBINED: probe clear failed:', clearErr);
+    }
+    if (!probeCleared) {
+      setFooterStatus('Combined probe: could not clear probe before face phase.', 'bad');
+      return;
+    }
+
+    setFooterStatus('Combined probe: running face probe phase (' + axis + ')\u2026', 'warn');
+    smLogProbe('COMBINED: Phase 2 — calling runFaceProbe(axis=' + axis + ')...');
+    pluginDebug('runCombinedProbeMode: Phase 2 calling runFaceProbe axis=' + axis + ' _running=' + _running + ' _stopRequested=' + _stopRequested);
+    logLine('face', 'COMBINED MODE: starting face probe phase (axis=' + axis + ')...');
+    try {
+      await runFaceProbe(axis, true);
+      smLogProbe('COMBINED: Phase 2 complete — face probe done.');
+      pluginDebug('runCombinedProbeMode: Phase 2 face probe completed successfully');
+    } catch (faceErr) {
+      smLogProbe('COMBINED: Phase 2 FAILED — face probe error: ' + (faceErr && faceErr.message ? faceErr.message : String(faceErr)));
+      pluginDebug('runCombinedProbeMode ERROR (face): ' + (faceErr && faceErr.message ? faceErr.message : String(faceErr)));
+      console.error('COMBINED: face probe threw:', faceErr);
+      logLine('face', 'ERROR: face probe failed in combined mode: ' + (faceErr && faceErr.message ? faceErr.message : String(faceErr)));
+    }
+
+    // Merge combined data and update all visualizers
+    mergeCombinedProbeData();
+    updateCombinedMeshUI();
+    try {
+      smPvizRenderMesh();
+      renderSurfVizMesh();
+      renderResVizMesh();
+      populateSurfaceResults();
+      renderRelief3D();
+      // Render 2D relief maps for both surface and face datasets
+      // then auto-switch probe-tab sections to heatmap views
+      setTimeout(function() {
+        renderSurfaceReliefMap();
+        renderFaceReliefMap();
+        setTimeout(function() {
+          showProbeHeatmapView('sm');
+          showProbeHeatmapView('face');
+        }, 120);
+      }, 60);
+    } catch (vizErr) {
+      smLogProbe('WARNING: 3D visualization failed: ' + (vizErr && vizErr.message ? vizErr.message : String(vizErr)));
+      console.warn('COMBINED: visualization error (non-fatal):', vizErr);
+    }
+    setFooterStatus('Combined probe complete: surface + face ' + axis + ' merged.', 'good');
+    smLogProbe('COMBINED: All phases complete. ' + (combinedMeshPoints ? combinedMeshPoints.length : 0) + ' total points in combined dataset.');
+    pluginDebug('runCombinedProbeMode COMPLETE: axis=' + axis + ' total=' + (combinedMeshPoints ? combinedMeshPoints.length : 0) + ' points');
+    saveProbeResults();
+    updateEdgeProbeStorageUI();
+    pluginDebug('runCombinedProbeMode complete: topResults=' + topResults.length + ' faceResults=' + faceResults.length + ' layeredFaceResults=' + layeredFaceResults.length);
+
+  } catch (err) {
+    smLogProbe('COMBINED: unexpected error: ' + (err && err.message ? err.message : String(err)));
+    pluginDebug('runCombinedProbeMode UNEXPECTED ERROR: ' + (err && err.message ? err.message : String(err)));
+    console.error('COMBINED: unexpected error:', err);
+    setFooterStatus('Combined probe error: ' + (err && err.message ? err.message : String(err)), 'bad');
+    // Still attempt to merge any partial data
+    try { mergeCombinedProbeData(); updateCombinedMeshUI(); } catch(e2) { /* ignore */ }
+  } finally {
+    if (runBtn) runBtn.disabled = false;
+    if (stopBtn) stopBtn.disabled = true;
+    if (btnFaceX) btnFaceX.disabled = false;
+    if (btnFaceY) btnFaceY.disabled = false;
+    _running = false;
+    pluginDebug('runCombinedProbeMode EXIT (finally): _running reset to false');
+  }
 }
 
 // ── Merge combined data ───────────────────────────────────────────────────────
