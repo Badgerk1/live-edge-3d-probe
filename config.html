@@ -1250,9 +1250,6 @@ var FACE_RESULTS_KEY = 'edgeProbeFaceResults';
 var FACE_LAYERED_RESULTS_KEY = 'edgeProbeFaceLayeredResults';
 var FACE_MESH_STORAGE_KEY = 'faceProbe.faceMeshData';
 var FACE_PROBE_DEFAULT_MAX_DEPTH = 14.75; // default probe stylus callout length (coords) — cap for Z End
-var faceOriginalGcode = null;
-var faceCompensatedGcode = null;
-var faceLastAppliedAxis = 'Y'; // tracks face axis of most recently applied compensation
 var _facePvizRotX = 20, _facePvizRotY = -25, _facePvizRotZ = 0, _faceDragActive = false, _faceDragLastX = 0, _faceDragLastY = 0;
 var FACE_LOG_KEY = 'edgeProbeFaceLog';
 var SAVED_LOCATION_KEY = 'edgeProbeSavedLocation';
@@ -5744,7 +5741,7 @@ function applySubdividedCompensation(gcodeText, meshData, gridCfg, referenceZ) {
 
 function applyFaceCompensationFromTab() {
   if (!applyOriginalGcode) { alert('Load G-code first.'); return; }
-  var faceData = (typeof _getFaceMeshData === 'function') ? _getFaceMeshData() : null;
+  var faceData = (typeof getFaceMeshData === 'function') ? getFaceMeshData() : null;
   if (!faceData) { alert('No face mesh data. Run face probing first.'); return; }
 
   var refPos = Number(document.getElementById('apply-face-refPos').value) || 0;
@@ -5761,8 +5758,8 @@ function applyFaceCompensationFromTab() {
     }
     var result = faceApplyCompensationCore(applyOriginalGcode, faceData, refPos, axis);
     applyFaceCompGcode = result.gcode;
-    applyLogFace('Done! ' + result.modified + ' ' + axis + ' values adjusted.');
-    if (statusEl) { statusEl.textContent = 'Face compensation applied: ' + result.modified + ' values adjusted.'; statusEl.className = 'status-line good'; }
+    applyLogFace('Done! ' + result.modified + ' ' + axis + ' values adjusted, ' + (result.segments || 0) + ' segments generated.');
+    if (statusEl) { statusEl.textContent = 'Face compensation applied: ' + result.modified + ' values adjusted, ' + (result.segments || 0) + ' segments.'; statusEl.className = 'status-line good'; }
     applyUpdatePreview(applyFaceCompGcode);
     applyUpdateButtons();
   } catch(e) {
@@ -6572,17 +6569,6 @@ function smLoadSettings() {
   var faceBtnImportMesh = document.getElementById('face-btn-import-mesh');
   if (faceBtnImportMesh) faceBtnImportMesh.addEventListener('click', function(){ pluginDebug('face-btn-import-mesh clicked'); importFaceMeshData(); });
 
-  // Face Probe Apply / Compensation buttons (legacy — elements no longer in DOM after Apply tab redesign)
-  // These are kept in case of DOM restoration; they fail silently when elements don't exist.
-  var faceBtnApplyComp = document.getElementById('face-btn-apply-comp');
-  if (faceBtnApplyComp) faceBtnApplyComp.addEventListener('click', function(){ pluginDebug('face-btn-apply-comp clicked'); applyFaceProbeCompensation(); });
-  var faceBtnDownloadComp = document.getElementById('face-btn-download-comp');
-  if (faceBtnDownloadComp) faceBtnDownloadComp.addEventListener('click', function(){ pluginDebug('face-btn-download-comp clicked'); faceDownloadCompensatedGcode(); });
-  var faceBtnSendNcSender = document.getElementById('face-btn-send-ncsender');
-  if (faceBtnSendNcSender) faceBtnSendNcSender.addEventListener('click', function(){ pluginDebug('face-btn-send-ncsender clicked'); sendCompToNcSender(faceCompensatedGcode, 'compensated_face'); });
-  var faceBtnPreviewToolpath = document.getElementById('face-btn-preview-toolpath');
-  if (faceBtnPreviewToolpath) faceBtnPreviewToolpath.addEventListener('click', function(){ pluginDebug('face-btn-preview-toolpath clicked'); renderFaceGcodePreview(); });
-
   // Face probe stylus cap sync on Setup tab change
   var probeStylusEl = document.getElementById('probeStylusCalloutLength');
   if (probeStylusEl) probeStylusEl.addEventListener('input', fpUpdateStylusCapInfo);
@@ -6994,53 +6980,13 @@ function updateFaceCompGridInfo() {
   }
 }
 
-function faceLogApply(msg) {
-  var el = document.getElementById('face-applyLog');
-  if (!el) return;
-  el.textContent += msg + '\n';
-  el.scrollTop = el.scrollHeight;
-}
-
-function applyFaceProbeCompensation() {
-  if (!faceOriginalGcode) { alert('No G-code loaded. Load a G-code file first.'); return; }
-  var data = getFaceMeshData();
-  if (!data || !data.length) { alert('No face mesh data. Run a face probe or load face mesh first.'); return; }
-  var refPos = Number((document.getElementById('face-compRefPos') || {value: 0}).value);
-  faceLogApply('Applying face compensation with Reference Face Position=' + refPos + '...');
-  try {
-    var result = faceApplyCompensationCore(faceOriginalGcode, data, refPos);
-    faceCompensatedGcode = result.gcode;
-    faceLastAppliedAxis = result.faceAxis || 'Y';
-    var statusEl = document.getElementById('face-applyStatus');
-    if (statusEl) statusEl.textContent = 'Done. ' + result.modified + ' ' + result.faceAxis + ' values adjusted using bilinear face mesh interpolation.';
-    faceLogApply('Compensation applied. ' + result.modified + ' lines modified. Face axis: ' + result.faceAxis + '.');
-    var preview = faceCompensatedGcode.split('\n').slice(0, 30).join('\n');
-    var previewEl = document.getElementById('face-apply-preview');
-    if (previewEl) previewEl.textContent = preview;
-    var ncBtn = document.getElementById('face-btn-send-ncsender');
-    if (ncBtn) ncBtn.disabled = false;
-    var prevBtn = document.getElementById('face-btn-preview-toolpath');
-    if (prevBtn) prevBtn.disabled = false;
-    var noteEl = document.getElementById('face-ncsender-note');
-    if (noteEl) {
-      var depthAxis = faceLastAppliedAxis === 'Y' ? 'Y' : 'X';
-      var planeName = faceLastAppliedAxis === 'Y' ? 'XZ' : 'YZ';
-      noteEl.innerHTML = '&#9888; Note: ncSender&#39;s toolpath preview shows the XY plane (top-down view). Face compensation adjusts the <strong>' + depthAxis + ' axis</strong> at varying Z depths &mdash; the toolpath will appear flat in ncSender&#39;s default view. Use the &ldquo;Preview Toolpath&rdquo; button above to verify the face contour from the correct <strong>' + planeName + ' plane</strong> viewing angle.';
-      noteEl.style.display = '';
-    }
-  } catch(e) {
-    var statusEl2 = document.getElementById('face-applyStatus');
-    if (statusEl2) statusEl2.textContent = 'Error: ' + e.message;
-    faceLogApply('ERROR: ' + e.message);
-  }
-}
-
 // ── Face Compensation — 2D bilinear interpolation ────────────────────────────
 // Adjusts the lateral axis (Y for Y-face probe, X for X-face probe) in G-code
 // by interpolating the face mesh at each (sampleCoord, Z) position.
 // This corrects the toolpath to follow the actual face contour at each depth.
 // referenceContact = the nominal/expected flat face position (Y or X value).
-function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact) {
+// overrideAxis (optional): when 'X' or 'Y', use directly instead of auto-detecting.
+function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, overrideAxis) {
 
   // ── Detect face axis ──────────────────────────────────────────────────────
   // For a Y-axis face probe: the probe moved along Y, so:
@@ -7048,15 +6994,20 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact) {
   // For an X-axis face probe: the probe moved along X, so:
   //   sampleCoord = r.y (position along the slab), contactVal = r.x (X contact)
   var faceAxis = 'Y';
-  var statusText = contactPoints.map(function(p){ return String(p.status || ''); }).join(' ');
-  if (statusText.indexOf('FACE X') >= 0) faceAxis = 'X';
-  else if (statusText.indexOf('FACE Y') >= 0) faceAxis = 'Y';
-  else {
-    var xr = Math.max.apply(null, contactPoints.map(function(p){ return Number(p.x); })) -
-             Math.min.apply(null, contactPoints.map(function(p){ return Number(p.x); }));
-    var yr = Math.max.apply(null, contactPoints.map(function(p){ return Number(p.y); })) -
-             Math.min.apply(null, contactPoints.map(function(p){ return Number(p.y); }));
-    faceAxis = xr >= yr ? 'X' : 'Y';
+  // Use explicit axis override if provided by caller (from Apply tab dropdown)
+  if (overrideAxis && (overrideAxis === 'X' || overrideAxis === 'Y')) {
+    faceAxis = overrideAxis;
+  } else {
+    var statusText = contactPoints.map(function(p){ return String(p.status || ''); }).join(' ');
+    if (statusText.indexOf('FACE X') >= 0) faceAxis = 'X';
+    else if (statusText.indexOf('FACE Y') >= 0) faceAxis = 'Y';
+    else {
+      var xr = Math.max.apply(null, contactPoints.map(function(p){ return Number(p.x); })) -
+               Math.min.apply(null, contactPoints.map(function(p){ return Number(p.x); }));
+      var yr = Math.max.apply(null, contactPoints.map(function(p){ return Number(p.y); })) -
+               Math.min.apply(null, contactPoints.map(function(p){ return Number(p.y); }));
+      faceAxis = xr >= yr ? 'X' : 'Y';
+    }
   }
 
   var sampleFn   = faceAxis === 'X'
@@ -7152,6 +7103,18 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact) {
   var output = [];
   var currentX = 0, currentY = 0, currentZ = 0;
   var linesModified = 0;
+  var totalSegments = 0;
+
+  // Compute segment length from face mesh sample spacing (distance between consecutive sample coords)
+  var segmentLength = 2.0; // default 2mm fallback
+  if (sampleVals.length > 1) {
+    var minSpacing = Infinity;
+    for (var si = 1; si < sampleVals.length; si++) {
+      var sp = sampleVals[si] - sampleVals[si - 1];
+      if (sp > 0 && sp < minSpacing) minSpacing = sp;
+    }
+    if (minSpacing < Infinity) segmentLength = minSpacing;
+  }
 
   // Prepend informational header comments
   var viewOrientation = faceAxis === 'Y' ? 'XZ plane (side view) for best visualization' : 'YZ plane (side view) for best visualization';
@@ -7160,6 +7123,7 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact) {
   output.push('; Face probe data: ' + contactPoints.length + ' contact points');
   output.push('; Compensation axis: ' + faceAxis + ' adjusted based on face contour at each (sampleCoord, Z) position');
   output.push('; View orientation: ' + viewOrientation);
+  output.push('; Subdivision: enabled (segment length=' + segmentLength.toFixed(2) + ')');
   output.push('; NOTE: ncSender shows XY plane (top-down). Use the plugin toolpath preview to verify face contour.');
   output.push('');
 
@@ -7172,147 +7136,73 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact) {
     var xMatch = line.match(/X(-?[\d.]+)/i);
     var yMatch = line.match(/Y(-?[\d.]+)/i);
     var zMatch = line.match(/Z(-?[\d.]+)/i);
-    if (xMatch) currentX = parseFloat(xMatch[1]);
-    if (yMatch) currentY = parseFloat(yMatch[1]);
-    if (zMatch) currentZ = parseFloat(zMatch[1]);
+    var fMatch = line.match(/F(-?[\d.]+)/i);
+
+    var startX = currentX, startY = currentY, startZ = currentZ;
+    var targetX = xMatch ? parseFloat(xMatch[1]) : currentX;
+    var targetY = yMatch ? parseFloat(yMatch[1]) : currentY;
+    var targetZ = zMatch ? parseFloat(zMatch[1]) : currentZ;
+
+    currentX = targetX;
+    currentY = targetY;
+    currentZ = targetZ;
 
     // Only compensate lines that have an explicit face-axis coordinate
     var hasFaceCoord = faceAxis === 'Y' ? !!yMatch : !!xMatch;
     if (hasFaceCoord) {
-      var qSample = faceAxis === 'Y' ? currentX : currentY;
-      var offset  = interpolateContact(qSample, currentZ);
-      if (offset !== null) {
-        if (faceAxis === 'Y') {
-          var newY = currentY + offset;
-          line = line.replace(/Y(-?[\d.]+)/i, 'Y' + newY.toFixed(3));
-        } else {
-          var newX = currentX + offset;
-          line = line.replace(/X(-?[\d.]+)/i, 'X' + newX.toFixed(3));
+      var isG1Linear = /^G1\b/i.test(line);
+      var sampleAxisDist = faceAxis === 'Y' ? Math.abs(targetX - startX) : Math.abs(targetY - startY);
+
+      if (isG1Linear && sampleAxisDist > segmentLength) {
+        // Subdivide into N segments for smooth face-contour following
+        var nSegs = Math.ceil(sampleAxisDist / segmentLength);
+        var dx = targetX - startX;
+        var dy = targetY - startY;
+        var dz = targetZ - startZ;
+        var feedStr = fMatch ? (' F' + parseFloat(fMatch[1]).toFixed(0)) : '';
+
+        for (var sn = 1; sn <= nSegs; sn++) {
+          var t = sn / nSegs;
+          var segX = startX + dx * t;
+          var segY = startY + dy * t;
+          var segZ = startZ + dz * t;
+          var qSeg = faceAxis === 'Y' ? segX : segY;
+          var offSeg = interpolateContact(qSeg, segZ);
+          var segLine;
+          if (offSeg !== null) {
+            if (faceAxis === 'Y') {
+              segLine = 'G1 X' + segX.toFixed(3) + ' Y' + (segY + offSeg).toFixed(3) + ' Z' + segZ.toFixed(3);
+            } else {
+              segLine = 'G1 X' + (segX + offSeg).toFixed(3) + ' Y' + segY.toFixed(3) + ' Z' + segZ.toFixed(3);
+            }
+            linesModified++;
+          } else {
+            segLine = 'G1 X' + segX.toFixed(3) + ' Y' + segY.toFixed(3) + ' Z' + segZ.toFixed(3);
+          }
+          if (sn === 1) segLine += feedStr;
+          output.push(segLine);
+          totalSegments++;
         }
-        linesModified++;
+      } else {
+        var qSample = faceAxis === 'Y' ? currentX : currentY;
+        var offset  = interpolateContact(qSample, currentZ);
+        if (offset !== null) {
+          if (faceAxis === 'Y') {
+            var newY = currentY + offset;
+            line = line.replace(/Y(-?[\d.]+)/i, 'Y' + newY.toFixed(3));
+          } else {
+            var newX = currentX + offset;
+            line = line.replace(/X(-?[\d.]+)/i, 'X' + newX.toFixed(3));
+          }
+          linesModified++;
+        }
+        output.push(line);
       }
+    } else {
+      output.push(line);
     }
-    output.push(line);
   }
-  return { gcode: output.join('\n'), modified: linesModified, faceAxis: faceAxis };
-}
-
-function faceDownloadCompensatedGcode() {
-  if (!faceCompensatedGcode) { alert('No compensated G-code. Apply compensation first.'); return; }
-  var blob = new Blob([faceCompensatedGcode], { type: 'text/plain' });
-  var a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'compensated_face_' + Date.now() + '.nc';
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(a.href);
-}
-
-// ── Face G-code Toolpath Preview (XZ or YZ plane SVG) ────────────────────────
-// Parses compensated G-code and renders the toolpath from the correct viewing
-// angle for face operations (XZ plane for Y-axis face, YZ plane for X-axis face).
-// Y (or X) depth is shown as color (blue=shallow/near face, red=deep/far from face).
-function renderFaceGcodePreview() {
-  if (!faceCompensatedGcode) { return; }
-  var svg = document.getElementById('face-toolpath-svg');
-  var wrapEl = document.getElementById('face-toolpath-preview-wrap');
-  var axisLabel = document.getElementById('face-tp-axis-label');
-  var legendEl = document.getElementById('face-tp-legend');
-  if (!svg || !wrapEl) return;
-
-  // Parse G-code: extract move coordinates
-  var lines = faceCompensatedGcode.split('\n');
-  var cx = 0, cy = 0, cz = 0;
-  var moves = [];
-  for (var i = 0; i < lines.length; i++) {
-    var ln = lines[i].trim();
-    if (!ln || ln.startsWith(';') || ln.startsWith('(')) continue;
-    var isMove = /^G[01]\b/i.test(ln) || /\b[XYZ][-\d.]/i.test(ln);
-    if (!isMove) continue;
-    var xm = ln.match(/X(-?[\d.]+)/i);
-    var ym = ln.match(/Y(-?[\d.]+)/i);
-    var zm = ln.match(/Z(-?[\d.]+)/i);
-    if (xm) cx = parseFloat(xm[1]);
-    if (ym) cy = parseFloat(ym[1]);
-    if (zm) cz = parseFloat(zm[1]);
-    if (xm || ym || zm) moves.push({ x: cx, y: cy, z: cz });
-  }
-  if (moves.length < 2) {
-    wrapEl.style.display = 'none';
-    return;
-  }
-
-  // Use stored face axis from most recently applied compensation (reliable, no header parsing)
-  var faceAxis = faceLastAppliedAxis || 'Y';
-
-  // For Y-axis face: plot X (horizontal) vs Z (vertical), color by Y (depth)
-  // For X-axis face: plot Y (horizontal) vs Z (vertical), color by X (depth)
-  var hVals = moves.map(function(m){ return faceAxis === 'Y' ? m.x : m.y; });
-  var vVals = moves.map(function(m){ return m.z; });
-  var dVals = moves.map(function(m){ return faceAxis === 'Y' ? m.y : m.x; });
-
-  var hMin = Math.min.apply(null, hVals), hMax = Math.max.apply(null, hVals);
-  var vMin = Math.min.apply(null, vVals), vMax = Math.max.apply(null, vVals);
-  var dMin = Math.min.apply(null, dVals), dMax = Math.max.apply(null, dVals);
-  var hSpan = hMax - hMin || 1, vSpan = vMax - vMin || 1, dSpan = dMax - dMin || 1;
-
-  // Show wrapper first so getBoundingClientRect returns the actual rendered width
-  wrapEl.style.display = '';
-  var W = svg.getBoundingClientRect().width || svg.parentElement && svg.parentElement.getBoundingClientRect().width || 600;
-  var H = 220;
-  var pad = { l: 42, r: 14, t: 14, b: 32 };
-  var pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
-
-  function toSvgX(h){ return pad.l + (h - hMin) / hSpan * pw; }
-  function toSvgY(v){ return pad.t + ph - (v - vMin) / vSpan * ph; }
-  function depthColor(d){
-    var t = dSpan > 0 ? (d - dMin) / dSpan : 0.5;
-    // Shallow (near face) = blue: rgb(30, 80, 200); Deep (far from face) = red: rgb(230, 20, 30)
-    var r = Math.round(30 + t * 200), g = Math.round(80 - t * 60), b = Math.round(200 - t * 170);
-    return 'rgb(' + r + ',' + g + ',' + b + ')';
-  }
-
-  // Build SVG content
-  var svgParts = [];
-  // Grid lines
-  svgParts.push('<line x1="' + pad.l + '" y1="' + (H - pad.b) + '" x2="' + (W - pad.r) + '" y2="' + (H - pad.b) + '" stroke="#334" stroke-width="1"/>');
-  svgParts.push('<line x1="' + pad.l + '" y1="' + pad.t + '" x2="' + pad.l + '" y2="' + (H - pad.b) + '" stroke="#334" stroke-width="1"/>');
-  // Axis labels
-  var hAxisLbl = faceAxis === 'Y' ? 'X (coords)' : 'Y (coords)';
-  var vAxisLbl = 'Z (coords)';
-  svgParts.push('<text x="' + (pad.l + pw / 2) + '" y="' + (H - 4) + '" text-anchor="middle" font-size="10" fill="#8899aa">' + hAxisLbl + '</text>');
-  svgParts.push('<text x="10" y="' + (pad.t + ph / 2) + '" text-anchor="middle" font-size="10" fill="#8899aa" transform="rotate(-90,10,' + (pad.t + ph / 2) + ')">' + vAxisLbl + '</text>');
-  // Tick values
-  svgParts.push('<text x="' + pad.l + '" y="' + (H - pad.b + 12) + '" text-anchor="middle" font-size="9" fill="#667">' + hMin.toFixed(0) + '</text>');
-  svgParts.push('<text x="' + (pad.l + pw) + '" y="' + (H - pad.b + 12) + '" text-anchor="middle" font-size="9" fill="#667">' + hMax.toFixed(0) + '</text>');
-  svgParts.push('<text x="' + (pad.l - 4) + '" y="' + (pad.t + ph) + '" text-anchor="end" font-size="9" fill="#667">' + vMin.toFixed(1) + '</text>');
-  svgParts.push('<text x="' + (pad.l - 4) + '" y="' + pad.t + '" text-anchor="end" font-size="9" fill="#667">' + vMax.toFixed(1) + '</text>');
-
-  // Draw toolpath as colored line segments
-  for (var j = 1; j < moves.length; j++) {
-    var x1 = toSvgX(hVals[j-1]), y1 = toSvgY(vVals[j-1]);
-    var x2 = toSvgX(hVals[j]),   y2 = toSvgY(vVals[j]);
-    var col = depthColor(dVals[j]);
-    svgParts.push('<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) + '" x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) + '" stroke="' + col + '" stroke-width="1.5" opacity="0.85"/>');
-  }
-  // Start/end markers
-  svgParts.push('<circle cx="' + toSvgX(hVals[0]).toFixed(1) + '" cy="' + toSvgY(vVals[0]).toFixed(1) + '" r="3" fill="#00e676" opacity="0.9"/>');
-  svgParts.push('<circle cx="' + toSvgX(hVals[moves.length-1]).toFixed(1) + '" cy="' + toSvgY(vVals[moves.length-1]).toFixed(1) + '" r="3" fill="#ff5252" opacity="0.9"/>');
-
-  svg.innerHTML = svgParts.join('');
-  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
-
-  var depthAxisName = faceAxis === 'Y' ? 'Y' : 'X';
-  var planeName = faceAxis === 'Y' ? 'XZ' : 'YZ';
-  if (axisLabel) axisLabel.textContent = planeName + ' plane (side view, ' + depthAxisName + '=depth shown as color)';
-  if (legendEl) legendEl.innerHTML =
-    '<span style="color:#1e50c8">&#9632;</span> shallow (near face)&nbsp;&nbsp;' +
-    '<span style="color:#c83220">&#9632;</span> deep (far from face)&nbsp;&nbsp;' +
-    '&#9679; <span style="color:#00e676">start</span>&nbsp;&nbsp;' +
-    '&#9679; <span style="color:#ff5252">end</span>&nbsp;&nbsp;' +
-    moves.length + ' moves &middot; ' +
-    (faceAxis === 'Y' ? 'X' : 'Y') + ': ' + hMin.toFixed(1) + '&ndash;' + hMax.toFixed(1) + ' coords &middot; ' +
-    'Z: ' + vMin.toFixed(1) + '&ndash;' + vMax.toFixed(1) + ' coords &middot; ' +
-    depthAxisName + ': ' + dMin.toFixed(2) + '&ndash;' + dMax.toFixed(2) + ' coords';
+  return { gcode: output.join('\n'), modified: linesModified, faceAxis: faceAxis, segments: totalSegments };
 }
 
 // ── Face Probe Tab — sample builder from config fields ────────────────────────

@@ -1294,7 +1294,7 @@ function applySubdividedCompensation(gcodeText, meshData, gridCfg, referenceZ) {
 
 function applyFaceCompensationFromTab() {
   if (!applyOriginalGcode) { alert('Load G-code first.'); return; }
-  var faceData = (typeof _getFaceMeshData === 'function') ? _getFaceMeshData() : null;
+  var faceData = (typeof getFaceMeshData === 'function') ? getFaceMeshData() : null;
   if (!faceData) { alert('No face mesh data. Run face probing first.'); return; }
 
   var refPos = Number(document.getElementById('apply-face-refPos').value) || 0;
@@ -1311,8 +1311,8 @@ function applyFaceCompensationFromTab() {
     }
     var result = faceApplyCompensationCore(applyOriginalGcode, faceData, refPos, axis);
     applyFaceCompGcode = result.gcode;
-    applyLogFace('Done! ' + result.modified + ' ' + axis + ' values adjusted.');
-    if (statusEl) { statusEl.textContent = 'Face compensation applied: ' + result.modified + ' values adjusted.'; statusEl.className = 'status-line good'; }
+    applyLogFace('Done! ' + result.modified + ' ' + axis + ' values adjusted, ' + (result.segments || 0) + ' segments generated.');
+    if (statusEl) { statusEl.textContent = 'Face compensation applied: ' + result.modified + ' values adjusted, ' + (result.segments || 0) + ' segments.'; statusEl.className = 'status-line good'; }
     applyUpdatePreview(applyFaceCompGcode);
     applyUpdateButtons();
   } catch(e) {
