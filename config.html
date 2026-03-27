@@ -2064,9 +2064,7 @@ async function finishRunMotion(logKind){
   if(returnXYZero){
     logLine(logKind, 'Finish move: returning to work X0.000 Y0.000');
     await moveAbs(0, 0, null, s.travelFeedRate || 600);
-    logLine(logKind, 'Finish move: lowering to work Z0.000');
-    await moveAbs(null, null, 0, s.travelFeedRate || 600);
-    logLine(logKind, 'Finish move: at work origin X0.000 Y0.000 Z0.000');
+    logLine(logKind, 'Finish move: at work X0.000 Y0.000 (Z held at safe retract height)');
   } else {
     logLine(logKind, 'Finish move: X/Y return disabled (check Return to XYZ Zero setting in Setup)');
   }
