@@ -4,7 +4,7 @@
   "version": "19.0.0",
   "minAppVersion": "0.3.131",
   "entry": "index.js",
-  "configUi": "config.html",
+  "configUi": "config-split.html",
   "author": "Badgerk1",
   "description": "Combined 3D Live Edge Mesh + Surface Mesh Probe — 1D/2D top probing, face probing, bilinear Z compensation with move subdivision, mesh visualization, G-code bounds analysis, server-side mesh persistence, workflow management.",
   "category": "gcode-generator",
