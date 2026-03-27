@@ -1637,7 +1637,7 @@ async function jogBy(dx, dy, dz){
   var jog = getJogSettingsFromUI();
   var feed = (dz != null && dx == null && dy == null) ? jog.feedZ : jog.feedXY;
   if (!isFinite(feed) || feed <= 0) feed = (dz != null) ? 300 : 600;
-  // Use $J= jog command (GRBL standard) with G91 relative mode
+  // Build $J= jog command (GRBL standard): $J=G91 X... Y... Z... F...
   var cmd = '$J=G91';
   if (dx != null) cmd += ' X' + Number(dx).toFixed(3);
   if (dy != null) cmd += ' Y' + Number(dy).toFixed(3);
