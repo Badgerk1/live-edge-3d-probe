@@ -746,15 +746,7 @@
         <button class="btn ghost" onclick="fpSyncFromSetup()">&#8595; Load from Setup Tab</button>
       </div>
     </div>
-    <div class="panel" id="face-surf-ref-panel">
-      <div class="box-title">Surface Reference Probe</div>
-      <div class="mini" style="margin-bottom:8px">Probe straight down at the current XY position to capture the top surface Z height. This reference Z is used as the stylus depth baseline when no surface grid data is available.</div>
-      <div class="btn-row" style="align-items:center">
-        <button class="btn ghost" id="btn-face-surf-ref" onclick="runFaceSurfaceRefProbe()">&#9660; Probe Surface Reference</button>
-        <span style="font-size:12px;color:var(--muted);margin-left:8px">Ref Z: <strong id="face-surf-ref-z" style="color:var(--accent)">—</strong></span>
-      </div>
-      <div class="mini" id="face-surf-ref-status" style="margin-top:6px;color:var(--muted)"></div>
-    </div>
+
   </div><!-- /face-config-section -->
 
   <!-- ── Probing Control ────────────────────────────────────────────── -->
@@ -5941,43 +5933,6 @@ async function segmentedFaceMoveWithRecovery(axis, targetCoord, fixedCoord, prob
   throw new Error('Segmented face move exceeded safety iteration limit while moving on axis ' + axis + '.');
 }
 
-// ── runFaceSurfaceRefProbe ────────────────────────────────────────────────────
-// Runs a single Z-axis surface probe at the current XY position and stores the
-// contact Z as the surface reference height for face probe stylus depth.
-async function runFaceSurfaceRefProbe() {
-  if (_running) { setFooterStatus('Already running', 'warn'); return; }
-  var probeFeed = Number((document.getElementById('sm-probeFeed') || {}).value) || 100;
-  var maxPlunge = Number((document.getElementById('sm-maxPlunge') || {}).value) || 20;
-  var clearanceZ = Number((document.getElementById('sm-clearanceZ') || {}).value) || 5;
-  var travelFeed = Number((document.getElementById('sm-travelFeed') || {}).value) || 2000;
-  var statusEl = document.getElementById('face-surf-ref-status');
-  var refZEl = document.getElementById('face-surf-ref-z');
-  var btn = document.getElementById('btn-face-surf-ref');
-  if (statusEl) statusEl.textContent = 'Probing…';
-  if (btn) btn.disabled = true;
-  _running = true; _stopRequested = false; smStopFlag = false;
-  try {
-    await requireStartupHomingPreflight('surface reference probe');
-    logLine('face', '=== Surface Reference Probe ===');
-    logLine('face', 'Probing surface reference at current XY…');
-    var pos = await smPlungeProbe(maxPlunge, probeFeed);
-    var snap = await getMachineSnapshot();
-    _faceSurfRefZ = pos.z;  // work Z — used by all motion commands
-    if (refZEl) refZEl.textContent = pos.z.toFixed(3) + ' (work coords) / ' + snap.machineZ.toFixed(3) + ' (machine coords)';
-    if (statusEl) statusEl.textContent = 'Reference Z = ' + pos.z.toFixed(3) + ' (work coords) — captured.';
-    logLine('face', 'Surface reference Z = ' + pos.z.toFixed(3) + ' (work coords) / ' + snap.machineZ.toFixed(3) + ' (machine coords)');
-    var retractTarget = pos.z + clearanceZ; // pos.z is work Z — GRBL motion uses work coords
-    await moveAbs(null, null, retractTarget, travelFeed);
-    setFooterStatus('Surface ref Z = ' + pos.z.toFixed(3), 'good');
-  } catch (e) {
-    if (statusEl) statusEl.textContent = 'Error: ' + e.message;
-    logLine('face', 'Surface reference probe error: ' + e.message);
-    setFooterStatus('Surface ref probe failed: ' + e.message, 'bad');
-  } finally {
-    _running = false;
-    if (btn) btn.disabled = false;
-  }
-}
 
 // ── runFaceProbe ──────────────────────────────────────────────────────────────
 async function runFaceProbe(axis, _calledFromCombined){
