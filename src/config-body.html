@@ -468,19 +468,58 @@
     <!-- ── TOP PROFILE TAB ────────────────────────────────────────────── -->
     <div class="tab-panel" id="pane-top">
 
-  <!-- ── Face Axis Selector ────────────────────────────────────────── -->
+  <!-- ── Probe Type Selector ─────────────────────────────────────────── -->
   <div class="panel">
-    <div id="probe-axis-row" style="display:flex;align-items:center;gap:8px">
-      <label style="font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap">Face Axis:</label>
-      <select id="probe-face-axis-select">
-        <option value="Y" selected>Y</option>
-        <option value="X">X</option>
+    <div class="box-title">Probe Mode</div>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <label style="font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap">Mode:</label>
+      <select id="probe-type-select" style="flex:1 1 200px;max-width:300px" onchange="onProbeTypeChange()">
+        <option value="2d-surface" selected>Surface Probe</option>
+        <option value="face">Face Probe</option>
+        <option value="combined">Combined (Surface + Face)</option>
       </select>
+      <div id="probe-axis-row" style="display:none;align-items:center;gap:8px">
+        <label style="font-size:12px;color:var(--muted);white-space:nowrap">Face Axis:</label>
+        <select id="probe-face-axis-select">
+          <option value="Y" selected>Y</option>
+          <option value="X">X</option>
+        </select>
+      </div>
     </div>
   </div>
 
+  <!-- ── Surface Configuration Section ─────────────────────────────── -->
+  <div id="surface-config-section">
+    <div class="panel">
+      <div class="box-title">2D Grid Configuration</div>
+      <div class="grid three">
+        <div class="field"><label>Min X (coords)</label><input type="number" id="sm-minX" value="0" step="1"></div>
+        <div class="field"><label>Max X (coords)</label><input type="number" id="sm-maxX" value="100" step="1"></div>
+        <div class="field"><label>Spacing X (coords)</label><input type="number" id="sm-spacingX" value="20" step="1" min="1"></div>
+        <div class="field"><label>Min Y (coords)</label><input type="number" id="sm-minY" value="0" step="1"></div>
+        <div class="field"><label>Max Y (coords)</label><input type="number" id="sm-maxY" value="100" step="1"></div>
+        <div class="field"><label>Spacing Y (coords)</label><input type="number" id="sm-spacingY" value="20" step="1" min="1"></div>
+      </div>
+      <div style="margin-top:8px;display:inline-block;padding:6px 10px;border-radius:5px;background:var(--panel2);border:1px solid var(--line);color:var(--accent2);font-size:13px;font-weight:600" id="sm-gridSizeDisplay">6 &times; 6 = 36 points</div>
+      <div class="mini" style="color:var(--muted);margin-top:6px">&#128161; Set Min Y = Max Y = 0 for single-row (linear) probing along X axis</div>
+    </div>
+    <div class="panel">
+      <div class="box-title">2D Probe Settings</div>
+      <div class="grid three">
+        <div class="field"><label>Probe Feed (mm/min)</label><input type="number" id="sm-probeFeed" value="100" step="10" min="1"></div>
+        <div class="field"><label>Travel Feed (mm/min)</label><input type="number" id="sm-travelFeed" value="2000" step="100" min="1"></div>
+        <div class="field"><label>Clearance Z (coords)</label><input type="number" id="sm-clearanceZ" value="5" step="0.5" min="0.5"></div>
+        <div class="field"><label>Max Plunge (coords)</label><input type="number" id="sm-maxPlunge" value="20" step="1" min="1"></div>
+        <div class="field"><label>Reference Z (coords)</label><input type="number" id="sm-referenceZ" value="0" step="0.1"></div>
+      </div>
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn ghost" id="sm-btn-save-settings" onclick="smSaveSettings()">&#128190; Save Settings</button>
+      </div>
+    </div>
+  </div><!-- /surface-config-section -->
+
   <!-- ── Face Configuration Section ────────────────────────────────── -->
-  <div id="face-config-section">
+  <div id="face-config-section" style="display:none">
     <div class="panel">
       <div class="box-title">Face Probe Configuration</div>
       <div class="grid three">
@@ -536,25 +575,95 @@
         <button class="btn ghost" onclick="fpSyncFromSetup()">&#8595; Load from Setup Tab</button>
       </div>
     </div>
-    </div><!-- /face-config-section -->
+    <div class="panel" id="face-surf-ref-panel">
+      <div class="box-title">Surface Reference Probe</div>
+      <div class="mini" style="margin-bottom:8px">Probe straight down at the current XY position to capture the top surface Z height. This reference Z is used as the stylus depth baseline when no surface grid data is available.</div>
+      <div class="btn-row" style="align-items:center">
+        <button class="btn ghost" id="btn-face-surf-ref" onclick="runFaceSurfaceRefProbe()">&#9660; Probe Surface Reference</button>
+        <span style="font-size:12px;color:var(--muted);margin-left:8px">Ref Z: <strong id="face-surf-ref-z" style="color:var(--accent)">—</strong></span>
+      </div>
+      <div class="mini" id="face-surf-ref-status" style="margin-top:6px;color:var(--muted)"></div>
+    </div>
+  </div><!-- /face-config-section -->
 
   <!-- ── Probing Control ────────────────────────────────────────────── -->
   <div class="panel">
     <div class="box-title">Probing Control</div>
     <div class="btn-row">
-      <button class="btn" id="sm-btn-run-probe" onclick="startProbeByType()">&#9654; Run Face Probe</button>
+      <button class="btn" id="sm-btn-run-probe" onclick="startProbeByType()">&#9654; Run Surface Probe</button>
       <button class="btn warn" id="sm-btn-stop-probe" disabled onclick="stopSurfaceProbing()">&#9646;&#9646; Stop</button>
     </div>
     <div class="progress-track" id="sm-probeProgressTrack" style="margin-top:8px;display:none"><div class="progress-fill" id="sm-probeProgressBar"></div></div>
     <div class="mini" id="sm-probeStatus" style="margin-top:6px">Ready</div>
   </div>
 
+  <!-- ── Surface Mesh Section ───────────────────────────────────────── -->
+  <div id="surface-mesh-section">
+    <!-- Heatmap view (shown by default) -->
+    <div id="sm-heatmap-panel" class="panel">
+      <div class="box-title">&#127774; Surface Heatmap</div>
+      <div class="callout mini" style="margin-bottom:8px">Top-down topographic heatmap — warm colors (red/orange) = high Z, cool colors (blue/green) = low Z. Bilinear interpolation between probe points. Hover for values.</div>
+      <canvas id="sm-surface-relief-canvas" style="width:100%;border:1px solid var(--line);border-radius:8px;background:#0d111a;display:block"></canvas>
+      <div id="sm-surface-relief-tooltip" class="mini" style="color:var(--muted);margin-top:4px">Hover over map for values</div>
+      <div style="text-align:center;margin-top:10px">
+        <button class="btn ghost" onclick="toggleProbeModeView('sm')" style="font-size:12px;font-weight:600">&#9650; 3D Terrain View</button>
+        <span style="font-size:11px;color:var(--muted);margin-left:10px">Drag to rotate &middot; Scroll to zoom &middot; Right-click to pan</span>
+      </div>
+    </div>
+    <!-- 3D Terrain view (hidden by default, shown on toggle or during probing) -->
+    <div id="sm-terrain-panel" class="panel" style="display:none">
+      <div class="box-title">Surface Probe Visualizer</div>
+      <div id="sm-probeViz">
+        <div id="sm-pviz-scene">
+          <div id="sm-three-canvas" class="three-canvas-wrap"></div>
+          <button id="sm-pviz-reset-btn" title="Reset view · double-click also works">&#8635; Reset View</button>
+          <div id="sm-pviz-3dscene">
+            <div id="sm-pviz-surface">
+              <!-- contact dots appended here by JS -->
+            </div>
+            <div id="sm-pviz-probe-wrap">
+              <div id="sm-pviz-probe-shadow"></div>
+              <div id="sm-pviz-probe-body">
+                <svg viewBox="0 0 20 56" width="20" height="56" xmlns="http://www.w3.org/2000/svg" style="display:block">
+                  <!-- Shank -->
+                  <rect x="7" y="0" width="6" height="14" rx="2" fill="#687890" opacity="0.9"/>
+                  <!-- Body -->
+                  <rect x="5" y="13" width="10" height="17" rx="4" fill="#95a8c8" stroke="#c8d8f0" stroke-width="0.8"/>
+                  <rect x="7" y="14" width="3" height="14" rx="2" fill="rgba(255,255,255,0.2)"/>
+                  <!-- Stylus -->
+                  <rect x="9.2" y="30" width="1.6" height="16" rx="0.8" fill="#c8d8f0"/>
+                  <!-- Ball tip -->
+                  <circle class="sm-pviz-ball-tip" cx="10" cy="50" r="4.5" fill="#d0e8ff" stroke="#b8ccec" stroke-width="0.8"/>
+                  <ellipse cx="8.5" cy="48.5" rx="1.5" ry="1" fill="rgba(255,255,255,0.55)"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="text-align:center;margin-top:6px;font-size:11px;color:var(--muted)">Z Exaggeration: <input type="range" id="sm-z-exag" aria-label="Z Exaggeration" min="1" max="20" value="5" style="vertical-align:middle;width:90px" oninput="document.getElementById('sm-z-exag-val').textContent=this.value+'&times;';smPvizRenderMesh()"> <span id="sm-z-exag-val">5&times;</span> &nbsp;&#183;&nbsp; <label style="cursor:pointer"><input type="checkbox" id="sm-contour-toggle" aria-label="Toggle contours" onchange="renderThreeUnified3D('sm')"> Contours</label></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:11px;margin-top:6px;padding:0 2px">
+          <div style="color:var(--muted)">Status: <span id="sm-pviz-status" style="color:var(--text);font-weight:600">Ready</span></div>
+          <div style="color:var(--muted)">Point: <span id="sm-pviz-point" style="color:var(--accent2);font-weight:600">&#8212; / &#8212;</span></div>
+          <div style="color:var(--muted)">Position: <span id="sm-pviz-pos" style="color:var(--text)">&#8212;</span></div>
+          <div style="color:var(--muted)">Contact Z: <span id="sm-pviz-z" style="color:var(--good);font-weight:600">&#8212;</span></div>
+        </div>
+        <div style="margin-top:6px;padding:0 2px">
+          <div class="progress-track"><div id="sm-pviz-bar" class="progress-fill"></div></div>
+          <div style="text-align:right;font-size:10px;color:var(--muted);margin-top:2px"><span id="sm-pviz-pct">0%</span></div>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:10px">
+        <button class="btn ghost" onclick="toggleProbeModeView('sm')" style="font-size:12px;font-weight:600">&#9660; Heatmap</button>
+      </div>
+    </div>
+  </div><!-- /surface-mesh-section -->
+
   <!-- ── Face Mesh Section ──────────────────────────────────────────── -->
-  <div id="face-mesh-section">
+  <div id="face-mesh-section" style="display:none">
     <!-- Face Probe Control -->
     <div class="panel">
       <div class="box-title">Face Probe Direct Controls</div>
-      <div class="callout mini">Use the <strong>▶ Run Face Probe</strong> button in Probing Control above, or use these direct buttons to immediately probe a specific face axis.</div>
+      <div class="callout mini">Use the <strong>▶ Run Probe</strong> button in Probing Control above to run the face probe via the mode dropdown, or use these direct buttons to immediately probe a specific face axis.</div>
       <div class="btn-row" style="margin-top:12px">
         <button class="btn" id="btn-face-x">&#9654; Probe X Face</button>
         <button class="btn" id="btn-face-y">&#9654; Probe Y Face</button>
@@ -645,7 +754,12 @@
       <button class="btn ghost" onclick="saveUnifiedProbeLog()">&#128190; Save Log</button>
       <button class="btn ghost" onclick="clearUnifiedProbeLog()">&#10005; Clear Log</button>
     </div>
-    <div id="unified-log-face-wrap">
+    <div id="unified-log-surface-wrap">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:3px;font-weight:600">Surface Probe Log</div>
+      <div style="background:var(--panel2);border:1px solid var(--line);border-radius:10px;font-family:monospace;font-size:12px;color:var(--text);padding:8px;height:180px;overflow-y:auto;white-space:pre-wrap" id="sm-probeLog"></div>
+    </div>
+    <div id="unified-log-face-wrap" style="display:none;margin-top:10px">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:3px;font-weight:600">Face Probe Log</div>
       <div id="face-log" class="log-area mono"></div>
     </div>
     <!-- Hidden buttons kept for backward-compat with JS that may call them -->
