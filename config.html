@@ -1008,10 +1008,10 @@
           <table>
             <thead>
               <tr>
-                <th>#</th><th>X</th><th>Y</th><th>Z</th><th>Type</th>
+                <th>#</th><th>X</th><th>Y</th><th>Z</th><th>Mach Z</th><th>Type</th>
               </tr>
             </thead>
-            <tbody id="res-unified-tbody"><tr><td colspan="5" style="color:var(--muted);text-align:center;padding:16px;">No probe data yet</td></tr></tbody>
+            <tbody id="res-unified-tbody"><tr><td colspan="6" style="color:var(--muted);text-align:center;padding:16px;">No probe data yet</td></tr></tbody>
           </table>
         </div>
         <div class="btn-row" style="margin-top:12px">
@@ -2225,6 +2225,7 @@ function makeFaceContactRecord(index, pos, axis, status, targetCoord, sampleCoor
     x: Number(pos.x),
     y: Number(pos.y),
     z: Number(pos.z),
+    machineZ: pos.machineZ != null ? Number(pos.machineZ) : null,
     status: status || ('FACE ' + axis)
   };
 }
@@ -2251,11 +2252,11 @@ function updateEdgeProbeStorageUI(){
   if (layeredCount) html += '<span>&#9632; <strong>Layered contacts:</strong> ' + layeredCount + '</span>';
   html += '</div>';
   var allRows = [];
-  (topResults || []).forEach(function(r){ allRows.push({type:'Top', x:r.x, y:r.y, z:r.z, status:r.status}); });
-  (faceResults || []).forEach(function(r){ allRows.push({type:'Face', x:r.x, y:r.y, z:r.z, status:r.status}); });
+  (topResults || []).forEach(function(r){ allRows.push({type:'Top', x:r.x, y:r.y, z:r.z, machineZ:r.machineZ, status:r.status}); });
+  (faceResults || []).forEach(function(r){ allRows.push({type:'Face', x:r.x, y:r.y, z:r.z, machineZ:r.machineZ, status:r.status}); });
   if (allRows.length) {
     html += '<div style="max-height:180px;overflow-y:auto;border:1px solid var(--line);border-radius:6px">';
-    html += '<table style="font-size:11px"><thead><tr><th>#</th><th>Type</th><th>X</th><th>Y</th><th>Z</th><th>Status</th></tr></thead><tbody>';
+    html += '<table style="font-size:11px"><thead><tr><th>#</th><th>Type</th><th>X</th><th>Y</th><th>Z</th><th>Mach Z</th><th>Status</th></tr></thead><tbody>';
     var showMax = Math.min(allRows.length, 50);
     for (var i = 0; i < showMax; i++) {
       var r = allRows[i];
@@ -2263,10 +2264,11 @@ function updateEdgeProbeStorageUI(){
       html += '<td>' + (r.x != null ? Number(r.x).toFixed(3) : '') + '</td>';
       html += '<td>' + (r.y != null ? Number(r.y).toFixed(3) : '') + '</td>';
       html += '<td>' + (r.z != null ? Number(r.z).toFixed(3) : '') + '</td>';
+      html += '<td>' + (r.machineZ != null ? Number(r.machineZ).toFixed(3) : '&mdash;') + '</td>';
       html += '<td>' + (r.status||'') + '</td></tr>';
     }
     if (allRows.length > showMax) {
-      html += '<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:4px">... and ' + (allRows.length - showMax) + ' more</td></tr>';
+      html += '<tr><td colspan="7" style="color:var(--muted);text-align:center;padding:4px">... and ' + (allRows.length - showMax) + ' more</td></tr>';
     }
     html += '</tbody></table></div>';
   }
@@ -2283,7 +2285,7 @@ function clearAllResults(){
   topResults = []; faceResults = []; layeredFaceResults = [];
   clearPersistedProbeResults();
   var ut = document.getElementById('res-unified-tbody');
-  if(ut) ut.innerHTML = '<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:16px;">No probe data yet</td></tr>';
+  if(ut) ut.innerHTML = '<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:16px;">No probe data yet</td></tr>';
   var rsp = document.getElementById('res-surface-panel');
   if(rsp) rsp.style.display = 'none';
   var rfp = document.getElementById('res-face-panel');
@@ -2569,7 +2571,12 @@ async function probeAbsAxis(axis, target, feed){
     if(axis !== 'X' && axis !== 'Y') throw new Error('Unsupported face probe axis');
     await sendCommand('G90 G38.2 ' + axis + Number(target).toFixed(3) + ' F' + Number(feed).toFixed(0));
     await waitForIdleWithTimeout();
-    return await getWorkPosition();
+    var pos = await getWorkPosition();
+    var snap = await getMachineSnapshot();
+    pos.machineX = snap.machineX;
+    pos.machineY = snap.machineY;
+    pos.machineZ = snap.machineZ;
+    return pos;
   }
 
 async function _clearTriggeredProbeByBackingOffGeneric(tab, currentPos, unitX, unitY, s, state){
@@ -2714,12 +2721,14 @@ async function runFaceSurfaceRefProbe() {
     logLine('face', '=== Surface Reference Probe ===');
     logLine('face', 'Probing surface reference at current XY…');
     var pos = await smPlungeProbe(maxPlunge, probeFeed);
-    _faceSurfRefZ = pos.z;
-    if (refZEl) refZEl.textContent = pos.z.toFixed(3) + ' mm';
-    if (statusEl) statusEl.textContent = 'Reference Z = ' + pos.z.toFixed(3) + ' mm — captured.';
-    logLine('face', 'Surface reference Z = ' + pos.z.toFixed(3) + ' mm');
-    await smRetractUp(clearanceZ, travelFeed);
-    setFooterStatus('Surface ref Z = ' + pos.z.toFixed(3), 'good');
+    var snap = await getMachineSnapshot();
+    _faceSurfRefZ = snap.machineZ;
+    if (refZEl) refZEl.textContent = snap.machineZ.toFixed(3) + ' mm (machine)';
+    if (statusEl) statusEl.textContent = 'Reference Z = ' + snap.machineZ.toFixed(3) + ' mm (machine) — captured.';
+    logLine('face', 'Surface reference Z = ' + snap.machineZ.toFixed(3) + ' mm (machine coords)');
+    var retractTarget = pos.z + clearanceZ; // pos.z is work Z — GRBL motion uses work coords
+    await moveAbs(null, null, retractTarget, travelFeed);
+    setFooterStatus('Surface ref Z = ' + snap.machineZ.toFixed(3), 'good');
   } catch (e) {
     if (statusEl) statusEl.textContent = 'Error: ' + e.message;
     logLine('face', 'Surface reference probe error: ' + e.message);
@@ -2905,6 +2914,7 @@ async function runFaceProbe(axis, _calledFromCombined){
               x: axis === 'Y' ? lineCoord : contactFaceCoord,
               y: axis === 'X' ? lineCoord : contactFaceCoord,
               z: layerZ,
+              machineZ: contact.machineZ != null ? Number(contact.machineZ) : null,
               layer: layerNum,
               sampleTopZ: sampleTopZ
             });
@@ -3449,6 +3459,11 @@ async function smPlungeProbe(maxPlunge, probeFeed) {
     pluginDebug('smPlungeProbe: contact by position (pin cleared), Z=' + endPos.z.toFixed(3));
   }
   pluginDebug('smPlungeProbe EXIT: contact Z=' + endPos.z.toFixed(3));
+  var snap = await getMachineSnapshot();
+  endPos.machineX = snap.machineX;
+  endPos.machineY = snap.machineY;
+  endPos.machineZ = snap.machineZ;
+  smLogProbe('[PLUGIN DEBUG] smPlungeProbe: machineZ=' + snap.machineZ.toFixed(3));
   return endPos;
 }
 
@@ -4917,7 +4932,7 @@ function populateUnifiedProbeTable() {
         var y = cfg.minY + ri * cfg.rowSpacing;
         var zval = grid[ri][ci];
         n++;
-        rows.push('<tr><td>' + n + '</td><td>' + smFmtN(x) + '</td><td>' + smFmtN(y) + '</td><td>' + (zval != null ? smFmtN(zval) : '&mdash;') + '</td><td style="color:var(--accent2)">Surface</td></tr>');
+        rows.push('<tr><td>' + n + '</td><td>' + smFmtN(x) + '</td><td>' + smFmtN(y) + '</td><td>' + (zval != null ? smFmtN(zval) : '&mdash;') + '</td><td>&mdash;</td><td style="color:var(--accent2)">Surface</td></tr>');
       }
     }
   }
@@ -4928,12 +4943,12 @@ function populateUnifiedProbeTable() {
     faceData.forEach(function(p) {
       var layer = p.layer != null ? p.layer : 1;
       n++;
-      rows.push('<tr><td>' + n + '</td><td>' + Number(p.x).toFixed(3) + '</td><td>' + Number(p.y).toFixed(3) + '</td><td>' + Number(p.z).toFixed(3) + '</td><td style="color:var(--good)">Face L' + layer + '</td></tr>');
+      rows.push('<tr><td>' + n + '</td><td>' + Number(p.x).toFixed(3) + '</td><td>' + Number(p.y).toFixed(3) + '</td><td>' + Number(p.z).toFixed(3) + '</td><td>' + (p.machineZ != null ? Number(p.machineZ).toFixed(3) : '&mdash;') + '</td><td style="color:var(--good)">Face L' + layer + '</td></tr>');
     });
   }
 
   if (rows.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:16px;">No probe data yet</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:16px;">No probe data yet</td></tr>';
   } else {
     tbody.innerHTML = rows.join('');
   }
@@ -7994,7 +8009,7 @@ function pluginCleanupOnClose() {
     localStorage.removeItem(FACE_MESH_STORAGE_KEY);
     // Reset Results tab DOM to empty state
     var ut = document.getElementById('res-unified-tbody');
-    if (ut) ut.innerHTML = '<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:16px;">No probe data yet</td></tr>';
+    if (ut) ut.innerHTML = '<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:16px;">No probe data yet</td></tr>';
     var rsp = document.getElementById('res-surface-panel');
     if (rsp) rsp.style.display = 'none';
     var rfp = document.getElementById('res-face-panel');
