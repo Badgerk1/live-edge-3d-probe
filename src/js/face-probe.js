@@ -197,27 +197,89 @@ async function runFaceProbe(axis, _calledFromCombined){
     logLine('face', 'Probe axis ' + axis + ': start=' + startCoord.toFixed(3) + ' target=' + targetCoord.toFixed(3));
     pluginDebug('runFaceProbe: axis=' + axis + ' start=' + startCoord + ' target=' + targetCoord + ' depthBelow=' + depthBelow + ' fixedCoord=' + fixedCoord);
 
+    // ── Phase 0: Auto Top-Z ───────────────────────────────────────────────────
+    // When running Face Probe directly (not from combined mode), automatically
+    // probe the surface Z at the face probe's configured X positions so that
+    // topResults contains real measured data at the exact coordinates the face
+    // probe will use, rather than relying on stale or interpolated values.
+    var _p0Ran = false;
+    if (!_calledFromCombined) {
+      var _p0xStart = Number((document.getElementById('fp-xStart') || {}).value);
+      var _p0xEnd   = Number((document.getElementById('fp-xEnd')   || {}).value);
+      var _p0xPts   = Math.max(2, Math.round(Number((document.getElementById('fp-xPoints') || {}).value) || 5));
+      if (isFinite(_p0xStart) && isFinite(_p0xEnd) && _p0xStart !== _p0xEnd) {
+        var _p0ClearZ  = Number(s.topClearZ)      || 5;
+        var _p0Feed    = Number(s.topFeed)         || 200;
+        var _p0Travel  = Number(s.travelFeedRate)  || 600;
+        var _p0Depth   = Number(s.topProbeDepth)   || 5;
+        var _p0Retract = Number(s.topRetract)      || 2;
+        var _p0FaceY   = Number(s.topFixedCoord);
+        var _p0Range   = _p0xEnd - _p0xStart;
+        var _p0Step    = _p0Range / (_p0xPts - 1);
+        logLine('face', 'AUTO TOP-Z: Phase 0 — probing surface Z at face X positions before face probe...');
+        logLine('face', 'AUTO TOP-Z: ' + _p0xPts + ' points from X=' + _p0xStart.toFixed(3) + ' to X=' + _p0xEnd.toFixed(3) + ' at Y=' + _p0FaceY.toFixed(3));
+        topResults = [];
+        for (var _p0i = 0; _p0i < _p0xPts; _p0i++) {
+          smCheckStop();
+          var _p0xPos = _p0xStart + _p0i * _p0Step;
+          logLine('face', 'AUTO TOP-Z: Probing point ' + (_p0i + 1) + '/' + _p0xPts + ' at X=' + Number(_p0xPos).toFixed(3) + ' Y=' + Number(_p0FaceY).toFixed(3));
+          smSetProgress(_p0i / _p0xPts * 30);
+          await smSafeLateralMove(_p0xPos, _p0FaceY, _p0Travel, _p0ClearZ);
+          await smEnsureProbeClear(_p0ClearZ, _p0Travel);
+          var _p0Contact = await smPlungeProbe(_p0Depth, _p0Feed);
+          if (!_p0Contact || !isFinite(_p0Contact.z)) {
+            throw new Error('AUTO TOP-Z probe returned invalid contact at X=' + Number(_p0xPos).toFixed(3));
+          }
+          topResults.push({
+            type: 'top',
+            index: _p0i + 1,
+            sampleCoord: _p0xPos,
+            targetSamplePos: _p0xPos,
+            x: Number(_p0Contact.x),
+            y: Number(_p0Contact.y),
+            z: Number(_p0Contact.z),
+            machineZ: _p0Contact.machineZ != null ? Number(_p0Contact.machineZ) : null,
+            status: 'TOP'
+          });
+          logLine('face', 'AUTO TOP-Z:   -> Z=' + Number(_p0Contact.z).toFixed(3));
+          await smRetractSmall(_p0Contact.z, _p0Retract, _p0Travel);
+        }
+        smSetProgress(30);
+        _p0Ran = true;
+        logLine('face', 'AUTO TOP-Z: Phase 0 complete — ' + topResults.length + ' top-Z reference points measured at Y=' + Number(_p0FaceY).toFixed(3));
+        pluginDebug('runFaceProbe Phase 0 complete: ' + topResults.length + ' top-Z points at faceY=' + _p0FaceY);
+      } else {
+        logLine('face', 'AUTO TOP-Z: Phase 0 skipped — fp-xStart/fp-xEnd not configured (will use existing topResults if available).');
+      }
+    }
+
     var topPts = topResults.filter(function(r){ return r.status === 'TOP'; }).sort(function(a, b){
       return Number(a.sampleCoord) - Number(b.sampleCoord);
     });
 
     var faceSamples = [];
     if(topPts.length && sampledAxis !== axis){
-      // When surface mesh data is available, use user-specified X samples count with
-      // interpolated topZ so fp-xPoints is honoured instead of always using surface
-      // probe column count.
-      var configSamples = (smMeshData && smGridConfig) ? fpBuildFaceSamplesFromConfig() : null;
+      // When Phase 0 has already measured real top-Z values at the exact face X
+      // positions, use those directly instead of re-interpolating from the mesh.
+      // Only fall back to fpBuildFaceSamplesFromConfig() when no auto top-Z pass
+      // was made (e.g. called from combined mode or fp-xStart/fp-xEnd missing).
+      var configSamples = (!_p0Ran && smMeshData && smGridConfig) ? fpBuildFaceSamplesFromConfig() : null;
       if(configSamples && configSamples.length >= 2){
         faceSamples = configSamples;
         logLine('face', 'Face probe: user requested ' + faceSamples.length + ' X samples (fp-xPoints).');
         logLine('face', 'Face probe: X positions = [' + faceSamples.map(function(s){ return s.sampleCoord.toFixed(1); }).join(', ') + ']');
         logLine('face', 'Face probe: interpolated topZ = [' + faceSamples.map(function(s){ return s.topZ.toFixed(3); }).join(', ') + ']');
       } else {
-        // No surface mesh data — fall back to topPts 1:1 mapping
+        // Use topPts directly — these are real measured values when Phase 0 ran,
+        // or the best available data when it did not.
         faceSamples = topPts.map(function(tp, idx){
           return { index: idx + 1, sampleCoord: Number(tp.sampleCoord), topZ: Number(tp.z) };
         });
-        logLine('face', 'Using ' + faceSamples.length + ' indexed face sample(s) from top profile along ' + sampledAxis + ' (no mesh data for interpolation).');
+        if(_p0Ran){
+          logLine('face', 'Face probe: using ' + faceSamples.length + ' measured top-Z reference points from Phase 0 auto top-Z pass.');
+        } else {
+          logLine('face', 'Using ' + faceSamples.length + ' indexed face sample(s) from top profile along ' + sampledAxis + ' (no mesh data for interpolation).');
+        }
       }
     } else {
       var curPos = await getWorkPosition();
