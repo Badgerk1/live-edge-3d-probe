@@ -639,58 +639,19 @@
     <!-- ── TOP PROFILE TAB ────────────────────────────────────────────── -->
     <div class="tab-panel" id="pane-top">
 
-  <!-- ── Probe Type Selector ─────────────────────────────────────────── -->
+  <!-- ── Face Axis Selector ────────────────────────────────────────── -->
   <div class="panel">
-    <div class="box-title">Probe Mode</div>
-    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <label style="font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap">Mode:</label>
-      <select id="probe-type-select" style="flex:1 1 200px;max-width:300px" onchange="onProbeTypeChange()">
-        <option value="2d-surface" selected>Surface Probe</option>
-        <option value="face">Face Probe</option>
-        <option value="combined">Combined (Surface + Face)</option>
+    <div id="probe-axis-row" style="display:flex;align-items:center;gap:8px">
+      <label style="font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap">Face Axis:</label>
+      <select id="probe-face-axis-select">
+        <option value="Y" selected>Y</option>
+        <option value="X">X</option>
       </select>
-      <div id="probe-axis-row" style="display:none;align-items:center;gap:8px">
-        <label style="font-size:12px;color:var(--muted);white-space:nowrap">Face Axis:</label>
-        <select id="probe-face-axis-select">
-          <option value="Y" selected>Y</option>
-          <option value="X">X</option>
-        </select>
-      </div>
     </div>
   </div>
 
-  <!-- ── Surface Configuration Section ─────────────────────────────── -->
-  <div id="surface-config-section">
-    <div class="panel">
-      <div class="box-title">2D Grid Configuration</div>
-      <div class="grid three">
-        <div class="field"><label>Min X (coords)</label><input type="number" id="sm-minX" value="0" step="1"></div>
-        <div class="field"><label>Max X (coords)</label><input type="number" id="sm-maxX" value="100" step="1"></div>
-        <div class="field"><label>Spacing X (coords)</label><input type="number" id="sm-spacingX" value="20" step="1" min="1"></div>
-        <div class="field"><label>Min Y (coords)</label><input type="number" id="sm-minY" value="0" step="1"></div>
-        <div class="field"><label>Max Y (coords)</label><input type="number" id="sm-maxY" value="100" step="1"></div>
-        <div class="field"><label>Spacing Y (coords)</label><input type="number" id="sm-spacingY" value="20" step="1" min="1"></div>
-      </div>
-      <div style="margin-top:8px;display:inline-block;padding:6px 10px;border-radius:5px;background:var(--panel2);border:1px solid var(--line);color:var(--accent2);font-size:13px;font-weight:600" id="sm-gridSizeDisplay">6 &times; 6 = 36 points</div>
-      <div class="mini" style="color:var(--muted);margin-top:6px">&#128161; Set Min Y = Max Y = 0 for single-row (linear) probing along X axis</div>
-    </div>
-    <div class="panel">
-      <div class="box-title">2D Probe Settings</div>
-      <div class="grid three">
-        <div class="field"><label>Probe Feed (mm/min)</label><input type="number" id="sm-probeFeed" value="100" step="10" min="1"></div>
-        <div class="field"><label>Travel Feed (mm/min)</label><input type="number" id="sm-travelFeed" value="2000" step="100" min="1"></div>
-        <div class="field"><label>Clearance Z (coords)</label><input type="number" id="sm-clearanceZ" value="5" step="0.5" min="0.5"></div>
-        <div class="field"><label>Max Plunge (coords)</label><input type="number" id="sm-maxPlunge" value="20" step="1" min="1"></div>
-        <div class="field"><label>Reference Z (coords)</label><input type="number" id="sm-referenceZ" value="0" step="0.1"></div>
-      </div>
-      <div class="btn-row" style="margin-top:10px">
-        <button class="btn ghost" id="sm-btn-save-settings" onclick="smSaveSettings()">&#128190; Save Settings</button>
-      </div>
-    </div>
-  </div><!-- /surface-config-section -->
-
   <!-- ── Face Configuration Section ────────────────────────────────── -->
-  <div id="face-config-section" style="display:none">
+  <div id="face-config-section">
     <div class="panel">
       <div class="box-title">Face Probe Configuration</div>
       <div class="grid three">
@@ -746,95 +707,25 @@
         <button class="btn ghost" onclick="fpSyncFromSetup()">&#8595; Load from Setup Tab</button>
       </div>
     </div>
-    <div class="panel" id="face-surf-ref-panel">
-      <div class="box-title">Surface Reference Probe</div>
-      <div class="mini" style="margin-bottom:8px">Probe straight down at the current XY position to capture the top surface Z height. This reference Z is used as the stylus depth baseline when no surface grid data is available.</div>
-      <div class="btn-row" style="align-items:center">
-        <button class="btn ghost" id="btn-face-surf-ref" onclick="runFaceSurfaceRefProbe()">&#9660; Probe Surface Reference</button>
-        <span style="font-size:12px;color:var(--muted);margin-left:8px">Ref Z: <strong id="face-surf-ref-z" style="color:var(--accent)">—</strong></span>
-      </div>
-      <div class="mini" id="face-surf-ref-status" style="margin-top:6px;color:var(--muted)"></div>
-    </div>
-  </div><!-- /face-config-section -->
+    </div><!-- /face-config-section -->
 
   <!-- ── Probing Control ────────────────────────────────────────────── -->
   <div class="panel">
     <div class="box-title">Probing Control</div>
     <div class="btn-row">
-      <button class="btn" id="sm-btn-run-probe" onclick="startProbeByType()">&#9654; Run Surface Probe</button>
+      <button class="btn" id="sm-btn-run-probe" onclick="startProbeByType()">&#9654; Run Face Probe</button>
       <button class="btn warn" id="sm-btn-stop-probe" disabled onclick="stopSurfaceProbing()">&#9646;&#9646; Stop</button>
     </div>
     <div class="progress-track" id="sm-probeProgressTrack" style="margin-top:8px;display:none"><div class="progress-fill" id="sm-probeProgressBar"></div></div>
     <div class="mini" id="sm-probeStatus" style="margin-top:6px">Ready</div>
   </div>
 
-  <!-- ── Surface Mesh Section ───────────────────────────────────────── -->
-  <div id="surface-mesh-section">
-    <!-- Heatmap view (shown by default) -->
-    <div id="sm-heatmap-panel" class="panel">
-      <div class="box-title">&#127774; Surface Heatmap</div>
-      <div class="callout mini" style="margin-bottom:8px">Top-down topographic heatmap — warm colors (red/orange) = high Z, cool colors (blue/green) = low Z. Bilinear interpolation between probe points. Hover for values.</div>
-      <canvas id="sm-surface-relief-canvas" style="width:100%;border:1px solid var(--line);border-radius:8px;background:#0d111a;display:block"></canvas>
-      <div id="sm-surface-relief-tooltip" class="mini" style="color:var(--muted);margin-top:4px">Hover over map for values</div>
-      <div style="text-align:center;margin-top:10px">
-        <button class="btn ghost" onclick="toggleProbeModeView('sm')" style="font-size:12px;font-weight:600">&#9650; 3D Terrain View</button>
-        <span style="font-size:11px;color:var(--muted);margin-left:10px">Drag to rotate &middot; Scroll to zoom &middot; Right-click to pan</span>
-      </div>
-    </div>
-    <!-- 3D Terrain view (hidden by default, shown on toggle or during probing) -->
-    <div id="sm-terrain-panel" class="panel" style="display:none">
-      <div class="box-title">Surface Probe Visualizer</div>
-      <div id="sm-probeViz">
-        <div id="sm-pviz-scene">
-          <div id="sm-three-canvas" class="three-canvas-wrap"></div>
-          <button id="sm-pviz-reset-btn" title="Reset view · double-click also works">&#8635; Reset View</button>
-          <div id="sm-pviz-3dscene">
-            <div id="sm-pviz-surface">
-              <!-- contact dots appended here by JS -->
-            </div>
-            <div id="sm-pviz-probe-wrap">
-              <div id="sm-pviz-probe-shadow"></div>
-              <div id="sm-pviz-probe-body">
-                <svg viewBox="0 0 20 56" width="20" height="56" xmlns="http://www.w3.org/2000/svg" style="display:block">
-                  <!-- Shank -->
-                  <rect x="7" y="0" width="6" height="14" rx="2" fill="#687890" opacity="0.9"/>
-                  <!-- Body -->
-                  <rect x="5" y="13" width="10" height="17" rx="4" fill="#95a8c8" stroke="#c8d8f0" stroke-width="0.8"/>
-                  <rect x="7" y="14" width="3" height="14" rx="2" fill="rgba(255,255,255,0.2)"/>
-                  <!-- Stylus -->
-                  <rect x="9.2" y="30" width="1.6" height="16" rx="0.8" fill="#c8d8f0"/>
-                  <!-- Ball tip -->
-                  <circle class="sm-pviz-ball-tip" cx="10" cy="50" r="4.5" fill="#d0e8ff" stroke="#b8ccec" stroke-width="0.8"/>
-                  <ellipse cx="8.5" cy="48.5" rx="1.5" ry="1" fill="rgba(255,255,255,0.55)"/>
-                </svg>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div style="text-align:center;margin-top:6px;font-size:11px;color:var(--muted)">Z Exaggeration: <input type="range" id="sm-z-exag" aria-label="Z Exaggeration" min="1" max="20" value="5" style="vertical-align:middle;width:90px" oninput="document.getElementById('sm-z-exag-val').textContent=this.value+'&times;';smPvizRenderMesh()"> <span id="sm-z-exag-val">5&times;</span> &nbsp;&#183;&nbsp; <label style="cursor:pointer"><input type="checkbox" id="sm-contour-toggle" aria-label="Toggle contours" onchange="renderThreeUnified3D('sm')"> Contours</label></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:11px;margin-top:6px;padding:0 2px">
-          <div style="color:var(--muted)">Status: <span id="sm-pviz-status" style="color:var(--text);font-weight:600">Ready</span></div>
-          <div style="color:var(--muted)">Point: <span id="sm-pviz-point" style="color:var(--accent2);font-weight:600">&#8212; / &#8212;</span></div>
-          <div style="color:var(--muted)">Position: <span id="sm-pviz-pos" style="color:var(--text)">&#8212;</span></div>
-          <div style="color:var(--muted)">Contact Z: <span id="sm-pviz-z" style="color:var(--good);font-weight:600">&#8212;</span></div>
-        </div>
-        <div style="margin-top:6px;padding:0 2px">
-          <div class="progress-track"><div id="sm-pviz-bar" class="progress-fill"></div></div>
-          <div style="text-align:right;font-size:10px;color:var(--muted);margin-top:2px"><span id="sm-pviz-pct">0%</span></div>
-        </div>
-      </div>
-      <div style="text-align:center;margin-top:10px">
-        <button class="btn ghost" onclick="toggleProbeModeView('sm')" style="font-size:12px;font-weight:600">&#9660; Heatmap</button>
-      </div>
-    </div>
-  </div><!-- /surface-mesh-section -->
-
   <!-- ── Face Mesh Section ──────────────────────────────────────────── -->
-  <div id="face-mesh-section" style="display:none">
+  <div id="face-mesh-section">
     <!-- Face Probe Control -->
     <div class="panel">
       <div class="box-title">Face Probe Direct Controls</div>
-      <div class="callout mini">Use the <strong>▶ Run Probe</strong> button in Probing Control above to run the face probe via the mode dropdown, or use these direct buttons to immediately probe a specific face axis.</div>
+      <div class="callout mini">Use the <strong>▶ Run Face Probe</strong> button in Probing Control above, or use these direct buttons to immediately probe a specific face axis.</div>
       <div class="btn-row" style="margin-top:12px">
         <button class="btn" id="btn-face-x">&#9654; Probe X Face</button>
         <button class="btn" id="btn-face-y">&#9654; Probe Y Face</button>
@@ -925,12 +816,7 @@
       <button class="btn ghost" onclick="saveUnifiedProbeLog()">&#128190; Save Log</button>
       <button class="btn ghost" onclick="clearUnifiedProbeLog()">&#10005; Clear Log</button>
     </div>
-    <div id="unified-log-surface-wrap">
-      <div style="font-size:11px;color:var(--muted);margin-bottom:3px;font-weight:600">Surface Probe Log</div>
-      <div style="background:var(--panel2);border:1px solid var(--line);border-radius:10px;font-family:monospace;font-size:12px;color:var(--text);padding:8px;height:180px;overflow-y:auto;white-space:pre-wrap" id="sm-probeLog"></div>
-    </div>
-    <div id="unified-log-face-wrap" style="display:none;margin-top:10px">
-      <div style="font-size:11px;color:var(--muted);margin-bottom:3px;font-weight:600">Face Probe Log</div>
+    <div id="unified-log-face-wrap">
       <div id="face-log" class="log-area mono"></div>
     </div>
     <!-- Hidden buttons kept for backward-compat with JS that may call them -->
@@ -2924,9 +2810,9 @@ async function smSafeLateralMove(targetX, targetY, travelFeed, clearanceZ) {
 
 async function smPlungeProbe(maxPlunge, probeFeed) {
   pluginDebug('smPlungeProbe ENTER: maxPlunge=' + maxPlunge + ' probeFeed=' + probeFeed);
-  var clearanceZ = Number(document.getElementById('sm-clearanceZ').value) || 5;
-  var liftFeed = Number(document.getElementById('travelRecoveryLiftFeedRate').value) ||
-                 Number(document.getElementById('sm-travelFeed').value) || 600;
+  var clearanceZ = Number((document.getElementById('sm-clearanceZ') || {}).value) || 5;
+  var liftFeed = Number((document.getElementById('travelRecoveryLiftFeedRate') || {}).value) ||
+                 Number((document.getElementById('sm-travelFeed') || {}).value) || 600;
 
   // Verify probe input is open before plunging; lift and recheck if triggered (up to 3 attempts)
   await smEnsureProbeClear(clearanceZ, liftFeed);
@@ -7598,52 +7484,18 @@ function bindProbeDimensionUI(){
 // ── Probe Type Dropdown ───────────────────────────────────────────────────────
 
 function onProbeTypeChange() {
-  var type = (document.getElementById('probe-type-select') || {}).value || '2d-surface';
-
-  // Face axis row
-  var axisRow = document.getElementById('probe-axis-row');
-  if (axisRow) axisRow.style.display = (type === 'face' || type === 'combined') ? 'flex' : 'none';
-
-  // Surface config section (grid + probe settings)
-  var showSurface = (type === '2d-surface' || type === 'combined');
-  var surfCfg = document.getElementById('surface-config-section');
-  if (surfCfg) surfCfg.style.display = showSurface ? '' : 'none';
-
-  // Face config section
-  var showFace = (type === 'face' || type === 'combined');
+  // Face probe is the only mode — ensure face sections are always visible
   var faceCfg = document.getElementById('face-config-section');
-  if (faceCfg) faceCfg.style.display = showFace ? '' : 'none';
-
-  // Surface mesh section (visualizer)
-  var surfMesh = document.getElementById('surface-mesh-section');
-  if (surfMesh) surfMesh.style.display = showSurface ? '' : 'none';
-
-  // Face mesh section (face visualizer, relief map, data mgmt)
+  if (faceCfg) faceCfg.style.display = '';
   var faceMesh = document.getElementById('face-mesh-section');
-  if (faceMesh) faceMesh.style.display = showFace ? '' : 'none';
-
-  // Unified log sections
-  var surfLogWrap = document.getElementById('unified-log-surface-wrap');
-  if (surfLogWrap) surfLogWrap.style.display = showSurface ? '' : 'none';
+  if (faceMesh) faceMesh.style.display = '';
   var faceLogWrap = document.getElementById('unified-log-face-wrap');
-  if (faceLogWrap) faceLogWrap.style.display = showFace ? '' : 'none';
-
-  // Run button label
-  var runBtn = document.getElementById('sm-btn-run-probe');
-  if (runBtn) {
-    if (type === '2d-surface') runBtn.textContent = '\u25b6 Run Surface Probe';
-    else if (type === 'face') runBtn.textContent = '\u25b6 Run Face Probe';
-    else runBtn.textContent = '\u25b6\u25b6 Run Combined Probe';
-  }
+  if (faceLogWrap) faceLogWrap.style.display = '';
 }
 
 function saveUnifiedProbeLog() {
-  var surfLog = (document.getElementById('sm-probeLog') || {}).textContent || '';
   var faceLog = (document.getElementById('face-log') || {}).textContent || '';
-  var type = (document.getElementById('probe-type-select') || {}).value || '2d-surface';
-  var combined = '';
-  if (type === '2d-surface' || type === 'combined') combined += '=== Surface Probe Log ===\n' + surfLog + '\n';
-  if (type === 'face' || type === 'combined') combined += '=== Face Probe Log ===\n' + faceLog + '\n';
+  var combined = '=== Face Probe Log ===\n' + faceLog + '\n';
   var blob = new Blob([combined], { type: 'text/plain' });
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -7652,267 +7504,13 @@ function saveUnifiedProbeLog() {
 }
 
 function clearUnifiedProbeLog() {
-  var surfLog = document.getElementById('sm-probeLog');
-  if (surfLog) surfLog.textContent = '';
   var faceLog = document.getElementById('face-log');
   if (faceLog) faceLog.textContent = '';
 }
 
 function startProbeByType() {
-  var type = (document.getElementById('probe-type-select') || {}).value || '2d-surface';
   var axis = (document.getElementById('probe-face-axis-select') || {}).value || 'Y';
-  if (type === '2d-surface') {
-    runSurfaceProbing();
-  } else if (type === 'face') {
-    runFaceProbe(axis);
-  } else if (type === 'combined') {
-    runCombinedProbeMode(axis);
-  }
-}
-
-// ── Combined Probe Mode ───────────────────────────────────────────────────────
-
-async function runCombinedProbeMode(axis) {
-  if (_running) { smLogProbe('COMBINED: cannot start — another probe operation is already running (_running=true).'); pluginDebug('runCombinedProbeMode SKIP: _running=true'); setFooterStatus('Already running', 'warn'); return; }
-  axis = String(axis || 'Y').toUpperCase();
-  // Reset stop flags so a previously-stopped run does not block this one.
-  smStopFlag = false;
-  _stopRequested = false;
-  smLogProbe('=== 3D Live Edge Mesh Plugin ' + SM_VERSION + ' ===');
-  smLogProbe('COMBINED: Starting combined probe (surface + face axis=' + axis + ')...');
-  pluginDebug('runCombinedProbeMode ENTER: axis=' + axis);
-  setFooterStatus('Combined probe: running surface phase\u2026', 'warn');
-
-  // Disable all probe controls
-  var runBtn = document.getElementById('sm-btn-run-probe');
-  var stopBtn = document.getElementById('sm-btn-stop-probe');
-  if (runBtn) runBtn.disabled = true;
-  if (stopBtn) stopBtn.disabled = false;
-  document.getElementById('btn-face-x').disabled = true;
-  document.getElementById('btn-face-y').disabled = true;
-
-  try {
-    // Phase 1: Run surface probe and await its completion via Promise wrapper.
-    // _smProbingCompleteCallback is called by runSurfaceProbing when done;
-    // wrapping it in a Promise lets us properly await the result here.
-    smLogProbe('COMBINED: Phase 1 — running surface probe...');
-    pluginDebug('runCombinedProbeMode: Phase 1 starting surface probe, setting _smProbingCompleteCallback');
-    var surfaceSuccess = await new Promise(function(resolve) {
-      _smProbingCompleteCallback = function(success) {
-        pluginDebug('runCombinedProbeMode: _smProbingCompleteCallback called success=' + success + ' smMeshData=' + !!smMeshData + ' smStopFlag=' + smStopFlag);
-        resolve(!!success);
-      };
-      runSurfaceProbing();
-    });
-    pluginDebug('runCombinedProbeMode: surface probe promise resolved, surfaceSuccess=' + surfaceSuccess);
-
-    if (!surfaceSuccess) {
-      smLogProbe('COMBINED: Phase 1 FAILED — surface probe failed or was stopped. Face probe skipped.');
-      pluginDebug('runCombinedProbeMode: Phase 1 FAILED. smMeshData=' + !!smMeshData + ' smStopFlag=' + smStopFlag);
-      setFooterStatus('Combined probe: surface phase failed/stopped.', 'bad');
-      return;
-    }
-    smLogProbe('COMBINED: Phase 1 complete — surface probe done. smMeshData rows=' + (smMeshData ? smMeshData.length : 'null'));
-
-    smLogProbe('COMBINED: Phase 1.5 — probing top surface at face line Y coordinate...');
-    setFooterStatus('Combined probe: running top-surface reference phase\u2026', 'warn');
-
-    // Phase 1.5: Physically probe the top surface at the exact face line Y coordinate
-    // for each face sample X position so the face probe gets real measured top-Z values
-    // rather than interpolated grid row 0 values.
-    topResults = [];
-    var _phase15FallbackNeeded = false;
-    try {
-      var _p15Settings = getSettingsFromUI();
-      var _p15FaceY = _p15Settings.faceFixedCoord;
-      var _p15ClearanceZ = Number(document.getElementById('sm-clearanceZ').value) || 5;
-      var _p15TravelFeed = Number(document.getElementById('sm-travelFeed').value) || 600;
-      var _p15ProbeFeed = _p15Settings.topFeed;
-      var _p15MaxPlunge = _p15Settings.topProbeDepth;
-      var _p15Retract = _p15Settings.topRetract;
-
-      // Compute face sample X positions — prefer fpBuildFaceSamplesFromConfig() when
-      // mesh data is available (same logic used in runFaceProbe).
-      var _p15Samples = null;
-      if (smMeshData && smGridConfig) {
-        _p15Samples = fpBuildFaceSamplesFromConfig();
-      }
-      // Fallback: use grid column X positions when face config is unavailable.
-      if (!_p15Samples || _p15Samples.length === 0) {
-        if (smGridConfig) {
-          _p15Samples = [];
-          for (var _p15ci = 0; _p15ci < smGridConfig.colCount; _p15ci++) {
-            _p15Samples.push({ index: _p15ci + 1, sampleCoord: smGridConfig.minX + _p15ci * smGridConfig.colSpacing });
-          }
-        }
-      }
-
-      if (!_p15Samples || _p15Samples.length === 0) {
-        throw new Error('No face sample X positions available for Phase 1.5');
-      }
-
-      var _p15Total = _p15Samples.length;
-      pluginDebug('runCombinedProbeMode Phase 1.5: faceY=' + _p15FaceY + ' samples=' + _p15Total + ' maxPlunge=' + _p15MaxPlunge + ' probeFeed=' + _p15ProbeFeed);
-
-      for (var _p15i = 0; _p15i < _p15Total; _p15i++) {
-        if (_stopRequested) { checkStop(); }
-        var _p15xPos = _p15Samples[_p15i].sampleCoord;
-        smLogProbe('COMBINED Phase 1.5: probing top surface at X=' + _p15xPos.toFixed(3) + ' Y=' + _p15FaceY.toFixed(3) + ' (' + (_p15i + 1) + '/' + _p15Total + ')');
-        pluginDebug('runCombinedProbeMode Phase 1.5: sample ' + (_p15i + 1) + '/' + _p15Total + ' X=' + _p15xPos.toFixed(3) + ' Y=' + _p15FaceY.toFixed(3));
-
-        await smSafeLateralMove(_p15xPos, _p15FaceY, _p15TravelFeed, _p15ClearanceZ);
-        await smEnsureProbeClear(_p15ClearanceZ, _p15TravelFeed);
-        var _p15Contact = await smPlungeProbe(_p15MaxPlunge, _p15ProbeFeed);
-        if (!_p15Contact || !isFinite(_p15Contact.z)) {
-          throw new Error('Phase 1.5 probe returned invalid contact position at X=' + _p15xPos.toFixed(3));
-        }
-
-        topResults.push({
-          type: 'top',
-          index: _p15i + 1,
-          sampleCoord: _p15xPos,
-          targetSamplePos: _p15xPos,
-          x: Number(_p15Contact.x),
-          y: Number(_p15Contact.y),
-          z: Number(_p15Contact.z),
-          machineZ: _p15Contact.machineZ != null ? Number(_p15Contact.machineZ) : null,
-          status: 'TOP'
-        });
-
-        smLogProbe('COMBINED Phase 1.5: contact at Z=' + _p15Contact.z.toFixed(3));
-        await smRetractSmall(_p15Contact.z, _p15Retract, _p15TravelFeed);
-      }
-
-      smLogProbe('COMBINED Phase 1.5: measured ' + topResults.length + ' top-surface reference points at face line Y=' + _p15FaceY.toFixed(3));
-      pluginDebug('runCombinedProbeMode Phase 1.5 complete: ' + topResults.length + ' points at faceY=' + _p15FaceY.toFixed(3));
-      saveProbeResults();
-
-    } catch (_p15Err) {
-      smLogProbe('COMBINED Phase 1.5 ERROR: ' + (_p15Err && _p15Err.message ? _p15Err.message : String(_p15Err)) + ' — falling back to surface mesh row 0 interpolation.');
-      pluginDebug('runCombinedProbeMode Phase 1.5 ERROR (fallback): ' + (_p15Err && _p15Err.message ? _p15Err.message : String(_p15Err)));
-      console.error('COMBINED Phase 1.5 error (falling back to grid row 0):', _p15Err);
-      _phase15FallbackNeeded = true;
-    }
-
-    // Fallback: populate topResults from surface mesh row 0 if Phase 1.5 failed.
-    if (_phase15FallbackNeeded || topResults.length === 0) {
-      topResults = [];
-      if (smMeshData && smGridConfig) {
-        var _cfg = smGridConfig;
-        var _row0 = smMeshData[0];
-        if (_row0) {
-          for (var _ci = 0; _ci < _cfg.colCount; _ci++) {
-            var _zVal = _row0[_ci];
-            if (_zVal != null && isFinite(_zVal)) {
-              var _xCoord = _cfg.minX + _ci * _cfg.colSpacing;
-              topResults.push({
-                type: 'top', index: _ci + 1,
-                sampleCoord: _xCoord, targetSamplePos: _xCoord,
-                x: _xCoord, y: _cfg.minY, z: Number(_zVal), status: 'TOP'
-              });
-            }
-          }
-          smLogProbe('COMBINED: (fallback) populated ' + topResults.length + ' top-profile reference points from surface mesh row 0.');
-          console.log('COMBINED: topResults (fallback) =', JSON.stringify(topResults.slice(0, 3)));
-        }
-      } else {
-        smLogProbe('COMBINED: WARNING — smMeshData or smGridConfig is null; topResults will be empty.');
-        pluginDebug('runCombinedProbeMode WARNING: smMeshData=' + smMeshData + ' smGridConfig=' + smGridConfig);
-      }
-    }
-
-    // Phase 2: Run face probe.
-    // Reset _running in case surface probing left it in a non-false state —
-    // runFaceProbe() guards on _running and returns early (no-op) if it is true.
-    if (_running) {
-      smLogProbe('COMBINED: WARNING — _running flag was true before face probe; resetting to allow face probe to execute.');
-      pluginDebug('runCombinedProbeMode WARNING: _running was true before face probe — resetting');
-      _running = false;
-    }
-    // Also reset _stopRequested so face probe does not abort immediately
-    _stopRequested = false;
-
-    // Retract probe and wait for it to clear before starting the face probe.
-    // After the surface probe's last point the pin may still be in contact with the
-    // surface (triggered state). runFaceProbe calls requireStartupHomingPreflight
-    // which aborts immediately if the probe is triggered, so we must lift Z first.
-    smLogProbe('COMBINED: Retracting probe before face phase...');
-    var combinedClearZ = Number(document.getElementById('sm-clearanceZ').value) || 5;
-    var combinedTravelFeed = Number(document.getElementById('sm-travelFeed').value) || 600;
-    var probeCleared = false;
-    try {
-      await smEnsureProbeClear(combinedClearZ, combinedTravelFeed);
-      probeCleared = true;
-      smLogProbe('COMBINED: Probe cleared. Starting face probe phase...');
-    } catch (clearErr) {
-      smLogProbe('ERROR: Could not clear probe after surface phase. Aborting face probe. ' + (clearErr && clearErr.message ? clearErr.message : String(clearErr)));
-      console.error('COMBINED: probe clear failed:', clearErr);
-    }
-    if (!probeCleared) {
-      setFooterStatus('Combined probe: could not clear probe before face phase.', 'bad');
-      return;
-    }
-
-    setFooterStatus('Combined probe: running face probe phase (' + axis + ')\u2026', 'warn');
-    smLogProbe('COMBINED: Phase 2 — calling runFaceProbe(axis=' + axis + ')...');
-    pluginDebug('runCombinedProbeMode: Phase 2 calling runFaceProbe axis=' + axis + ' _running=' + _running + ' _stopRequested=' + _stopRequested);
-    logLine('face', 'COMBINED MODE: starting face probe phase (axis=' + axis + ')...');
-    try {
-      await runFaceProbe(axis, true);
-      smLogProbe('COMBINED: Phase 2 complete — face probe done.');
-      pluginDebug('runCombinedProbeMode: Phase 2 face probe completed successfully');
-    } catch (faceErr) {
-      smLogProbe('COMBINED: Phase 2 FAILED — face probe error: ' + (faceErr && faceErr.message ? faceErr.message : String(faceErr)));
-      pluginDebug('runCombinedProbeMode ERROR (face): ' + (faceErr && faceErr.message ? faceErr.message : String(faceErr)));
-      console.error('COMBINED: face probe threw:', faceErr);
-      logLine('face', 'ERROR: face probe failed in combined mode: ' + (faceErr && faceErr.message ? faceErr.message : String(faceErr)));
-    }
-
-    // Merge combined data and update all visualizers
-    mergeCombinedProbeData();
-    updateCombinedMeshUI();
-    try {
-      smPvizRenderMesh();
-      renderSurfVizMesh();
-      renderResVizMesh();
-      populateSurfaceResults();
-      renderRelief3D();
-      // Render 2D relief maps for both surface and face datasets
-      // then auto-switch probe-tab sections to heatmap views
-      setTimeout(function() {
-        renderSurfaceReliefMap();
-        renderFaceReliefMap();
-        setTimeout(function() {
-          showProbeHeatmapView('sm');
-          showProbeHeatmapView('face');
-        }, 120);
-      }, 60);
-    } catch (vizErr) {
-      smLogProbe('WARNING: 3D visualization failed: ' + (vizErr && vizErr.message ? vizErr.message : String(vizErr)));
-      console.warn('COMBINED: visualization error (non-fatal):', vizErr);
-    }
-    setFooterStatus('Combined probe complete: surface + face ' + axis + ' merged.', 'good');
-    smLogProbe('COMBINED: All phases complete. ' + (combinedMeshPoints ? combinedMeshPoints.length : 0) + ' total points in combined dataset.');
-    pluginDebug('runCombinedProbeMode COMPLETE: axis=' + axis + ' total=' + (combinedMeshPoints ? combinedMeshPoints.length : 0) + ' points');
-    saveProbeResults();
-    updateEdgeProbeStorageUI();
-    pluginDebug('runCombinedProbeMode complete: topResults=' + topResults.length + ' faceResults=' + faceResults.length + ' layeredFaceResults=' + layeredFaceResults.length);
-
-  } catch (err) {
-    smLogProbe('COMBINED: unexpected error: ' + (err && err.message ? err.message : String(err)));
-    pluginDebug('runCombinedProbeMode UNEXPECTED ERROR: ' + (err && err.message ? err.message : String(err)));
-    console.error('COMBINED: unexpected error:', err);
-    setFooterStatus('Combined probe error: ' + (err && err.message ? err.message : String(err)), 'bad');
-    // Still attempt to merge any partial data
-    try { mergeCombinedProbeData(); updateCombinedMeshUI(); } catch(e2) { /* ignore */ }
-  } finally {
-    if (runBtn) runBtn.disabled = false;
-    if (stopBtn) stopBtn.disabled = true;
-    document.getElementById('btn-face-x').disabled = false;
-    document.getElementById('btn-face-y').disabled = false;
-    _running = false;
-    pluginDebug('runCombinedProbeMode EXIT (finally): _running reset to false');
-  }
+  runFaceProbe(axis);
 }
 
 // ── Merge combined data ───────────────────────────────────────────────────────

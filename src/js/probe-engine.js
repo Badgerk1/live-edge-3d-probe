@@ -358,9 +358,9 @@ async function smSafeLateralMove(targetX, targetY, travelFeed, clearanceZ) {
 
 async function smPlungeProbe(maxPlunge, probeFeed) {
   pluginDebug('smPlungeProbe ENTER: maxPlunge=' + maxPlunge + ' probeFeed=' + probeFeed);
-  var clearanceZ = Number(document.getElementById('sm-clearanceZ').value) || 5;
-  var liftFeed = Number(document.getElementById('travelRecoveryLiftFeedRate').value) ||
-                 Number(document.getElementById('sm-travelFeed').value) || 600;
+  var clearanceZ = Number((document.getElementById('sm-clearanceZ') || {}).value) || 5;
+  var liftFeed = Number((document.getElementById('travelRecoveryLiftFeedRate') || {}).value) ||
+                 Number((document.getElementById('sm-travelFeed') || {}).value) || 600;
 
   // Verify probe input is open before plunging; lift and recheck if triggered (up to 3 attempts)
   await smEnsureProbeClear(clearanceZ, liftFeed);
