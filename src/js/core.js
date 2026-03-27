@@ -11,9 +11,6 @@ var FACE_RESULTS_KEY = 'edgeProbeFaceResults';
 var FACE_LAYERED_RESULTS_KEY = 'edgeProbeFaceLayeredResults';
 var FACE_MESH_STORAGE_KEY = 'faceProbe.faceMeshData';
 var FACE_PROBE_DEFAULT_MAX_DEPTH = 14.75; // default probe stylus callout length (coords) — cap for Z End
-var faceOriginalGcode = null;
-var faceCompensatedGcode = null;
-var faceLastAppliedAxis = 'Y'; // tracks face axis of most recently applied compensation
 var _facePvizRotX = 20, _facePvizRotY = -25, _facePvizRotZ = 0, _faceDragActive = false, _faceDragLastX = 0, _faceDragLastY = 0;
 var FACE_LOG_KEY = 'edgeProbeFaceLog';
 var SAVED_LOCATION_KEY = 'edgeProbeSavedLocation';
