@@ -85,11 +85,16 @@
     #surface-edge-mesh-root .jog-grid-wrap{display:grid;grid-template-columns:minmax(0,1fr) 76px 76px;gap:12px;align-items:stretch}
     #surface-edge-mesh-root .jog-xy-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
     #surface-edge-mesh-root .jog-col{display:grid;grid-template-rows:1fr 1fr;gap:8px}
-    #surface-edge-mesh-root .jog-btn{min-height:68px;border-radius:14px;border:1px solid var(--line);background:#182031;color:var(--text);cursor:pointer;font:700 16px/1 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;display:flex;align-items:center;justify-content:center;user-select:none}
+    #surface-edge-mesh-root .jog-btn{min-height:68px;border-radius:14px;border:1px solid var(--line);background:#182031;color:var(--text);cursor:pointer;font:700 16px/1 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;display:flex;align-items:center;justify-content:center;user-select:none;transition:transform .1s ease,box-shadow .15s ease,background .15s ease}
     #surface-edge-mesh-root .jog-btn:hover{border-color:#46639b;background:#1d2739}
+    #surface-edge-mesh-root .jog-btn:active,#surface-edge-mesh-root .jog-btn.btn-pressed{transform:scale(0.93);box-shadow:0 0 12px rgba(70,99,155,0.6) inset;background:#243350}
+    #surface-edge-mesh-root .jog-btn.btn-flash{animation:jogBtnFlash .35s ease}
+    @keyframes jogBtnFlash{0%{box-shadow:0 0 0 rgba(115,216,95,0)}30%{box-shadow:0 0 16px rgba(115,216,95,0.7),0 0 6px rgba(115,216,95,0.4) inset}100%{box-shadow:0 0 0 rgba(115,216,95,0)}}
     #surface-edge-mesh-root .jog-btn.stop{background:linear-gradient(180deg,#dd5a49,#c94036);border-color:#ef8f80}
     #surface-edge-mesh-root .jog-btn.resume{background:linear-gradient(180deg,#3a9d5d,#2d7a49);border-color:#7fd39a}
     #surface-edge-mesh-root .jog-btn.disabled,#surface-edge-mesh-root .jog-btn:disabled{opacity:.5;cursor:not-allowed}
+    #surface-edge-mesh-root .btn.btn-flash{animation:btnFlash .35s ease}
+    @keyframes btnFlash{0%{box-shadow:0 0 0 rgba(115,216,95,0)}30%{box-shadow:0 0 14px rgba(115,216,95,0.6)}100%{box-shadow:0 0 0 rgba(115,216,95,0)}}
     #surface-edge-mesh-root .jog-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
     #surface-edge-mesh-root .jog-meta .field input{padding:9px 10px}
     #surface-edge-mesh-root .jog-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
@@ -118,6 +123,13 @@
     #surface-edge-mesh-root #res-pviz-scene{position:relative;height:250px;background:radial-gradient(ellipse at 50% 0%,#0f1f38 0%,#060a10 70%);border:1px solid var(--line);border-radius:10px;overflow:hidden;perspective:700px;perspective-origin:50% 10%;cursor:grab;user-select:none}
     #surface-edge-mesh-root #res-pviz-scene.pviz-dragging{cursor:grabbing}
     #surface-edge-mesh-root #res-pviz-3dscene{position:absolute;width:78%;height:58%;left:11%;top:18%;transform-style:preserve-3d;transform:rotateX(60deg) rotateY(0deg) rotateZ(-35deg)}
+    /* ── Results Tab Face 3D Visualizer ─────────────────────────────────────── */
+    #surface-edge-mesh-root #resface-pviz-scene{position:relative;height:250px;background:radial-gradient(ellipse at 50% 0%,#0f1f38 0%,#060a10 70%);border:1px solid var(--line);border-radius:10px;overflow:hidden;perspective:700px;perspective-origin:50% 10%;cursor:grab;user-select:none}
+    #surface-edge-mesh-root #resface-pviz-scene.pviz-dragging{cursor:grabbing}
+    #surface-edge-mesh-root #resface-pviz-3dscene{position:absolute;width:78%;height:58%;left:11%;top:18%;transform-style:preserve-3d;transform:rotateX(20deg) rotateY(-25deg) rotateZ(0deg)}
+    #surface-edge-mesh-root #resface-pviz-reset-btn{position:absolute;top:7px;right:9px;z-index:10;padding:3px 9px;border-radius:8px;border:1px solid rgba(58,85,128,0.55);background:rgba(8,17,30,0.72);color:var(--muted);font:10px/1.5 system-ui,-apple-system,sans-serif;cursor:pointer;transition:color .2s,border-color .2s}
+    #surface-edge-mesh-root #resface-pviz-reset-btn:hover{color:var(--text);border-color:var(--accent2)}
+    #surface-edge-mesh-root #resface-pviz-surface{position:absolute;inset:0;background-image:repeating-linear-gradient(90deg,rgba(58,85,128,0.45) 0 1px,transparent 1px 100%),repeating-linear-gradient(0deg,rgba(58,85,128,0.45) 0 1px,transparent 1px 100%);background-size:25% 33.33%;background-color:#08111e;border:1px solid rgba(58,85,128,0.65);transform-style:preserve-3d}
     #surface-edge-mesh-root #res-pviz-reset-btn{position:absolute;top:7px;right:9px;z-index:10;padding:3px 9px;border-radius:8px;border:1px solid rgba(58,85,128,0.55);background:rgba(8,17,30,0.72);color:var(--muted);font:10px/1.5 system-ui,-apple-system,sans-serif;cursor:pointer;transition:color .2s,border-color .2s}
     #surface-edge-mesh-root #res-pviz-reset-btn:hover{color:var(--text);border-color:var(--accent2)}
     #surface-edge-mesh-root #res-pviz-surface{position:absolute;inset:0;background-image:repeating-linear-gradient(90deg,rgba(58,85,128,0.45) 0 1px,transparent 1px 100%),repeating-linear-gradient(0deg,rgba(58,85,128,0.45) 0 1px,transparent 1px 100%);background-size:25% 33.33%;background-color:#08111e;border:1px solid rgba(58,85,128,0.65);transform-style:preserve-3d}
@@ -922,10 +934,10 @@
     <!-- ── RESULTS TAB ────────────────────────────────────────────────── -->
     <div class="tab-panel" id="pane-results">
 
-      <!-- 3D View panel (hidden until data is available) -->
+      <!-- Top Surface 3D View panel (hidden until data is available) -->
       <div id="res-surface-panel" style="display:none">
         <div class="panel">
-          <div class="box-title">&#128208; 3D View</div>
+          <div class="box-title">&#128208; Top Surface — 3D View</div>
           <div id="res-pviz-scene">
             <div id="res-three-canvas" class="three-canvas-wrap"></div>
             <button id="res-pviz-reset-btn" title="Reset view · double-click also works">&#8635; Reset View</button>
@@ -939,6 +951,27 @@
           <div style="font-size:10px;color:var(--muted);margin-top:4px;text-align:center">Drag to rotate &middot; Scroll to zoom &middot; Right-click to pan &middot; Double-click to reset</div>
           <div class="btn-row" style="margin-top:10px">
             <button class="btn" id="res-btn-save-3d">&#128190; Save 3D View</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Face Surface 3D View panel (hidden until face data is available) -->
+      <div id="res-face-panel" style="display:none">
+        <div class="panel">
+          <div class="box-title">&#128208; Face Surface — 3D View</div>
+          <div id="resface-pviz-scene">
+            <div id="resface-three-canvas" class="three-canvas-wrap"></div>
+            <button id="resface-pviz-reset-btn" title="Reset view · double-click also works">&#8635; Reset View</button>
+            <div id="resface-pviz-3dscene">
+              <div id="resface-pviz-surface">
+              </div>
+            </div>
+          </div>
+          <div class="mini" style="margin-top:6px;text-align:center" id="resface-meshVizStatus">No face data — run a face probe</div>
+          <div style="text-align:center;margin-top:6px;font-size:11px;color:var(--muted)">Z Exaggeration: <input type="range" id="resface-z-exag" aria-label="Z Exaggeration" min="1" max="20" value="5" style="vertical-align:middle;width:90px" oninput="document.getElementById('resface-z-exag-val').textContent=this.value+'&times;';renderResFaceVizMesh()"> <span id="resface-z-exag-val">5&times;</span> &nbsp;&#183;&nbsp; <label style="cursor:pointer"><input type="checkbox" id="resface-contour-toggle" aria-label="Toggle contours" onchange="renderResFaceVizMesh()"> Contours</label></div>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px;text-align:center">Drag to rotate &middot; Scroll to zoom &middot; Right-click to pan &middot; Double-click to reset</div>
+          <div class="btn-row" style="margin-top:10px">
+            <button class="btn" id="resface-btn-save-3d">&#128190; Save Face 3D View</button>
           </div>
         </div>
       </div>
@@ -1010,7 +1043,7 @@
         <!-- ── 3D Terrain View ─────────────────────────────────────────────── -->
         <div style="margin-top:14px">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
-            <span style="font-size:12px;font-weight:600;color:var(--accent2)">&#9650; 3D Terrain View</span>
+            <span style="font-size:12px;font-weight:600;color:var(--accent2)">&#9650; 3D Face Terrain View</span>
             <span style="font-size:11px;color:var(--muted)">Drag to rotate &middot; Scroll to zoom &middot; Right-click to pan &middot; Double-click to reset</span>
           </div>
           <div id="relief-3d-scene">
@@ -1274,7 +1307,7 @@ function switchTab(id){
   });
   // Re-render relief maps when switching to their tabs (canvas needs visible width)
   if(id === 'meshdata') { setTimeout(renderSurfaceReliefMap, 60); setTimeout(renderRelief3D, 120); setTimeout(renderFaceReliefMap, 90); }
-  if(id === 'results')  { setTimeout(renderSurfaceReliefMap, 60); setTimeout(renderFaceReliefMap, 90); }
+  if(id === 'results')  { setTimeout(renderSurfaceReliefMap, 60); setTimeout(renderFaceReliefMap, 90); setTimeout(renderResFaceVizMesh, 120); }
   // Re-render probe-tab heatmap canvases when switching to probe tab
   if(id === 'top')      { setTimeout(renderSurfaceReliefMap, 60); setTimeout(renderFaceReliefMap, 90); }
   pluginDebug('switchTab: tab "' + id + '" active');
@@ -1604,15 +1637,14 @@ async function jogBy(dx, dy, dz){
   var jog = getJogSettingsFromUI();
   var feed = (dz != null && dx == null && dy == null) ? jog.feedZ : jog.feedXY;
   if (!isFinite(feed) || feed <= 0) feed = (dz != null) ? 300 : 600;
-  // Use G91 (relative) move — no need to fetch current position first
-  var cmd = 'G91 G1';
+  // Use $J= jog command (GRBL standard) with G91 relative mode
+  var cmd = '$J=G91';
   if (dx != null) cmd += ' X' + Number(dx).toFixed(3);
   if (dy != null) cmd += ' Y' + Number(dy).toFixed(3);
   if (dz != null) cmd += ' Z' + Number(dz).toFixed(3);
   cmd += ' F' + Number(feed).toFixed(0);
   try {
     await sendCommand(cmd);
-    await sendCommand('G90'); // restore absolute positioning mode
     var moved = [];
     if (dx != null) moved.push('X ' + (dx > 0 ? '+' : '') + Number(dx).toFixed(3));
     if (dy != null) moved.push('Y ' + (dy > 0 ? '+' : '') + Number(dy).toFixed(3));
@@ -1628,6 +1660,16 @@ async function jogBy(dx, dy, dz){
     if (el) { el.textContent = 'Jog error: ' + e.message; el.className = 'status-line warn'; }
     throw e;
   }
+}
+
+// ── Button flash animation helper ─────────────────────────────────────────────
+function flashButton(btn) {
+  if (!btn) return;
+  btn.classList.remove('btn-flash');
+  // Force reflow to restart animation
+  void btn.offsetWidth;
+  btn.classList.add('btn-flash');
+  setTimeout(function() { btn.classList.remove('btn-flash'); }, 400);
 }
 
 async function jogToWorkZero(){
@@ -2234,6 +2276,8 @@ function clearAllResults(){
   if(ut) ut.innerHTML = '<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:16px;">No probe data yet</td></tr>';
   var rsp = document.getElementById('res-surface-panel');
   if(rsp) rsp.style.display = 'none';
+  var rfp = document.getElementById('res-face-panel');
+  if(rfp) rfp.style.display = 'none';
   clearLog('top'); clearLog('face');
   updateEdgeProbeStorageUI();
   pluginDebug('clearAllResults: probe results cleared, UI reset');
@@ -3708,7 +3752,7 @@ function initPvizRotation(sceneId) {
   if (!scene || scene._pvizRotInited) return;
   scene._pvizRotInited = true;
   // Map scene ID to the corresponding reset-button ID (face/comb handled separately)
-  var prefixMap = { 'sm-pviz-scene': 'sm', 'res-pviz-scene': 'res', 'surf-pviz-scene': 'surf' };
+  var prefixMap = { 'sm-pviz-scene': 'sm', 'res-pviz-scene': 'res', 'surf-pviz-scene': 'surf', 'resface-pviz-scene': 'resface' };
   var prefix = prefixMap[sceneId];
   scene.addEventListener('dblclick', pvizResetView);
   var resetBtnId = prefix ? (prefix + '-pviz-reset-btn') : null;
@@ -3725,6 +3769,18 @@ function initResVizRotation()  { initPvizRotation('res-pviz-scene'); }
 
 function renderResVizMesh() {
   renderThreeUnified3D('res');
+}
+
+// ── Results Tab Face 3D Visualizer ────────────────────────────────────────────
+function initResFaceVizRotation() { initPvizRotation('resface-pviz-scene'); }
+
+function resFaceVizResetView() {
+  var s = _threeState['resface'];
+  if (s && s.controls) { s.camera.position.set(120, 80, 120); s.camera.lookAt(0, 0, 0); s.controls.reset(); }
+}
+
+function renderResFaceVizMesh() {
+  renderThreeUnified3D('resface');
 }
 
 // ── Surface Mesh Tab 3D Visualizer ────────────────────────────────────────────
@@ -4130,14 +4186,14 @@ function reliefResetView() {
 }
 
 function renderRelief3D() {
-  // Delegate to Three.js unified renderer (surface-only mode for relief-3d-scene)
+  // Delegate to Three.js unified renderer (face-only mode for relief-3d-scene)
   renderThreeUnified3D('relief');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // THREE.JS WEBGL MESH VISUALIZER — Smooth GPU-accelerated surface + face mesh
 // Replaces SVG-based polygon rendering with proper WebGL Phong-shaded geometry.
-// Prefixes: 'sm' | 'res' | 'surf' | 'relief'
+// Prefixes: 'sm' | 'res' | 'resface' | 'surf' | 'relief' | 'face' | 'comb'
 // ═══════════════════════════════════════════════════════════════════════════════
 
 var _threeState = {}; // prefix → {scene, camera, renderer, controls, animId, meshGroup, contourGroup, resizeObs}
@@ -4597,10 +4653,10 @@ function renderThreeUnified3D(prefix) {
   var faceWall   = buildFaceWallGrid();
   var hasFace    = faceWall !== null;
 
-  // Filter by visualization mode: face view shows face-only, surface views show surface-only,
-  // results/combined views show both.
-  if (prefix === 'face') hasSurface = false;
-  if (prefix === 'sm' || prefix === 'surf' || prefix === 'relief') hasFace = false;
+  // Filter by visualization mode: face view shows face-only, surface views show surface-only.
+  // 'res' shows surface only, 'resface' shows face only, 'relief' shows face only (3D terrain).
+  if (prefix === 'face' || prefix === 'resface' || prefix === 'relief') hasSurface = false;
+  if (prefix === 'sm' || prefix === 'surf' || prefix === 'res') hasFace = false;
 
   var wrapId     = (prefix === 'relief') ? 'relief-three-canvas' : prefix + '-three-canvas';
   var canvasWrap = document.getElementById(wrapId);
@@ -4608,8 +4664,9 @@ function renderThreeUnified3D(prefix) {
   if (!hasSurface && !hasFace) {
     if (canvasWrap) canvasWrap.classList.remove('three-active');
     var statusEl = (prefix === 'surf') ? document.getElementById('sm-meshVizStatus') :
-                   (prefix === 'face') ? document.getElementById('face-meshVizStatus') : null;
-    if (statusEl) statusEl.textContent = prefix === 'face'
+                   (prefix === 'face') ? document.getElementById('face-meshVizStatus') :
+                   (prefix === 'resface') ? document.getElementById('resface-meshVizStatus') : null;
+    if (statusEl) statusEl.textContent = (prefix === 'face' || prefix === 'resface')
       ? 'No face mesh data \u2014 run a face probe or load face mesh'
       : 'No mesh data \u2014 run a surface probe or load a mesh';
     pluginDebug('renderThreeUnified3D(' + prefix + '): no data — skipping render');
@@ -4681,7 +4738,8 @@ function renderThreeUnified3D(prefix) {
 
   // Update status text
   var statusEl = (prefix === 'surf') ? document.getElementById('sm-meshVizStatus') :
-                 (prefix === 'face') ? document.getElementById('face-meshVizStatus') : null;
+                 (prefix === 'face') ? document.getElementById('face-meshVizStatus') :
+                 (prefix === 'resface') ? document.getElementById('resface-meshVizStatus') : null;
   if (statusEl) {
     if (hasSurface && hasFace) statusEl.textContent = (cfg.colCount*cfg.rowCount) + ' surface + ' + (faceWall.nCols*faceWall.nRows) + ' face = ' + (cfg.colCount*cfg.rowCount + faceWall.nCols*faceWall.nRows) + ' combined \u2014 Z: ' + zMin.toFixed(3) + ' to ' + zMax.toFixed(3);
     else if (hasSurface)        statusEl.textContent = (cfg.colCount*cfg.rowCount) + ' points, grid ' + cfg.colCount + '\u00d7' + cfg.rowCount + ' \u2014 Z: ' + zMin.toFixed(3) + ' to ' + zMax.toFixed(3);
@@ -4709,6 +4767,7 @@ function save3DViewPNG() {
 
 function populateSurfaceResults() {
   var panel = document.getElementById('res-surface-panel');
+  var facePanel = document.getElementById('res-face-panel');
   if (!panel) return;
 
   var hasSurface = smMeshData && smGridConfig;
@@ -4717,13 +4776,18 @@ function populateSurfaceResults() {
 
   if (!hasSurface && !hasFace) {
     panel.style.display = 'none';
+    if (facePanel) facePanel.style.display = 'none';
     var reliefMapsPanel = document.getElementById('res-relief-maps-panel');
     if (reliefMapsPanel) reliefMapsPanel.style.display = 'none';
     populateUnifiedProbeTable();
     return;
   }
 
-  panel.style.display = 'block';
+  // Show/hide top surface panel based on surface data
+  panel.style.display = hasSurface ? 'block' : 'none';
+
+  // Show/hide face surface panel based on face data
+  if (facePanel) facePanel.style.display = hasFace ? 'block' : 'none';
 
   // Show/hide Results tab relief map panels based on available data
   var reliefMapsPanel = document.getElementById('res-relief-maps-panel');
@@ -4736,6 +4800,13 @@ function populateSurfaceResults() {
   initResVizRotation();
   resVizResetView();
   renderResVizMesh();
+
+  // Initialize and render face 3D view if face data available
+  if (hasFace) {
+    initResFaceVizRotation();
+    resFaceVizResetView();
+    renderResFaceVizMesh();
+  }
 
   // Populate summary stats (surface grid summary)
   if (hasSurface) {
@@ -6264,45 +6335,45 @@ function smLoadSettings() {
   var btnSaveLocation = document.getElementById('btn-save-location');
   if(btnSaveLocation) btnSaveLocation.addEventListener('click', function(){ pluginDebug('btn-save-location clicked'); saveCurrentLocation(); });
   var btnGoLocation = document.getElementById('btn-go-location');
-  if(btnGoLocation) btnGoLocation.addEventListener('click', function(){ pluginDebug('btn-go-location clicked'); goToSavedLocation(); });
+  if(btnGoLocation) btnGoLocation.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-go-location clicked'); goToSavedLocation(); });
   var btnCheckHomed = document.getElementById('btn-check-homed');
-  if(btnCheckHomed) btnCheckHomed.addEventListener('click', function(){ pluginDebug('btn-check-homed clicked'); checkHomedStatus(); });
+  if(btnCheckHomed) btnCheckHomed.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-check-homed clicked'); checkHomedStatus(); });
   var btnUseCurrentZHome = document.getElementById('btn-use-current-z-home');
-  if(btnUseCurrentZHome) btnUseCurrentZHome.addEventListener('click', function(){ pluginDebug('btn-use-current-z-home clicked'); useCurrentZAsFinishHome(); });
+  if(btnUseCurrentZHome) btnUseCurrentZHome.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-use-current-z-home clicked'); useCurrentZAsFinishHome(); });
   var btnRefreshPosition = document.getElementById('btn-refresh-position');
-  if(btnRefreshPosition) btnRefreshPosition.addEventListener('click', function(){ pluginDebug('btn-refresh-position clicked'); refreshCurrentPosition(); });
+  if(btnRefreshPosition) btnRefreshPosition.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-refresh-position clicked'); refreshCurrentPosition(); });
   Array.prototype.forEach.call(document.querySelectorAll('.jog-pill[data-step]'), function(btn){
     btn.addEventListener('click', function(){ var step = btn.getAttribute('data-step'); pluginDebug('Jog step pill clicked: ' + step); setJogStepPreset(step); });
   });
   setJogStepPreset((document.getElementById('jogStepXY') && document.getElementById('jogStepXY').value) || '1');
   var btnJogXMinus = document.getElementById('btn-jog-x-minus');
-  if(btnJogXMinus) btnJogXMinus.addEventListener('click', function(){ pluginDebug('Jog X- clicked'); var j = getJogSettingsFromUI(); jogBy(-Math.abs(j.stepXY), null, null).catch(function(e){ setFooterStatus('Jog X- failed: ' + e.message, 'bad'); }); });
+  if(btnJogXMinus) btnJogXMinus.addEventListener('click', function(){ flashButton(this); pluginDebug('Jog X- clicked'); var j = getJogSettingsFromUI(); jogBy(-Math.abs(j.stepXY), null, null).catch(function(e){ setFooterStatus('Jog X- failed: ' + e.message, 'bad'); }); });
   var btnJogXPlus = document.getElementById('btn-jog-x-plus');
-  if(btnJogXPlus) btnJogXPlus.addEventListener('click', function(){ pluginDebug('Jog X+ clicked'); var j = getJogSettingsFromUI(); jogBy(Math.abs(j.stepXY), null, null).catch(function(e){ setFooterStatus('Jog X+ failed: ' + e.message, 'bad'); }); });
+  if(btnJogXPlus) btnJogXPlus.addEventListener('click', function(){ flashButton(this); pluginDebug('Jog X+ clicked'); var j = getJogSettingsFromUI(); jogBy(Math.abs(j.stepXY), null, null).catch(function(e){ setFooterStatus('Jog X+ failed: ' + e.message, 'bad'); }); });
   var btnJogYMinus = document.getElementById('btn-jog-y-minus');
-  if(btnJogYMinus) btnJogYMinus.addEventListener('click', function(){ pluginDebug('Jog Y- clicked'); var j = getJogSettingsFromUI(); jogBy(null, -Math.abs(j.stepXY), null).catch(function(e){ setFooterStatus('Jog Y- failed: ' + e.message, 'bad'); }); });
+  if(btnJogYMinus) btnJogYMinus.addEventListener('click', function(){ flashButton(this); pluginDebug('Jog Y- clicked'); var j = getJogSettingsFromUI(); jogBy(null, -Math.abs(j.stepXY), null).catch(function(e){ setFooterStatus('Jog Y- failed: ' + e.message, 'bad'); }); });
   var btnJogYPlus = document.getElementById('btn-jog-y-plus');
-  if(btnJogYPlus) btnJogYPlus.addEventListener('click', function(){ pluginDebug('Jog Y+ clicked'); var j = getJogSettingsFromUI(); jogBy(null, Math.abs(j.stepXY), null).catch(function(e){ setFooterStatus('Jog Y+ failed: ' + e.message, 'bad'); }); });
+  if(btnJogYPlus) btnJogYPlus.addEventListener('click', function(){ flashButton(this); pluginDebug('Jog Y+ clicked'); var j = getJogSettingsFromUI(); jogBy(null, Math.abs(j.stepXY), null).catch(function(e){ setFooterStatus('Jog Y+ failed: ' + e.message, 'bad'); }); });
   var btnJogDiagUL = document.getElementById('btn-jog-xy-up-left');
-  if(btnJogDiagUL) btnJogDiagUL.addEventListener('click', function(){ pluginDebug('Jog XY↖ clicked'); var j = getJogSettingsFromUI(); var s=Math.abs(j.stepXY); jogBy(-s, s, null).catch(function(e){ setFooterStatus('Jog failed: ' + e.message, 'bad'); }); });
+  if(btnJogDiagUL) btnJogDiagUL.addEventListener('click', function(){ flashButton(this); pluginDebug('Jog XY↖ clicked'); var j = getJogSettingsFromUI(); var s=Math.abs(j.stepXY); jogBy(-s, s, null).catch(function(e){ setFooterStatus('Jog failed: ' + e.message, 'bad'); }); });
   var btnJogDiagUR = document.getElementById('btn-jog-xy-up-right');
-  if(btnJogDiagUR) btnJogDiagUR.addEventListener('click', function(){ pluginDebug('Jog XY↗ clicked'); var j = getJogSettingsFromUI(); var s=Math.abs(j.stepXY); jogBy(s, s, null).catch(function(e){ setFooterStatus('Jog failed: ' + e.message, 'bad'); }); });
+  if(btnJogDiagUR) btnJogDiagUR.addEventListener('click', function(){ flashButton(this); pluginDebug('Jog XY↗ clicked'); var j = getJogSettingsFromUI(); var s=Math.abs(j.stepXY); jogBy(s, s, null).catch(function(e){ setFooterStatus('Jog failed: ' + e.message, 'bad'); }); });
   var btnJogDiagDL = document.getElementById('btn-jog-xy-down-left');
-  if(btnJogDiagDL) btnJogDiagDL.addEventListener('click', function(){ pluginDebug('Jog XY↙ clicked'); var j = getJogSettingsFromUI(); var s=Math.abs(j.stepXY); jogBy(-s, -s, null).catch(function(e){ setFooterStatus('Jog failed: ' + e.message, 'bad'); }); });
+  if(btnJogDiagDL) btnJogDiagDL.addEventListener('click', function(){ flashButton(this); pluginDebug('Jog XY↙ clicked'); var j = getJogSettingsFromUI(); var s=Math.abs(j.stepXY); jogBy(-s, -s, null).catch(function(e){ setFooterStatus('Jog failed: ' + e.message, 'bad'); }); });
   var btnJogDiagDR = document.getElementById('btn-jog-xy-down-right');
-  if(btnJogDiagDR) btnJogDiagDR.addEventListener('click', function(){ pluginDebug('Jog XY↘ clicked'); var j = getJogSettingsFromUI(); var s=Math.abs(j.stepXY); jogBy(s, -s, null).catch(function(e){ setFooterStatus('Jog failed: ' + e.message, 'bad'); }); });
+  if(btnJogDiagDR) btnJogDiagDR.addEventListener('click', function(){ flashButton(this); pluginDebug('Jog XY↘ clicked'); var j = getJogSettingsFromUI(); var s=Math.abs(j.stepXY); jogBy(s, -s, null).catch(function(e){ setFooterStatus('Jog failed: ' + e.message, 'bad'); }); });
   var btnJogHold = document.getElementById('btn-jog-hold');
-  if(btnJogHold) btnJogHold.addEventListener('click', function(){ pluginDebug('Jog Hold clicked'); jogHoldMotion(); });
+  if(btnJogHold) btnJogHold.addEventListener('click', function(){ flashButton(this); pluginDebug('Jog Hold clicked'); jogHoldMotion(); });
   var btnJogResume = document.getElementById('btn-jog-resume');
-  if(btnJogResume) btnJogResume.addEventListener('click', function(){ pluginDebug('Jog Resume clicked'); jogResumeMotion(); });
+  if(btnJogResume) btnJogResume.addEventListener('click', function(){ flashButton(this); pluginDebug('Jog Resume clicked'); jogResumeMotion(); });
   var btnJogZMinus = document.getElementById('btn-jog-z-minus');
-  if(btnJogZMinus) btnJogZMinus.addEventListener('click', function(){ pluginDebug('Jog Z- clicked'); var j = getJogSettingsFromUI(); jogBy(null, null, -Math.abs(j.stepZ)).catch(function(e){ setFooterStatus('Jog Z- failed: ' + e.message, 'bad'); }); });
+  if(btnJogZMinus) btnJogZMinus.addEventListener('click', function(){ flashButton(this); pluginDebug('Jog Z- clicked'); var j = getJogSettingsFromUI(); jogBy(null, null, -Math.abs(j.stepZ)).catch(function(e){ setFooterStatus('Jog Z- failed: ' + e.message, 'bad'); }); });
   var btnJogZPlus = document.getElementById('btn-jog-z-plus');
-  if(btnJogZPlus) btnJogZPlus.addEventListener('click', function(){ pluginDebug('Jog Z+ clicked'); var j = getJogSettingsFromUI(); jogBy(null, null, Math.abs(j.stepZ)).catch(function(e){ setFooterStatus('Jog Z+ failed: ' + e.message, 'bad'); }); });
+  if(btnJogZPlus) btnJogZPlus.addEventListener('click', function(){ flashButton(this); pluginDebug('Jog Z+ clicked'); var j = getJogSettingsFromUI(); jogBy(null, null, Math.abs(j.stepZ)).catch(function(e){ setFooterStatus('Jog Z+ failed: ' + e.message, 'bad'); }); });
   var btnJogWorkZero = document.getElementById('btn-jog-work-zero');
-  if(btnJogWorkZero) btnJogWorkZero.addEventListener('click', function(){ pluginDebug('Jog Work Zero clicked'); jogToWorkZero(); });
+  if(btnJogWorkZero) btnJogWorkZero.addEventListener('click', function(){ flashButton(this); pluginDebug('Jog Work Zero clicked'); jogToWorkZero(); });
   var btnJogSafeTop = document.getElementById('btn-jog-safe-top');
-  if(btnJogSafeTop) btnJogSafeTop.addEventListener('click', function(){ pluginDebug('Jog Safe Top clicked'); jogRaiseToMachineSafeTop(); });
+  if(btnJogSafeTop) btnJogSafeTop.addEventListener('click', function(){ flashButton(this); pluginDebug('Jog Safe Top clicked'); jogRaiseToMachineSafeTop(); });
   var finishHomeZEl = document.getElementById('finishHomeZ');
   if(finishHomeZEl) finishHomeZEl.addEventListener('input', refreshFinishBehaviorPreview);
   var useMachineHomeRetractEl = document.getElementById('useMachineHomeRetract');
@@ -7315,6 +7386,24 @@ function bindProbeDimensionUI(){
     document.getElementById('res-btn-save-3d').addEventListener('click', save3DViewPNG);
   } catch(e){}
 
+  // Results tab Face 3D View — save and reset buttons
+  try {
+    var resfaceSaveBtn = document.getElementById('resface-btn-save-3d');
+    if (resfaceSaveBtn) resfaceSaveBtn.addEventListener('click', function() {
+      var s = _threeState['resface'];
+      if (s && s.renderer) {
+        s.renderer.render(s.scene, s.camera);
+        var dataURL = s.renderer.domElement.toDataURL('image/png');
+        var link = document.createElement('a');
+        link.download = 'face-3d-view.png';
+        link.href = dataURL;
+        link.click();
+      }
+    });
+    var resfaceResetBtn = document.getElementById('resface-pviz-reset-btn');
+    if (resfaceResetBtn) resfaceResetBtn.addEventListener('click', function() { resFaceVizResetView(); });
+  } catch(e){}
+
   // Grid size display updates
   try {
     ['sm-minX','sm-maxX','sm-spacingX','sm-minY','sm-maxY','sm-spacingY'].forEach(function(id) {
@@ -7824,6 +7913,21 @@ function clearCombinedMesh() {
   var statusEl = document.getElementById('comb-meshStorageStatus');
   if (statusEl) statusEl.textContent = 'Combined data cleared.';
 }
+
+// ── Clear logs on plugin close/exit ───────────────────────────────────────────
+window.addEventListener('beforeunload', function() {
+  try {
+    // Clear in-memory logs
+    topLogLines = [];
+    faceLogLines = [];
+    // Clear persisted logs from localStorage
+    localStorage.removeItem(FACE_LOG_KEY);
+  } catch(e) {}
+  // Dispose Three.js resources to prevent memory leaks
+  try {
+    Object.keys(_threeState).forEach(function(prefix) { _threeDispose(prefix); });
+  } catch(e) {}
+});
 
 
 </script>
