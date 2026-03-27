@@ -2,6 +2,7 @@ var SM_VERSION = 'V19.0';
 // ── State ─────────────────────────────────────────────────────────────────────
 var _running = false;
 var _stopRequested = false;
+var _faceSurfRefZ = null; // surface reference Z captured by Surface Reference Probe button
 var topResults = [];
 var faceResults = [];
 var s = {}; // current run settings — set by runFaceProbe
@@ -1446,6 +1447,42 @@ async function segmentedFaceMoveWithRecovery(axis, targetCoord, fixedCoord, prob
   throw new Error('Segmented face move exceeded safety iteration limit while moving on axis ' + axis + '.');
 }
 
+// ── runFaceSurfaceRefProbe ────────────────────────────────────────────────────
+// Runs a single Z-axis surface probe at the current XY position and stores the
+// contact Z as the surface reference height for face probe stylus depth.
+async function runFaceSurfaceRefProbe() {
+  if (_running) { setFooterStatus('Already running', 'warn'); return; }
+  var probeFeed = Number((document.getElementById('sm-probeFeed') || {}).value) || 100;
+  var maxPlunge = Number((document.getElementById('sm-maxPlunge') || {}).value) || 20;
+  var clearanceZ = Number((document.getElementById('sm-clearanceZ') || {}).value) || 5;
+  var travelFeed = Number((document.getElementById('sm-travelFeed') || {}).value) || 2000;
+  var statusEl = document.getElementById('face-surf-ref-status');
+  var refZEl = document.getElementById('face-surf-ref-z');
+  var btn = document.getElementById('btn-face-surf-ref');
+  if (statusEl) statusEl.textContent = 'Probing…';
+  if (btn) btn.disabled = true;
+  _running = true; _stopRequested = false; smStopFlag = false;
+  try {
+    await requireStartupHomingPreflight('surface reference probe');
+    logLine('face', '=== Surface Reference Probe ===');
+    logLine('face', 'Probing surface reference at current XY…');
+    var pos = await smPlungeProbe(maxPlunge, probeFeed);
+    _faceSurfRefZ = pos.z;
+    if (refZEl) refZEl.textContent = pos.z.toFixed(3) + ' mm';
+    if (statusEl) statusEl.textContent = 'Reference Z = ' + pos.z.toFixed(3) + ' mm — captured.';
+    logLine('face', 'Surface reference Z = ' + pos.z.toFixed(3) + ' mm');
+    await smRetractUp(clearanceZ, travelFeed);
+    setFooterStatus('Surface ref Z = ' + pos.z.toFixed(3), 'good');
+  } catch (e) {
+    if (statusEl) statusEl.textContent = 'Error: ' + e.message;
+    logLine('face', 'Surface reference probe error: ' + e.message);
+    setFooterStatus('Surface ref probe failed: ' + e.message, 'bad');
+  } finally {
+    _running = false;
+    if (btn) btn.disabled = false;
+  }
+}
+
 // ── runFaceProbe ──────────────────────────────────────────────────────────────
 async function runFaceProbe(axis, _calledFromCombined){
   pluginDebug('runFaceProbe ENTER: axis=' + axis);
@@ -1496,11 +1533,14 @@ async function runFaceProbe(axis, _calledFromCombined){
       }
     } else {
       var curPos = await getWorkPosition();
-      var fallbackTopZ = topPts.length ? Number(topPts[0].z) : Number(curPos.z);
+      var fallbackTopZ = topPts.length ? Number(topPts[0].z) : (_faceSurfRefZ !== null ? _faceSurfRefZ : Number(curPos.z));
       if(topPts.length && sampledAxis === axis){
         logLine('face', 'Sample axis matches face probe axis (' + axis + '), so indexed face stepping is unavailable. Falling back to single face line at fixed coordinate ' + fixedCoord.toFixed(3) + '.');
       } else {
         logLine('face', 'No usable top profile samples for indexed face stepping. Falling back to single face line at fixed coordinate ' + fixedCoord.toFixed(3) + '.');
+      }
+      if(_faceSurfRefZ !== null && !topPts.length){
+        logLine('face', 'Using surface reference Z = ' + _faceSurfRefZ.toFixed(3) + ' mm (captured by Surface Reference Probe).');
       }
       faceSamples = [{ index: 1, sampleCoord: fixedCoord, topZ: fallbackTopZ }];
     }
@@ -6220,10 +6260,15 @@ function bindProbeDimensionUI(){
   // Allow free manual keyboard entry in all non-readonly number inputs.
   // Remove min/max permanently (not restored on blur) so that clearing a field
   // does not cause Chromium/Electron to snap the value back to the min value.
+  // Stop keyboard event propagation so the host application (ncSender/Electron)
+  // cannot intercept keystrokes that belong to the focused input field.
   Array.prototype.forEach.call(document.querySelectorAll('input[type="number"]:not([readonly])'), function(el) {
     el.step = 'any';
     el.removeAttribute('min');
     el.removeAttribute('max');
+    el.addEventListener('keydown',  function(e) { e.stopPropagation(); });
+    el.addEventListener('keypress', function(e) { e.stopPropagation(); });
+    el.addEventListener('keyup',    function(e) { e.stopPropagation(); });
   });
 
 }
