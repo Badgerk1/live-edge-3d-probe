@@ -1306,10 +1306,10 @@ function applyFaceCompensationFromTab() {
   applyLogFace('Applying face compensation (axis=' + axis + ', refPos=' + refPos + ')...');
 
   try {
-    if (typeof applyFaceCompensationCore !== 'function') {
+    if (typeof faceApplyCompensationCore !== 'function') {
       throw new Error('Face compensation core function not available');
     }
-    var result = applyFaceCompensationCore(applyOriginalGcode, faceData, refPos, axis);
+    var result = faceApplyCompensationCore(applyOriginalGcode, faceData, refPos, axis);
     applyFaceCompGcode = result.gcode;
     applyLogFace('Done! ' + result.modified + ' ' + axis + ' values adjusted.');
     if (statusEl) { statusEl.textContent = 'Face compensation applied: ' + result.modified + ' values adjusted.'; statusEl.className = 'status-line good'; }
