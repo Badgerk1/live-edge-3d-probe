@@ -116,7 +116,7 @@ function smPvizUpdate(state, opts) {
       // color by Z depth: near 0 = green, deeper negative = orange/red
       var dotColor = '#5fd38d';
       if (opts.contactZ !== undefined) {
-        // scale depth over ~10 mm range: shallow (near 0) = green, deep = orange/red
+        // scale depth over ~10 coords range: shallow (near 0) = green, deep = orange/red
         var depth = Math.min(1, Math.max(0, Math.abs(opts.contactZ) / 10));
         var r = Math.round(depth * 255 + (1 - depth) * 95);
         var g = Math.round((1 - depth) * 211 + depth * 90);
@@ -460,7 +460,7 @@ function renderReliefMap(canvasId, tooltipId, points, cfg) {
     ctx.fillText(xv.toFixed(1), cx, padT + plotH + 13);
   });
   ctx.textAlign = 'center';
-  ctx.fillText(cfg.xLabel || 'X (mm)', padL + plotW / 2, totalH - 2);
+  ctx.fillText(cfg.xLabel || 'X (coords)', padL + plotW / 2, totalH - 2);
   // Y axis ticks and labels — skip labels that would overlap (min 12px spacing)
   ctx.textAlign = 'right';
   var lastLabelY = -Infinity;
@@ -478,7 +478,7 @@ function renderReliefMap(canvasId, tooltipId, points, cfg) {
   ctx.translate(11, padT + plotH / 2);
   ctx.rotate(-Math.PI / 2);
   ctx.textAlign = 'center';
-  ctx.fillText(cfg.yLabel || 'Y (mm)', 0, 0);
+  ctx.fillText(cfg.yLabel || 'Y (coords)', 0, 0);
   ctx.restore();
   ctx.restore();
 
@@ -515,7 +515,7 @@ function renderReliefMap(canvasId, tooltipId, points, cfg) {
   ctx.translate(legendX + legendW + 42, padT + plotH / 2);
   ctx.rotate(-Math.PI / 2);
   ctx.textAlign = 'center';
-  ctx.fillText(cfg.valueLabel || 'Z (mm)', 0, 0);
+  ctx.fillText(cfg.valueLabel || 'Z (coords)', 0, 0);
   ctx.restore();
 
   // Hover tooltip
@@ -566,7 +566,7 @@ function renderSurfaceReliefMap() {
   }
   if (points.length < 4) return;
   pluginDebug('renderSurfaceReliefMap: mode=surface projection=XY points=' + points.length + ' Z=' + zMin.toFixed(3) + ' to ' + zMax.toFixed(3));
-  var reliefCfg = { xLabel: 'X (mm)', yLabel: 'Y (mm)', valueLabel: 'Z (mm)', gridCols: cfg.colCount, gridRows: cfg.rowCount };
+  var reliefCfg = { xLabel: 'X (coords)', yLabel: 'Y (coords)', valueLabel: 'Z (coords)', gridCols: cfg.colCount, gridRows: cfg.rowCount };
   // Render to all surface relief canvas instances (Mesh Data tab, Probe tab, Results tab).
   // Skip any canvas whose element is not in the DOM (e.g. if a tab has not yet been rendered).
   ['surface-relief-canvas', 'sm-surface-relief-canvas', 'res-surface-relief-canvas'].forEach(function(canvasId) {
@@ -634,7 +634,7 @@ function renderFaceReliefMap() {
 
   if (points.length < 4) return;
   pluginDebug('renderFaceReliefMap: mode=face projection=XZ points=' + points.length + ' Y-contact=' + valMin.toFixed(3) + ' to ' + valMax.toFixed(3));
-  var reliefCfg = { xLabel: 'X (mm)', yLabel: 'Z depth (mm)', valueLabel: 'Y contact (mm)', gridCols: nCols, gridRows: nRows };
+  var reliefCfg = { xLabel: 'X (coords)', yLabel: 'Z depth (coords)', valueLabel: 'Y contact (coords)', gridCols: nCols, gridRows: nRows };
   // Render to all face relief canvas instances (Probe tab, Results tab, Mesh Data tab).
   // Show the Mesh Data tab face panel when face data is available.
   // Skip any canvas whose element is not in the DOM (e.g. if a tab has not yet been rendered).
@@ -1313,7 +1313,7 @@ function populateSurfaceResults() {
         '<div style="background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 12px">' +
           '<div style="color:var(--muted);font-size:10px">Area</div>' +
           '<div style="color:var(--text);font-size:14px;font-weight:700">' + areaX + '&times;' + areaY + '</div>' +
-          '<div style="color:var(--muted);font-size:10px">mm</div>' +
+          '<div style="color:var(--muted);font-size:10px">coords</div>' +
         '</div>' +
         '<div style="background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 12px">' +
           '<div style="color:var(--muted);font-size:10px">Z range</div>' +
@@ -1323,7 +1323,7 @@ function populateSurfaceResults() {
         '<div style="background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 12px">' +
           '<div style="color:var(--muted);font-size:10px">Z delta</div>' +
           '<div style="color:var(--warn);font-size:15px;font-weight:700">' + zDelta.toFixed(3) + '</div>' +
-          '<div style="color:var(--muted);font-size:10px">mm</div>' +
+          '<div style="color:var(--muted);font-size:10px">coords</div>' +
         '</div>';
     }
   } else {

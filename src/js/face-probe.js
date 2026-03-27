@@ -16,7 +16,7 @@ async function _clearTriggeredProbeByBackingOffGeneric(tab, currentPos, unitX, u
     var lift = Math.max(0.1, Number(s.travelContactLift) || Number(s.topRetract) || 5);
     var maxRetries = Math.max(1, Math.round(Number(s.travelContactMaxRetries) || 5));
     if(state.recoveries >= maxRetries){
-      throw new Error('Travel path blocked after ' + maxRetries + ' contact recoveries (max added lift ' + (maxRetries * lift).toFixed(3) + ' mm). Raise starting Z or reposition the work.');
+      throw new Error('Travel path blocked after ' + maxRetries + ' contact recoveries (max added lift ' + (maxRetries * lift).toFixed(3) + ' coords). Raise starting Z or reposition the work.');
     }
     state.recoveries += 1;
     state.totalLift += lift;
@@ -24,7 +24,7 @@ async function _clearTriggeredProbeByBackingOffGeneric(tab, currentPos, unitX, u
     var backX = pos.x - unitX * backoff;
     var backY = pos.y - unitY * backoff;
     var liftZ = pos.z + lift;
-    logLine(tab, 'TRAVEL CONTACT: recovery ' + state.recoveries + '/' + maxRetries + ' backoff to X=' + Number(backX).toFixed(3) + ' Y=' + Number(backY).toFixed(3) + ' at F' + Number(s.travelRecoveryFeedRate || s.travelFeedRate).toFixed(0) + ', then lift Z to ' + Number(liftZ).toFixed(3) + ' at F' + Number(s.travelRecoveryLiftFeedRate || s.travelRecoveryFeedRate || s.travelFeedRate).toFixed(0) + ' (cumulative added lift ' + Number(state.totalLift).toFixed(3) + ' mm).');
+    logLine(tab, 'TRAVEL CONTACT: recovery ' + state.recoveries + '/' + maxRetries + ' backoff to X=' + Number(backX).toFixed(3) + ' Y=' + Number(backY).toFixed(3) + ' at F' + Number(s.travelRecoveryFeedRate || s.travelFeedRate).toFixed(0) + ', then lift Z to ' + Number(liftZ).toFixed(3) + ' at F' + Number(s.travelRecoveryLiftFeedRate || s.travelRecoveryFeedRate || s.travelFeedRate).toFixed(0) + ' (cumulative added lift ' + Number(state.totalLift).toFixed(3) + ' coords).');
     await moveAbs(backX, backY, null, s.travelRecoveryFeedRate || s.travelFeedRate);
     await moveAbs(null, null, liftZ, s.travelRecoveryLiftFeedRate || s.travelRecoveryFeedRate || s.travelFeedRate);
     await sleep(120);
@@ -81,7 +81,7 @@ async function segmentedFaceMoveWithRecovery(axis, targetCoord, fixedCoord, prob
     return {position: probePos, extras: extras, contact: null, reachedTarget: true};
   }
 
-  logLine('face', label + ': segmented move toward ' + axis + ' ' + Number(targetCoord).toFixed(3) + ' (step ' + stepLen.toFixed(3) + ' mm, feed ' + moveFeed.toFixed(0) + ' mm/min).');
+  logLine('face', label + ': segmented move toward ' + axis + ' ' + Number(targetCoord).toFixed(3) + ' (step ' + stepLen.toFixed(3) + ' coords, feed ' + moveFeed.toFixed(0) + ' mm/min).');
 
   for(var guard = 0; guard < 4000; guard++){
     checkStop();
@@ -115,7 +115,7 @@ async function segmentedFaceMoveWithRecovery(axis, targetCoord, fixedCoord, prob
       var unitY = axis === 'Y' ? dir : 0;
       pos = await _clearTriggeredProbeByBackingOffGeneric('face', pos, unitX, unitY, s, recoveryState);
       if(pos.probeTriggered && recoveryState.recoveries >= maxRetries){
-        throw new Error('Face reposition path blocked after ' + maxRetries + ' contact recoveries (max added lift ' + Number(recoveryState.totalLift).toFixed(3) + ' mm). Raise starting Z or reposition the work.');
+        throw new Error('Face reposition path blocked after ' + maxRetries + ' contact recoveries (max added lift ' + Number(recoveryState.totalLift).toFixed(3) + ' coords). Raise starting Z or reposition the work.');
       }
       if(Number(pos.z) > Number(probeZ) + 0.001){
         logLine('face', 'FACE REPOSITION RECOVERY: lowering back to face probe Z ' + Number(probeZ).toFixed(3) + ' at F' + Number(s.travelRecoveryLiftFeedRate || s.travelRecoveryFeedRate || s.travelFeedRate).toFixed(0));
@@ -154,13 +154,13 @@ async function runFaceSurfaceRefProbe() {
     logLine('face', 'Probing surface reference at current XY…');
     var pos = await smPlungeProbe(maxPlunge, probeFeed);
     var snap = await getMachineSnapshot();
-    _faceSurfRefZ = snap.machineZ;
-    if (refZEl) refZEl.textContent = snap.machineZ.toFixed(3) + ' mm (machine)';
-    if (statusEl) statusEl.textContent = 'Reference Z = ' + snap.machineZ.toFixed(3) + ' mm (machine) — captured.';
-    logLine('face', 'Surface reference Z = ' + snap.machineZ.toFixed(3) + ' mm (machine coords)');
+    _faceSurfRefZ = pos.z;  // work Z — used by all motion commands
+    if (refZEl) refZEl.textContent = pos.z.toFixed(3) + ' (work coords) / ' + snap.machineZ.toFixed(3) + ' (machine coords)';
+    if (statusEl) statusEl.textContent = 'Reference Z = ' + pos.z.toFixed(3) + ' (work coords) — captured.';
+    logLine('face', 'Surface reference Z = ' + pos.z.toFixed(3) + ' (work coords) / ' + snap.machineZ.toFixed(3) + ' (machine coords)');
     var retractTarget = pos.z + clearanceZ; // pos.z is work Z — GRBL motion uses work coords
     await moveAbs(null, null, retractTarget, travelFeed);
-    setFooterStatus('Surface ref Z = ' + snap.machineZ.toFixed(3), 'good');
+    setFooterStatus('Surface ref Z = ' + pos.z.toFixed(3), 'good');
   } catch (e) {
     if (statusEl) statusEl.textContent = 'Error: ' + e.message;
     logLine('face', 'Surface reference probe error: ' + e.message);
@@ -228,7 +228,7 @@ async function runFaceProbe(axis, _calledFromCombined){
         logLine('face', 'No usable top profile samples for indexed face stepping. Falling back to single face line at fixed coordinate ' + fixedCoord.toFixed(3) + '.');
       }
       if(_faceSurfRefZ !== null && !topPts.length){
-        logLine('face', 'Using surface reference Z = ' + _faceSurfRefZ.toFixed(3) + ' mm (captured by Surface Reference Probe).');
+        logLine('face', 'Using surface reference Z = ' + _faceSurfRefZ.toFixed(3) + ' coords (captured by Surface Reference Probe).');
       }
       faceSamples = [{ index: 1, sampleCoord: fixedCoord, topZ: fallbackTopZ }];
     }
@@ -239,14 +239,14 @@ async function runFaceProbe(axis, _calledFromCombined){
       var layerCount = Math.max(2, Math.round(Number(s.faceLayerCount) || 3));
       var totalLayers = layerCount;
 
-      logLine('face', 'Layered face probe: ' + totalLayers + ' layers, max depth ' + maxDepth.toFixed(3) + 'mm');
+      logLine('face', 'Layered face probe: ' + totalLayers + ' layers, max depth ' + maxDepth.toFixed(3) + ' coords');
       layeredFaceResults = [];
 
       // Pre-calculate inter-sample retract Z for each layer.
       // For each non-last layer: find the shallowest (closest to zero / highest) next-layer Z
-      // across all X samples, then add 2mm clearance buffer.
+      // across all X samples, then add 2 coords clearance buffer.
       // For the last layer: null (signals "use full safe Z").
-      // Uses effectiveTopZ = sampleTopZ - 0.05 so the shallowest layer probes 0.05mm below surface.
+      // Uses effectiveTopZ = sampleTopZ - 0.05 so the shallowest layer probes 0.05 coords below surface.
       var layerRetractZ = [];
       for(var layerIdx = 0; layerIdx < totalLayers; layerIdx++){
         if(layerIdx === totalLayers - 1){
@@ -277,7 +277,7 @@ async function runFaceProbe(axis, _calledFromCombined){
         for(var oi = 0; oi < faceSamples.length; oi++) sampleOrder.push(oi);
         if(!forward) sampleOrder.reverse();
         if(isBottomLayer){
-          logLine('face', 'Layer ' + layerNum + '/' + totalLayers + ': probing face at per-sample depth (stylusLen=' + maxDepth.toFixed(3) + 'mm below topZ) across ' + faceSamples.length + ' X samples');
+          logLine('face', 'Layer ' + layerNum + '/' + totalLayers + ': probing face at per-sample depth (stylusLen=' + maxDepth.toFixed(3) + ' coords below topZ) across ' + faceSamples.length + ' X samples');
         } else {
           logLine('face', 'Layer ' + layerNum + '/' + totalLayers + ': probing face across ' + faceSamples.length + ' X samples (per-sample Z, ' + (forward ? 'left\u2192right' : 'right\u2192left') + ' serpentine)');
         }
@@ -292,7 +292,7 @@ async function runFaceProbe(axis, _calledFromCombined){
 
           // Per-sample layer Z calculation:
           // Layer 1 (bottom) is at sampleTopZ - maxDepth (stylus length below top surface)
-          // Shallowest layer probes at sampleTopZ - 0.05 (0.05mm below surface to ensure contact)
+          // Shallowest layer probes at sampleTopZ - 0.05 (0.05 coords below surface to ensure contact)
           // Middle layers are evenly spaced between bottom and sampleTopZ - 0.05
           var sampleTopZ = Number(sample.topZ);
           var deepestZ = sampleTopZ - maxDepth;

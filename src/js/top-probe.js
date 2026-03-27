@@ -75,7 +75,7 @@ function runSurfaceProbing() {
           smPvizUpdate('contact', { x: colX, y: rowY, point: probed, total: totalPoints, contactZ: pos.z, pct: probed / totalPoints * 100 });
           smLogProbe('  -> Z=' + smFmtN(pos.z));
           smLogProbe('DEBUG POSITION: after probe X=' + pos.x.toFixed(3) + ' Y=' + pos.y.toFixed(3) + ' Z=' + pos.z.toFixed(3));
-          smLogProbe('DEBUG: contact at Z=' + pos.z.toFixed(3) + '; smSafeLateralMove will lift ' + clearanceZ.toFixed(3) + 'mm relative before next travel');
+          smLogProbe('DEBUG: contact at Z=' + pos.z.toFixed(3) + '; smSafeLateralMove will lift ' + clearanceZ.toFixed(3) + ' coords relative before next travel');
         })
         .then(function() { return probeStep(step + 1); });
     }
@@ -86,7 +86,7 @@ function runSurfaceProbing() {
         // After LTR row (even) machine is at maxX; next row (odd, RTL) starts at maxX — Y-only move
         // After RTL row (odd) machine is at minX; next row (even, LTR) starts at minX — Y-only move
         var nextStartX = reversed ? cfg.minX : cfg.maxX;
-        smLogProbe('ROW TRANSITION: row ' + ri + ' done (direction: ' + (reversed ? 'RTL' : 'LTR') + '); using smSafeLateralMove to lift Z by ' + clearanceZ + 'mm relative then move to X=' + smFmtN(nextStartX) + ' Y=' + smFmtN(nextY));
+        smLogProbe('ROW TRANSITION: row ' + ri + ' done (direction: ' + (reversed ? 'RTL' : 'LTR') + '); using smSafeLateralMove to lift Z by ' + clearanceZ + ' coords relative then move to X=' + smFmtN(nextStartX) + ' Y=' + smFmtN(nextY));
         smPvizUpdate('traveling', { x: nextStartX, y: nextY, point: probed + 1, total: totalPoints, pct: probed / totalPoints * 100, action: 'Row transition...' });
         return smSafeLateralMove(nextStartX, nextY, travelFeed, clearanceZ)
           .then(function() { return smEnsureProbeClear(clearanceZ, travelFeed); });
@@ -1110,7 +1110,7 @@ async function applyAnalyzeGcodeBounds() {
       'X: ' + bounds.min.x.toFixed(2) + ' to ' + bounds.max.x.toFixed(2) +
       ' &nbsp;|&nbsp; Y: ' + bounds.min.y.toFixed(2) + ' to ' + bounds.max.y.toFixed(2) +
       ' &nbsp;|&nbsp; Z: ' + bounds.min.z.toFixed(2) + ' to ' + bounds.max.z.toFixed(2) +
-      ' &nbsp;|&nbsp; Size: ' + (bounds.max.x - bounds.min.x).toFixed(2) + ' &times; ' + (bounds.max.y - bounds.min.y).toFixed(2) + ' mm';
+      ' &nbsp;|&nbsp; Size: ' + (bounds.max.x - bounds.min.x).toFixed(2) + ' &times; ' + (bounds.max.y - bounds.min.y).toFixed(2) + ' coords';
   }
 }
 
@@ -1175,7 +1175,7 @@ function applySubdividedCompensation(gcodeText, meshData, gridCfg, referenceZ) {
   output.push('(Z-Compensated G-code - 3D Live Edge Mesh Combined Plugin)');
   output.push('(Grid: ' + gridCfg.colCount + ' x ' + gridCfg.rowCount + ' points)');
   output.push('(Reference Z: ' + referenceZ.toFixed(3) + ')');
-  output.push('(Segment length: ' + segmentLength.toFixed(2) + 'mm)');
+  output.push('(Segment length: ' + segmentLength.toFixed(2) + ' coords)');
   output.push('');
 
   for (var i = 0; i < lines.length; i++) {
@@ -1266,7 +1266,7 @@ function applySubdividedCompensation(gcodeText, meshData, gridCfg, referenceZ) {
       if (hasZ) {
         output.push(line.replace(/Z([+-]?\d*\.?\d+)/i, 'Z' + compensatedZ3.toFixed(3)));
       } else {
-        // Only add Z to rapid moves at working height (below safe retract threshold of 10mm)
+        // Only add Z to rapid moves at working height (below safe retract threshold of 10 coords)
         if (currentZ < 10) {
           output.push(line.trim() + ' Z' + compensatedZ3.toFixed(3));
         } else {
