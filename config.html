@@ -7915,8 +7915,8 @@ function clearCombinedMesh() {
   if (statusEl) statusEl.textContent = 'Combined data cleared.';
 }
 
-// ── Clear logs on plugin close/exit ───────────────────────────────────────────
-window.addEventListener('beforeunload', function() {
+// ── Clear all probe and mesh data on plugin close/exit ────────────────────────
+function pluginCleanupOnClose() {
   try {
     // Clear in-memory logs
     topLogLines = [];
@@ -7925,18 +7925,49 @@ window.addEventListener('beforeunload', function() {
     topResults = [];
     faceResults = [];
     layeredFaceResults = [];
+    // Clear in-memory mesh data
     smMeshData = null;
     smGridConfig = null;
+    combinedMeshPoints = null;
     // Clear persisted logs from localStorage
     localStorage.removeItem(FACE_LOG_KEY);
     // Clear persisted probe results from localStorage
     clearPersistedProbeResults();
+    // Clear persisted surface mesh data from localStorage
+    localStorage.removeItem(SM_MESH_KEY);
+    localStorage.removeItem(MESH_STORAGE_KEY);
+    // Clear persisted face mesh data from localStorage
+    localStorage.removeItem(FACE_MESH_STORAGE_KEY);
+    // Reset Results tab DOM to empty state
+    var ut = document.getElementById('res-unified-tbody');
+    if (ut) ut.innerHTML = '<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:16px;">No probe data yet</td></tr>';
+    var rsp = document.getElementById('res-surface-panel');
+    if (rsp) rsp.style.display = 'none';
+    var rfp = document.getElementById('res-face-panel');
+    if (rfp) rfp.style.display = 'none';
+    var rrelief = document.getElementById('res-relief-maps-panel');
+    if (rrelief) rrelief.style.display = 'none';
+    // Reset Mesh Data tab — surface mesh table
+    var smTbody = document.getElementById('sm-meshTableBody');
+    if (smTbody) smTbody.innerHTML = '<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:16px;">No data yet</td></tr>';
+    var smVizStatus = document.getElementById('sm-meshVizStatus');
+    if (smVizStatus) smVizStatus.textContent = 'No mesh data — run a surface probe or load a mesh';
+    // Reset Mesh Data tab — face mesh table
+    var faceTbody = document.getElementById('face-meshTableBody');
+    if (faceTbody) faceTbody.innerHTML = '<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:16px;">No data yet</td></tr>';
+    var faceVizStatus = document.getElementById('face-meshVizStatus');
+    if (faceVizStatus) faceVizStatus.textContent = 'No face mesh data — run a face probe or load face mesh';
+    // Reset combined mesh panel
+    var combTbody = document.getElementById('comb-mesh-tbody');
+    if (combTbody) combTbody.innerHTML = '<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:16px;">No combined data yet</td></tr>';
   } catch(e) {}
   // Dispose Three.js resources to prevent memory leaks
   try {
     Object.keys(_threeState).forEach(function(prefix) { _threeDispose(prefix); });
   } catch(e) {}
-});
+}
+
+window.addEventListener('beforeunload', pluginCleanupOnClose);
 
 
 </script>
