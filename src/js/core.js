@@ -70,6 +70,8 @@ function switchTab(id){
   if(id === 'results')  { setTimeout(populateSurfaceResults, 30); setTimeout(renderSurfaceReliefMap, 60); setTimeout(renderFaceReliefMap, 90); setTimeout(renderResVizMesh, 100); setTimeout(renderResFaceVizMesh, 120); }
   // Re-render probe-tab heatmap canvases when switching to probe tab
   if(id === 'top')      { setTimeout(renderSurfaceReliefMap, 60); setTimeout(renderFaceReliefMap, 90); }
+  // Refresh Apply tab button states when switching to it so mesh availability is reflected
+  if(id === 'apply')    { try { applyUpdateButtons(); } catch(e) {} }
   pluginDebug('switchTab: tab "' + id + '" active');
 }
 
