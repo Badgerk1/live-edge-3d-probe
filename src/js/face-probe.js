@@ -151,6 +151,7 @@ async function runFaceProbe(axis, _calledFromCombined){
   try{
     await requireStartupHomingPreflight('face probe ' + axis);
     s = getSettingsFromUI();
+    meshSubdivisionSpacing = s.meshSubdivisionSpacing != null ? Number(s.meshSubdivisionSpacing) : meshSubdivisionSpacing;
     var startCoord = Number(s.faceStartOffset);
     var depthBelow = Number(s.faceDepthBelowSurface);
     var probeDist = Number(s.faceProbeDistance);
@@ -431,6 +432,8 @@ async function runFaceProbe(axis, _calledFromCombined){
       await finishRunMotion('face');
       if (!_calledFromCombined) switchTab('results');
       setFooterStatus('Layered face probe ' + axis + ' complete: ' + totalLayers + ' layers x ' + faceSamples.length + ' samples = ' + layeredFaceResults.length + ' contacts', 'good');
+      layeredFaceResultsRaw = layeredFaceResults.slice();
+      layeredFaceResults = subdivideFaceMesh(layeredFaceResults, meshSubdivisionSpacing);
       updateFaceMeshDataUI();
       // Re-render surface mesh visualizers to include face wall (even when no surface mesh is present)
       smPvizRenderMesh();
@@ -499,6 +502,8 @@ async function runFaceProbe(axis, _calledFromCombined){
     if (!_calledFromCombined) switchTab('results');
     pluginDebug('runFaceProbe COMPLETE: axis=' + axis + ' samples=' + faceSamples.length);
     setFooterStatus('Face probe ' + axis + ' complete: ' + faceSamples.length + ' sample(s)', 'good');
+    layeredFaceResultsRaw = layeredFaceResults.slice();
+    layeredFaceResults = subdivideFaceMesh(layeredFaceResults, meshSubdivisionSpacing);
     updateFaceMeshDataUI();
     populateUnifiedProbeTable();
     saveProbeResults();
