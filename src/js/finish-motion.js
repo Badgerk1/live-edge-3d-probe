@@ -829,12 +829,12 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, o
   }
 
   // ── Pass 1 (uniform offset mode): pre-compute one offset per move group ──────
-  // Groups are separated by G0 rapids, Z retracts above retractThreshold, or
-  // non-move lines.  Every G1 line in a group receives the same Y (or X) offset
-  // derived from the group centroid, preserving the internal letter geometry.
+  // Groups are separated by G0 rapids, Z retracts (pz >= 0 catches V-carve retracts
+  // to Z=0 between letter strokes), or non-move lines.  Every G1 line in a group
+  // receives the same Y (or X) offset derived from the group centroid, preserving
+  // the internal letter geometry.
   var lineGroupOffset = null; // null → per-point mode; array → uniform mode
   if (uniformOffset) {
-    var retractThreshold = 2.0;
     var p1X = 0, p1Y = 0, p1Z = 0;
     var grpLines = [], grpSamples = [], grpZs = [];
     lineGroupOffset = [];
@@ -867,8 +867,9 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, o
       if (plIsG0) {
         finalizeGrp();
       } else if (plIsG1) {
-        if (pz > retractThreshold) {
+        if (pz >= 0) {
           // Retract move — end current group but don't add this line to a group
+          // (pz >= 0 catches V-carve retracts to Z=0 as well as clearance moves)
           finalizeGrp();
         } else {
           grpLines.push(pi);
