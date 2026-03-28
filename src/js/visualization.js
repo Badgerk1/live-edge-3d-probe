@@ -1056,8 +1056,8 @@ function _buildThreeFaceWall(faceWall, cfg, zMin, zMax, zExag, si) {
   var validCell = [];
   for (var xi=0; xi<nCX; xi++) { validCell[xi] = [];
     for (var li=0; li<nCY; li++) {
-      var r00=faceWall.grid[xi]&&faceWall.grid[xi][li], r10=faceWall.grid[xi+1]&&faceWall.grid[xi+1][li];
-      var r01=faceWall.grid[xi]&&faceWall.grid[xi][li+1], r11=faceWall.grid[xi+1]&&faceWall.grid[xi+1][li+1];
+      var r00=faceWall.grid[li]&&faceWall.grid[li][xi], r10=faceWall.grid[li]&&faceWall.grid[li][xi+1];
+      var r01=faceWall.grid[li+1]&&faceWall.grid[li+1][xi], r11=faceWall.grid[li+1]&&faceWall.grid[li+1][xi+1];
       if (!r00||!r10||!r01||!r11) { validCell[xi][li]=false; continue; }
       validCell[xi][li]=isFinite(Number(r00.z))&&isFinite(Number(r10.z))&&isFinite(Number(r01.z))&&isFinite(Number(r11.z));
     }
@@ -1068,8 +1068,8 @@ function _buildThreeFaceWall(faceWall, cfg, zMin, zMax, zExag, si) {
     var baseGx = xi * SUB;
     for (var li=0; li<nCY; li++) {
       if (!validCell[xi][li]) continue;
-      var r00=faceWall.grid[xi][li], r10=faceWall.grid[xi+1][li];
-      var r01=faceWall.grid[xi][li+1], r11=faceWall.grid[xi+1][li+1];
+      var r00=faceWall.grid[li][xi], r10=faceWall.grid[li][xi+1];
+      var r01=faceWall.grid[li+1][xi], r11=faceWall.grid[li+1][xi+1];
       var z00=Number(r00.z),z10=Number(r10.z),z01=Number(r01.z),z11=Number(r11.z);
       var cy00=Number(r00.y),cy10=Number(r10.y),cy01=Number(r01.y),cy11=Number(r11.y);
       var x00=Number(r00.x), x10=Number(r10.x);
@@ -1139,18 +1139,18 @@ function _buildThreeBridge(grid, cfg, faceWall, zMin, zMax, zExag, si) {
   function faceTopZ(machX) {
     var xi = 0;
     while (xi < faceWall.nCols - 1 && faceWall.xs[xi + 1] <= machX) xi++;
-    var r0 = faceWall.grid[xi] && faceWall.grid[xi][topLi]; if (!r0) return null;
+    var r0 = faceWall.grid[topLi] && faceWall.grid[topLi][xi]; if (!r0) return null;
     if (xi >= faceWall.nCols - 1) return Number(r0.z);
-    var r1 = faceWall.grid[xi + 1] && faceWall.grid[xi + 1][topLi]; if (!r1) return Number(r0.z);
+    var r1 = faceWall.grid[topLi] && faceWall.grid[topLi][xi + 1]; if (!r1) return Number(r0.z);
     var x0=faceWall.xs[xi], x1=faceWall.xs[xi+1], t=x1>x0?(machX-x0)/(x1-x0):0;
     return Number(r0.z)*(1-t)+Number(r1.z)*t;
   }
   function faceTopContactY(machX) {
     var xi = 0;
     while (xi < faceWall.nCols - 1 && faceWall.xs[xi + 1] <= machX) xi++;
-    var r0 = faceWall.grid[xi] && faceWall.grid[xi][topLi]; if (!r0) return cMid;
+    var r0 = faceWall.grid[topLi] && faceWall.grid[topLi][xi]; if (!r0) return cMid;
     if (xi >= faceWall.nCols - 1) return Number(r0.y);
-    var r1 = faceWall.grid[xi + 1] && faceWall.grid[xi + 1][topLi]; if (!r1) return Number(r0.y);
+    var r1 = faceWall.grid[topLi] && faceWall.grid[topLi][xi + 1]; if (!r1) return Number(r0.y);
     var x0=faceWall.xs[xi], x1=faceWall.xs[xi+1], t=x1>x0?(machX-x0)/(x1-x0):0;
     return Number(r0.y)*(1-t)+Number(r1.y)*t;
   }
@@ -1251,10 +1251,10 @@ function _buildThreeFaceContours(faceWall, cfg, zMin, zMax, zExag, si) {
   for (var cLevel = Math.ceil(cMin / interval) * interval; cLevel <= cMax + 1e-9; cLevel += interval) {
     for (var xi = 0; xi < faceWall.nCols - 1; xi++) {
       for (var li = 0; li < faceWall.nRows - 1; li++) {
-        var r00=faceWall.grid[xi]  &&faceWall.grid[xi][li];
-        var r10=faceWall.grid[xi+1]&&faceWall.grid[xi+1][li];
-        var r01=faceWall.grid[xi]  &&faceWall.grid[xi][li+1];
-        var r11=faceWall.grid[xi+1]&&faceWall.grid[xi+1][li+1];
+        var r00=faceWall.grid[li]  &&faceWall.grid[li][xi];
+        var r10=faceWall.grid[li]  &&faceWall.grid[li][xi+1];
+        var r01=faceWall.grid[li+1]&&faceWall.grid[li+1][xi];
+        var r11=faceWall.grid[li+1]&&faceWall.grid[li+1][xi+1];
         if (!r00||!r10||!r01||!r11) continue;
         var z00=Number(r00.z),z10=Number(r10.z),z01=Number(r01.z),z11=Number(r11.z);
         if (!isFinite(z00)||!isFinite(z10)||!isFinite(z01)||!isFinite(z11)) continue;
