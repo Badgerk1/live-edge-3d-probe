@@ -2431,6 +2431,90 @@ function _buildNaturalCubicSpline(zs, ys) {
 }
 
 /**
+ * _buildNotAKnotCubicSpline(xs, ys)
+ * Builds a cubic spline through the given (xs[i], ys[i]) data points using
+ * not-a-knot boundary conditions: the third derivative is forced to be
+ * continuous at the first and last interior knots. This eliminates the
+ * artificial flattening at the edges that natural splines produce with sparse
+ * data (e.g. 5 X probe columns), giving smooth blending rather than humps.
+ * Falls back to natural cubic for n < 4.
+ */
+function _buildNotAKnotCubicSpline(xs, ys) {
+  var n = xs.length;
+  if (n < 2) return function() { return ys[0] || 0; };
+  if (n === 2) {
+    return function(z) {
+      var t = (xs[1] === xs[0]) ? 0 : (z - xs[0]) / (xs[1] - xs[0]);
+      t = Math.max(0, Math.min(1, t));
+      return ys[0] + t * (ys[1] - ys[0]);
+    };
+  }
+  if (n < 4) return _buildNaturalCubicSpline(xs, ys);
+
+  var h = [], d = [];
+  for (var i = 0; i < n - 1; i++) {
+    h[i] = xs[i + 1] - xs[i];
+    d[i] = (ys[i + 1] - ys[i]) / h[i];
+  }
+
+  // Build augmented n×n matrix for Gaussian elimination.
+  // Row 0    (not-a-knot at x[1]):   h[1]*M[0] - (h[0]+h[1])*M[1] + h[0]*M[2] = 0
+  // Rows 1..n-2 (interior):          h[i-1]*M[i-1] + 2*(h[i-1]+h[i])*M[i] + h[i]*M[i+1] = 6*(d[i]-d[i-1])
+  // Row n-1  (not-a-knot at x[n-2]): h[n-2]*M[n-3] - (h[n-3]+h[n-2])*M[n-2] + h[n-3]*M[n-1] = 0
+  var A = [];
+  for (var i = 0; i < n; i++) {
+    A.push(new Array(n + 1).fill(0));
+  }
+  A[0][0] = h[1];
+  A[0][1] = -(h[0] + h[1]);
+  A[0][2] = h[0];
+  for (var i = 1; i <= n - 2; i++) {
+    A[i][i - 1] = h[i - 1];
+    A[i][i]     = 2 * (h[i - 1] + h[i]);
+    A[i][i + 1] = h[i];
+    A[i][n]     = 6 * (d[i] - d[i - 1]);
+  }
+  A[n - 1][n - 3] = h[n - 2];
+  A[n - 1][n - 2] = -(h[n - 3] + h[n - 2]);
+  A[n - 1][n - 1] = h[n - 3];
+
+  // Gaussian elimination with partial pivoting
+  for (var col = 0; col < n; col++) {
+    var pivotRow = col;
+    for (var row = col + 1; row < n; row++) {
+      if (Math.abs(A[row][col]) > Math.abs(A[pivotRow][col])) pivotRow = row;
+    }
+    var tmp = A[col]; A[col] = A[pivotRow]; A[pivotRow] = tmp;
+    if (Math.abs(A[col][col]) < 1e-14) continue;
+    for (var row = col + 1; row < n; row++) {
+      var factor = A[row][col] / A[col][col];
+      for (var j = col; j <= n; j++) A[row][j] -= factor * A[col][j];
+    }
+  }
+  // Back substitution
+  var M = new Array(n).fill(0);
+  for (var i = n - 1; i >= 0; i--) {
+    if (Math.abs(A[i][i]) < 1e-14) { M[i] = 0; continue; }
+    var sum = A[i][n];
+    for (var j = i + 1; j < n; j++) sum -= A[i][j] * M[j];
+    M[i] = sum / A[i][i];
+  }
+
+  return function(z) {
+    if (z <= xs[0]) return ys[0];
+    if (z >= xs[n - 1]) return ys[n - 1];
+    var lo = 0, hi = n - 2;
+    while (lo < hi) { var mid = (lo + hi) >> 1; if (xs[mid + 1] < z) lo = mid + 1; else hi = mid; }
+    var i = lo;
+    var dz = h[i];
+    var a = (xs[i + 1] - z) / dz;
+    var b = (z - xs[i]) / dz;
+    return a * ys[i] + b * ys[i + 1] +
+      ((a * a * a - a) * M[i] + (b * b * b - b) * M[i + 1]) * dz * dz / 6;
+  };
+}
+
+/**
  * _buildSubdividedFaceGrid(results, resolution)
  * Generates a dense mesh from the raw face probe points using bicubic interpolation:
  *   - Cubic spline interpolation along the Z (layer) axis for smooth curved transitions
@@ -2529,8 +2613,9 @@ function _buildSubdividedFaceGrid(results, resolution) {
       continue;
     }
 
-    // Fit a cubic spline along X through the Y values at each original X column
-    var xSplineY = _buildNaturalCubicSpline(xs, rowYatCols);
+    // Fit a not-a-knot cubic spline along X — avoids the artificial flattening
+    // at the edges that natural BCs produce with only 5 sparse probe columns.
+    var xSplineY = _buildNotAKnotCubicSpline(xs, rowYatCols);
 
     // X spline is built per-row because rowYatCols changes for every zOut value
     var safeDenom = Math.max(1, numCols - 1);
