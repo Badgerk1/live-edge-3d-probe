@@ -17,7 +17,9 @@ var SAVED_LOCATION_KEY = 'edgeProbeSavedLocation';
 var topLogLines = [];
 var faceLogLines = [];
 var layeredFaceResults = [];
+var layeredFaceResultsRaw = []; // original sparse face probe points (pre-subdivision)
 var MESH_STORAGE_KEY = 'edgeProbeMeshData';
+var meshSubdivisionSpacing = 2; // mm between subdivided mesh points (0 = disabled)
 var PROBE_DIMENSIONS_KEY = 'edgeProbeDimensions';
 
 // ── Debug logging ─────────────────────────────────────────────────────────────

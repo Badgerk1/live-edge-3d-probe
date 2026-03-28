@@ -629,6 +629,22 @@
           </div>
         </div>
       </div>
+      <div class="panel">
+        <div class="box-title">Mesh Subdivision</div>
+        <div class="grid three">
+          <div class="field">
+            <label>
+              <span class="tooltip">Subdivision Spacing (mm)<span class="tip-icon">?</span>
+                <span class="tip">Target spacing between interpolated mesh points after probing. Smaller values produce smoother meshes. Set to 0 to disable subdivision and keep raw probe points only.</span>
+              </span>
+            </label>
+            <input type="number" id="meshSubdivisionSpacing" value="2" step="0.5" min="0" max="25">
+          </div>
+          <div class="field" style="grid-column:span 2">
+            <div class="mini" style="margin-top:18px">Bilinear interpolation is applied automatically after every probe cycle and when loading saved mesh data. The raw probe points are preserved internally. Smaller spacing = smoother exports, compensation, and visualizations.</div>
+          </div>
+        </div>
+      </div>
       <div class="btn-row">
         <button class="btn" id="btn-save-settings">&#128190; Save Settings</button>
         <button class="btn ghost" id="btn-load-settings">&#128194; Load Settings</button>
@@ -1287,7 +1303,9 @@ var SAVED_LOCATION_KEY = 'edgeProbeSavedLocation';
 var topLogLines = [];
 var faceLogLines = [];
 var layeredFaceResults = [];
+var layeredFaceResultsRaw = []; // original sparse face probe points (pre-subdivision)
 var MESH_STORAGE_KEY = 'edgeProbeMeshData';
+var meshSubdivisionSpacing = 2; // mm between subdivided mesh points (0 = disabled)
 var PROBE_DIMENSIONS_KEY = 'edgeProbeDimensions';
 
 // ── Debug logging ─────────────────────────────────────────────────────────────
@@ -1922,6 +1940,8 @@ function getSettingsFromUI(){
     probeStylusCalloutLength: Number((document.getElementById('probeStylusCalloutLength')||{}).value) || 14.75,
     probeBallTipDiameter: Number((document.getElementById('probeBallTipDiameter')||{}).value) || 0,
     probeTotalLength: Number((document.getElementById('probeTotalLength')||{}).value) || 67,
+    meshSubdivisionSpacing: (function(){ var el = document.getElementById('meshSubdivisionSpacing'); return el ? Number(el.value) : 2; })(),
+    faceOBJSubdivision: (function(){ var el = document.getElementById('faceOBJSubdivision'); return el ? Number(el.value) : 2; })(),
   };
 }
 
@@ -2165,7 +2185,9 @@ function resetSettings(){
     travelFeedRate:600, travelRecoveryFeedRate:1500, travelRecoveryLiftFeedRate:1000, useTravelContactRecovery:'yes', travelContactStep:5, travelContactBackoff:5, travelContactLift:5, travelContactMaxRetries:5, faceFixedCoord:0, faceStartOffset:-10, faceFeed:150,
     faceDepthBelowSurface:2, faceProbeDistance:20, enableLayeredFace:false, faceLayerCount:3, faceMaxDepth:14.75, faceTopSurfaceMode:'flat', finishHomeZ:10,
     useMachineHomeRetract:'yes', machineSafeTopZ:0, returnToXYZero:'yes',
-    jogStepXY:1, jogStepZ:2, jogFeedXY:600, jogFeedZ:300
+    jogStepXY:1, jogStepZ:2, jogFeedXY:600, jogFeedZ:300,
+    meshSubdivisionSpacing: 2,
+    faceOBJSubdivision: 2
   });
 }
 
@@ -2176,7 +2198,9 @@ function _applySettingsToUI(cfg){
              'faceFixedCoord','faceStartOffset','faceFeed','faceDepthBelowSurface','faceProbeDistance',
              'faceLayerCount','faceMaxDepth',
              'finishHomeZ','useMachineHomeRetract','machineSafeTopZ','returnToXYZero',
-             'jogStepXY','jogStepZ','jogFeedXY','jogFeedZ'];
+             'jogStepXY','jogStepZ','jogFeedXY','jogFeedZ',
+             'meshSubdivisionSpacing',
+             'faceOBJSubdivision'];
   ids.forEach(function(id){
     var el = document.getElementById(id);
     if(el && cfg[id] != null) el.value = cfg[id];
@@ -2187,6 +2211,7 @@ function _applySettingsToUI(cfg){
   if(topSurfaceEl && cfg.faceTopSurfaceMode != null) topSurfaceEl.value = cfg.faceTopSurfaceMode;
   var jogStepEl = document.getElementById('jogStepXY');
   if(jogStepEl) setJogStepPreset(jogStepEl.value || '1');
+  if(cfg.meshSubdivisionSpacing != null) meshSubdivisionSpacing = Number(cfg.meshSubdivisionSpacing);
   refreshFinishBehaviorPreview();
   refreshTravelRecoveryPreview();
 }
@@ -2353,6 +2378,91 @@ function exportCSV(){
 
 
 // ── Face mesh export helpers ──────────────────────────────────────────────────
+
+/**
+ * _buildSubdividedFaceGrid(results, resolution)
+ * Bilinearly interpolates a dense mesh from the raw face probe points.
+ * Builds a pts[xi][li] 2D grid (X columns × layer rows), then generates
+ * numCols × numRows output vertices at the requested mm resolution.
+ * Returns { rows, numCols, numRows, origVerts } or null when data is degenerate.
+ */
+function _buildSubdividedFaceGrid(results, resolution) {
+  // Collect unique X positions and layer numbers
+  var xKeyToVal = {}, layerSet = {};
+  results.forEach(function(p) {
+    var xv = Number(p.x), lv = p.layer != null ? p.layer : 1;
+    if (!isFinite(xv) || !isFinite(Number(p.y)) || !isFinite(Number(p.z))) return;
+    var key = xv.toFixed(3);
+    if (!(key in xKeyToVal)) xKeyToVal[key] = xv;
+    layerSet[lv] = true;
+  });
+  var xs = Object.keys(xKeyToVal).map(function(k) { return xKeyToVal[k]; })
+    .sort(function(a, b) { return a - b; });
+  var layers = Object.keys(layerSet).map(Number).sort(function(a, b) { return a - b; });
+  if (xs.length < 2 || layers.length < 2) return null;
+
+  // Build index maps
+  var xiMap = {};
+  xs.forEach(function(v, i) { xiMap[v.toFixed(3)] = i; });
+  var liMap = {};
+  layers.forEach(function(l, i) { liMap[l] = i; });
+
+  // Build pts[xi][li] grid
+  var pts = [];
+  for (var xi = 0; xi < xs.length; xi++) {
+    pts.push([]);
+    for (var li = 0; li < layers.length; li++) pts[xi].push(null);
+  }
+  results.forEach(function(p) {
+    var xi = xiMap[Number(p.x).toFixed(3)];
+    var li = liMap[p.layer != null ? p.layer : 1];
+    if (xi != null && li != null && !pts[xi][li]) pts[xi][li] = p;
+  });
+
+  // Compute X and Z ranges for resolution-based grid sizing
+  var xRange = xs[xs.length - 1] - xs[0];
+  var zVals = results.map(function(p) { return Number(p.z); }).filter(isFinite);
+  var zMin = Math.min.apply(null, zVals);
+  var zMax = Math.max.apply(null, zVals);
+  var zRange = Math.abs(zMax - zMin);
+
+  var numCols = Math.max(2, Math.round(xRange / resolution) + 1);
+  var numRows = Math.max(2, Math.round(zRange / resolution) + 1);
+  var nCX = xs.length - 1, nCY = layers.length - 1;
+
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function bilerp(v00, v10, v01, v11, tx, ty) {
+    return lerp(lerp(v00, v10, tx), lerp(v01, v11, tx), ty);
+  }
+
+  // Generate subdivided grid as row-major array: rows[ri][ci] = {x, y, z, layer}
+  var rows = [];
+  for (var ri = 0; ri < numRows; ri++) {
+    var rowPts = [];
+    var v = ri / (numRows - 1);
+    var cellL = Math.min(Math.floor(v * nCY), nCY - 1);
+    var ty = v * nCY - cellL;
+    var nearLayer = ty < 0.5 ? layers[cellL] : layers[cellL + 1]; // assign to nearest original layer
+    for (var ci = 0; ci < numCols; ci++) {
+      var u = ci / (numCols - 1);
+      var cellX = Math.min(Math.floor(u * nCX), nCX - 1);
+      var tx = u * nCX - cellX;
+      var r00 = pts[cellX][cellL], r10 = pts[cellX + 1][cellL];
+      var r01 = pts[cellX][cellL + 1], r11 = pts[cellX + 1][cellL + 1];
+      if (!r00 || !r10 || !r01 || !r11) { rowPts.push(null); continue; }
+      rowPts.push({
+        x: bilerp(Number(r00.x), Number(r10.x), Number(r01.x), Number(r11.x), tx, ty),
+        y: bilerp(Number(r00.y), Number(r10.y), Number(r01.y), Number(r11.y), tx, ty),
+        z: bilerp(Number(r00.z), Number(r10.z), Number(r01.z), Number(r11.z), tx, ty),
+        layer: nearLayer
+      });
+    }
+    rows.push(rowPts);
+  }
+
+  return { rows: rows, numCols: numCols, numRows: numRows, origVerts: results.length };
+}
+
 function _getFaceMeshData(){
   // Use layered results if available; otherwise fall back to faceResults as layer 1
   if(layeredFaceResults && layeredFaceResults.length){
@@ -2396,11 +2506,29 @@ function exportFaceCSV(){
   var modeEl = document.getElementById('faceTopSurfaceMode');
   var mode = modeEl ? modeEl.value : 'flat';
   var results = _applyTopSurfaceMode(rawResults, mode);
+
+  var resEl = document.getElementById('faceOBJSubdivision');
+  var resolution = resEl ? parseFloat(resEl.value) : 2;
+  if(isNaN(resolution) || resolution <= 0) resolution = 2;
+
+  var subGrid = _buildSubdividedFaceGrid(results, resolution);
+
   var csv = '# Plugin Version: ' + SM_VERSION + '\n';
-  csv += 'X,Y,Z,Layer\n';
-  results.forEach(function(p){
-    csv += p.x.toFixed(3) + ',' + p.y.toFixed(3) + ',' + p.z.toFixed(3) + ',' + p.layer + '\n';
-  });
+  if(subGrid){
+    csv += '# Subdivided: ' + subGrid.origVerts + ' -> ' + (subGrid.numRows * subGrid.numCols) + ' vertices at ' + resolution + 'mm resolution\n';
+    csv += 'X,Y,Z,Layer\n';
+    subGrid.rows.forEach(function(row){
+      row.forEach(function(p){
+        if(!p) return;
+        csv += p.x.toFixed(3) + ',' + p.y.toFixed(3) + ',' + p.z.toFixed(3) + ',' + p.layer + '\n';
+      });
+    });
+  } else {
+    csv += 'X,Y,Z,Layer\n';
+    results.forEach(function(p){
+      csv += p.x.toFixed(3) + ',' + p.y.toFixed(3) + ',' + p.z.toFixed(3) + ',' + p.layer + '\n';
+    });
+  }
   var blob = new Blob([csv], {type:'text/csv'});
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
@@ -2420,25 +2548,53 @@ function exportFaceDXF(){
   var mode = modeEl ? modeEl.value : 'flat';
   var results = _applyTopSurfaceMode(rawResults, mode);
 
-  var layerGroups = {};
-  results.forEach(function(p){
-    if(!layerGroups[p.layer]) layerGroups[p.layer] = [];
-    layerGroups[p.layer].push(p);
-  });
+  var resEl = document.getElementById('faceOBJSubdivision');
+  var resolution = resEl ? parseFloat(resEl.value) : 2;
+  if(isNaN(resolution) || resolution <= 0) resolution = 2;
 
-  var dxf = '0\nSECTION\n2\nENTITIES\n';
-  Object.keys(layerGroups).forEach(function(layerNum){
-    var pts = layerGroups[layerNum].slice();
-    pts.sort(function(a, b){ return a.x - b.x; });
-    dxf += '0\nPOLYLINE\n8\nLayer_' + layerNum + '\n66\n1\n70\n8\n';
-    pts.forEach(function(p){
-      dxf += '0\nVERTEX\n8\nLayer_' + layerNum + '\n';
-      dxf += '10\n' + p.x.toFixed(3) + '\n';
-      dxf += '20\n' + p.y.toFixed(3) + '\n';
-      dxf += '30\n' + p.z.toFixed(3) + '\n';
+  var subGrid = _buildSubdividedFaceGrid(results, resolution);
+
+  // Proper DXF structure with HEADER section required by Aspire
+  var dxf = '0\nSECTION\n2\nHEADER\n';
+  dxf += '9\n$ACADVER\n1\nAC1009\n';
+  dxf += '9\n$INSUNITS\n70\n4\n';
+  dxf += '0\nENDSEC\n';
+  dxf += '0\nSECTION\n2\nTABLES\n';
+  dxf += '0\nENDSEC\n';
+  dxf += '0\nSECTION\n2\nENTITIES\n';
+
+  if(subGrid){
+    subGrid.rows.forEach(function(row, ri){
+      var validPts = row.filter(function(p){ return p != null; });
+      if(!validPts.length) return;
+      dxf += '0\nPOLYLINE\n8\nRow_' + (ri + 1) + '\n66\n1\n70\n8\n';
+      validPts.forEach(function(p){
+        dxf += '0\nVERTEX\n8\nRow_' + (ri + 1) + '\n';
+        dxf += '10\n' + p.x.toFixed(3) + '\n';
+        dxf += '20\n' + p.y.toFixed(3) + '\n';
+        dxf += '30\n' + p.z.toFixed(3) + '\n';
+      });
+      dxf += '0\nSEQEND\n';
     });
-    dxf += '0\nSEQEND\n';
-  });
+  } else {
+    var layerGroups = {};
+    results.forEach(function(p){
+      if(!layerGroups[p.layer]) layerGroups[p.layer] = [];
+      layerGroups[p.layer].push(p);
+    });
+    Object.keys(layerGroups).forEach(function(layerNum){
+      var pts = layerGroups[layerNum].slice();
+      pts.sort(function(a, b){ return a.x - b.x; });
+      dxf += '0\nPOLYLINE\n8\nLayer_' + layerNum + '\n66\n1\n70\n8\n';
+      pts.forEach(function(p){
+        dxf += '0\nVERTEX\n8\nLayer_' + layerNum + '\n';
+        dxf += '10\n' + p.x.toFixed(3) + '\n';
+        dxf += '20\n' + p.y.toFixed(3) + '\n';
+        dxf += '30\n' + p.z.toFixed(3) + '\n';
+      });
+      dxf += '0\nSEQEND\n';
+    });
+  }
   dxf += '0\nENDSEC\n0\nEOF\n';
 
   var blob = new Blob([dxf], {type:'application/dxf'});
@@ -2460,38 +2616,77 @@ function exportFaceOBJ(){
   var mode = modeEl ? modeEl.value : 'flat';
   var results = _applyTopSurfaceMode(rawResults, mode);
 
-  var layerGroups = {};
-  results.forEach(function(p){
-    if(!layerGroups[p.layer]) layerGroups[p.layer] = [];
-    layerGroups[p.layer].push(p);
-  });
-  var layerKeys = Object.keys(layerGroups).sort(function(a, b){ return Number(a) - Number(b); });
-  layerKeys.forEach(function(k){
-    layerGroups[k].sort(function(a, b){ return a.x - b.x; });
-  });
-
-  var nL = layerKeys.length;
-  var nX = nL > 0 ? layerGroups[layerKeys[0]].length : 0;
-  var canSubdivide = nL >= 2 && nX >= 2 && layerKeys.every(function(k){ return layerGroups[k].length === nX; });
-
-  // Read subdivision resolution (default 2mm)
   var resEl = document.getElementById('faceOBJSubdivision');
-  var resolution = resEl ? Math.max(0.1, parseFloat(resEl.value) || 2) : 2;
+  var resolution = resEl ? parseFloat(resEl.value) : 2;
+  if(isNaN(resolution) || resolution <= 0) resolution = 2;
 
-  if(!canSubdivide){
-    // Fall back: export raw probed vertices without subdivision
-    var obj = '# 3D Live Edge Mesh - Face Profile\n';
-    obj += '# Plugin Version: ' + SM_VERSION + '\n';
-    obj += '# Generated ' + new Date().toISOString() + '\n';
+  var subGrid = _buildSubdividedFaceGrid(results, resolution);
+
+  var obj = '# 3D Live Edge Mesh - Face Profile\n';
+  obj += '# Plugin Version: ' + SM_VERSION + '\n';
+  obj += '# Generated ' + new Date().toISOString() + '\n';
+
+  var totalVerts = 0, triCount = 0;
+
+  if(subGrid){
+    obj += '# Subdivided: ' + subGrid.origVerts + ' -> ' + (subGrid.numRows * subGrid.numCols) + ' vertices at ' + resolution + 'mm resolution\n';
+    obj += 'o FaceMesh\n';
+    obj += 'g FaceMesh\n';
+
+    // Emit vertices row by row; track per-cell indices for triangulation
+    var indexGrid = [];
+    var vIdx = 1;
+    for(var ri = 0; ri < subGrid.numRows; ri++){
+      indexGrid.push([]);
+      for(var ci = 0; ci < subGrid.numCols; ci++){
+        var p = subGrid.rows[ri][ci];
+        if(p){
+          obj += 'v ' + p.x.toFixed(3) + ' ' + p.y.toFixed(3) + ' ' + p.z.toFixed(3) + '\n';
+          indexGrid[ri].push(vIdx++);
+          totalVerts++;
+        } else {
+          indexGrid[ri].push(0);
+        }
+      }
+    }
+
+    // Triangulate subdivided grid
+    for(var ri = 0; ri < subGrid.numRows - 1; ri++){
+      for(var ci = 0; ci < subGrid.numCols - 1; ci++){
+        var va = indexGrid[ri][ci], vb = indexGrid[ri][ci + 1];
+        var vc = indexGrid[ri + 1][ci + 1], vd = indexGrid[ri + 1][ci];
+        if(va && vb && vc){ obj += 'f ' + va + ' ' + vb + ' ' + vc + '\n'; triCount++; }
+        if(va && vc && vd){ obj += 'f ' + va + ' ' + vc + ' ' + vd + '\n'; triCount++; }
+      }
+    }
+  } else {
+    // Fallback: raw export when grid is degenerate (<2 layers or <2 X columns)
+    obj += 'o FaceMesh\n';
+    obj += 'g FaceMesh\n';
+
+    var layerGroups = {};
+    results.forEach(function(p){
+      if(!layerGroups[p.layer]) layerGroups[p.layer] = [];
+      layerGroups[p.layer].push(p);
+    });
+    var layerKeys = Object.keys(layerGroups).sort(function(a, b){ return Number(a) - Number(b); });
+    layerKeys.forEach(function(k){
+      layerGroups[k].sort(function(a, b){ return a.x - b.x; });
+    });
+
     layerKeys.forEach(function(k){
       layerGroups[k].forEach(function(p){
         obj += 'v ' + p.x.toFixed(3) + ' ' + p.y.toFixed(3) + ' ' + p.z.toFixed(3) + '\n';
+        totalVerts++;
       });
     });
-    var samplesPerLayer = nX;
-    var canTriangulate = samplesPerLayer > 0 && nL >= 2;
+
+    var samplesPerLayer = (layerKeys.length > 0 && layerGroups[layerKeys[0]]) ? layerGroups[layerKeys[0]].length : 0;
+    var canTriangulate = samplesPerLayer > 0 && layerKeys.every(function(k){ return layerGroups[k].length === samplesPerLayer; });
+    var totalVertsRaw = layerKeys.length * samplesPerLayer;
+    var validTri = function(v1, v2, v3){ return v1 !== v2 && v2 !== v3 && v1 !== v3 && v1 >= 1 && v2 >= 1 && v3 >= 1 && v1 <= totalVertsRaw && v2 <= totalVertsRaw && v3 <= totalVertsRaw; };
     if(canTriangulate){
-      for(var i = 0; i < nL - 1; i++){
+      for(var i = 0; i < layerKeys.length - 1; i++){
         var baseIdx = i * samplesPerLayer + 1;
         var nextIdx = (i + 1) * samplesPerLayer + 1;
         for(var j = 0; j < samplesPerLayer - 1; j++){
@@ -2499,109 +2694,10 @@ function exportFaceOBJ(){
           var vb = baseIdx + j + 1;
           var vc = nextIdx + j + 1;
           var vd = nextIdx + j;
-          obj += 'f ' + va + ' ' + vb + ' ' + vc + '\n';
-          obj += 'f ' + va + ' ' + vc + ' ' + vd + '\n';
+          if(validTri(va, vb, vc)){ obj += 'f ' + va + ' ' + vb + ' ' + vc + '\n'; triCount++; }
+          if(validTri(va, vc, vd)){ obj += 'f ' + va + ' ' + vc + ' ' + vd + '\n'; triCount++; }
         }
       }
-    }
-    var blob = new Blob([obj], {type:'model/obj'});
-    var url = URL.createObjectURL(blob);
-    var anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = 'face_mesh_' + tsForFilename() + '.obj';
-    document.body.appendChild(anchor);
-    anchor.click();
-    document.body.removeChild(anchor);
-    URL.revokeObjectURL(url);
-    setFooterStatus('OBJ exported.', 'good');
-    return;
-  }
-
-  // Build 2D grid of probed points: pts[xi][li] = {x, y, z}
-  // xi = X column index (0..nX-1), li = layer index (0..nL-1, ascending by layer number)
-  var pts = [];
-  for(var xi = 0; xi < nX; xi++){
-    pts.push([]);
-    for(var li = 0; li < nL; li++){
-      var p = layerGroups[layerKeys[li]][xi];
-      pts[xi].push({ x: p.x, y: p.y, z: p.z });
-    }
-  }
-
-  // Compute X range and Z range for subdivision resolution using actual min/max across all points
-  var xMin = Infinity, xMax = -Infinity, zMin = Infinity, zMax = -Infinity;
-  for(var xi = 0; xi < nX; xi++){
-    for(var li = 0; li < nL; li++){
-      var px = pts[xi][li].x, pz = pts[xi][li].z;
-      if(px < xMin) xMin = px;
-      if(px > xMax) xMax = px;
-      if(pz < zMin) zMin = pz;
-      if(pz > zMax) zMax = pz;
-    }
-  }
-  var xRange = xMax - xMin;
-  var zRange = zMax - zMin;
-
-  var numCols = Math.max(2, Math.round(xRange / resolution) + 1);
-  var numRows = Math.max(2, Math.round(zRange / resolution) + 1);
-
-  // Interpolation helpers
-  function lerp(a, b, t){ return a + (b - a) * t; }
-  function bilerp(v00, v10, v01, v11, tx, tv){
-    return lerp(lerp(v00, v10, tx), lerp(v01, v11, tx), tv);
-  }
-
-  function interpolatePoint(u, v){
-    // u in [0,1] along X axis, v in [0,1] along layer axis
-    var fu = u * (nX - 1);
-    var xi0 = Math.min(nX - 2, Math.max(0, Math.floor(fu)));
-    var xi1 = xi0 + 1;
-    var tx = fu - xi0;
-
-    var fv = v * (nL - 1);
-    var li0 = Math.min(nL - 2, Math.max(0, Math.floor(fv)));
-    var li1 = li0 + 1;
-    var tv = fv - li0;
-
-    var p00 = pts[xi0][li0], p10 = pts[xi1][li0];
-    var p01 = pts[xi0][li1], p11 = pts[xi1][li1];
-
-    return {
-      x: bilerp(p00.x, p10.x, p01.x, p11.x, tx, tv),
-      y: bilerp(p00.y, p10.y, p01.y, p11.y, tx, tv),
-      z: bilerp(p00.z, p10.z, p01.z, p11.z, tx, tv)
-    };
-  }
-
-  var origCount = nX * nL;
-  var totalVerts = numCols * numRows;
-  var totalFaces = (numCols - 1) * (numRows - 1) * 2;
-
-  var obj = '# 3D Live Edge Mesh - Face Profile (Subdivided)\n';
-  obj += '# Plugin Version: ' + SM_VERSION + '\n';
-  obj += '# Subdivision: ' + resolution.toFixed(2) + 'mm resolution\n';
-  obj += '# Original: ' + origCount + ' probed points -> ' + totalVerts + ' interpolated vertices\n';
-  obj += '# Generated ' + new Date().toISOString() + '\n';
-
-  // Vertices: row r (layer axis), col c (X axis)
-  for(var r = 0; r < numRows; r++){
-    var v = numRows > 1 ? r / (numRows - 1) : 0;
-    for(var c = 0; c < numCols; c++){
-      var u = numCols > 1 ? c / (numCols - 1) : 0;
-      var pt = interpolatePoint(u, v);
-      obj += 'v ' + pt.x.toFixed(3) + ' ' + pt.y.toFixed(3) + ' ' + pt.z.toFixed(3) + '\n';
-    }
-  }
-
-  // Faces (two triangles per quad, 1-indexed)
-  for(var r = 0; r < numRows - 1; r++){
-    for(var c = 0; c < numCols - 1; c++){
-      var va = r * numCols + c + 1;
-      var vb = r * numCols + c + 2;
-      var vc = (r + 1) * numCols + c + 2;
-      var vd = (r + 1) * numCols + c + 1;
-      obj += 'f ' + va + ' ' + vb + ' ' + vc + '\n';
-      obj += 'f ' + va + ' ' + vc + ' ' + vd + '\n';
     }
   }
 
@@ -2614,7 +2710,7 @@ function exportFaceOBJ(){
   anchor.click();
   document.body.removeChild(anchor);
   URL.revokeObjectURL(url);
-  setFooterStatus('OBJ exported (' + totalVerts + ' vertices, ' + totalFaces + ' triangles).', 'good');
+  setFooterStatus('OBJ exported: ' + totalVerts + ' vertices, ' + triCount + ' triangles.', 'good');
 }
 
 // ── Workflow manager ──────────────────────────────────────────────────────────
@@ -2861,6 +2957,8 @@ function clearMeshStorage(){
 // ── Surface Mesh State ────────────────────────────────────────────────────────
 var smMeshData = null;
 var smGridConfig = null;
+var smMeshDataRaw = null;    // original sparse surface grid (pre-subdivision)
+var smGridConfigRaw = null;  // original grid config (pre-subdivision)
 var smOriginalGcode = null;
 var smCompensatedGcode = null;
 var smStopFlag = false;
@@ -4007,6 +4105,178 @@ function _threeZCol(z, zMin, zMax) {
   return [r / 255, g / 255, b / 255];
 }
 
+// ── Mesh Subdivision Utilities ────────────────────────────────────────────────
+
+/**
+ * subdivideSurfaceMesh(grid, cfg, spacing)
+ * Densifies a surface probe grid using bilinear interpolation.
+ * Returns { grid, config } with updated colCount/rowCount/colSpacing/rowSpacing.
+ * spacing = target point spacing in mm (e.g. 2). 0 / falsy = no subdivision.
+ */
+function subdivideSurfaceMesh(grid, cfg, spacing) {
+  if (!grid || !cfg || !spacing || spacing <= 0) return { grid: grid, config: cfg };
+  var nRows = cfg.rowCount, nCols = cfg.colCount;
+  if (nRows < 2 || nCols < 2) return { grid: grid, config: cfg };
+
+  var colSub = Math.max(1, Math.round(cfg.colSpacing / spacing));
+  var rowSub = Math.max(1, Math.round(cfg.rowSpacing / spacing));
+  if (colSub === 1 && rowSub === 1) return { grid: grid, config: cfg };
+
+  var newCols = (nCols - 1) * colSub + 1;
+  var newRows = (nRows - 1) * rowSub + 1;
+
+  var newGrid = [];
+  for (var gy = 0; gy < newRows; gy++) {
+    var row = [];
+    var cy = Math.min(Math.floor(gy / rowSub), nRows - 2);
+    var ty = (gy - cy * rowSub) / rowSub;
+    for (var gx = 0; gx < newCols; gx++) {
+      var cx = Math.min(Math.floor(gx / colSub), nCols - 2);
+      var tx = (gx - cx * colSub) / colSub;
+      var z00 = grid[cy][cx], z10 = grid[cy][cx + 1];
+      var z01 = grid[cy + 1][cx], z11 = grid[cy + 1][cx + 1];
+      if (z00 == null || z10 == null || z01 == null || z11 == null ||
+          !isFinite(z00) || !isFinite(z10) || !isFinite(z01) || !isFinite(z11)) {
+        row.push(null);
+      } else {
+        row.push(z00 * (1 - tx) * (1 - ty) + z10 * tx * (1 - ty) +
+                 z01 * (1 - tx) * ty + z11 * tx * ty);
+      }
+    }
+    newGrid.push(row);
+  }
+
+  var newConfig = {};
+  for (var k in cfg) { if (cfg.hasOwnProperty(k)) newConfig[k] = cfg[k]; }
+  newConfig.colCount = newCols;
+  newConfig.rowCount = newRows;
+  newConfig.colSpacing = cfg.colSpacing / colSub;
+  newConfig.rowSpacing = cfg.rowSpacing / rowSub;
+  newConfig.maxX = cfg.minX + (newCols - 1) * newConfig.colSpacing;
+  newConfig.maxY = cfg.minY + (newRows - 1) * newConfig.rowSpacing;
+
+  return { grid: newGrid, config: newConfig };
+}
+
+/**
+ * subdivideFaceMesh(pts, spacing)
+ * Densifies a face probe point array using bilinear interpolation on the
+ * X-sample × layer grid.  Returns a new flat array of interpolated points.
+ * Each interpolated point inherits layer, sampleTopZ, and machineZ from
+ * the nearest grid node.  spacing = target point spacing in mm. 0 = no-op.
+ */
+function subdivideFaceMesh(pts, spacing) {
+  if (!pts || pts.length < 4 || !spacing || spacing <= 0) return pts;
+
+  // Collect unique X positions and unique layer numbers
+  var xKeyMap = {}, layerNums = {};
+  pts.forEach(function(p) {
+    var xv = Number(p.x), lv = p.layer != null ? Number(p.layer) : 1;
+    if (!isFinite(xv) || !isFinite(Number(p.y)) || !isFinite(Number(p.z))) return;
+    xKeyMap[xv.toFixed(6)] = xv;
+    layerNums[lv] = true;
+  });
+
+  var xs = Object.values(xKeyMap).sort(function(a, b) { return a - b; });
+  var layers = Object.keys(layerNums).map(Number).sort(function(a, b) { return a - b; });
+  var nCols = xs.length, nRows = layers.length;
+  if (nCols < 2 || nRows < 2) return pts;
+
+  // Build average-Z per layer (same approach as renderFaceReliefMap)
+  var layerZSum = {}, layerZCnt = {};
+  pts.forEach(function(p) {
+    var lv = p.layer != null ? Number(p.layer) : 1;
+    var zv = Number(p.z);
+    if (!isFinite(zv)) return;
+    if (!(lv in layerZSum)) { layerZSum[lv] = 0; layerZCnt[lv] = 0; }
+    layerZSum[lv] += zv; layerZCnt[lv]++;
+  });
+  var layerAvgZ = {};
+  layers.forEach(function(l) { layerAvgZ[l] = layerZSum[l] / layerZCnt[l]; });
+
+  // Build 2D grid [colIdx][rowIdx] → { y, machineZ, sampleTopZ }
+  var grid = [];
+  for (var ci = 0; ci < nCols; ci++) { grid.push(new Array(nRows).fill(null)); }
+  var xiMap = {}, liMap = {};
+  xs.forEach(function(x, i) { xiMap[x.toFixed(6)] = i; });
+  layers.forEach(function(l, i) { liMap[l] = i; });
+
+  // Average Y (and machineZ, sampleTopZ) per cell to handle duplicates
+  var cellSumY = {}, cellSumMZ = {}, cellSumST = {}, cellCnt = {};
+  pts.forEach(function(p) {
+    var xv = Number(p.x), yv = Number(p.y), zv = Number(p.z);
+    var lv = p.layer != null ? Number(p.layer) : 1;
+    if (!isFinite(xv) || !isFinite(yv) || !isFinite(zv)) return;
+    var key = xv.toFixed(6) + '|' + lv;
+    if (!(key in cellCnt)) { cellSumY[key] = 0; cellSumMZ[key] = 0; cellSumST[key] = 0; cellCnt[key] = 0; }
+    cellSumY[key] += yv;
+    cellSumMZ[key] += (p.machineZ != null ? Number(p.machineZ) : 0);
+    cellSumST[key] += (p.sampleTopZ != null ? Number(p.sampleTopZ) : 0);
+    cellCnt[key]++;
+  });
+  Object.keys(cellCnt).forEach(function(key) {
+    var parts = key.split('|');
+    var xv = parseFloat(parts[0]), lv = parseInt(parts[1], 10);
+    var xi = xiMap[xv.toFixed(6)], li = liMap[lv];
+    if (xi == null || li == null) return;
+    var cnt = cellCnt[key];
+    grid[xi][li] = {
+      y: cellSumY[key] / cnt,
+      machineZ: cellSumMZ[key] / cnt,
+      sampleTopZ: cellSumST[key] / cnt
+    };
+  });
+
+  // Determine subdivisions per cell
+  var xSpacings = [];
+  for (var i = 0; i < nCols - 1; i++) xSpacings.push(xs[i + 1] - xs[i]);
+  var avgXSpacing = xSpacings.reduce(function(a, b) { return a + b; }, 0) / xSpacings.length;
+  var zSpacings = [];
+  for (var j = 0; j < nRows - 1; j++) zSpacings.push(Math.abs(layerAvgZ[layers[j + 1]] - layerAvgZ[layers[j]]));
+  var avgZSpacing = zSpacings.reduce(function(a, b) { return a + b; }, 0) / zSpacings.length;
+
+  var xSub = Math.max(1, Math.round(avgXSpacing / spacing));
+  var zSub = Math.max(1, Math.round(avgZSpacing / spacing));
+  if (xSub === 1 && zSub === 1) return pts;
+
+  var newPts = [];
+  var newCols = (nCols - 1) * xSub + 1;
+  var newRows = (nRows - 1) * zSub + 1;
+
+  for (var gy = 0; gy < newRows; gy++) {
+    var li0 = Math.min(Math.floor(gy / zSub), nRows - 2);
+    var ty = (gy - li0 * zSub) / zSub;
+    var newZ = layerAvgZ[layers[li0]] * (1 - ty) + layerAvgZ[layers[li0 + 1]] * ty;
+    var nearLi = ty < 0.5 ? li0 : li0 + 1;
+    var nearLayer = layers[nearLi];
+
+    for (var gx = 0; gx < newCols; gx++) {
+      var xi0 = Math.min(Math.floor(gx / xSub), nCols - 2);
+      var tx = (gx - xi0 * xSub) / xSub;
+      var newX = xs[xi0] * (1 - tx) + xs[xi0 + 1] * tx;
+
+      var c00 = grid[xi0][li0], c10 = grid[xi0 + 1][li0];
+      var c01 = grid[xi0][li0 + 1], c11 = grid[xi0 + 1][li0 + 1];
+      if (!c00 || !c10 || !c01 || !c11) continue;
+
+      var newY = c00.y * (1 - tx) * (1 - ty) + c10.y * tx * (1 - ty) +
+                 c01.y * (1 - tx) * ty + c11.y * tx * ty;
+      var newMZ = c00.machineZ * (1 - tx) * (1 - ty) + c10.machineZ * tx * (1 - ty) +
+                  c01.machineZ * (1 - tx) * ty + c11.machineZ * tx * ty;
+      var newST = c00.sampleTopZ * (1 - tx) * (1 - ty) + c10.sampleTopZ * tx * (1 - ty) +
+                  c01.sampleTopZ * (1 - tx) * ty + c11.sampleTopZ * tx * ty;
+
+      newPts.push({
+        x: newX, y: newY, z: newZ,
+        machineZ: newMZ, sampleTopZ: newST,
+        layer: nearLayer
+      });
+    }
+  }
+
+  return newPts.length >= pts.length ? newPts : pts;
+}
+
 // Smooth subdivided surface mesh with bilinear interpolation between probe points
 function _buildThreeSurface(grid, cfg, zMin, zMax, zExag) {
   var SUB = 8;
@@ -4097,8 +4367,8 @@ function _buildThreeFaceWall(faceWall, cfg, zMin, zMax, zExag, si) {
   var validCell = [];
   for (var xi=0; xi<nCX; xi++) { validCell[xi] = [];
     for (var li=0; li<nCY; li++) {
-      var r00=faceWall.grid[xi]&&faceWall.grid[xi][li], r10=faceWall.grid[xi+1]&&faceWall.grid[xi+1][li];
-      var r01=faceWall.grid[xi]&&faceWall.grid[xi][li+1], r11=faceWall.grid[xi+1]&&faceWall.grid[xi+1][li+1];
+      var r00=faceWall.grid[li]&&faceWall.grid[li][xi], r10=faceWall.grid[li]&&faceWall.grid[li][xi+1];
+      var r01=faceWall.grid[li+1]&&faceWall.grid[li+1][xi], r11=faceWall.grid[li+1]&&faceWall.grid[li+1][xi+1];
       if (!r00||!r10||!r01||!r11) { validCell[xi][li]=false; continue; }
       validCell[xi][li]=isFinite(Number(r00.z))&&isFinite(Number(r10.z))&&isFinite(Number(r01.z))&&isFinite(Number(r11.z));
     }
@@ -4109,8 +4379,8 @@ function _buildThreeFaceWall(faceWall, cfg, zMin, zMax, zExag, si) {
     var baseGx = xi * SUB;
     for (var li=0; li<nCY; li++) {
       if (!validCell[xi][li]) continue;
-      var r00=faceWall.grid[xi][li], r10=faceWall.grid[xi+1][li];
-      var r01=faceWall.grid[xi][li+1], r11=faceWall.grid[xi+1][li+1];
+      var r00=faceWall.grid[li][xi], r10=faceWall.grid[li][xi+1];
+      var r01=faceWall.grid[li+1][xi], r11=faceWall.grid[li+1][xi+1];
       var z00=Number(r00.z),z10=Number(r10.z),z01=Number(r01.z),z11=Number(r11.z);
       var cy00=Number(r00.y),cy10=Number(r10.y),cy01=Number(r01.y),cy11=Number(r11.y);
       var x00=Number(r00.x), x10=Number(r10.x);
@@ -4180,18 +4450,18 @@ function _buildThreeBridge(grid, cfg, faceWall, zMin, zMax, zExag, si) {
   function faceTopZ(machX) {
     var xi = 0;
     while (xi < faceWall.nCols - 1 && faceWall.xs[xi + 1] <= machX) xi++;
-    var r0 = faceWall.grid[xi] && faceWall.grid[xi][topLi]; if (!r0) return null;
+    var r0 = faceWall.grid[topLi] && faceWall.grid[topLi][xi]; if (!r0) return null;
     if (xi >= faceWall.nCols - 1) return Number(r0.z);
-    var r1 = faceWall.grid[xi + 1] && faceWall.grid[xi + 1][topLi]; if (!r1) return Number(r0.z);
+    var r1 = faceWall.grid[topLi] && faceWall.grid[topLi][xi + 1]; if (!r1) return Number(r0.z);
     var x0=faceWall.xs[xi], x1=faceWall.xs[xi+1], t=x1>x0?(machX-x0)/(x1-x0):0;
     return Number(r0.z)*(1-t)+Number(r1.z)*t;
   }
   function faceTopContactY(machX) {
     var xi = 0;
     while (xi < faceWall.nCols - 1 && faceWall.xs[xi + 1] <= machX) xi++;
-    var r0 = faceWall.grid[xi] && faceWall.grid[xi][topLi]; if (!r0) return cMid;
+    var r0 = faceWall.grid[topLi] && faceWall.grid[topLi][xi]; if (!r0) return cMid;
     if (xi >= faceWall.nCols - 1) return Number(r0.y);
-    var r1 = faceWall.grid[xi + 1] && faceWall.grid[xi + 1][topLi]; if (!r1) return Number(r0.y);
+    var r1 = faceWall.grid[topLi] && faceWall.grid[topLi][xi + 1]; if (!r1) return Number(r0.y);
     var x0=faceWall.xs[xi], x1=faceWall.xs[xi+1], t=x1>x0?(machX-x0)/(x1-x0):0;
     return Number(r0.y)*(1-t)+Number(r1.y)*t;
   }
@@ -4292,10 +4562,10 @@ function _buildThreeFaceContours(faceWall, cfg, zMin, zMax, zExag, si) {
   for (var cLevel = Math.ceil(cMin / interval) * interval; cLevel <= cMax + 1e-9; cLevel += interval) {
     for (var xi = 0; xi < faceWall.nCols - 1; xi++) {
       for (var li = 0; li < faceWall.nRows - 1; li++) {
-        var r00=faceWall.grid[xi]  &&faceWall.grid[xi][li];
-        var r10=faceWall.grid[xi+1]&&faceWall.grid[xi+1][li];
-        var r01=faceWall.grid[xi]  &&faceWall.grid[xi][li+1];
-        var r11=faceWall.grid[xi+1]&&faceWall.grid[xi+1][li+1];
+        var r00=faceWall.grid[li]  &&faceWall.grid[li][xi];
+        var r10=faceWall.grid[li]  &&faceWall.grid[li][xi+1];
+        var r01=faceWall.grid[li+1]&&faceWall.grid[li+1][xi];
+        var r11=faceWall.grid[li+1]&&faceWall.grid[li+1][xi+1];
         if (!r00||!r10||!r01||!r11) continue;
         var z00=Number(r00.z),z10=Number(r10.z),z01=Number(r01.z),z11=Number(r11.z);
         if (!isFinite(z00)||!isFinite(z10)||!isFinite(z01)||!isFinite(z11)) continue;
@@ -4588,6 +4858,7 @@ function populateUnifiedProbeTable() {
 function runSurfaceProbing() {
   pluginDebug('runSurfaceProbing ENTER');
   smStopFlag = false;
+  meshSubdivisionSpacing = (function(){ var el = document.getElementById('meshSubdivisionSpacing'); return el ? Number(el.value) : meshSubdivisionSpacing; })();
   // Clear any previous mesh data so the combined-mode callback correctly detects
   // whether THIS probe run succeeded (stale smMeshData would make it look like
   // success even when the current probe fails on the first point).
@@ -4682,8 +4953,11 @@ function runSurfaceProbing() {
   }
 
   probeRow(0).then(function() {
-    smMeshData = result;
-    smGridConfig = cfg;
+    smMeshDataRaw = result;
+    smGridConfigRaw = cfg;
+    var subdivided = subdivideSurfaceMesh(result, cfg, meshSubdivisionSpacing);
+    smMeshData = subdivided.grid;
+    smGridConfig = subdivided.config;
     smSetProbeStatus('Probing complete! ' + totalPoints + ' points captured.', 'ok');
     smLogProbe('Done! Probing complete.');
     pluginDebug('runSurfaceProbing COMPLETE: ' + totalPoints + ' points captured, meshData rows=' + result.length);
@@ -4802,8 +5076,11 @@ function loadSurfaceMesh() {
       return;
     }
     var data = JSON.parse(raw);
-    smMeshData = data.meshData;
-    smGridConfig = data.gridConfig;
+    smMeshDataRaw = data.meshData;
+    smGridConfigRaw = data.gridConfig;
+    var subdivided = subdivideSurfaceMesh(data.meshData, data.gridConfig, meshSubdivisionSpacing);
+    smMeshData = subdivided.grid;
+    smGridConfig = subdivided.config;
     updateSurfaceMeshUI();
     if (statusEl) statusEl.textContent = 'Mesh loaded from storage.';
   } catch(e) {
@@ -5273,8 +5550,11 @@ function importSurfaceMesh() {
     reader.onload = function(e) {
       try {
         var data = JSON.parse(e.target.result);
-        smMeshData = data.meshData;
-        smGridConfig = data.gridConfig;
+        smMeshDataRaw = data.meshData;
+        smGridConfigRaw = data.gridConfig;
+        var subdivided = subdivideSurfaceMesh(data.meshData, data.gridConfig, meshSubdivisionSpacing);
+        smMeshData = subdivided.grid;
+        smGridConfig = subdivided.config;
         updateSurfaceMeshUI();
         var importEl = document.getElementById('sm-meshStorageStatus');
         if (importEl) importEl.textContent = 'Mesh imported from file.';
@@ -5433,7 +5713,7 @@ function smApplyCompensationCore(gcodeText, data, cfg, referenceZ) {
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i].trim();
     if (!line || line.startsWith(';') || line.startsWith('(')) { output.push(lines[i]); continue; }
-    var isMove = /^G[01]\b/i.test(line) || /\b[XYZ][-\d.]/i.test(line);
+    var isMove = /^(?:N\d+\s+)?G[01]\b/i.test(line) || /\b[XYZ][-\d.]/i.test(line);
     if (!isMove) { output.push(lines[i]); continue; }
     var xMatch = line.match(/X(-?[\d.]+)/i);
     var yMatch = line.match(/Y(-?[\d.]+)/i);
@@ -6151,6 +6431,7 @@ async function runFaceProbe(axis, _calledFromCombined){
   try{
     await requireStartupHomingPreflight('face probe ' + axis);
     s = getSettingsFromUI();
+    meshSubdivisionSpacing = s.meshSubdivisionSpacing != null ? Number(s.meshSubdivisionSpacing) : meshSubdivisionSpacing;
     var startCoord = Number(s.faceStartOffset);
     var depthBelow = Number(s.faceDepthBelowSurface);
     var probeDist = Number(s.faceProbeDistance);
@@ -6431,6 +6712,8 @@ async function runFaceProbe(axis, _calledFromCombined){
       await finishRunMotion('face');
       if (!_calledFromCombined) switchTab('results');
       setFooterStatus('Layered face probe ' + axis + ' complete: ' + totalLayers + ' layers x ' + faceSamples.length + ' samples = ' + layeredFaceResults.length + ' contacts', 'good');
+      layeredFaceResultsRaw = layeredFaceResults.slice();
+      layeredFaceResults = subdivideFaceMesh(layeredFaceResults, meshSubdivisionSpacing);
       updateFaceMeshDataUI();
       // Re-render surface mesh visualizers to include face wall (even when no surface mesh is present)
       smPvizRenderMesh();
@@ -6499,6 +6782,8 @@ async function runFaceProbe(axis, _calledFromCombined){
     if (!_calledFromCombined) switchTab('results');
     pluginDebug('runFaceProbe COMPLETE: axis=' + axis + ' samples=' + faceSamples.length);
     setFooterStatus('Face probe ' + axis + ' complete: ' + faceSamples.length + ' sample(s)', 'good');
+    layeredFaceResultsRaw = layeredFaceResults.slice();
+    layeredFaceResults = subdivideFaceMesh(layeredFaceResults, meshSubdivisionSpacing);
     updateFaceMeshDataUI();
     populateUnifiedProbeTable();
     saveProbeResults();
@@ -6829,9 +7114,9 @@ function buildFaceWallGrid() {
   var layerIndexMap = {}; // layer number → row index
   layers.forEach(function(l, i) { layerIndexMap[l] = i; });
 
-  // Build grid: grid[xi][li] = {x, y, z, layer, sampleTopZ}
+  // Build grid: grid[li][xi] = {x, y, z, layer, sampleTopZ}
   var grid = [];
-  for (var xi = 0; xi < xs.length; xi++) { grid.push({}); }
+  for (var li = 0; li < layers.length; li++) { grid.push({}); }
 
   data.forEach(function(r) {
     var xi = xIndexMap[Number(r.x).toFixed(3)];
@@ -6839,7 +7124,7 @@ function buildFaceWallGrid() {
     var l = r.layer != null ? r.layer : 1;
     var li = layerIndexMap[l];
     if (li == null) return;
-    if (!grid[xi][li]) grid[xi][li] = r;
+    if (!grid[li][xi]) grid[li][xi] = r;
   });
 
   // Compute Z range (layer heights) and Y range (contact coordinate) across all face data
@@ -7064,7 +7349,8 @@ function loadFaceMeshData() {
   try {
     var data = JSON.parse(raw);
     if (data.faceMeshData && data.faceMeshData.length) {
-      layeredFaceResults = data.faceMeshData;
+      layeredFaceResultsRaw = data.faceMeshData;
+      layeredFaceResults = subdivideFaceMesh(data.faceMeshData, meshSubdivisionSpacing);
       updateFaceMeshDataUI();
       var el = document.getElementById('face-meshStorageStatus');
       if (el) el.textContent = 'Face mesh loaded from browser storage (' + layeredFaceResults.length + ' points).';
@@ -7123,7 +7409,8 @@ function importFaceMeshData() {
         var data = JSON.parse(e.target.result);
         var pts = data.faceMeshData || data;
         if (!Array.isArray(pts)) throw new Error('Expected an array of face mesh points');
-        layeredFaceResults = pts;
+        layeredFaceResultsRaw = pts;
+        layeredFaceResults = subdivideFaceMesh(pts, meshSubdivisionSpacing);
         updateFaceMeshDataUI();
         var statusEl = document.getElementById('face-meshStorageStatus');
         if (statusEl) statusEl.textContent = 'Face mesh imported: ' + pts.length + ' points.';
@@ -7266,17 +7553,17 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, o
   sampleVals.forEach(function(v, i){ sIdxMap[v.toFixed(4)] = i; });
   zVals.forEach(function(v, i){ zIdxMap[v.toFixed(4)] = i; });
 
-  // grid[si][zi] = contact value (or null if no data for that cell)
+  // grid[zi][si] = contact value (or null if no data for that cell)
   var grid = [];
-  for (var gi = 0; gi < sampleVals.length; gi++) {
+  for (var gi = 0; gi < zVals.length; gi++) {
     var row = [];
-    for (var gj = 0; gj < zVals.length; gj++) row.push(null);
+    for (var gj = 0; gj < sampleVals.length; gj++) row.push(null);
     grid.push(row);
   }
   contactPoints.forEach(function(p) {
     var si = sIdxMap[sampleFn(p).toFixed(4)];
     var zi = zIdxMap[Number(p.z).toFixed(4)];
-    if (si != null && zi != null && grid[si][zi] === null) grid[si][zi] = contactFn(p); // si/zi come from object key lookup, != null is correct
+    if (si != null && zi != null && grid[zi][si] === null) grid[zi][si] = contactFn(p); // si/zi come from object key lookup, != null is correct
   });
 
   // ── Lower-bound binary search helper ─────────────────────────────────────
@@ -7311,8 +7598,8 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, o
     if (zn === 1) { zi0 = zi1 = 0; fz = 0; }
     else { zi0 = lowerBound(zVals, qZ); zi1 = zi0 + 1; var zSpan = zVals[zi1] - zVals[zi0]; fz = zSpan > 0 ? Math.max(0, Math.min(1, (qZ - zVals[zi0]) / zSpan)) : 0; }
 
-    var c00 = grid[si0][zi0], c10 = (si1 < sn ? grid[si1][zi0] : null);
-    var c01 = grid[si0][zi1], c11 = (si1 < sn ? grid[si1][zi1] : null);
+    var c00 = grid[zi0][si0], c10 = (si1 < sn ? grid[zi0][si1] : null);
+    var c01 = grid[zi1][si0], c11 = (si1 < sn ? grid[zi1][si1] : null);
 
     // Fill null corners from neighbours so interpolation always has a value
     var fallback = c00 !== null ? c00 : (c10 !== null ? c10 : (c01 !== null ? c01 : c11));
@@ -7349,12 +7636,12 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, o
   }
 
   // ── Pass 1 (uniform offset mode): pre-compute one offset per move group ──────
-  // Groups are separated by G0 rapids, Z retracts above retractThreshold, or
-  // non-move lines.  Every G1 line in a group receives the same Y (or X) offset
-  // derived from the group centroid, preserving the internal letter geometry.
+  // Groups are separated by G0 rapids, Z retracts (pz >= 0 catches V-carve retracts
+  // to Z=0 between letter strokes), or non-move lines.  Every G1 line in a group
+  // receives the same Y (or X) offset derived from the group centroid, preserving
+  // the internal letter geometry.
   var lineGroupOffset = null; // null → per-point mode; array → uniform mode
   if (uniformOffset) {
-    var retractThreshold = 2.0;
     var p1X = 0, p1Y = 0, p1Z = 0;
     var grpLines = [], grpSamples = [], grpZs = [];
     lineGroupOffset = [];
@@ -7376,8 +7663,8 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, o
     for (var pi = 0; pi < lines.length; pi++) {
       var pl = lines[pi].trim();
       if (!pl || pl.startsWith(';') || pl.startsWith('(')) continue;
-      var plIsG0 = /^G0\b|^G00\b/i.test(pl);
-      var plIsG1 = /^G1\b/i.test(pl);
+      var plIsG0 = /^(?:N\d+\s+)?G0\b|^(?:N\d+\s+)?G00\b/i.test(pl);
+      var plIsG1 = /^(?:N\d+\s+)?G1\b/i.test(pl);
       var pxM = pl.match(/X(-?[\d.]+)/i);
       var pyM = pl.match(/Y(-?[\d.]+)/i);
       var pzM = pl.match(/Z(-?[\d.]+)/i);
@@ -7387,8 +7674,9 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, o
       if (plIsG0) {
         finalizeGrp();
       } else if (plIsG1) {
-        if (pz > retractThreshold) {
+        if (pz >= 0) {
           // Retract move — end current group but don't add this line to a group
+          // (pz >= 0 catches V-carve retracts to Z=0 as well as clearance moves)
           finalizeGrp();
         } else {
           grpLines.push(pi);
@@ -7419,7 +7707,7 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, o
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i].trim();
     if (!line || line.startsWith(';') || line.startsWith('(')) { output.push(lines[i]); continue; }
-    var isMove = /^G[01]\b/i.test(line) || /\b[XYZ][-\d.]/i.test(line);
+    var isMove = /^(?:N\d+\s+)?G[01]\b/i.test(line) || /\b[XYZ][-\d.]/i.test(line);
     if (!isMove) { output.push(lines[i]); continue; }
 
     var xMatch = line.match(/X(-?[\d.]+)/i);
@@ -7439,7 +7727,7 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, o
     // Compensate any G1 move that has an explicit face-axis coordinate, OR that moves
     // along the sample axis or changes Z (face position varies with both).
     // This ensures lines like "G1 X10 Z-2" (no Y) also get face compensation applied.
-    var isG1Linear = /^G1\b/i.test(line);
+    var isG1Linear = /^(?:N\d+\s+)?G1\b/i.test(line);
     var hasFaceCoord = faceAxis === 'Y' ? !!yMatch : !!xMatch;
     var sampleAxisDist = faceAxis === 'Y' ? Math.abs(targetX - startX) : Math.abs(targetY - startY);
     var needsCompensation = hasFaceCoord || (isG1Linear && (sampleAxisDist > 0 || targetZ !== startZ));
