@@ -1342,6 +1342,8 @@ function applyFaceCompensationFromTab() {
 
   var refPos = Number(document.getElementById('apply-face-refPos').value) || 0;
   var axis = (document.getElementById('apply-face-axis').value || 'Y').toUpperCase();
+  var uniformChk = document.getElementById('apply-face-uniform');
+  var uniformOffset = uniformChk ? uniformChk.checked : true;
   var statusEl = document.getElementById('apply-face-status');
   var faceLogEl = document.getElementById('apply-face-log');
   if (faceLogEl) faceLogEl.innerHTML = '';
@@ -1364,13 +1366,13 @@ function applyFaceCompensationFromTab() {
     }
   }
 
-  applyLogFace('Applying face compensation (axis=' + axis + ', refPos=' + refPos + ')...');
+  applyLogFace('Applying face compensation (axis=' + axis + ', refPos=' + refPos + ', uniform=' + uniformOffset + ')...');
 
   try {
     if (typeof faceApplyCompensationCore !== 'function') {
       throw new Error('Face compensation core function not available');
     }
-    var result = faceApplyCompensationCore(applyOriginalGcode, faceData, refPos, axis);
+    var result = faceApplyCompensationCore(applyOriginalGcode, faceData, refPos, axis, uniformOffset);
     applyFaceCompGcode = result.gcode;
     applyLogFace('Done! ' + result.modified + ' ' + axis + ' values adjusted, ' + (result.segments || 0) + ' segments generated.');
     if (statusEl) { statusEl.textContent = 'Face compensation applied: ' + result.modified + ' values adjusted, ' + (result.segments || 0) + ' segments.'; statusEl.className = 'status-line good'; }

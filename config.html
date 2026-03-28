@@ -1218,6 +1218,16 @@
           Use <strong>&#8635; Auto from mesh</strong> to calculate from your face probe data.
           A wrong value (e.g. leaving it at&nbsp;0 when your face is at&nbsp;Y≈-20) will massively distort your G-code toolpath.
         </div>
+        <div class="field" style="margin-bottom:10px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="apply-face-uniform" checked style="width:auto;margin:0">
+            Uniform offset per group (preserves letter shapes &amp; prevents distortion)
+          </label>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px">
+            When checked, all points in each letter/feature receive the same face offset (computed at the group&rsquo;s centroid), keeping geometry intact.
+            Uncheck only for contouring applications where per-point variation is desired.
+          </div>
+        </div>
         <div class="btn-row">
           <button class="btn secondary" id="apply-btn-face-comp" onclick="applyFaceCompensationFromTab()" disabled>&#128736; Apply Face Compensation</button>
           <button class="btn ghost" id="apply-btn-download-face" onclick="applyDownloadCompensatedGcode('face')" disabled>&#8659; Download</button>
@@ -5806,6 +5816,8 @@ function applyFaceCompensationFromTab() {
 
   var refPos = Number(document.getElementById('apply-face-refPos').value) || 0;
   var axis = (document.getElementById('apply-face-axis').value || 'Y').toUpperCase();
+  var uniformChk = document.getElementById('apply-face-uniform');
+  var uniformOffset = uniformChk ? uniformChk.checked : true;
   var statusEl = document.getElementById('apply-face-status');
   var faceLogEl = document.getElementById('apply-face-log');
   if (faceLogEl) faceLogEl.innerHTML = '';
@@ -5828,13 +5840,13 @@ function applyFaceCompensationFromTab() {
     }
   }
 
-  applyLogFace('Applying face compensation (axis=' + axis + ', refPos=' + refPos + ')...');
+  applyLogFace('Applying face compensation (axis=' + axis + ', refPos=' + refPos + ', uniform=' + uniformOffset + ')...');
 
   try {
     if (typeof faceApplyCompensationCore !== 'function') {
       throw new Error('Face compensation core function not available');
     }
-    var result = faceApplyCompensationCore(applyOriginalGcode, faceData, refPos, axis);
+    var result = faceApplyCompensationCore(applyOriginalGcode, faceData, refPos, axis, uniformOffset);
     applyFaceCompGcode = result.gcode;
     applyLogFace('Done! ' + result.modified + ' ' + axis + ' values adjusted, ' + (result.segments || 0) + ' segments generated.');
     if (statusEl) { statusEl.textContent = 'Face compensation applied: ' + result.modified + ' values adjusted, ' + (result.segments || 0) + ' segments.'; statusEl.className = 'status-line good'; }
@@ -7093,7 +7105,7 @@ function updateFaceCompGridInfo() {
 // This corrects the toolpath to follow the actual face contour at each depth.
 // referenceContact = the nominal/expected flat face position (Y or X value).
 // overrideAxis (optional): when 'X' or 'Y', use directly instead of auto-detecting.
-function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, overrideAxis) {
+function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, overrideAxis, uniformOffset) {
 
   // ── Detect face axis ──────────────────────────────────────────────────────
   // For a Y-axis face probe: the probe moved along Y, so:
@@ -7223,11 +7235,68 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, o
     if (minSpacing < Infinity) segmentLength = minSpacing;
   }
 
+  // ── Pass 1 (uniform offset mode): pre-compute one offset per move group ──────
+  // Groups are separated by G0 rapids, Z retracts above retractThreshold, or
+  // non-move lines.  Every G1 line in a group receives the same Y (or X) offset
+  // derived from the group centroid, preserving the internal letter geometry.
+  var lineGroupOffset = null; // null → per-point mode; array → uniform mode
+  if (uniformOffset) {
+    var retractThreshold = 2.0;
+    var p1X = 0, p1Y = 0, p1Z = 0;
+    var grpLines = [], grpSamples = [], grpZs = [];
+    lineGroupOffset = [];
+    for (var pi = 0; pi < lines.length; pi++) lineGroupOffset.push(null);
+
+    var finalizeGrp = function() {
+      if (grpLines.length > 0 && grpSamples.length > 0) {
+        var avgS = 0, avgGZ = 0;
+        for (var gk = 0; gk < grpSamples.length; gk++) avgS += grpSamples[gk];
+        for (var gk = 0; gk < grpZs.length; gk++) avgGZ += grpZs[gk];
+        avgS  /= grpSamples.length;
+        avgGZ /= grpZs.length;
+        var grpOff = interpolateContact(avgS, avgGZ);
+        for (var gk = 0; gk < grpLines.length; gk++) lineGroupOffset[grpLines[gk]] = grpOff;
+      }
+      grpLines = []; grpSamples = []; grpZs = [];
+    };
+
+    for (var pi = 0; pi < lines.length; pi++) {
+      var pl = lines[pi].trim();
+      if (!pl || pl.startsWith(';') || pl.startsWith('(')) continue;
+      var plIsG0 = /^G0\b|^G00\b/i.test(pl);
+      var plIsG1 = /^G1\b/i.test(pl);
+      var pxM = pl.match(/X(-?[\d.]+)/i);
+      var pyM = pl.match(/Y(-?[\d.]+)/i);
+      var pzM = pl.match(/Z(-?[\d.]+)/i);
+      var px = pxM ? parseFloat(pxM[1]) : p1X;
+      var py = pyM ? parseFloat(pyM[1]) : p1Y;
+      var pz = pzM ? parseFloat(pzM[1]) : p1Z;
+      if (plIsG0) {
+        finalizeGrp();
+      } else if (plIsG1) {
+        if (pz > retractThreshold) {
+          // Retract move — end current group but don't add this line to a group
+          finalizeGrp();
+        } else {
+          grpLines.push(pi);
+          grpSamples.push(faceAxis === 'Y' ? px : py);
+          grpZs.push(pz);
+        }
+      } else {
+        // Non-move line (tool change, spindle command, etc.) — end group
+        finalizeGrp();
+      }
+      p1X = px; p1Y = py; p1Z = pz;
+    }
+    finalizeGrp(); // finalize any trailing group
+  }
+
   // Prepend informational header comments
   var viewOrientation = faceAxis === 'Y' ? 'XZ plane (side view) for best visualization' : 'YZ plane (side view) for best visualization';
   output.push('; Face-compensated G-code generated by 3D Live Edge Mesh');
   output.push('; Compensation type: Face (' + faceAxis + '-axis)');
   output.push('; Face probe data: ' + contactPoints.length + ' contact points');
+  output.push('; Offset mode: ' + (uniformOffset ? 'uniform per move group (preserves letter shapes)' : 'per-point interpolation'));
   output.push('; Compensation axis: ' + faceAxis + ' adjusted based on face contour at each (sampleCoord, Z) position');
   output.push('; View orientation: ' + viewOrientation);
   output.push('; Subdivision: enabled (segment length=' + segmentLength.toFixed(2) + ')');
@@ -7261,6 +7330,8 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, o
     var hasFaceCoord = faceAxis === 'Y' ? !!yMatch : !!xMatch;
     var sampleAxisDist = faceAxis === 'Y' ? Math.abs(targetX - startX) : Math.abs(targetY - startY);
     var needsCompensation = hasFaceCoord || (isG1Linear && (sampleAxisDist > 0 || targetZ !== startZ));
+    // In uniform mode only process G1 lines that belong to a cutting group
+    if (lineGroupOffset !== null) needsCompensation = isG1Linear && lineGroupOffset[i] !== null;
 
     if (needsCompensation) {
       if (isG1Linear && sampleAxisDist > segmentLength) {
@@ -7277,7 +7348,7 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, o
           var segY = startY + dy * t;
           var segZ = startZ + dz * t;
           var qSeg = faceAxis === 'Y' ? segX : segY;
-          var offSeg = interpolateContact(qSeg, segZ);
+          var offSeg = (lineGroupOffset !== null) ? lineGroupOffset[i] : interpolateContact(qSeg, segZ);
           var segLine;
           if (offSeg !== null) {
             if (faceAxis === 'Y') {
@@ -7295,7 +7366,7 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, o
         }
       } else {
         var qSample = faceAxis === 'Y' ? currentX : currentY;
-        var offset  = interpolateContact(qSample, currentZ);
+        var offset  = (lineGroupOffset !== null) ? lineGroupOffset[i] : interpolateContact(qSample, currentZ);
         if (offset !== null) {
           if (faceAxis === 'Y') {
             var newY = currentY + offset;

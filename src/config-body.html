@@ -1045,6 +1045,16 @@
           Use <strong>&#8635; Auto from mesh</strong> to calculate from your face probe data.
           A wrong value (e.g. leaving it at&nbsp;0 when your face is at&nbsp;Y≈-20) will massively distort your G-code toolpath.
         </div>
+        <div class="field" style="margin-bottom:10px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="apply-face-uniform" checked style="width:auto;margin:0">
+            Uniform offset per group (preserves letter shapes &amp; prevents distortion)
+          </label>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px">
+            When checked, all points in each letter/feature receive the same face offset (computed at the group&rsquo;s centroid), keeping geometry intact.
+            Uncheck only for contouring applications where per-point variation is desired.
+          </div>
+        </div>
         <div class="btn-row">
           <button class="btn secondary" id="apply-btn-face-comp" onclick="applyFaceCompensationFromTab()" disabled>&#128736; Apply Face Compensation</button>
           <button class="btn ghost" id="apply-btn-download-face" onclick="applyDownloadCompensatedGcode('face')" disabled>&#8659; Download</button>
