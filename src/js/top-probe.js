@@ -856,7 +856,7 @@ function smApplyCompensationCore(gcodeText, data, cfg, referenceZ) {
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i].trim();
     if (!line || line.startsWith(';') || line.startsWith('(')) { output.push(lines[i]); continue; }
-    var isMove = /^G[01]\b/i.test(line) || /\b[XYZ][-\d.]/i.test(line);
+    var isMove = /^(?:N\d+\s+)?G[01]\b/i.test(line) || /\b[XYZ][-\d.]/i.test(line);
     if (!isMove) { output.push(lines[i]); continue; }
     var xMatch = line.match(/X(-?[\d.]+)/i);
     var yMatch = line.match(/Y(-?[\d.]+)/i);
