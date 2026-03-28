@@ -7236,12 +7236,11 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, o
   }
 
   // ── Pass 1 (uniform offset mode): pre-compute one offset per move group ──────
-  // Groups are separated by G0 rapids, Z retracts above retractThreshold, or
-  // non-move lines.  Every G1 line in a group receives the same Y (or X) offset
-  // derived from the group centroid, preserving the internal letter geometry.
+  // Groups are separated by G0 rapids, G1 moves with Z >= 0 (V-carve retracts),
+  // or non-move lines.  Every G1 cutting move (Z < 0) in a group receives the
+  // same Y (or X) offset derived from the group centroid, preserving letter geometry.
   var lineGroupOffset = null; // null → per-point mode; array → uniform mode
   if (uniformOffset) {
-    var retractThreshold = 2.0;
     var p1X = 0, p1Y = 0, p1Z = 0;
     var grpLines = [], grpSamples = [], grpZs = [];
     lineGroupOffset = [];
@@ -7263,8 +7262,11 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, o
     for (var pi = 0; pi < lines.length; pi++) {
       var pl = lines[pi].trim();
       if (!pl || pl.startsWith(';') || pl.startsWith('(')) continue;
-      var plIsG0 = /^G0\b|^G00\b/i.test(pl);
-      var plIsG1 = /^G1\b/i.test(pl);
+      // Strip optional N-number prefix (e.g. "N290 G1 X..." → "G1 X...") before
+      // G-code command detection so the anchored regex ^G0/^G1 matches correctly.
+      var plCore = pl.replace(/^N\d+\s*/i, '');
+      var plIsG0 = /^G0\b|^G00\b/i.test(plCore);
+      var plIsG1 = /^G1\b/i.test(plCore);
       var pxM = pl.match(/X(-?[\d.]+)/i);
       var pyM = pl.match(/Y(-?[\d.]+)/i);
       var pzM = pl.match(/Z(-?[\d.]+)/i);
@@ -7274,10 +7276,12 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, o
       if (plIsG0) {
         finalizeGrp();
       } else if (plIsG1) {
-        if (pz > retractThreshold) {
-          // Retract move — end current group but don't add this line to a group
+        if (pz >= 0) {
+          // Z >= 0 = retract or reposition (V-carve uses Z=0 between letter strokes)
+          // End the current cutting group but don't add this line to any group.
           finalizeGrp();
         } else {
+          // Z < 0 = cutting move — add to current group
           grpLines.push(pi);
           grpSamples.push(faceAxis === 'Y' ? px : py);
           grpZs.push(pz);
@@ -7306,7 +7310,9 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, o
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i].trim();
     if (!line || line.startsWith(';') || line.startsWith('(')) { output.push(lines[i]); continue; }
-    var isMove = /^G[01]\b/i.test(line) || /\b[XYZ][-\d.]/i.test(line);
+    // Strip optional N-number prefix for G-code command detection.
+    var lineCore = line.replace(/^N\d+\s*/i, '');
+    var isMove = /^G[01]\b/i.test(lineCore) || /\b[XYZ][-\d.]/i.test(line);
     if (!isMove) { output.push(lines[i]); continue; }
 
     var xMatch = line.match(/X(-?[\d.]+)/i);
@@ -7326,7 +7332,7 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, o
     // Compensate any G1 move that has an explicit face-axis coordinate, OR that moves
     // along the sample axis or changes Z (face position varies with both).
     // This ensures lines like "G1 X10 Z-2" (no Y) also get face compensation applied.
-    var isG1Linear = /^G1\b/i.test(line);
+    var isG1Linear = /^G1\b/i.test(lineCore);
     var hasFaceCoord = faceAxis === 'Y' ? !!yMatch : !!xMatch;
     var sampleAxisDist = faceAxis === 'Y' ? Math.abs(targetX - startX) : Math.abs(targetY - startY);
     var needsCompensation = hasFaceCoord || (isG1Linear && (sampleAxisDist > 0 || targetZ !== startZ));
