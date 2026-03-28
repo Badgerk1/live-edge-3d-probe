@@ -307,9 +307,9 @@ function buildFaceWallGrid() {
   var layerIndexMap = {}; // layer number → row index
   layers.forEach(function(l, i) { layerIndexMap[l] = i; });
 
-  // Build grid: grid[xi][li] = {x, y, z, layer, sampleTopZ}
+  // Build grid: grid[li][xi] = {x, y, z, layer, sampleTopZ}
   var grid = [];
-  for (var xi = 0; xi < xs.length; xi++) { grid.push({}); }
+  for (var li = 0; li < layers.length; li++) { grid.push({}); }
 
   data.forEach(function(r) {
     var xi = xIndexMap[Number(r.x).toFixed(3)];
@@ -317,7 +317,7 @@ function buildFaceWallGrid() {
     var l = r.layer != null ? r.layer : 1;
     var li = layerIndexMap[l];
     if (li == null) return;
-    if (!grid[xi][li]) grid[xi][li] = r;
+    if (!grid[li][xi]) grid[li][xi] = r;
   });
 
   // Compute Z range (layer heights) and Y range (contact coordinate) across all face data
@@ -746,17 +746,17 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, o
   sampleVals.forEach(function(v, i){ sIdxMap[v.toFixed(4)] = i; });
   zVals.forEach(function(v, i){ zIdxMap[v.toFixed(4)] = i; });
 
-  // grid[si][zi] = contact value (or null if no data for that cell)
+  // grid[zi][si] = contact value (or null if no data for that cell)
   var grid = [];
-  for (var gi = 0; gi < sampleVals.length; gi++) {
+  for (var gi = 0; gi < zVals.length; gi++) {
     var row = [];
-    for (var gj = 0; gj < zVals.length; gj++) row.push(null);
+    for (var gj = 0; gj < sampleVals.length; gj++) row.push(null);
     grid.push(row);
   }
   contactPoints.forEach(function(p) {
     var si = sIdxMap[sampleFn(p).toFixed(4)];
     var zi = zIdxMap[Number(p.z).toFixed(4)];
-    if (si != null && zi != null && grid[si][zi] === null) grid[si][zi] = contactFn(p); // si/zi come from object key lookup, != null is correct
+    if (si != null && zi != null && grid[zi][si] === null) grid[zi][si] = contactFn(p); // si/zi come from object key lookup, != null is correct
   });
 
   // ── Lower-bound binary search helper ─────────────────────────────────────
@@ -791,8 +791,8 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, o
     if (zn === 1) { zi0 = zi1 = 0; fz = 0; }
     else { zi0 = lowerBound(zVals, qZ); zi1 = zi0 + 1; var zSpan = zVals[zi1] - zVals[zi0]; fz = zSpan > 0 ? Math.max(0, Math.min(1, (qZ - zVals[zi0]) / zSpan)) : 0; }
 
-    var c00 = grid[si0][zi0], c10 = (si1 < sn ? grid[si1][zi0] : null);
-    var c01 = grid[si0][zi1], c11 = (si1 < sn ? grid[si1][zi1] : null);
+    var c00 = grid[zi0][si0], c10 = (si1 < sn ? grid[zi0][si1] : null);
+    var c01 = grid[zi1][si0], c11 = (si1 < sn ? grid[zi1][si1] : null);
 
     // Fill null corners from neighbours so interpolation always has a value
     var fallback = c00 !== null ? c00 : (c10 !== null ? c10 : (c01 !== null ? c01 : c11));
