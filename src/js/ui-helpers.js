@@ -551,7 +551,14 @@ function exportFaceDXF(){
     layerGroups[p.layer].push(p);
   });
 
-  var dxf = '0\nSECTION\n2\nENTITIES\n';
+  // Proper DXF structure with HEADER section required by Aspire
+  var dxf = '0\nSECTION\n2\nHEADER\n';
+  dxf += '9\n$ACADVER\n1\nAC1009\n';
+  dxf += '9\n$INSUNITS\n70\n4\n';
+  dxf += '0\nENDSEC\n';
+  dxf += '0\nSECTION\n2\nTABLES\n';
+  dxf += '0\nENDSEC\n';
+  dxf += '0\nSECTION\n2\nENTITIES\n';
   Object.keys(layerGroups).forEach(function(layerNum){
     var pts = layerGroups[layerNum].slice();
     pts.sort(function(a, b){ return a.x - b.x; });
@@ -585,6 +592,13 @@ function exportFaceOBJ(){
   var mode = modeEl ? modeEl.value : 'flat';
   var results = _applyTopSurfaceMode(rawResults, mode);
 
+  // Apply bilinear subdivision for a denser, smoother mesh (Aspire requires enough geometry)
+  var spacingEl = document.getElementById('meshSubdivisionSpacing');
+  var spacing = spacingEl ? parseFloat(spacingEl.value) : 2;
+  if(!isNaN(spacing) && spacing > 0 && typeof subdivideFaceMesh === 'function'){
+    results = subdivideFaceMesh(results, spacing);
+  }
+
   var layerGroups = {};
   results.forEach(function(p){
     if(!layerGroups[p.layer]) layerGroups[p.layer] = [];
@@ -598,6 +612,8 @@ function exportFaceOBJ(){
   var obj = '# 3D Live Edge Mesh - Face Profile\n';
   obj += '# Plugin Version: ' + SM_VERSION + '\n';
   obj += '# Generated ' + new Date().toISOString() + '\n';
+  obj += 'o FaceMesh\n';
+  obj += 'g FaceMesh\n';
 
   layerKeys.forEach(function(k){
     layerGroups[k].forEach(function(p){
@@ -607,7 +623,10 @@ function exportFaceOBJ(){
 
   var samplesPerLayer = (layerKeys.length > 0 && layerGroups[layerKeys[0]]) ? layerGroups[layerKeys[0]].length : 0;
   // Validate all layers have the same sample count before triangulating
+  var totalVerts = layerKeys.length * samplesPerLayer;
   var canTriangulate = samplesPerLayer > 0 && layerKeys.every(function(k){ return layerGroups[k].length === samplesPerLayer; });
+  // Helper: returns true when three 1-based indices form a valid, non-degenerate triangle
+  var validTri = function(v1, v2, v3){ return v1 !== v2 && v2 !== v3 && v1 !== v3 && v1 >= 1 && v2 >= 1 && v3 >= 1 && v1 <= totalVerts && v2 <= totalVerts && v3 <= totalVerts; };
   if(canTriangulate){
     for(var i = 0; i < layerKeys.length - 1; i++){
       var baseIdx = i * samplesPerLayer + 1;
@@ -617,8 +636,8 @@ function exportFaceOBJ(){
         var vb = baseIdx + j + 1;
         var vc = nextIdx + j + 1;
         var vd = nextIdx + j;
-        obj += 'f ' + va + ' ' + vb + ' ' + vc + '\n';
-        obj += 'f ' + va + ' ' + vc + ' ' + vd + '\n';
+        if(validTri(va, vb, vc)) obj += 'f ' + va + ' ' + vb + ' ' + vc + '\n';
+        if(validTri(va, vc, vd)) obj += 'f ' + va + ' ' + vc + ' ' + vd + '\n';
       }
     }
   }
