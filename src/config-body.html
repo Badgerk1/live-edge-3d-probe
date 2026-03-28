@@ -747,6 +747,12 @@
         </label>
         <div class="mini" style="margin-top:4px">Flat Plane: top layer uses the shallowest top profile Z (flat straight edge for CNC carving). Probed Profile: top layer uses each sample's actual measured surface Z.</div>
       </div>
+      <div class="field" style="max-width:320px;margin-bottom:10px">
+        <label>OBJ Subdivision Resolution (mm)
+          <input type="number" id="faceOBJSubdivision" value="2" min="0.5" max="25" step="0.5" style="width:80px">
+        </label>
+        <div class="mini" style="margin-top:4px">Interpolates additional vertices for a smooth mesh. 2mm recommended; smaller values give more detail but larger files.</div>
+      </div>
       <div class="btn-row">
         <button class="btn ghost" id="btn-export-face-csv" title="Export face mesh as CSV">&#128196; Export CSV</button>
         <button class="btn ghost" id="btn-export-face-dxf" title="Export face mesh as DXF">&#128208; Export DXF</button>
