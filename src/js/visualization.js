@@ -794,6 +794,178 @@ function _threeZCol(z, zMin, zMax) {
   return [r / 255, g / 255, b / 255];
 }
 
+// ── Mesh Subdivision Utilities ────────────────────────────────────────────────
+
+/**
+ * subdivideSurfaceMesh(grid, cfg, spacing)
+ * Densifies a surface probe grid using bilinear interpolation.
+ * Returns { grid, config } with updated colCount/rowCount/colSpacing/rowSpacing.
+ * spacing = target point spacing in mm (e.g. 2). 0 / falsy = no subdivision.
+ */
+function subdivideSurfaceMesh(grid, cfg, spacing) {
+  if (!grid || !cfg || !spacing || spacing <= 0) return { grid: grid, config: cfg };
+  var nRows = cfg.rowCount, nCols = cfg.colCount;
+  if (nRows < 2 || nCols < 2) return { grid: grid, config: cfg };
+
+  var colSub = Math.max(1, Math.round(cfg.colSpacing / spacing));
+  var rowSub = Math.max(1, Math.round(cfg.rowSpacing / spacing));
+  if (colSub === 1 && rowSub === 1) return { grid: grid, config: cfg };
+
+  var newCols = (nCols - 1) * colSub + 1;
+  var newRows = (nRows - 1) * rowSub + 1;
+
+  var newGrid = [];
+  for (var gy = 0; gy < newRows; gy++) {
+    var row = [];
+    var cy = Math.min(Math.floor(gy / rowSub), nRows - 2);
+    var ty = (gy - cy * rowSub) / rowSub;
+    for (var gx = 0; gx < newCols; gx++) {
+      var cx = Math.min(Math.floor(gx / colSub), nCols - 2);
+      var tx = (gx - cx * colSub) / colSub;
+      var z00 = grid[cy][cx], z10 = grid[cy][cx + 1];
+      var z01 = grid[cy + 1][cx], z11 = grid[cy + 1][cx + 1];
+      if (z00 == null || z10 == null || z01 == null || z11 == null ||
+          !isFinite(z00) || !isFinite(z10) || !isFinite(z01) || !isFinite(z11)) {
+        row.push(null);
+      } else {
+        row.push(z00 * (1 - tx) * (1 - ty) + z10 * tx * (1 - ty) +
+                 z01 * (1 - tx) * ty + z11 * tx * ty);
+      }
+    }
+    newGrid.push(row);
+  }
+
+  var newConfig = {};
+  for (var k in cfg) { if (cfg.hasOwnProperty(k)) newConfig[k] = cfg[k]; }
+  newConfig.colCount = newCols;
+  newConfig.rowCount = newRows;
+  newConfig.colSpacing = cfg.colSpacing / colSub;
+  newConfig.rowSpacing = cfg.rowSpacing / rowSub;
+  newConfig.maxX = cfg.minX + (newCols - 1) * newConfig.colSpacing;
+  newConfig.maxY = cfg.minY + (newRows - 1) * newConfig.rowSpacing;
+
+  return { grid: newGrid, config: newConfig };
+}
+
+/**
+ * subdivideFaceMesh(pts, spacing)
+ * Densifies a face probe point array using bilinear interpolation on the
+ * X-sample × layer grid.  Returns a new flat array of interpolated points.
+ * Each interpolated point inherits layer, sampleTopZ, and machineZ from
+ * the nearest grid node.  spacing = target point spacing in mm. 0 = no-op.
+ */
+function subdivideFaceMesh(pts, spacing) {
+  if (!pts || pts.length < 4 || !spacing || spacing <= 0) return pts;
+
+  // Collect unique X positions and unique layer numbers
+  var xKeyMap = {}, layerNums = {};
+  pts.forEach(function(p) {
+    var xv = Number(p.x), lv = p.layer != null ? Number(p.layer) : 1;
+    if (!isFinite(xv) || !isFinite(Number(p.y)) || !isFinite(Number(p.z))) return;
+    xKeyMap[xv.toFixed(6)] = xv;
+    layerNums[lv] = true;
+  });
+
+  var xs = Object.values(xKeyMap).sort(function(a, b) { return a - b; });
+  var layers = Object.keys(layerNums).map(Number).sort(function(a, b) { return a - b; });
+  var nCols = xs.length, nRows = layers.length;
+  if (nCols < 2 || nRows < 2) return pts;
+
+  // Build average-Z per layer (same approach as renderFaceReliefMap)
+  var layerZSum = {}, layerZCnt = {};
+  pts.forEach(function(p) {
+    var lv = p.layer != null ? Number(p.layer) : 1;
+    var zv = Number(p.z);
+    if (!isFinite(zv)) return;
+    if (!(lv in layerZSum)) { layerZSum[lv] = 0; layerZCnt[lv] = 0; }
+    layerZSum[lv] += zv; layerZCnt[lv]++;
+  });
+  var layerAvgZ = {};
+  layers.forEach(function(l) { layerAvgZ[l] = layerZSum[l] / layerZCnt[l]; });
+
+  // Build 2D grid [colIdx][rowIdx] → { y, machineZ, sampleTopZ }
+  var grid = [];
+  for (var ci = 0; ci < nCols; ci++) { grid.push(new Array(nRows).fill(null)); }
+  var xiMap = {}, liMap = {};
+  xs.forEach(function(x, i) { xiMap[x.toFixed(6)] = i; });
+  layers.forEach(function(l, i) { liMap[l] = i; });
+
+  // Average Y (and machineZ, sampleTopZ) per cell to handle duplicates
+  var cellSumY = {}, cellSumMZ = {}, cellSumST = {}, cellCnt = {};
+  pts.forEach(function(p) {
+    var xv = Number(p.x), yv = Number(p.y), zv = Number(p.z);
+    var lv = p.layer != null ? Number(p.layer) : 1;
+    if (!isFinite(xv) || !isFinite(yv) || !isFinite(zv)) return;
+    var key = xv.toFixed(6) + '|' + lv;
+    if (!(key in cellCnt)) { cellSumY[key] = 0; cellSumMZ[key] = 0; cellSumST[key] = 0; cellCnt[key] = 0; }
+    cellSumY[key] += yv;
+    cellSumMZ[key] += (p.machineZ != null ? Number(p.machineZ) : 0);
+    cellSumST[key] += (p.sampleTopZ != null ? Number(p.sampleTopZ) : 0);
+    cellCnt[key]++;
+  });
+  Object.keys(cellCnt).forEach(function(key) {
+    var parts = key.split('|');
+    var xv = parseFloat(parts[0]), lv = parseInt(parts[1], 10);
+    var xi = xiMap[xv.toFixed(6)], li = liMap[lv];
+    if (xi == null || li == null) return;
+    var cnt = cellCnt[key];
+    grid[xi][li] = {
+      y: cellSumY[key] / cnt,
+      machineZ: cellSumMZ[key] / cnt,
+      sampleTopZ: cellSumST[key] / cnt
+    };
+  });
+
+  // Determine subdivisions per cell
+  var xSpacings = [];
+  for (var i = 0; i < nCols - 1; i++) xSpacings.push(xs[i + 1] - xs[i]);
+  var avgXSpacing = xSpacings.reduce(function(a, b) { return a + b; }, 0) / xSpacings.length;
+  var zSpacings = [];
+  for (var j = 0; j < nRows - 1; j++) zSpacings.push(Math.abs(layerAvgZ[layers[j + 1]] - layerAvgZ[layers[j]]));
+  var avgZSpacing = zSpacings.reduce(function(a, b) { return a + b; }, 0) / zSpacings.length;
+
+  var xSub = Math.max(1, Math.round(avgXSpacing / spacing));
+  var zSub = Math.max(1, Math.round(avgZSpacing / spacing));
+  if (xSub === 1 && zSub === 1) return pts;
+
+  var newPts = [];
+  var newCols = (nCols - 1) * xSub + 1;
+  var newRows = (nRows - 1) * zSub + 1;
+
+  for (var gy = 0; gy < newRows; gy++) {
+    var li0 = Math.min(Math.floor(gy / zSub), nRows - 2);
+    var ty = (gy - li0 * zSub) / zSub;
+    var newZ = layerAvgZ[layers[li0]] * (1 - ty) + layerAvgZ[layers[li0 + 1]] * ty;
+    var nearLi = ty < 0.5 ? li0 : li0 + 1;
+    var nearLayer = layers[nearLi];
+
+    for (var gx = 0; gx < newCols; gx++) {
+      var xi0 = Math.min(Math.floor(gx / xSub), nCols - 2);
+      var tx = (gx - xi0 * xSub) / xSub;
+      var newX = xs[xi0] * (1 - tx) + xs[xi0 + 1] * tx;
+
+      var c00 = grid[xi0][li0], c10 = grid[xi0 + 1][li0];
+      var c01 = grid[xi0][li0 + 1], c11 = grid[xi0 + 1][li0 + 1];
+      if (!c00 || !c10 || !c01 || !c11) continue;
+
+      var newY = c00.y * (1 - tx) * (1 - ty) + c10.y * tx * (1 - ty) +
+                 c01.y * (1 - tx) * ty + c11.y * tx * ty;
+      var newMZ = c00.machineZ * (1 - tx) * (1 - ty) + c10.machineZ * tx * (1 - ty) +
+                  c01.machineZ * (1 - tx) * ty + c11.machineZ * tx * ty;
+      var newST = c00.sampleTopZ * (1 - tx) * (1 - ty) + c10.sampleTopZ * tx * (1 - ty) +
+                  c01.sampleTopZ * (1 - tx) * ty + c11.sampleTopZ * tx * ty;
+
+      newPts.push({
+        x: newX, y: newY, z: newZ,
+        machineZ: newMZ, sampleTopZ: newST,
+        layer: nearLayer
+      });
+    }
+  }
+
+  return newPts.length >= pts.length ? newPts : pts;
+}
+
 // Smooth subdivided surface mesh with bilinear interpolation between probe points
 function _buildThreeSurface(grid, cfg, zMin, zMax, zExag) {
   var SUB = 8;

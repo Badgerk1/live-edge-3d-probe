@@ -43,6 +43,7 @@ function getSettingsFromUI(){
     probeStylusCalloutLength: Number((document.getElementById('probeStylusCalloutLength')||{}).value) || 14.75,
     probeBallTipDiameter: Number((document.getElementById('probeBallTipDiameter')||{}).value) || 0,
     probeTotalLength: Number((document.getElementById('probeTotalLength')||{}).value) || 67,
+    meshSubdivisionSpacing: (function(){ var el = document.getElementById('meshSubdivisionSpacing'); return el ? Number(el.value) : 2; })(),
   };
 }
 
@@ -286,7 +287,8 @@ function resetSettings(){
     travelFeedRate:600, travelRecoveryFeedRate:1500, travelRecoveryLiftFeedRate:1000, useTravelContactRecovery:'yes', travelContactStep:5, travelContactBackoff:5, travelContactLift:5, travelContactMaxRetries:5, faceFixedCoord:0, faceStartOffset:-10, faceFeed:150,
     faceDepthBelowSurface:2, faceProbeDistance:20, enableLayeredFace:false, faceLayerCount:3, faceMaxDepth:14.75, faceTopSurfaceMode:'flat', finishHomeZ:10,
     useMachineHomeRetract:'yes', machineSafeTopZ:0, returnToXYZero:'yes',
-    jogStepXY:1, jogStepZ:2, jogFeedXY:600, jogFeedZ:300
+    jogStepXY:1, jogStepZ:2, jogFeedXY:600, jogFeedZ:300,
+    meshSubdivisionSpacing: 2
   });
 }
 
@@ -297,7 +299,8 @@ function _applySettingsToUI(cfg){
              'faceFixedCoord','faceStartOffset','faceFeed','faceDepthBelowSurface','faceProbeDistance',
              'faceLayerCount','faceMaxDepth',
              'finishHomeZ','useMachineHomeRetract','machineSafeTopZ','returnToXYZero',
-             'jogStepXY','jogStepZ','jogFeedXY','jogFeedZ'];
+             'jogStepXY','jogStepZ','jogFeedXY','jogFeedZ',
+             'meshSubdivisionSpacing'];
   ids.forEach(function(id){
     var el = document.getElementById(id);
     if(el && cfg[id] != null) el.value = cfg[id];
@@ -308,6 +311,7 @@ function _applySettingsToUI(cfg){
   if(topSurfaceEl && cfg.faceTopSurfaceMode != null) topSurfaceEl.value = cfg.faceTopSurfaceMode;
   var jogStepEl = document.getElementById('jogStepXY');
   if(jogStepEl) setJogStepPreset(jogStepEl.value || '1');
+  if(cfg.meshSubdivisionSpacing != null) meshSubdivisionSpacing = Number(cfg.meshSubdivisionSpacing);
   refreshFinishBehaviorPreview();
   refreshTravelRecoveryPreview();
 }

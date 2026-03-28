@@ -542,7 +542,8 @@ function loadFaceMeshData() {
   try {
     var data = JSON.parse(raw);
     if (data.faceMeshData && data.faceMeshData.length) {
-      layeredFaceResults = data.faceMeshData;
+      layeredFaceResultsRaw = data.faceMeshData;
+      layeredFaceResults = subdivideFaceMesh(data.faceMeshData, meshSubdivisionSpacing);
       updateFaceMeshDataUI();
       var el = document.getElementById('face-meshStorageStatus');
       if (el) el.textContent = 'Face mesh loaded from browser storage (' + layeredFaceResults.length + ' points).';
@@ -601,7 +602,8 @@ function importFaceMeshData() {
         var data = JSON.parse(e.target.result);
         var pts = data.faceMeshData || data;
         if (!Array.isArray(pts)) throw new Error('Expected an array of face mesh points');
-        layeredFaceResults = pts;
+        layeredFaceResultsRaw = pts;
+        layeredFaceResults = subdivideFaceMesh(pts, meshSubdivisionSpacing);
         updateFaceMeshDataUI();
         var statusEl = document.getElementById('face-meshStorageStatus');
         if (statusEl) statusEl.textContent = 'Face mesh imported: ' + pts.length + ' points.';
