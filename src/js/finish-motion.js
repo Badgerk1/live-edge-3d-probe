@@ -307,9 +307,9 @@ function buildFaceWallGrid() {
   var layerIndexMap = {}; // layer number → row index
   layers.forEach(function(l, i) { layerIndexMap[l] = i; });
 
-  // Build grid: grid[xi][li] = {x, y, z, layer, sampleTopZ}
+  // Build grid: grid[li][xi] = {x, y, z, layer, sampleTopZ}
   var grid = [];
-  for (var xi = 0; xi < xs.length; xi++) { grid.push({}); }
+  for (var li = 0; li < layers.length; li++) { grid.push({}); }
 
   data.forEach(function(r) {
     var xi = xIndexMap[Number(r.x).toFixed(3)];
@@ -317,7 +317,7 @@ function buildFaceWallGrid() {
     var l = r.layer != null ? r.layer : 1;
     var li = layerIndexMap[l];
     if (li == null) return;
-    if (!grid[xi][li]) grid[xi][li] = r;
+    if (!grid[li][xi]) grid[li][xi] = r;
   });
 
   // Compute Z range (layer heights) and Y range (contact coordinate) across all face data
@@ -542,7 +542,8 @@ function loadFaceMeshData() {
   try {
     var data = JSON.parse(raw);
     if (data.faceMeshData && data.faceMeshData.length) {
-      layeredFaceResults = data.faceMeshData;
+      layeredFaceResultsRaw = data.faceMeshData;
+      layeredFaceResults = subdivideFaceMesh(data.faceMeshData, meshSubdivisionSpacing);
       updateFaceMeshDataUI();
       var el = document.getElementById('face-meshStorageStatus');
       if (el) el.textContent = 'Face mesh loaded from browser storage (' + layeredFaceResults.length + ' points).';
@@ -601,7 +602,8 @@ function importFaceMeshData() {
         var data = JSON.parse(e.target.result);
         var pts = data.faceMeshData || data;
         if (!Array.isArray(pts)) throw new Error('Expected an array of face mesh points');
-        layeredFaceResults = pts;
+        layeredFaceResultsRaw = pts;
+        layeredFaceResults = subdivideFaceMesh(pts, meshSubdivisionSpacing);
         updateFaceMeshDataUI();
         var statusEl = document.getElementById('face-meshStorageStatus');
         if (statusEl) statusEl.textContent = 'Face mesh imported: ' + pts.length + ' points.';
@@ -744,17 +746,17 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, o
   sampleVals.forEach(function(v, i){ sIdxMap[v.toFixed(4)] = i; });
   zVals.forEach(function(v, i){ zIdxMap[v.toFixed(4)] = i; });
 
-  // grid[si][zi] = contact value (or null if no data for that cell)
+  // grid[zi][si] = contact value (or null if no data for that cell)
   var grid = [];
-  for (var gi = 0; gi < sampleVals.length; gi++) {
+  for (var gi = 0; gi < zVals.length; gi++) {
     var row = [];
-    for (var gj = 0; gj < zVals.length; gj++) row.push(null);
+    for (var gj = 0; gj < sampleVals.length; gj++) row.push(null);
     grid.push(row);
   }
   contactPoints.forEach(function(p) {
     var si = sIdxMap[sampleFn(p).toFixed(4)];
     var zi = zIdxMap[Number(p.z).toFixed(4)];
-    if (si != null && zi != null && grid[si][zi] === null) grid[si][zi] = contactFn(p); // si/zi come from object key lookup, != null is correct
+    if (si != null && zi != null && grid[zi][si] === null) grid[zi][si] = contactFn(p); // si/zi come from object key lookup, != null is correct
   });
 
   // ── Lower-bound binary search helper ─────────────────────────────────────
@@ -789,8 +791,8 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, o
     if (zn === 1) { zi0 = zi1 = 0; fz = 0; }
     else { zi0 = lowerBound(zVals, qZ); zi1 = zi0 + 1; var zSpan = zVals[zi1] - zVals[zi0]; fz = zSpan > 0 ? Math.max(0, Math.min(1, (qZ - zVals[zi0]) / zSpan)) : 0; }
 
-    var c00 = grid[si0][zi0], c10 = (si1 < sn ? grid[si1][zi0] : null);
-    var c01 = grid[si0][zi1], c11 = (si1 < sn ? grid[si1][zi1] : null);
+    var c00 = grid[zi0][si0], c10 = (si1 < sn ? grid[zi0][si1] : null);
+    var c01 = grid[zi1][si0], c11 = (si1 < sn ? grid[zi1][si1] : null);
 
     // Fill null corners from neighbours so interpolation always has a value
     var fallback = c00 !== null ? c00 : (c10 !== null ? c10 : (c01 !== null ? c01 : c11));
@@ -827,12 +829,12 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, o
   }
 
   // ── Pass 1 (uniform offset mode): pre-compute one offset per move group ──────
-  // Groups are separated by G0 rapids, Z retracts above retractThreshold, or
-  // non-move lines.  Every G1 line in a group receives the same Y (or X) offset
-  // derived from the group centroid, preserving the internal letter geometry.
+  // Groups are separated by G0 rapids, Z retracts (pz >= 0 catches V-carve retracts
+  // to Z=0 between letter strokes), or non-move lines.  Every G1 line in a group
+  // receives the same Y (or X) offset derived from the group centroid, preserving
+  // the internal letter geometry.
   var lineGroupOffset = null; // null → per-point mode; array → uniform mode
   if (uniformOffset) {
-    var retractThreshold = 2.0;
     var p1X = 0, p1Y = 0, p1Z = 0;
     var grpLines = [], grpSamples = [], grpZs = [];
     lineGroupOffset = [];
@@ -854,8 +856,8 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, o
     for (var pi = 0; pi < lines.length; pi++) {
       var pl = lines[pi].trim();
       if (!pl || pl.startsWith(';') || pl.startsWith('(')) continue;
-      var plIsG0 = /^G0\b|^G00\b/i.test(pl);
-      var plIsG1 = /^G1\b/i.test(pl);
+      var plIsG0 = /^(?:N\d+\s+)?G0\b|^(?:N\d+\s+)?G00\b/i.test(pl);
+      var plIsG1 = /^(?:N\d+\s+)?G1\b/i.test(pl);
       var pxM = pl.match(/X(-?[\d.]+)/i);
       var pyM = pl.match(/Y(-?[\d.]+)/i);
       var pzM = pl.match(/Z(-?[\d.]+)/i);
@@ -865,8 +867,9 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, o
       if (plIsG0) {
         finalizeGrp();
       } else if (plIsG1) {
-        if (pz > retractThreshold) {
+        if (pz >= 0) {
           // Retract move — end current group but don't add this line to a group
+          // (pz >= 0 catches V-carve retracts to Z=0 as well as clearance moves)
           finalizeGrp();
         } else {
           grpLines.push(pi);
@@ -897,7 +900,7 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, o
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i].trim();
     if (!line || line.startsWith(';') || line.startsWith('(')) { output.push(lines[i]); continue; }
-    var isMove = /^G[01]\b/i.test(line) || /\b[XYZ][-\d.]/i.test(line);
+    var isMove = /^(?:N\d+\s+)?G[01]\b/i.test(line) || /\b[XYZ][-\d.]/i.test(line);
     if (!isMove) { output.push(lines[i]); continue; }
 
     var xMatch = line.match(/X(-?[\d.]+)/i);
@@ -917,7 +920,7 @@ function faceApplyCompensationCore(gcodeText, contactPoints, referenceContact, o
     // Compensate any G1 move that has an explicit face-axis coordinate, OR that moves
     // along the sample axis or changes Z (face position varies with both).
     // This ensures lines like "G1 X10 Z-2" (no Y) also get face compensation applied.
-    var isG1Linear = /^G1\b/i.test(line);
+    var isG1Linear = /^(?:N\d+\s+)?G1\b/i.test(line);
     var hasFaceCoord = faceAxis === 'Y' ? !!yMatch : !!xMatch;
     var sampleAxisDist = faceAxis === 'Y' ? Math.abs(targetX - startX) : Math.abs(targetY - startY);
     var needsCompensation = hasFaceCoord || (isG1Linear && (sampleAxisDist > 0 || targetZ !== startZ));

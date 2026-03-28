@@ -1,6 +1,7 @@
 function runSurfaceProbing() {
   pluginDebug('runSurfaceProbing ENTER');
   smStopFlag = false;
+  meshSubdivisionSpacing = (function(){ var el = document.getElementById('meshSubdivisionSpacing'); return el ? Number(el.value) : meshSubdivisionSpacing; })();
   // Clear any previous mesh data so the combined-mode callback correctly detects
   // whether THIS probe run succeeded (stale smMeshData would make it look like
   // success even when the current probe fails on the first point).
@@ -95,8 +96,11 @@ function runSurfaceProbing() {
   }
 
   probeRow(0).then(function() {
-    smMeshData = result;
-    smGridConfig = cfg;
+    smMeshDataRaw = result;
+    smGridConfigRaw = cfg;
+    var subdivided = subdivideSurfaceMesh(result, cfg, meshSubdivisionSpacing);
+    smMeshData = subdivided.grid;
+    smGridConfig = subdivided.config;
     smSetProbeStatus('Probing complete! ' + totalPoints + ' points captured.', 'ok');
     smLogProbe('Done! Probing complete.');
     pluginDebug('runSurfaceProbing COMPLETE: ' + totalPoints + ' points captured, meshData rows=' + result.length);
@@ -215,8 +219,11 @@ function loadSurfaceMesh() {
       return;
     }
     var data = JSON.parse(raw);
-    smMeshData = data.meshData;
-    smGridConfig = data.gridConfig;
+    smMeshDataRaw = data.meshData;
+    smGridConfigRaw = data.gridConfig;
+    var subdivided = subdivideSurfaceMesh(data.meshData, data.gridConfig, meshSubdivisionSpacing);
+    smMeshData = subdivided.grid;
+    smGridConfig = subdivided.config;
     updateSurfaceMeshUI();
     if (statusEl) statusEl.textContent = 'Mesh loaded from storage.';
   } catch(e) {
@@ -686,8 +693,11 @@ function importSurfaceMesh() {
     reader.onload = function(e) {
       try {
         var data = JSON.parse(e.target.result);
-        smMeshData = data.meshData;
-        smGridConfig = data.gridConfig;
+        smMeshDataRaw = data.meshData;
+        smGridConfigRaw = data.gridConfig;
+        var subdivided = subdivideSurfaceMesh(data.meshData, data.gridConfig, meshSubdivisionSpacing);
+        smMeshData = subdivided.grid;
+        smGridConfig = subdivided.config;
         updateSurfaceMeshUI();
         var importEl = document.getElementById('sm-meshStorageStatus');
         if (importEl) importEl.textContent = 'Mesh imported from file.';
@@ -846,7 +856,7 @@ function smApplyCompensationCore(gcodeText, data, cfg, referenceZ) {
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i].trim();
     if (!line || line.startsWith(';') || line.startsWith('(')) { output.push(lines[i]); continue; }
-    var isMove = /^G[01]\b/i.test(line) || /\b[XYZ][-\d.]/i.test(line);
+    var isMove = /^(?:N\d+\s+)?G[01]\b/i.test(line) || /\b[XYZ][-\d.]/i.test(line);
     if (!isMove) { output.push(lines[i]); continue; }
     var xMatch = line.match(/X(-?[\d.]+)/i);
     var yMatch = line.match(/Y(-?[\d.]+)/i);

@@ -43,6 +43,8 @@ function getSettingsFromUI(){
     probeStylusCalloutLength: Number((document.getElementById('probeStylusCalloutLength')||{}).value) || 14.75,
     probeBallTipDiameter: Number((document.getElementById('probeBallTipDiameter')||{}).value) || 0,
     probeTotalLength: Number((document.getElementById('probeTotalLength')||{}).value) || 67,
+    meshSubdivisionSpacing: (function(){ var el = document.getElementById('meshSubdivisionSpacing'); return el ? Number(el.value) : 2; })(),
+    faceOBJSubdivision: (function(){ var el = document.getElementById('faceOBJSubdivision'); return el ? Number(el.value) : 2; })(),
   };
 }
 
@@ -286,7 +288,9 @@ function resetSettings(){
     travelFeedRate:600, travelRecoveryFeedRate:1500, travelRecoveryLiftFeedRate:1000, useTravelContactRecovery:'yes', travelContactStep:5, travelContactBackoff:5, travelContactLift:5, travelContactMaxRetries:5, faceFixedCoord:0, faceStartOffset:-10, faceFeed:150,
     faceDepthBelowSurface:2, faceProbeDistance:20, enableLayeredFace:false, faceLayerCount:3, faceMaxDepth:14.75, faceTopSurfaceMode:'flat', finishHomeZ:10,
     useMachineHomeRetract:'yes', machineSafeTopZ:0, returnToXYZero:'yes',
-    jogStepXY:1, jogStepZ:2, jogFeedXY:600, jogFeedZ:300
+    jogStepXY:1, jogStepZ:2, jogFeedXY:600, jogFeedZ:300,
+    meshSubdivisionSpacing: 2,
+    faceOBJSubdivision: 2
   });
 }
 
@@ -297,7 +301,9 @@ function _applySettingsToUI(cfg){
              'faceFixedCoord','faceStartOffset','faceFeed','faceDepthBelowSurface','faceProbeDistance',
              'faceLayerCount','faceMaxDepth',
              'finishHomeZ','useMachineHomeRetract','machineSafeTopZ','returnToXYZero',
-             'jogStepXY','jogStepZ','jogFeedXY','jogFeedZ'];
+             'jogStepXY','jogStepZ','jogFeedXY','jogFeedZ',
+             'meshSubdivisionSpacing',
+             'faceOBJSubdivision'];
   ids.forEach(function(id){
     var el = document.getElementById(id);
     if(el && cfg[id] != null) el.value = cfg[id];
@@ -308,6 +314,7 @@ function _applySettingsToUI(cfg){
   if(topSurfaceEl && cfg.faceTopSurfaceMode != null) topSurfaceEl.value = cfg.faceTopSurfaceMode;
   var jogStepEl = document.getElementById('jogStepXY');
   if(jogStepEl) setJogStepPreset(jogStepEl.value || '1');
+  if(cfg.meshSubdivisionSpacing != null) meshSubdivisionSpacing = Number(cfg.meshSubdivisionSpacing);
   refreshFinishBehaviorPreview();
   refreshTravelRecoveryPreview();
 }
@@ -474,6 +481,91 @@ function exportCSV(){
 
 
 // ── Face mesh export helpers ──────────────────────────────────────────────────
+
+/**
+ * _buildSubdividedFaceGrid(results, resolution)
+ * Bilinearly interpolates a dense mesh from the raw face probe points.
+ * Builds a pts[xi][li] 2D grid (X columns × layer rows), then generates
+ * numCols × numRows output vertices at the requested mm resolution.
+ * Returns { rows, numCols, numRows, origVerts } or null when data is degenerate.
+ */
+function _buildSubdividedFaceGrid(results, resolution) {
+  // Collect unique X positions and layer numbers
+  var xKeyToVal = {}, layerSet = {};
+  results.forEach(function(p) {
+    var xv = Number(p.x), lv = p.layer != null ? p.layer : 1;
+    if (!isFinite(xv) || !isFinite(Number(p.y)) || !isFinite(Number(p.z))) return;
+    var key = xv.toFixed(3);
+    if (!(key in xKeyToVal)) xKeyToVal[key] = xv;
+    layerSet[lv] = true;
+  });
+  var xs = Object.keys(xKeyToVal).map(function(k) { return xKeyToVal[k]; })
+    .sort(function(a, b) { return a - b; });
+  var layers = Object.keys(layerSet).map(Number).sort(function(a, b) { return a - b; });
+  if (xs.length < 2 || layers.length < 2) return null;
+
+  // Build index maps
+  var xiMap = {};
+  xs.forEach(function(v, i) { xiMap[v.toFixed(3)] = i; });
+  var liMap = {};
+  layers.forEach(function(l, i) { liMap[l] = i; });
+
+  // Build pts[xi][li] grid
+  var pts = [];
+  for (var xi = 0; xi < xs.length; xi++) {
+    pts.push([]);
+    for (var li = 0; li < layers.length; li++) pts[xi].push(null);
+  }
+  results.forEach(function(p) {
+    var xi = xiMap[Number(p.x).toFixed(3)];
+    var li = liMap[p.layer != null ? p.layer : 1];
+    if (xi != null && li != null && !pts[xi][li]) pts[xi][li] = p;
+  });
+
+  // Compute X and Z ranges for resolution-based grid sizing
+  var xRange = xs[xs.length - 1] - xs[0];
+  var zVals = results.map(function(p) { return Number(p.z); }).filter(isFinite);
+  var zMin = Math.min.apply(null, zVals);
+  var zMax = Math.max.apply(null, zVals);
+  var zRange = Math.abs(zMax - zMin);
+
+  var numCols = Math.max(2, Math.round(xRange / resolution) + 1);
+  var numRows = Math.max(2, Math.round(zRange / resolution) + 1);
+  var nCX = xs.length - 1, nCY = layers.length - 1;
+
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function bilerp(v00, v10, v01, v11, tx, ty) {
+    return lerp(lerp(v00, v10, tx), lerp(v01, v11, tx), ty);
+  }
+
+  // Generate subdivided grid as row-major array: rows[ri][ci] = {x, y, z, layer}
+  var rows = [];
+  for (var ri = 0; ri < numRows; ri++) {
+    var rowPts = [];
+    var v = ri / (numRows - 1);
+    var cellL = Math.min(Math.floor(v * nCY), nCY - 1);
+    var ty = v * nCY - cellL;
+    var nearLayer = ty < 0.5 ? layers[cellL] : layers[cellL + 1]; // assign to nearest original layer
+    for (var ci = 0; ci < numCols; ci++) {
+      var u = ci / (numCols - 1);
+      var cellX = Math.min(Math.floor(u * nCX), nCX - 1);
+      var tx = u * nCX - cellX;
+      var r00 = pts[cellX][cellL], r10 = pts[cellX + 1][cellL];
+      var r01 = pts[cellX][cellL + 1], r11 = pts[cellX + 1][cellL + 1];
+      if (!r00 || !r10 || !r01 || !r11) { rowPts.push(null); continue; }
+      rowPts.push({
+        x: bilerp(Number(r00.x), Number(r10.x), Number(r01.x), Number(r11.x), tx, ty),
+        y: bilerp(Number(r00.y), Number(r10.y), Number(r01.y), Number(r11.y), tx, ty),
+        z: bilerp(Number(r00.z), Number(r10.z), Number(r01.z), Number(r11.z), tx, ty),
+        layer: nearLayer
+      });
+    }
+    rows.push(rowPts);
+  }
+
+  return { rows: rows, numCols: numCols, numRows: numRows, origVerts: results.length };
+}
+
 function _getFaceMeshData(){
   // Use layered results if available; otherwise fall back to faceResults as layer 1
   if(layeredFaceResults && layeredFaceResults.length){
@@ -517,11 +609,29 @@ function exportFaceCSV(){
   var modeEl = document.getElementById('faceTopSurfaceMode');
   var mode = modeEl ? modeEl.value : 'flat';
   var results = _applyTopSurfaceMode(rawResults, mode);
+
+  var resEl = document.getElementById('faceOBJSubdivision');
+  var resolution = resEl ? parseFloat(resEl.value) : 2;
+  if(isNaN(resolution) || resolution <= 0) resolution = 2;
+
+  var subGrid = _buildSubdividedFaceGrid(results, resolution);
+
   var csv = '# Plugin Version: ' + SM_VERSION + '\n';
-  csv += 'X,Y,Z,Layer\n';
-  results.forEach(function(p){
-    csv += p.x.toFixed(3) + ',' + p.y.toFixed(3) + ',' + p.z.toFixed(3) + ',' + p.layer + '\n';
-  });
+  if(subGrid){
+    csv += '# Subdivided: ' + subGrid.origVerts + ' -> ' + (subGrid.numRows * subGrid.numCols) + ' vertices at ' + resolution + 'mm resolution\n';
+    csv += 'X,Y,Z,Layer\n';
+    subGrid.rows.forEach(function(row){
+      row.forEach(function(p){
+        if(!p) return;
+        csv += p.x.toFixed(3) + ',' + p.y.toFixed(3) + ',' + p.z.toFixed(3) + ',' + p.layer + '\n';
+      });
+    });
+  } else {
+    csv += 'X,Y,Z,Layer\n';
+    results.forEach(function(p){
+      csv += p.x.toFixed(3) + ',' + p.y.toFixed(3) + ',' + p.z.toFixed(3) + ',' + p.layer + '\n';
+    });
+  }
   var blob = new Blob([csv], {type:'text/csv'});
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
@@ -541,25 +651,53 @@ function exportFaceDXF(){
   var mode = modeEl ? modeEl.value : 'flat';
   var results = _applyTopSurfaceMode(rawResults, mode);
 
-  var layerGroups = {};
-  results.forEach(function(p){
-    if(!layerGroups[p.layer]) layerGroups[p.layer] = [];
-    layerGroups[p.layer].push(p);
-  });
+  var resEl = document.getElementById('faceOBJSubdivision');
+  var resolution = resEl ? parseFloat(resEl.value) : 2;
+  if(isNaN(resolution) || resolution <= 0) resolution = 2;
 
-  var dxf = '0\nSECTION\n2\nENTITIES\n';
-  Object.keys(layerGroups).forEach(function(layerNum){
-    var pts = layerGroups[layerNum].slice();
-    pts.sort(function(a, b){ return a.x - b.x; });
-    dxf += '0\nPOLYLINE\n8\nLayer_' + layerNum + '\n66\n1\n70\n8\n';
-    pts.forEach(function(p){
-      dxf += '0\nVERTEX\n8\nLayer_' + layerNum + '\n';
-      dxf += '10\n' + p.x.toFixed(3) + '\n';
-      dxf += '20\n' + p.y.toFixed(3) + '\n';
-      dxf += '30\n' + p.z.toFixed(3) + '\n';
+  var subGrid = _buildSubdividedFaceGrid(results, resolution);
+
+  // Proper DXF structure with HEADER section required by Aspire
+  var dxf = '0\nSECTION\n2\nHEADER\n';
+  dxf += '9\n$ACADVER\n1\nAC1009\n';
+  dxf += '9\n$INSUNITS\n70\n4\n';
+  dxf += '0\nENDSEC\n';
+  dxf += '0\nSECTION\n2\nTABLES\n';
+  dxf += '0\nENDSEC\n';
+  dxf += '0\nSECTION\n2\nENTITIES\n';
+
+  if(subGrid){
+    subGrid.rows.forEach(function(row, ri){
+      var validPts = row.filter(function(p){ return p != null; });
+      if(!validPts.length) return;
+      dxf += '0\nPOLYLINE\n8\nRow_' + (ri + 1) + '\n66\n1\n70\n8\n';
+      validPts.forEach(function(p){
+        dxf += '0\nVERTEX\n8\nRow_' + (ri + 1) + '\n';
+        dxf += '10\n' + p.x.toFixed(3) + '\n';
+        dxf += '20\n' + p.y.toFixed(3) + '\n';
+        dxf += '30\n' + p.z.toFixed(3) + '\n';
+      });
+      dxf += '0\nSEQEND\n';
     });
-    dxf += '0\nSEQEND\n';
-  });
+  } else {
+    var layerGroups = {};
+    results.forEach(function(p){
+      if(!layerGroups[p.layer]) layerGroups[p.layer] = [];
+      layerGroups[p.layer].push(p);
+    });
+    Object.keys(layerGroups).forEach(function(layerNum){
+      var pts = layerGroups[layerNum].slice();
+      pts.sort(function(a, b){ return a.x - b.x; });
+      dxf += '0\nPOLYLINE\n8\nLayer_' + layerNum + '\n66\n1\n70\n8\n';
+      pts.forEach(function(p){
+        dxf += '0\nVERTEX\n8\nLayer_' + layerNum + '\n';
+        dxf += '10\n' + p.x.toFixed(3) + '\n';
+        dxf += '20\n' + p.y.toFixed(3) + '\n';
+        dxf += '30\n' + p.z.toFixed(3) + '\n';
+      });
+      dxf += '0\nSEQEND\n';
+    });
+  }
   dxf += '0\nENDSEC\n0\nEOF\n';
 
   var blob = new Blob([dxf], {type:'application/dxf'});
@@ -581,38 +719,77 @@ function exportFaceOBJ(){
   var mode = modeEl ? modeEl.value : 'flat';
   var results = _applyTopSurfaceMode(rawResults, mode);
 
-  var layerGroups = {};
-  results.forEach(function(p){
-    if(!layerGroups[p.layer]) layerGroups[p.layer] = [];
-    layerGroups[p.layer].push(p);
-  });
-  var layerKeys = Object.keys(layerGroups).sort(function(a, b){ return Number(a) - Number(b); });
-  layerKeys.forEach(function(k){
-    layerGroups[k].sort(function(a, b){ return a.x - b.x; });
-  });
-
-  var nL = layerKeys.length;
-  var nX = nL > 0 ? layerGroups[layerKeys[0]].length : 0;
-  var canSubdivide = nL >= 2 && nX >= 2 && layerKeys.every(function(k){ return layerGroups[k].length === nX; });
-
-  // Read subdivision resolution (default 2mm)
   var resEl = document.getElementById('faceOBJSubdivision');
-  var resolution = resEl ? Math.max(0.1, parseFloat(resEl.value) || 2) : 2;
+  var resolution = resEl ? parseFloat(resEl.value) : 2;
+  if(isNaN(resolution) || resolution <= 0) resolution = 2;
 
-  if(!canSubdivide){
-    // Fall back: export raw probed vertices without subdivision
-    var obj = '# 3D Live Edge Mesh - Face Profile\n';
-    obj += '# Plugin Version: ' + SM_VERSION + '\n';
-    obj += '# Generated ' + new Date().toISOString() + '\n';
+  var subGrid = _buildSubdividedFaceGrid(results, resolution);
+
+  var obj = '# 3D Live Edge Mesh - Face Profile\n';
+  obj += '# Plugin Version: ' + SM_VERSION + '\n';
+  obj += '# Generated ' + new Date().toISOString() + '\n';
+
+  var totalVerts = 0, triCount = 0;
+
+  if(subGrid){
+    obj += '# Subdivided: ' + subGrid.origVerts + ' -> ' + (subGrid.numRows * subGrid.numCols) + ' vertices at ' + resolution + 'mm resolution\n';
+    obj += 'o FaceMesh\n';
+    obj += 'g FaceMesh\n';
+
+    // Emit vertices row by row; track per-cell indices for triangulation
+    var indexGrid = [];
+    var vIdx = 1;
+    for(var ri = 0; ri < subGrid.numRows; ri++){
+      indexGrid.push([]);
+      for(var ci = 0; ci < subGrid.numCols; ci++){
+        var p = subGrid.rows[ri][ci];
+        if(p){
+          obj += 'v ' + p.x.toFixed(3) + ' ' + p.y.toFixed(3) + ' ' + p.z.toFixed(3) + '\n';
+          indexGrid[ri].push(vIdx++);
+          totalVerts++;
+        } else {
+          indexGrid[ri].push(0);
+        }
+      }
+    }
+
+    // Triangulate subdivided grid
+    for(var ri = 0; ri < subGrid.numRows - 1; ri++){
+      for(var ci = 0; ci < subGrid.numCols - 1; ci++){
+        var va = indexGrid[ri][ci], vb = indexGrid[ri][ci + 1];
+        var vc = indexGrid[ri + 1][ci + 1], vd = indexGrid[ri + 1][ci];
+        if(va && vb && vc){ obj += 'f ' + va + ' ' + vb + ' ' + vc + '\n'; triCount++; }
+        if(va && vc && vd){ obj += 'f ' + va + ' ' + vc + ' ' + vd + '\n'; triCount++; }
+      }
+    }
+  } else {
+    // Fallback: raw export when grid is degenerate (<2 layers or <2 X columns)
+    obj += 'o FaceMesh\n';
+    obj += 'g FaceMesh\n';
+
+    var layerGroups = {};
+    results.forEach(function(p){
+      if(!layerGroups[p.layer]) layerGroups[p.layer] = [];
+      layerGroups[p.layer].push(p);
+    });
+    var layerKeys = Object.keys(layerGroups).sort(function(a, b){ return Number(a) - Number(b); });
+    layerKeys.forEach(function(k){
+      layerGroups[k].sort(function(a, b){ return a.x - b.x; });
+    });
+
     layerKeys.forEach(function(k){
       layerGroups[k].forEach(function(p){
         obj += 'v ' + p.x.toFixed(3) + ' ' + p.y.toFixed(3) + ' ' + p.z.toFixed(3) + '\n';
+        totalVerts++;
       });
     });
-    var samplesPerLayer = nX;
-    var canTriangulate = samplesPerLayer > 0 && nL >= 2;
+
+    var samplesPerLayer = (layerKeys.length > 0 && layerGroups[layerKeys[0]]) ? layerGroups[layerKeys[0]].length : 0;
+    var canTriangulate = samplesPerLayer > 0 && layerKeys.every(function(k){ return layerGroups[k].length === samplesPerLayer; });
+    var totalVertsRaw = layerKeys.length * samplesPerLayer;
+    var validTri = function(v1, v2, v3){ return v1 !== v2 && v2 !== v3 && v1 !== v3 && v1 >= 1 && v2 >= 1 && v3 >= 1 && v1 <= totalVertsRaw && v2 <= totalVertsRaw && v3 <= totalVertsRaw; };
     if(canTriangulate){
-      for(var i = 0; i < nL - 1; i++){
+      for(var i = 0; i < layerKeys.length - 1; i++){
         var baseIdx = i * samplesPerLayer + 1;
         var nextIdx = (i + 1) * samplesPerLayer + 1;
         for(var j = 0; j < samplesPerLayer - 1; j++){
@@ -620,109 +797,10 @@ function exportFaceOBJ(){
           var vb = baseIdx + j + 1;
           var vc = nextIdx + j + 1;
           var vd = nextIdx + j;
-          obj += 'f ' + va + ' ' + vb + ' ' + vc + '\n';
-          obj += 'f ' + va + ' ' + vc + ' ' + vd + '\n';
+          if(validTri(va, vb, vc)){ obj += 'f ' + va + ' ' + vb + ' ' + vc + '\n'; triCount++; }
+          if(validTri(va, vc, vd)){ obj += 'f ' + va + ' ' + vc + ' ' + vd + '\n'; triCount++; }
         }
       }
-    }
-    var blob = new Blob([obj], {type:'model/obj'});
-    var url = URL.createObjectURL(blob);
-    var anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = 'face_mesh_' + tsForFilename() + '.obj';
-    document.body.appendChild(anchor);
-    anchor.click();
-    document.body.removeChild(anchor);
-    URL.revokeObjectURL(url);
-    setFooterStatus('OBJ exported.', 'good');
-    return;
-  }
-
-  // Build 2D grid of probed points: pts[xi][li] = {x, y, z}
-  // xi = X column index (0..nX-1), li = layer index (0..nL-1, ascending by layer number)
-  var pts = [];
-  for(var xi = 0; xi < nX; xi++){
-    pts.push([]);
-    for(var li = 0; li < nL; li++){
-      var p = layerGroups[layerKeys[li]][xi];
-      pts[xi].push({ x: p.x, y: p.y, z: p.z });
-    }
-  }
-
-  // Compute X range and Z range for subdivision resolution using actual min/max across all points
-  var xMin = Infinity, xMax = -Infinity, zMin = Infinity, zMax = -Infinity;
-  for(var xi = 0; xi < nX; xi++){
-    for(var li = 0; li < nL; li++){
-      var px = pts[xi][li].x, pz = pts[xi][li].z;
-      if(px < xMin) xMin = px;
-      if(px > xMax) xMax = px;
-      if(pz < zMin) zMin = pz;
-      if(pz > zMax) zMax = pz;
-    }
-  }
-  var xRange = xMax - xMin;
-  var zRange = zMax - zMin;
-
-  var numCols = Math.max(2, Math.round(xRange / resolution) + 1);
-  var numRows = Math.max(2, Math.round(zRange / resolution) + 1);
-
-  // Interpolation helpers
-  function lerp(a, b, t){ return a + (b - a) * t; }
-  function bilerp(v00, v10, v01, v11, tx, tv){
-    return lerp(lerp(v00, v10, tx), lerp(v01, v11, tx), tv);
-  }
-
-  function interpolatePoint(u, v){
-    // u in [0,1] along X axis, v in [0,1] along layer axis
-    var fu = u * (nX - 1);
-    var xi0 = Math.min(nX - 2, Math.max(0, Math.floor(fu)));
-    var xi1 = xi0 + 1;
-    var tx = fu - xi0;
-
-    var fv = v * (nL - 1);
-    var li0 = Math.min(nL - 2, Math.max(0, Math.floor(fv)));
-    var li1 = li0 + 1;
-    var tv = fv - li0;
-
-    var p00 = pts[xi0][li0], p10 = pts[xi1][li0];
-    var p01 = pts[xi0][li1], p11 = pts[xi1][li1];
-
-    return {
-      x: bilerp(p00.x, p10.x, p01.x, p11.x, tx, tv),
-      y: bilerp(p00.y, p10.y, p01.y, p11.y, tx, tv),
-      z: bilerp(p00.z, p10.z, p01.z, p11.z, tx, tv)
-    };
-  }
-
-  var origCount = nX * nL;
-  var totalVerts = numCols * numRows;
-  var totalFaces = (numCols - 1) * (numRows - 1) * 2;
-
-  var obj = '# 3D Live Edge Mesh - Face Profile (Subdivided)\n';
-  obj += '# Plugin Version: ' + SM_VERSION + '\n';
-  obj += '# Subdivision: ' + resolution.toFixed(2) + 'mm resolution\n';
-  obj += '# Original: ' + origCount + ' probed points -> ' + totalVerts + ' interpolated vertices\n';
-  obj += '# Generated ' + new Date().toISOString() + '\n';
-
-  // Vertices: row r (layer axis), col c (X axis)
-  for(var r = 0; r < numRows; r++){
-    var v = numRows > 1 ? r / (numRows - 1) : 0;
-    for(var c = 0; c < numCols; c++){
-      var u = numCols > 1 ? c / (numCols - 1) : 0;
-      var pt = interpolatePoint(u, v);
-      obj += 'v ' + pt.x.toFixed(3) + ' ' + pt.y.toFixed(3) + ' ' + pt.z.toFixed(3) + '\n';
-    }
-  }
-
-  // Faces (two triangles per quad, 1-indexed)
-  for(var r = 0; r < numRows - 1; r++){
-    for(var c = 0; c < numCols - 1; c++){
-      var va = r * numCols + c + 1;
-      var vb = r * numCols + c + 2;
-      var vc = (r + 1) * numCols + c + 2;
-      var vd = (r + 1) * numCols + c + 1;
-      obj += 'f ' + va + ' ' + vb + ' ' + vc + '\n';
-      obj += 'f ' + va + ' ' + vc + ' ' + vd + '\n';
     }
   }
 
@@ -735,7 +813,7 @@ function exportFaceOBJ(){
   anchor.click();
   document.body.removeChild(anchor);
   URL.revokeObjectURL(url);
-  setFooterStatus('OBJ exported (' + totalVerts + ' vertices, ' + totalFaces + ' triangles).', 'good');
+  setFooterStatus('OBJ exported: ' + totalVerts + ' vertices, ' + triCount + ' triangles.', 'good');
 }
 
 // ── Workflow manager ──────────────────────────────────────────────────────────

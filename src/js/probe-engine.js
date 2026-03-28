@@ -166,6 +166,8 @@ function clearMeshStorage(){
 // ── Surface Mesh State ────────────────────────────────────────────────────────
 var smMeshData = null;
 var smGridConfig = null;
+var smMeshDataRaw = null;    // original sparse surface grid (pre-subdivision)
+var smGridConfigRaw = null;  // original grid config (pre-subdivision)
 var smOriginalGcode = null;
 var smCompensatedGcode = null;
 var smStopFlag = false;
