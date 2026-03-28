@@ -535,9 +535,9 @@ function _buildNaturalCubicSpline(zs, ys) {
 
 /**
  * _buildSubdividedFaceGrid(results, resolution)
- * Generates a dense mesh from the raw face probe points using hybrid interpolation:
+ * Generates a dense mesh from the raw face probe points using bicubic interpolation:
  *   - Cubic spline interpolation along the Z (layer) axis for smooth curved transitions
- *   - Linear interpolation along the X axis
+ *   - Cubic spline interpolation along the X axis for smooth column transitions
  * Builds a pts[xi][li] 2D grid (X columns × layer rows), then generates
  * numCols × numRows output vertices at the requested mm resolution.
  * Returns { rows, numCols, numRows, origVerts } or null when data is degenerate.
@@ -584,11 +584,10 @@ function _buildSubdividedFaceGrid(results, resolution) {
 
   var numCols = Math.max(2, Math.round(xRange / resolution) + 1);
   var numRows = Math.max(2, Math.round(zRange / resolution) + 1);
-  var nCX = xs.length - 1;
 
   function lerp(a, b, t) { return a + (b - a) * t; }
 
-  // Build per-X-column cubic splines for Y(z) — the key to smooth layer transitions
+  // Build per-X-column cubic splines for Y(z) — smooth layer transitions at each column
   var ySplines = [];
   for (var xi = 0; xi < xs.length; xi++) {
     var colZs = [], colYs = [];
@@ -618,18 +617,31 @@ function _buildSubdividedFaceGrid(results, resolution) {
       if (lp) { var dz = Math.abs(Number(lp.z) - zOut); if (dz < minDist) { minDist = dz; nearLayer = layers[li]; } }
     }
 
-    for (var ci = 0; ci < numCols; ci++) {
-      var u = ci / (numCols - 1);
-      var cellX = Math.min(Math.floor(u * nCX), nCX - 1);
-      var tx = u * nCX - cellX;
-      var sp0 = ySplines[cellX], sp1 = ySplines[cellX + 1];
-      if (!sp0 || !sp1) { rowPts.push(null); continue; }
+    // Evaluate Z-axis cubic spline at each original X column to get Y values for this row
+    var rowYatCols = [];
+    var allColsValid = true;
+    for (var xi = 0; xi < xs.length; xi++) {
+      if (!ySplines[xi]) { allColsValid = false; break; }
+      rowYatCols.push(ySplines[xi](zOut));
+    }
 
-      // Cubic spline along Z for each bounding X column, then linear blend in X
-      var y0 = sp0(zOut), y1 = sp1(zOut);
+    if (!allColsValid) {
+      // Fallback: push nulls for this row
+      for (var ci = 0; ci < numCols; ci++) rowPts.push(null);
+      rows.push(rowPts);
+      continue;
+    }
+
+    // Fit a cubic spline along X through the Y values at each original X column
+    var xSplineY = _buildNaturalCubicSpline(xs, rowYatCols);
+
+    // X spline is built per-row because rowYatCols changes for every zOut value
+    var safeDenom = Math.max(1, numCols - 1);
+    for (var ci = 0; ci < numCols; ci++) {
+      var xOut = lerp(xs[0], xs[xs.length - 1], ci / safeDenom);
       rowPts.push({
-        x: lerp(xs[cellX], xs[cellX + 1], tx),
-        y: lerp(y0, y1, tx),
+        x: xOut,
+        y: xSplineY(xOut),
         z: zOut,
         layer: nearLayer
       });
