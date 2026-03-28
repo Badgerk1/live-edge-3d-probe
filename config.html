@@ -1216,7 +1216,7 @@
           <strong>Reference Face Position</strong> is where the face <em>would be</em> if it were perfectly flat.
           Setting it to the average of your probe contacts means compensation only corrects for waviness — not a large bulk shift.
           Use <strong>&#8635; Auto from mesh</strong> to calculate from your face probe data.
-          A wrong value (e.g. leaving it at&nbsp;0 when your face is at&nbsp;Y≈−20) will massively distort your G-code toolpath.
+          A wrong value (e.g. leaving it at&nbsp;0 when your face is at&nbsp;Y≈-20) will massively distort your G-code toolpath.
         </div>
         <div class="btn-row">
           <button class="btn secondary" id="apply-btn-face-comp" onclick="applyFaceCompensationFromTab()" disabled>&#128736; Apply Face Compensation</button>
@@ -5823,7 +5823,7 @@ function applyFaceCompensationFromTab() {
     if (Math.abs(contactMean - refPos) > 5) {
       var warnMsg = 'Warning: Reference Face Position (' + refPos + ') is far from the average face contact position (' +
         contactMean.toFixed(3) + ').\n\nThis will cause large bulk shifts in your G-code. ' +
-        'Use \u8635 Auto from mesh to set the recommended value, or verify your reference is correct.\n\nProceed anyway?';
+        'Use \u21BB Auto from mesh to set the recommended value, or verify your reference is correct.\n\nProceed anyway?';
       if (!confirm(warnMsg)) return;
     }
   }
@@ -6847,7 +6847,7 @@ function updateFaceMeshDataUI() {
   }, 60);
   // Auto-populate Apply tab reference position if still at default (0)
   var refEl = document.getElementById('apply-face-refPos');
-  if (refEl && Number(refEl.value) === 0) {
+  if (refEl && (!refEl.value || Number(refEl.value) === 0)) {
     var data = getFaceMeshData();
     if (data && data.length) {
       var axisEl = document.getElementById('apply-face-axis');

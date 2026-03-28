@@ -450,7 +450,7 @@ function updateFaceMeshDataUI() {
   }, 60);
   // Auto-populate Apply tab reference position if still at default (0)
   var refEl = document.getElementById('apply-face-refPos');
-  if (refEl && Number(refEl.value) === 0) {
+  if (refEl && (!refEl.value || Number(refEl.value) === 0)) {
     var data = getFaceMeshData();
     if (data && data.length) {
       var axisEl = document.getElementById('apply-face-axis');

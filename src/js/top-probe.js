@@ -1359,7 +1359,7 @@ function applyFaceCompensationFromTab() {
     if (Math.abs(contactMean - refPos) > 5) {
       var warnMsg = 'Warning: Reference Face Position (' + refPos + ') is far from the average face contact position (' +
         contactMean.toFixed(3) + ').\n\nThis will cause large bulk shifts in your G-code. ' +
-        'Use \u8635 Auto from mesh to set the recommended value, or verify your reference is correct.\n\nProceed anyway?';
+        'Use \u21BB Auto from mesh to set the recommended value, or verify your reference is correct.\n\nProceed anyway?';
       if (!confirm(warnMsg)) return;
     }
   }
