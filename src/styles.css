@@ -45,6 +45,7 @@
     #surface-edge-mesh-root .status-line{margin-top:10px;color:var(--muted);white-space:pre-wrap}
     #surface-edge-mesh-root .status-line.good{color:var(--good)}#surface-edge-mesh-root .status-line.warn{color:var(--warn)}#surface-edge-mesh-root .status-line.bad{color:var(--bad)}
     #surface-edge-mesh-root .callout{padding:10px 12px;border-radius:12px;background:#131a25;border:1px solid var(--line);color:var(--muted)}
+    #surface-edge-mesh-root .callout.warn{border-color:var(--warn);color:var(--warn);background:#1f1910}
     #surface-edge-mesh-root .progress-track{height:12px;border-radius:999px;background:#121723;border:1px solid var(--line);overflow:hidden;margin-top:8px}
     #surface-edge-mesh-root .progress-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--accent2),var(--accent))}
     #surface-edge-mesh-root .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}

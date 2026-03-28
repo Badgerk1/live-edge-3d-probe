@@ -1023,7 +1023,14 @@
         <div class="box-title">&#128736; Face Compensation</div>
         <div class="callout mini" style="margin-bottom:10px">Apply face probe compensation to adjust the depth axis (X or Y) based on the face mesh. Requires face probe data.</div>
         <div class="grid two" style="margin-bottom:10px">
-          <div class="field"><label>Reference Face Position (coords)</label><input type="number" id="apply-face-refPos" value="0" step="0.001"></div>
+          <div class="field">
+            <label>Reference Face Position (coords)</label>
+            <div style="display:flex;gap:6px;align-items:center">
+              <input type="number" id="apply-face-refPos" value="0" step="0.001" style="flex:1">
+              <button class="btn ghost" style="white-space:nowrap;padding:4px 8px;font-size:12px" onclick="autoCalcFaceRefPos()" title="Compute mean contact position from face mesh data and use as reference">&#8635; Auto from mesh</button>
+            </div>
+            <div id="apply-face-refPos-stats" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
+          </div>
           <div class="field">
             <label>Face Axis</label>
             <select id="apply-face-axis">
@@ -1031,6 +1038,12 @@
               <option value="X">X</option>
             </select>
           </div>
+        </div>
+        <div class="callout mini warn" style="margin-bottom:10px">
+          <strong>Reference Face Position</strong> is where the face <em>would be</em> if it were perfectly flat.
+          Setting it to the average of your probe contacts means compensation only corrects for waviness — not a large bulk shift.
+          Use <strong>&#8635; Auto from mesh</strong> to calculate from your face probe data.
+          A wrong value (e.g. leaving it at&nbsp;0 when your face is at&nbsp;Y≈-20) will massively distort your G-code toolpath.
         </div>
         <div class="btn-row">
           <button class="btn secondary" id="apply-btn-face-comp" onclick="applyFaceCompensationFromTab()" disabled>&#128736; Apply Face Compensation</button>

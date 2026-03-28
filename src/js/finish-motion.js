@@ -448,6 +448,35 @@ function updateFaceMeshDataUI() {
     renderFaceReliefMap();
     setTimeout(function() { showProbeHeatmapView('face'); }, 120);
   }, 60);
+  // Auto-populate Apply tab reference position if still at default (0)
+  var refEl = document.getElementById('apply-face-refPos');
+  if (refEl && (!refEl.value || Number(refEl.value) === 0)) {
+    var data = getFaceMeshData();
+    if (data && data.length) {
+      var axisEl = document.getElementById('apply-face-axis');
+      var ax = axisEl ? (axisEl.value || 'Y').toUpperCase() : 'Y';
+      var vals = [], sum = 0;
+      for (var i = 0; i < data.length; i++) {
+        var v = ax === 'X' ? Number(data[i].x) : Number(data[i].y);
+        if (!isNaN(v)) vals.push(v);
+      }
+      if (vals.length) {
+        for (var j = 0; j < vals.length; j++) sum += vals[j];
+        var mean = Math.round((sum / vals.length) * 1000) / 1000;
+        refEl.value = mean;
+        var statsEl = document.getElementById('apply-face-refPos-stats');
+        if (statsEl) {
+          var mn = vals[0], mx = vals[0];
+          for (var k = 0; k < vals.length; k++) {
+            if (vals[k] < mn) mn = vals[k];
+            if (vals[k] > mx) mx = vals[k];
+          }
+          statsEl.textContent = 'Auto: Mean ' + mean.toFixed(3) + ' | Min: ' + mn.toFixed(3) +
+            ' | Max: ' + mx.toFixed(3) + ' | ' + vals.length + ' points';
+        }
+      }
+    }
+  }
 }
 
 function updateFaceMeshTable() {
