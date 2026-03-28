@@ -152,6 +152,7 @@ async function runFaceProbe(axis, _calledFromCombined){
     await requireStartupHomingPreflight('face probe ' + axis);
     s = getSettingsFromUI();
     meshSubdivisionSpacing = s.meshSubdivisionSpacing != null ? Number(s.meshSubdivisionSpacing) : meshSubdivisionSpacing;
+    var startCoord = Number(s.faceStartOffset);
     var depthBelow = Number(s.faceDepthBelowSurface);
     var probeDist = Number(s.faceProbeDistance);
     var targetCoord = startCoord + probeDist;
