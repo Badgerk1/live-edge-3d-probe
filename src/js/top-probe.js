@@ -1292,6 +1292,49 @@ function applySubdividedCompensation(gcodeText, meshData, gridCfg, referenceZ) {
   return { gcode: output.join('\n'), modified: movesProcessed, segments: totalSegments };
 }
 
+function autoCalcFaceRefPos() {
+  var faceData = (typeof getFaceMeshData === 'function') ? getFaceMeshData() : null;
+  if (!faceData || !faceData.length) {
+    alert('No face mesh data available. Run a face probe or import face mesh data first.');
+    return;
+  }
+  var axis = (document.getElementById('apply-face-axis').value || 'Y').toUpperCase();
+  var values = [];
+  for (var i = 0; i < faceData.length; i++) {
+    var val = axis === 'X' ? Number(faceData[i].x) : Number(faceData[i].y);
+    if (!isNaN(val)) values.push(val);
+  }
+  if (!values.length) {
+    alert('No valid contact values found in face mesh data.');
+    return;
+  }
+  var sum = 0;
+  var mn = values[0], mx = values[0];
+  for (var j = 0; j < values.length; j++) {
+    sum += values[j];
+    if (values[j] < mn) mn = values[j];
+    if (values[j] > mx) mx = values[j];
+  }
+  var mean = sum / values.length;
+  var rounded = Math.round(mean * 1000) / 1000;
+
+  var refEl = document.getElementById('apply-face-refPos');
+  if (refEl) refEl.value = rounded;
+
+  var statsEl = document.getElementById('apply-face-refPos-stats');
+  if (statsEl) {
+    statsEl.textContent = 'Mean: ' + rounded.toFixed(3) + ' | Min: ' + mn.toFixed(3) +
+      ' | Max: ' + mx.toFixed(3) + ' | ' + values.length + ' points';
+  }
+
+  var statusEl = document.getElementById('apply-face-status');
+  if (statusEl) {
+    statusEl.textContent = 'Auto-calculated reference: ' + rounded.toFixed(3) +
+      ' (' + axis + '-axis mean across ' + values.length + ' face contacts)';
+    statusEl.className = 'status-line good';
+  }
+}
+
 function applyFaceCompensationFromTab() {
   if (!applyOriginalGcode) { alert('Load G-code first.'); return; }
   var faceData = (typeof getFaceMeshData === 'function') ? getFaceMeshData() : null;
@@ -1302,6 +1345,24 @@ function applyFaceCompensationFromTab() {
   var statusEl = document.getElementById('apply-face-status');
   var faceLogEl = document.getElementById('apply-face-log');
   if (faceLogEl) faceLogEl.innerHTML = '';
+
+  // Validation: warn if refPos is far from mean contact value
+  var contactValues = [];
+  for (var ci = 0; ci < faceData.length; ci++) {
+    var cv = axis === 'X' ? Number(faceData[ci].x) : Number(faceData[ci].y);
+    if (!isNaN(cv)) contactValues.push(cv);
+  }
+  if (contactValues.length) {
+    var contactSum = 0;
+    for (var cj = 0; cj < contactValues.length; cj++) contactSum += contactValues[cj];
+    var contactMean = contactSum / contactValues.length;
+    if (Math.abs(contactMean - refPos) > 5) {
+      var warnMsg = 'Warning: Reference Face Position (' + refPos + ') is far from the average face contact position (' +
+        contactMean.toFixed(3) + ').\n\nThis will cause large bulk shifts in your G-code. ' +
+        'Use \u8635 Auto from mesh to set the recommended value, or verify your reference is correct.\n\nProceed anyway?';
+      if (!confirm(warnMsg)) return;
+    }
+  }
 
   applyLogFace('Applying face compensation (axis=' + axis + ', refPos=' + refPos + ')...');
 
