@@ -515,6 +515,14 @@
         </div>
         <div class="field">
           <label>
+            <span class="tooltip">Face Retract Feed (mm/min)<span class="tip-icon">?</span>
+              <span class="tip">Feed rate used when retracting between face probe samples (backoff, return to start, inter-sample travel). Higher values speed up the cycle. Defaults to Travel Feed if not set.</span>
+            </span>
+          </label>
+          <input type="number" id="faceRetractFeed" value="1000" min="10" max="6000" step="10">
+        </div>
+        <div class="field">
+          <label>
             <span class="tooltip">Depth Below Surface (coords)<span class="tip-icon">?</span>
               <span class="tip">How far below the top profile Z surface to position for face probing. Uses nearest top profile point.</span>
             </span>
