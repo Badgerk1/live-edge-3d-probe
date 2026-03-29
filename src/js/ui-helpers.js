@@ -1004,15 +1004,46 @@ function exportFaceOBJ(){
       }
     }
 
-    // Triangulate subdivided grid
+    // Triangulate subdivided grid: collect per-face normals then emit vn/face lines
+    var normals = [];
+    var faces = [];
     for(var ri = 0; ri < subGrid.numRows - 1; ri++){
       for(var ci = 0; ci < subGrid.numCols - 1; ci++){
         var va = indexGrid[ri][ci], vb = indexGrid[ri][ci + 1];
         var vc = indexGrid[ri + 1][ci + 1], vd = indexGrid[ri + 1][ci];
-        if(va && vb && vc){ obj += 'f ' + va + ' ' + vb + ' ' + vc + '\n'; triCount++; }
-        if(va && vc && vd){ obj += 'f ' + va + ' ' + vc + ' ' + vd + '\n'; triCount++; }
+        if(va && vb && vc){
+          var pa = subGrid.rows[ri][ci], pb = subGrid.rows[ri][ci + 1], pc = subGrid.rows[ri + 1][ci + 1];
+          var e1x = pb.x - pa.x, e1y = pb.y - pa.y, e1z = pb.z - pa.z;
+          var e2x = pc.x - pa.x, e2y = pc.y - pa.y, e2z = pc.z - pa.z;
+          var nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x;
+          var len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+          if(len > 0){
+            nx /= len; ny /= len; nz /= len;
+            normals.push([nx, ny, nz]);
+            var ni = normals.length;
+            faces.push([va, ni, vb, ni, vc, ni]);
+            triCount++;
+          }
+        }
+        if(va && vc && vd){
+          var pa = subGrid.rows[ri][ci], pc = subGrid.rows[ri + 1][ci + 1], pd = subGrid.rows[ri + 1][ci];
+          var e1x = pc.x - pa.x, e1y = pc.y - pa.y, e1z = pc.z - pa.z;
+          var e2x = pd.x - pa.x, e2y = pd.y - pa.y, e2z = pd.z - pa.z;
+          var nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x;
+          var len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+          if(len > 0){
+            nx /= len; ny /= len; nz /= len;
+            normals.push([nx, ny, nz]);
+            var ni = normals.length;
+            faces.push([va, ni, vc, ni, vd, ni]);
+            triCount++;
+          }
+        }
       }
     }
+    normals.forEach(function(n){ obj += 'vn ' + n[0].toFixed(6) + ' ' + n[1].toFixed(6) + ' ' + n[2].toFixed(6) + '\n'; });
+    obj += 's 1\n';
+    faces.forEach(function(f){ obj += 'f ' + f[0] + '//' + f[1] + ' ' + f[2] + '//' + f[3] + ' ' + f[4] + '//' + f[5] + '\n'; });
   } else {
     // Fallback: raw export when grid is degenerate (<2 layers or <2 X columns)
     obj += 'o FaceMesh\n';
@@ -1040,6 +1071,10 @@ function exportFaceOBJ(){
     var totalVertsRaw = layerKeys.length * samplesPerLayer;
     var validTri = function(v1, v2, v3){ return v1 !== v2 && v2 !== v3 && v1 !== v3 && v1 >= 1 && v2 >= 1 && v3 >= 1 && v1 <= totalVertsRaw && v2 <= totalVertsRaw && v3 <= totalVertsRaw; };
     if(canTriangulate){
+      var vertPositions = [null]; // 1-indexed
+      layerKeys.forEach(function(k){ layerGroups[k].forEach(function(p){ vertPositions.push(p); }); });
+      var normals = [];
+      var faces = [];
       for(var i = 0; i < layerKeys.length - 1; i++){
         var baseIdx = i * samplesPerLayer + 1;
         var nextIdx = (i + 1) * samplesPerLayer + 1;
@@ -1048,10 +1083,39 @@ function exportFaceOBJ(){
           var vb = baseIdx + j + 1;
           var vc = nextIdx + j + 1;
           var vd = nextIdx + j;
-          if(validTri(va, vb, vc)){ obj += 'f ' + va + ' ' + vb + ' ' + vc + '\n'; triCount++; }
-          if(validTri(va, vc, vd)){ obj += 'f ' + va + ' ' + vc + ' ' + vd + '\n'; triCount++; }
+          if(validTri(va, vb, vc)){
+            var pa = vertPositions[va], pb = vertPositions[vb], pc = vertPositions[vc];
+            var e1x = pb.x - pa.x, e1y = pb.y - pa.y, e1z = pb.z - pa.z;
+            var e2x = pc.x - pa.x, e2y = pc.y - pa.y, e2z = pc.z - pa.z;
+            var nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x;
+            var len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+            if(len > 0){
+              nx /= len; ny /= len; nz /= len;
+              normals.push([nx, ny, nz]);
+              var ni = normals.length;
+              faces.push([va, ni, vb, ni, vc, ni]);
+              triCount++;
+            }
+          }
+          if(validTri(va, vc, vd)){
+            var pa = vertPositions[va], pc = vertPositions[vc], pd = vertPositions[vd];
+            var e1x = pc.x - pa.x, e1y = pc.y - pa.y, e1z = pc.z - pa.z;
+            var e2x = pd.x - pa.x, e2y = pd.y - pa.y, e2z = pd.z - pa.z;
+            var nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x;
+            var len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+            if(len > 0){
+              nx /= len; ny /= len; nz /= len;
+              normals.push([nx, ny, nz]);
+              var ni = normals.length;
+              faces.push([va, ni, vc, ni, vd, ni]);
+              triCount++;
+            }
+          }
         }
       }
+      normals.forEach(function(n){ obj += 'vn ' + n[0].toFixed(6) + ' ' + n[1].toFixed(6) + ' ' + n[2].toFixed(6) + '\n'; });
+      obj += 's 1\n';
+      faces.forEach(function(f){ obj += 'f ' + f[0] + '//' + f[1] + ' ' + f[2] + '//' + f[3] + ' ' + f[4] + '//' + f[5] + '\n'; });
     }
   }
 
