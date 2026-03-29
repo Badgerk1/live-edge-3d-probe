@@ -1332,6 +1332,7 @@ async function runCombinedProbeMode(axis) {
         pluginDebug('runCombinedProbeMode: _smProbingCompleteCallback called success=' + success + ' smMeshData=' + !!smMeshData + ' smStopFlag=' + smStopFlag);
         resolve(!!success);
       };
+      _smSkipFinishMotion = true; // Skip home detour in combined mode — go directly to Phase 1.5/face probe
       runSurfaceProbing();
     });
     pluginDebug('runCombinedProbeMode: surface probe promise resolved, surfaceSuccess=' + surfaceSuccess);

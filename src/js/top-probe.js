@@ -109,7 +109,12 @@ function runSurfaceProbing() {
     smSaveMeshToStorage();
     try { updateSurfaceMeshUI(); } catch(vizErr) { console.warn('Surface probe: updateSurfaceMeshUI error (non-fatal):', vizErr); }
     try { populateSurfaceResults(); } catch(vizErr) { console.warn('Surface probe: populateSurfaceResults error (non-fatal):', vizErr); }
-    return smFinishMotion(travelFeed);
+    var skipFinish = _smSkipFinishMotion;
+    _smSkipFinishMotion = false;
+    if (!skipFinish) {
+      return smFinishMotion(travelFeed);
+    }
+    smLogProbe('COMBINED: Skipping smFinishMotion (going directly to face probe phase).');
   }).catch(function(err) {
     // Guard against non-Error rejections (e.g. throw null / throw 'string') so that
     // the final .then() below always runs and the combined-mode callback is not lost.
