@@ -3,12 +3,7 @@ async function probeAbsAxis(axis, target, feed){
     if(axis !== 'X' && axis !== 'Y') throw new Error('Unsupported face probe axis');
     await sendCommand('G90 G38.2 ' + axis + Number(target).toFixed(3) + ' F' + Number(feed).toFixed(0));
     await waitForIdleWithTimeout();
-    var pos = await getWorkPosition();
-    var snap = await getMachineSnapshot();
-    pos.machineX = snap.machineX;
-    pos.machineY = snap.machineY;
-    pos.machineZ = snap.machineZ;
-    return pos;
+    return await getWorkPosition();
   }
 
 async function _clearTriggeredProbeByBackingOffGeneric(tab, currentPos, unitX, unitY, s, state){
@@ -292,6 +287,13 @@ async function runFaceProbe(axis, _calledFromCombined){
         }
       }
 
+      // Pre-compute safe travel Z for the entire run — avoids re-scanning topResults on every retract call.
+      var preScanRetractClearance = Number(s.topRetract) || 2;
+      var preScanTopPts = topResults.filter(function(r){ return r.status === 'TOP'; });
+      var preScanHighestZ = -Infinity;
+      preScanTopPts.forEach(function(tp){ var tz = Number(tp.z); if(tz > preScanHighestZ) preScanHighestZ = tz; });
+      var localSafeZ = isFinite(preScanHighestZ) ? (preScanHighestZ + preScanRetractClearance) : null;
+
       var didOptimizedRetract = false;
       for(var li = 0; li < totalLayers; li++){
         checkStop();
@@ -334,7 +336,7 @@ async function runFaceProbe(axis, _calledFromCombined){
           logLine('face', 'Layer ' + layerNum + ' sample ' + sampleNum + '/' + faceSamples.length + ': ' + sampledAxis + '=' + lineCoord.toFixed(3) + ' probing at Z=' + layerZ.toFixed(3) + ' from ' + axis + '=' + startCoord.toFixed(3) + ' toward ' + axis + '=' + targetCoord.toFixed(3));
 
           if(!didOptimizedRetract){
-            await raiseFaceTravelSafeZ('Layer ' + layerNum + ' sample ' + sampleNum + ': safe retract');
+            await raiseFaceTravelSafeZ('Layer ' + layerNum + ' sample ' + sampleNum + ': safe retract', null, localSafeZ);
 
             if(axis === 'X'){
               await moveAbs(null, lineCoord, null, 3000);
@@ -399,8 +401,17 @@ async function runFaceProbe(axis, _calledFromCombined){
                 await moveAbs(null, startCoord, interRetractZ, 3000);
               }
             } else {
-              // Last layer: full safe retract (no next layer to target).
-              await clearFaceProbeAndReturnToStartThenRaise(axis, contact, startCoord, lineCoord, 'Inter-sample return (layer ' + layerNum + ')');
+              // Last layer: diagonal retract to start + safe Z simultaneously (fast path extended to last layer).
+              if(localSafeZ !== null){
+                logLine('face', 'Inter-sample return (layer ' + layerNum + '): diagonal retract to ' + axis + '=' + startCoord.toFixed(3) + ' Z=' + localSafeZ.toFixed(3) + ' then ' + sampledAxis + '=' + nextSampleCoord.toFixed(3) + '.');
+                if(axis === 'X'){
+                  await moveAbs(startCoord, null, localSafeZ, 3000);
+                } else {
+                  await moveAbs(null, startCoord, localSafeZ, 3000);
+                }
+              } else {
+                await clearFaceProbeAndReturnToStartThenRaise(axis, contact, startCoord, lineCoord, 'Inter-sample return (layer ' + layerNum + ')', s);
+              }
             }
             // Move to next sample position at fast travel speed.
             if(axis === 'X'){
@@ -494,7 +505,7 @@ async function runFaceProbe(axis, _calledFromCombined){
       updateAllResultsUI();
 
       if(i < faceSamples.length - 1){
-        await clearFaceProbeAndReturnToStartThenRaise(axis, contact, startCoord, lineCoord, 'Inter-sample return before moving to next ' + sampledAxis + ' sample');
+        await clearFaceProbeAndReturnToStartThenRaise(axis, contact, startCoord, lineCoord, 'Inter-sample return before moving to next ' + sampledAxis + ' sample', s);
       }
     }
 
