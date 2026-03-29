@@ -6946,6 +6946,9 @@ async function runFaceProbe(axis, _calledFromCombined){
       saveProbeResults();
       logLine('face', 'Layered face probe complete: ' + totalLayers + ' layers x ' + faceSamples.length + ' samples = ' + layeredFaceResults.length + ' total contacts');
       pluginDebug('runFaceProbe layered: faceResults=' + faceResults.length + ' layeredFaceResults=' + layeredFaceResults.length);
+      logLine('face', 'Waiting for controller idle before finish motion...');
+      await waitForIdle();
+      await sleep(200);
       await finishRunMotion('face');
       if (!_calledFromCombined) switchTab('results');
       setFooterStatus('Layered face probe ' + axis + ' complete: ' + totalLayers + ' layers x ' + faceSamples.length + ' samples = ' + layeredFaceResults.length + ' contacts', 'good');
@@ -7030,6 +7033,9 @@ async function runFaceProbe(axis, _calledFromCombined){
       }
     }
 
+    logLine('face', 'Waiting for controller idle before finish motion...');
+    await waitForIdle();
+    await sleep(200);
     await finishRunMotion('face');
     if (!_calledFromCombined) switchTab('results');
     pluginDebug('runFaceProbe COMPLETE: axis=' + axis + ' samples=' + faceSamples.length);
