@@ -635,7 +635,7 @@
           <div class="field">
             <label>
               <span class="tooltip">Subdivision Spacing (mm)<span class="tip-icon">?</span>
-                <span class="tip">Target spacing between interpolated mesh points after probing. Smaller values produce smoother meshes. Set to 0 to disable subdivision and keep raw probe points only.</span>
+                <span class="tip">Target spacing between interpolated mesh points after probing. Smaller values produce smoother meshes but increase memory use. Minimum effective value is 0.5mm (values below 0.5 are clamped automatically). Set to 0 to disable subdivision and keep raw probe points only.</span>
               </span>
             </label>
             <input type="number" id="meshSubdivisionSpacing" value="2" step="0.5" min="0" max="25">
@@ -4348,6 +4348,8 @@ function _threeZCol(z, zMin, zMax) {
 }
 
 // ── Mesh Subdivision Utilities ────────────────────────────────────────────────
+var MIN_SUBDIVISION_SPACING = 0.5;  // mm — values below this are clamped to prevent millions of points
+var MAX_SUBDIVISION_POINTS  = 500000; // abort subdivision if output would exceed this many points
 
 /**
  * subdivideSurfaceMesh(grid, cfg, spacing)
@@ -4357,6 +4359,11 @@ function _threeZCol(z, zMin, zMax) {
  */
 function subdivideSurfaceMesh(grid, cfg, spacing) {
   if (!grid || !cfg || !spacing || spacing <= 0) return { grid: grid, config: cfg };
+  // Safety clamp: prevent dangerously small spacing that generates millions of points
+  if (spacing < MIN_SUBDIVISION_SPACING) {
+    console.warn('subdivideSurfaceMesh: spacing ' + spacing + 'mm is below minimum ' + MIN_SUBDIVISION_SPACING + 'mm — clamping to ' + MIN_SUBDIVISION_SPACING + 'mm to prevent browser lockup.');
+    spacing = MIN_SUBDIVISION_SPACING;
+  }
   var nRows = cfg.rowCount, nCols = cfg.colCount;
   if (nRows < 2 || nCols < 2) return { grid: grid, config: cfg };
 
@@ -4366,6 +4373,11 @@ function subdivideSurfaceMesh(grid, cfg, spacing) {
 
   var newCols = (nCols - 1) * colSub + 1;
   var newRows = (nRows - 1) * rowSub + 1;
+  // Safety: abort subdivision if output would exceed MAX_SUBDIVISION_POINTS
+  if (newCols * newRows > MAX_SUBDIVISION_POINTS) {
+    console.warn('subdivideSurfaceMesh: would generate ' + (newCols * newRows) + ' points (>' + MAX_SUBDIVISION_POINTS + ') — skipping subdivision to prevent browser lockup.');
+    return { grid: grid, config: cfg };
+  }
 
   var newGrid = [];
   for (var gy = 0; gy < newRows; gy++) {
@@ -4409,6 +4421,11 @@ function subdivideSurfaceMesh(grid, cfg, spacing) {
  */
 function subdivideFaceMesh(pts, spacing) {
   if (!pts || pts.length < 4 || !spacing || spacing <= 0) return pts;
+  // Safety clamp: prevent dangerously small spacing that generates millions of points
+  if (spacing < MIN_SUBDIVISION_SPACING) {
+    console.warn('subdivideFaceMesh: spacing ' + spacing + 'mm is below minimum ' + MIN_SUBDIVISION_SPACING + 'mm — clamping to ' + MIN_SUBDIVISION_SPACING + 'mm to prevent browser lockup.');
+    spacing = MIN_SUBDIVISION_SPACING;
+  }
 
   // Collect unique X positions and unique layer numbers
   var xKeyMap = {}, layerNums = {};
@@ -4484,6 +4501,11 @@ function subdivideFaceMesh(pts, spacing) {
   var newPts = [];
   var newCols = (nCols - 1) * xSub + 1;
   var newRows = (nRows - 1) * zSub + 1;
+  // Safety: abort subdivision if output would exceed MAX_SUBDIVISION_POINTS
+  if (newCols * newRows > MAX_SUBDIVISION_POINTS) {
+    console.warn('subdivideFaceMesh: would generate ' + (newCols * newRows) + ' points (>' + MAX_SUBDIVISION_POINTS + ') — skipping subdivision to prevent browser lockup.');
+    return pts;
+  }
 
   for (var gy = 0; gy < newRows; gy++) {
     var li0 = Math.min(Math.floor(gy / zSub), nRows - 2);
