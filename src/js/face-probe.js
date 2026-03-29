@@ -562,24 +562,23 @@ async function runFaceProbe(axis, _calledFromCombined){
 
       if(i < faceSamples.length - 1){
         var nextLineCoord = Number(faceSamples[i + 1].sampleCoord);
-        logLine('face', 'Inter-sample return: G1 back off 0.5mm on ' + axis + ' at F1000, then G38.3 diagonal to ' + axis + '=' + startCoord.toFixed(3) + ' + ' + sampledAxis + '=' + nextLineCoord.toFixed(3) + ' at F' + Number(s.travelFeedRate).toFixed(0) + ' (no Z raise).');
-        // Step 1: G1 back off 0.5mm on face axis to clear probe trigger
-        var _spIsrCurPos = await getWorkPosition();
-        var _spIsrBackoff = 0.5 * Math.sign(startCoord - targetCoord);
+        logLine('face', 'Inter-sample return: G1 retract ' + axis + '=' + startCoord.toFixed(3) + ' at F' + Number(s.travelFeedRate).toFixed(0) + ', then G1 travel to ' + sampledAxis + '=' + nextLineCoord.toFixed(3) + ' at F' + Number(s.travelFeedRate).toFixed(0) + '.');
+        // Step 1: G1 retract on face axis back to startCoord (fully clears workpiece)
         if(axis === 'X'){
-          await moveAbs(Number(_spIsrCurPos.x) + _spIsrBackoff, null, null, 1000);
+          await moveAbs(startCoord, null, null, s.travelFeedRate);
         } else {
-          await moveAbs(null, Number(_spIsrCurPos.y) + _spIsrBackoff, null, 1000);
+          await moveAbs(null, startCoord, null, s.travelFeedRate);
         }
-        // Step 2: G38.3 diagonal to startCoord + next sample position
-        var _spIsrPos;
+        // Step 2: G1 travel on sample axis to next sample position
         if(axis === 'X'){
-          _spIsrPos = await probeSafeMove(startCoord, nextLineCoord, null, s.travelFeedRate);
+          await moveAbs(null, nextLineCoord, null, s.travelFeedRate);
         } else {
-          _spIsrPos = await probeSafeMove(nextLineCoord, startCoord, null, s.travelFeedRate);
+          await moveAbs(nextLineCoord, null, null, s.travelFeedRate);
         }
+        // Safety net: check if probe was inadvertently triggered during G1 moves
+        var _spIsrPos = await getWorkPosition();
         if(_spIsrPos.probeTriggered){
-          logLine('face', 'INTER-SAMPLE TRAVEL CONTACT: probe triggered during diagonal retract at X=' + Number(_spIsrPos.x).toFixed(3) + ' Y=' + Number(_spIsrPos.y).toFixed(3) + ' Z=' + Number(_spIsrPos.z).toFixed(3));
+          logLine('face', 'INTER-SAMPLE TRAVEL CONTACT: probe triggered during inter-sample retract at X=' + Number(_spIsrPos.x).toFixed(3) + ' Y=' + Number(_spIsrPos.y).toFixed(3) + ' Z=' + Number(_spIsrPos.z).toFixed(3));
           var _spIsrRec = makeFaceContactRecord(faceResults.length + 1, _spIsrPos, axis, 'EARLY_CONTACT_INTER_SAMPLE_RETRACT_' + axis, targetCoord, lineCoord);
           faceResults.push(_spIsrRec);
           saveProbeResultsThrottled();

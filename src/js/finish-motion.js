@@ -256,7 +256,6 @@ function smLoadSettings() {
 
   // Initialize face probe tab on page load
   fpUpdateStylusCapInfo();
-  fpSyncFromSetup();
   updateFaceMeshDataUI();
   initFacePVizRotation();
 })();
@@ -380,7 +379,7 @@ function fpUpdateStylusCapInfo() {
 
 function fpValidateZEnd() {
   var stylusLen = Number((document.getElementById('probeStylusCalloutLength') || {}).value) || FACE_PROBE_DEFAULT_MAX_DEPTH;
-  var zEndEl = document.getElementById('fp-zEnd');
+  var zEndEl = document.getElementById('faceMaxDepth');
   var warningEl = document.getElementById('fp-stylus-warning');
   if (!zEndEl || !warningEl) return;
   var zEnd = Number(zEndEl.value);
@@ -393,43 +392,6 @@ function fpValidateZEnd() {
   }
 }
 
-function fpSyncToSetup() {
-  var map = {
-    'fp-yStart': 'faceStartOffset',
-    'fp-feedRate': 'faceFeed',
-    'fp-zEnd': 'faceMaxDepth',
-    'fp-zLayers': 'faceLayerCount',
-    'fp-retractDist': 'topRetract'
-  };
-  Object.keys(map).forEach(function(src) {
-    var srcEl = document.getElementById(src);
-    var dstEl = document.getElementById(map[src]);
-    if (srcEl && dstEl) dstEl.value = srcEl.value;
-  });
-  var layersEl = document.getElementById('fp-zLayers');
-  var enableEl = document.getElementById('enableLayeredFace');
-  if (layersEl && enableEl) enableEl.checked = Number(layersEl.value) > 1;
-  var statusEl = document.getElementById('face-meshStorageStatus');
-  if (statusEl) statusEl.textContent = 'Values synced to Setup tab.';
-}
-
-function fpSyncFromSetup() {
-  var map = {
-    'faceStartOffset': 'fp-yStart',
-    'faceFeed': 'fp-feedRate',
-    'faceMaxDepth': 'fp-zEnd',
-    'faceLayerCount': 'fp-zLayers',
-    'topRetract': 'fp-retractDist'
-  };
-  Object.keys(map).forEach(function(src) {
-    var srcEl = document.getElementById(src);
-    var dstEl = document.getElementById(map[src]);
-    if (srcEl && dstEl) dstEl.value = srcEl.value;
-  });
-  fpUpdateStylusCapInfo();
-  var statusEl = document.getElementById('face-meshStorageStatus');
-  if (statusEl) statusEl.textContent = 'Values loaded from Setup tab.';
-}
 
 // ── Face Mesh Data Management ─────────────────────────────────────────────────
 
