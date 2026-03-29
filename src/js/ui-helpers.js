@@ -334,6 +334,16 @@ function saveProbeResults(){
   }
 }
 
+var _lastThrottledSaveTime = 0;
+var THROTTLED_SAVE_INTERVAL_MS = 5000;
+function saveProbeResultsThrottled(){
+  var now = Date.now();
+  if(now - _lastThrottledSaveTime >= THROTTLED_SAVE_INTERVAL_MS){
+    saveProbeResults();
+    _lastThrottledSaveTime = now;
+  }
+}
+
 function loadProbeResults(){
   try{
     var rawTop = localStorage.getItem(TOP_RESULTS_KEY);
