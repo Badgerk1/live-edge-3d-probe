@@ -1990,80 +1990,76 @@ async function useCurrentZAsFinishHome(){
 }
 
 
-async function raiseFaceTravelSafeZ(label, currentPos, cachedSafeZ){
+async function raiseFaceTravelSafeZ(label){
   s = getSettingsFromUI();
   var retractClearance = Number(s.topRetract) || 2;
 
+  // Calculate local safe Z from top profile data
+  var topPts = topResults.filter(function(r){ return r.status === 'TOP'; });
+  var highestTopZ = -Infinity;
+  topPts.forEach(function(tp){
+    var z = Number(tp.z);
+    if(z > highestTopZ) highestTopZ = z;
+  });
+
+  var snap = await getMachineSnapshot();
+  var currentZ = Number(snap && snap.z);
+
+  // If we have top profile data, use highest top Z + clearance
+  // Otherwise use current Z + clearance as fallback
   var localSafeZ;
-  var safeZSource;
-  if(isFinite(cachedSafeZ)){
-    // Use the caller-supplied pre-computed safe Z — skip the topResults scan.
-    localSafeZ = cachedSafeZ;
-    safeZSource = 'cached safe Z';
+  if(isFinite(highestTopZ)){
+    localSafeZ = highestTopZ + retractClearance;
   } else {
-    // Calculate local safe Z from top profile data
-    var topPts = topResults.filter(function(r){ return r.status === 'TOP'; });
-    var highestTopZ = -Infinity;
-    topPts.forEach(function(tp){
-      var z = Number(tp.z);
-      if(z > highestTopZ) highestTopZ = z;
-    });
-    if(isFinite(highestTopZ)){
-      localSafeZ = highestTopZ + retractClearance;
-      safeZSource = 'highest top Z';
-    } else {
-      safeZSource = 'current Z (no top profile)';
-      // localSafeZ resolved below after we know currentZ
-    }
-  }
-
-  // Get current Z — use provided position to skip the getMachineSnapshot() HTTP call.
-  var currentZ;
-  if(currentPos && isFinite(Number(currentPos.z))){
-    currentZ = Number(currentPos.z);
-  } else {
-    var snap = await getMachineSnapshot();
-    currentZ = Number(snap && snap.z);
-  }
-
-  // Resolve localSafeZ fallback (no cachedSafeZ and no top profile data)
-  if(localSafeZ === undefined){
     localSafeZ = (isFinite(currentZ) ? currentZ : 0) + retractClearance;
   }
+
+  var safeZSource = isFinite(highestTopZ) ? 'highest top Z' : 'current Z (no top profile)';
 
   // Only raise if we're below the safe Z
   if(isFinite(currentZ) && currentZ >= localSafeZ){
     logLine('face', label + ': current Z ' + currentZ.toFixed(3) + ' already above local safe Z ' + localSafeZ.toFixed(3));
-    return currentPos || await getWorkPosition();
+    return await getWorkPosition();
   }
 
-  logLine('face', label + ': raising to local safe Z ' + localSafeZ.toFixed(3) + ' (' + safeZSource + ')');
+  logLine('face', label + ': raising to local safe Z ' + localSafeZ.toFixed(3) + ' (' + safeZSource + ' + ' + retractClearance.toFixed(1) + ' coords clearance)');
   await moveAbs(null, null, localSafeZ, s.travelRecoveryLiftFeedRate || s.travelFeedRate || 600);
   return await getWorkPosition();
 }
 
-async function clearFaceProbeAndReturnToStartThenRaise(axis, pos, startCoord, lineCoord, contextLabel, settings){
-  var sLocal = settings || getSettingsFromUI();
+async function clearFaceProbeAndReturnToStartThenRaise(axis, pos, startCoord, lineCoord, contextLabel){
+  s = getSettingsFromUI();
   axis = String(axis || 'X').toUpperCase();
   pos = pos || await getWorkPosition();
   startCoord = Number(startCoord);
   lineCoord = Number(lineCoord);
 
-  var finishZ = Number(sLocal.finishHomeZ);
+  var finishZ = Number(s.finishHomeZ);
+  var useMachineHomeRetract = !!s.useMachineHomeRetract;
+  var machineSafeTopZ = Number(s.machineSafeTopZ);
+  var snap = await getMachineSnapshot();
   var currentZ = Number(pos && pos.z);
   var fallbackSafeZ = isFinite(currentZ) ? Math.max(currentZ, finishZ) : finishZ;
   if(!isFinite(fallbackSafeZ)) fallbackSafeZ = currentZ;
 
-  logLine('face', contextLabel + ': safe trigger retract — diagonal retract to ' + axis + '=' + startCoord.toFixed(3) + ' Z=' + Number(fallbackSafeZ).toFixed(3) + ' before next sample.');
-
-  // Diagonal move: retract face axis to start AND raise Z simultaneously.
-  // GRBL handles simultaneous multi-axis moves natively — eliminates one waitForIdle cycle vs 2-step sequential moves.
-  var moveFeed = sLocal.travelRecoveryLiftFeedRate || sLocal.travelRecoveryFeedRate || sLocal.travelFeedRate || 600;
-  if(axis === 'X'){
-    await moveAbs(startCoord, lineCoord, fallbackSafeZ, moveFeed);
+  if(useMachineHomeRetract && snap && snap.homed === true && isFinite(machineSafeTopZ)){
+    logLine('face', contextLabel + ': safe trigger retract — retracting ' + axis + ' to start ' + startCoord.toFixed(3) + ', then raising to machine-safe work Z ' + Number(fallbackSafeZ).toFixed(3) + ' before next sample.');
   } else {
-    await moveAbs(lineCoord, startCoord, fallbackSafeZ, moveFeed);
+    logLine('face', contextLabel + ': safe trigger retract — retracting ' + axis + ' to start ' + startCoord.toFixed(3) + ', then raising Z to ' + Number(fallbackSafeZ).toFixed(3) + ' before next sample.');
   }
+
+  // Step 1: Retract along the face axis back to start position at current Z.
+  // This clears the probe tip from the face before any Z raise, preventing the
+  // probe from dragging against the workpiece during the lift.
+  var moveFeed = s.travelRecoveryLiftFeedRate || s.travelRecoveryFeedRate || s.travelFeedRate || 600;
+  if(axis === 'X'){
+    await moveAbs(startCoord, lineCoord, null, moveFeed);
+  } else {
+    await moveAbs(lineCoord, startCoord, null, moveFeed);
+  }
+
+  // Step 2: Now raise Z to the safe travel height.
+  await moveAbs(null, null, fallbackSafeZ, moveFeed);
 
   return await getWorkPosition();
 }
@@ -3207,7 +3203,6 @@ var SM_SETTINGS_KEY = '3dmesh.combined.settings';
 // ── Combined Mode State ───────────────────────────────────────────────────────
 var combinedMeshPoints = null; // unified array: [{x,y,z,source:'surface'|'face'}]
 var _smProbingCompleteCallback = null; // set by combined mode to chain face probe after surface probe
-var _smSkipFinishMotion = false; // set by combined mode to skip smFinishMotion home detour between phases
 // ── Probe Sequence Recording ──────────────────────────────────────────────────
 var smPvizProbeSequence = [];
 var _smPvizSeqLastTime = 0;
@@ -3371,11 +3366,10 @@ async function smSafeLateralMove(targetX, targetY, travelFeed, clearanceZ) {
     await attempt();
   }
 
-  // Lift Z by at least 5mm relative from current position (contact point), then travel X/Y.
-  // Using Math.max(5, clearanceZ) ensures the probe pin reliably clears even if the user
-  // configured a small clearanceZ, so smEnsureProbeClear() passes through as a no-op.
-  var effectiveLift = Math.max(5, clearanceZ);
-  var liftCmd = 'G91 G1 Z' + effectiveLift.toFixed(3) + ' F' + travelFeed;
+  // Lift Z by clearanceZ coords relative from current position (contact point), then travel X/Y.
+  // This ensures clearance is always clearanceZ above wherever the probe last touched,
+  // regardless of absolute work Z.
+  var liftCmd = 'G91 G1 Z' + clearanceZ.toFixed(3) + ' F' + travelFeed;
   smLogProbe('[PLUGIN DEBUG] smSafeLateralMove: sending command: ' + liftCmd);
   pluginDebug('smSafeLateralMove: Z-lift cmd: ' + liftCmd);
   await sendCommand(liftCmd);
@@ -5208,12 +5202,7 @@ function runSurfaceProbing() {
     smSaveMeshToStorage();
     try { updateSurfaceMeshUI(); } catch(vizErr) { console.warn('Surface probe: updateSurfaceMeshUI error (non-fatal):', vizErr); }
     try { populateSurfaceResults(); } catch(vizErr) { console.warn('Surface probe: populateSurfaceResults error (non-fatal):', vizErr); }
-    var skipFinish = _smSkipFinishMotion;
-    _smSkipFinishMotion = false;
-    if (!skipFinish) {
-      return smFinishMotion(travelFeed);
-    }
-    smLogProbe('COMBINED: Skipping smFinishMotion (going directly to face probe phase).');
+    return smFinishMotion(travelFeed);
   }).catch(function(err) {
     // Guard against non-Error rejections (e.g. throw null / throw 'string') so that
     // the final .then() below always runs and the combined-mode callback is not lost.
@@ -6530,7 +6519,12 @@ async function probeAbsAxis(axis, target, feed){
     if(axis !== 'X' && axis !== 'Y') throw new Error('Unsupported face probe axis');
     await sendCommand('G90 G38.2 ' + axis + Number(target).toFixed(3) + ' F' + Number(feed).toFixed(0));
     await waitForIdleWithTimeout();
-    return await getWorkPosition();
+    var pos = await getWorkPosition();
+    var snap = await getMachineSnapshot();
+    pos.machineX = snap.machineX;
+    pos.machineY = snap.machineY;
+    pos.machineZ = snap.machineZ;
+    return pos;
   }
 
 async function _clearTriggeredProbeByBackingOffGeneric(tab, currentPos, unitX, unitY, s, state){
@@ -6814,13 +6808,6 @@ async function runFaceProbe(axis, _calledFromCombined){
         }
       }
 
-      // Pre-compute safe travel Z for the entire run — avoids re-scanning topResults on every retract call.
-      var preScanRetractClearance = Number(s.topRetract) || 2;
-      var preScanTopPts = topResults.filter(function(r){ return r.status === 'TOP'; });
-      var preScanHighestZ = -Infinity;
-      preScanTopPts.forEach(function(tp){ var tz = Number(tp.z); if(tz > preScanHighestZ) preScanHighestZ = tz; });
-      var localSafeZ = isFinite(preScanHighestZ) ? (preScanHighestZ + preScanRetractClearance) : null;
-
       var didOptimizedRetract = false;
       for(var li = 0; li < totalLayers; li++){
         checkStop();
@@ -6863,7 +6850,7 @@ async function runFaceProbe(axis, _calledFromCombined){
           logLine('face', 'Layer ' + layerNum + ' sample ' + sampleNum + '/' + faceSamples.length + ': ' + sampledAxis + '=' + lineCoord.toFixed(3) + ' probing at Z=' + layerZ.toFixed(3) + ' from ' + axis + '=' + startCoord.toFixed(3) + ' toward ' + axis + '=' + targetCoord.toFixed(3));
 
           if(!didOptimizedRetract){
-            await raiseFaceTravelSafeZ('Layer ' + layerNum + ' sample ' + sampleNum + ': safe retract', null, localSafeZ);
+            await raiseFaceTravelSafeZ('Layer ' + layerNum + ' sample ' + sampleNum + ': safe retract');
 
             if(axis === 'X'){
               await moveAbs(null, lineCoord, null, 3000);
@@ -6915,15 +6902,27 @@ async function runFaceProbe(axis, _calledFromCombined){
           var isLastSampleInLayer = (si === sampleOrder.length - 1);
           var isLastLayer = (li === totalLayers - 1);
           if(!isLastSampleInLayer){
+            // Inter-sample retract within a layer: diagonal Y+Z retract then fast X travel.
+            // The face axis (Y for Y-probe) ALWAYS retracts fully to startCoord.
+            var interRetractZ = layerRetractZ[li];
             var nextSampleCoord = Number(faceSamples[sampleOrder[si + 1]].sampleCoord);
-            // Single diagonal move: retract face axis to start AND move to next sample position,
-            // keeping Z unchanged (currently at layerZ — no Z raise needed; probe clears the face
-            // wall as it backs away laterally). moveAbs(…, null) leaves Z at its current value.
-            logLine('face', 'Inter-sample return (layer ' + layerNum + '): diagonal to ' + axis + '=' + startCoord.toFixed(3) + ' ' + sampledAxis + '=' + nextSampleCoord.toFixed(3) + ' at Z=' + layerZ.toFixed(3) + ' (Z unchanged, no raise).');
-            if(axis === 'X'){
-              await moveAbs(startCoord, nextSampleCoord, null, 3000);
+            if(interRetractZ !== null){
+              // Non-last layer: diagonal move — retract face axis to start AND raise Z simultaneously.
+              logLine('face', 'Inter-sample return (layer ' + layerNum + '): diagonal retract to ' + axis + '=' + startCoord.toFixed(3) + ' Z=' + interRetractZ.toFixed(3) + ' then ' + sampledAxis + '=' + nextSampleCoord.toFixed(3) + '.');
+              if(axis === 'X'){
+                await moveAbs(startCoord, null, interRetractZ, 3000);
+              } else {
+                await moveAbs(null, startCoord, interRetractZ, 3000);
+              }
             } else {
-              await moveAbs(nextSampleCoord, startCoord, null, 3000);
+              // Last layer: full safe retract (no next layer to target).
+              await clearFaceProbeAndReturnToStartThenRaise(axis, contact, startCoord, lineCoord, 'Inter-sample return (layer ' + layerNum + ')');
+            }
+            // Move to next sample position at fast travel speed.
+            if(axis === 'X'){
+              await moveAbs(null, nextSampleCoord, null, 3000);
+            } else {
+              await moveAbs(nextSampleCoord, null, null, 3000);
             }
             didOptimizedRetract = true;
           } else if(!isLastLayer){
@@ -6961,8 +6960,7 @@ async function runFaceProbe(axis, _calledFromCombined){
       return;
     }
 
-    // ── Single-pass face probe mode ───────────────────────────────────────────
-    var spDidOptimizedRetract = false;
+    // ── Single-pass face probe mode (existing behavior unchanged) ─────────────
     for(var i = 0; i < faceSamples.length; i++){
       checkStop();
       var sample = faceSamples[i];
@@ -6970,27 +6968,22 @@ async function runFaceProbe(axis, _calledFromCombined){
       var zForProbe = Number(sample.topZ) - depthBelow;
       logLine('face', 'Face sample ' + sample.index + '/' + faceSamples.length + ': line ' + sampledAxis + '=' + lineCoord.toFixed(3) + ' using top Z=' + Number(sample.topZ).toFixed(3) + ' depth below=' + depthBelow.toFixed(3) + ' probe Z=' + zForProbe.toFixed(3));
 
-      if(!spDidOptimizedRetract){
-        await raiseFaceTravelSafeZ('Face sample ' + sample.index + ': safe retract before indexed move');
+      await raiseFaceTravelSafeZ('Face sample ' + sample.index + ': safe retract before indexed move');
 
-        if(axis === 'X'){
-          logLine('face', 'Face sample ' + sample.index + ': moving to sample line Y=' + lineCoord.toFixed(3) + ' at safe travel Z.');
-          await moveAbs(null, lineCoord, null, s.travelFeedRate);
-        } else {
-          logLine('face', 'Face sample ' + sample.index + ': moving to sample line X=' + lineCoord.toFixed(3) + ' at safe travel Z.');
-          await moveAbs(lineCoord, null, null, s.travelFeedRate);
-        }
-
-        logLine('face', 'At face sample line. Moving to face start ' + axis + '=' + startCoord.toFixed(3) + ' at safe travel Z before lowering.');
-        if(axis === 'X'){
-          await moveAbs(startCoord, null, null, s.travelFeedRate);
-        } else {
-          await moveAbs(null, startCoord, null, s.travelFeedRate);
-        }
+      if(axis === 'X'){
+        logLine('face', 'Face sample ' + sample.index + ': moving to sample line Y=' + lineCoord.toFixed(3) + ' at safe travel Z.');
+        await moveAbs(null, lineCoord, null, s.travelFeedRate);
+      } else {
+        logLine('face', 'Face sample ' + sample.index + ': moving to sample line X=' + lineCoord.toFixed(3) + ' at safe travel Z.');
+        await moveAbs(lineCoord, null, null, s.travelFeedRate);
       }
-      // Consume the flag — set to true at end of previous iteration after a diagonal retract.
-      // The check above already used it; reset so the default (full positioning) applies next time.
-      spDidOptimizedRetract = false;
+
+      logLine('face', 'At face sample line. Moving to face start ' + axis + '=' + startCoord.toFixed(3) + ' at safe travel Z before lowering.');
+      if(axis === 'X'){
+        await moveAbs(startCoord, null, null, s.travelFeedRate);
+      } else {
+        await moveAbs(null, startCoord, null, s.travelFeedRate);
+      }
 
       logLine('face', 'At face start. Lowering to face probe Z ' + zForProbe.toFixed(3));
       await moveAbs(null, null, zForProbe, s.travelRecoveryLiftFeedRate || s.travelFeedRate);
@@ -7017,16 +7010,7 @@ async function runFaceProbe(axis, _calledFromCombined){
       updateAllResultsUI();
 
       if(i < faceSamples.length - 1){
-        var nextLineCoord = Number(faceSamples[i + 1].sampleCoord);
-        // Single diagonal move: retract face axis to start AND move to next sample position,
-        // keeping Z at current probe depth (no Z raise needed — probe clears face wall laterally).
-        logLine('face', 'Inter-sample return: diagonal to ' + axis + '=' + startCoord.toFixed(3) + ' ' + sampledAxis + '=' + nextLineCoord.toFixed(3) + ' at same Z (no Z raise).');
-        if(axis === 'X'){
-          await moveAbs(startCoord, nextLineCoord, null, s.travelFeedRate);
-        } else {
-          await moveAbs(nextLineCoord, startCoord, null, s.travelFeedRate);
-        }
-        spDidOptimizedRetract = true;
+        await clearFaceProbeAndReturnToStartThenRaise(axis, contact, startCoord, lineCoord, 'Inter-sample return before moving to next ' + sampledAxis + ' sample');
       }
     }
 
@@ -8391,7 +8375,6 @@ async function runCombinedProbeMode(axis) {
         pluginDebug('runCombinedProbeMode: _smProbingCompleteCallback called success=' + success + ' smMeshData=' + !!smMeshData + ' smStopFlag=' + smStopFlag);
         resolve(!!success);
       };
-      _smSkipFinishMotion = true; // Skip home detour in combined mode — go directly to Phase 1.5/face probe
       runSurfaceProbing();
     });
     pluginDebug('runCombinedProbeMode: surface probe promise resolved, surfaceSuccess=' + surfaceSuccess);

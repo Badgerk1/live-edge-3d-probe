@@ -93,80 +93,76 @@ async function useCurrentZAsFinishHome(){
 }
 
 
-async function raiseFaceTravelSafeZ(label, currentPos, cachedSafeZ){
+async function raiseFaceTravelSafeZ(label){
   s = getSettingsFromUI();
   var retractClearance = Number(s.topRetract) || 2;
 
+  // Calculate local safe Z from top profile data
+  var topPts = topResults.filter(function(r){ return r.status === 'TOP'; });
+  var highestTopZ = -Infinity;
+  topPts.forEach(function(tp){
+    var z = Number(tp.z);
+    if(z > highestTopZ) highestTopZ = z;
+  });
+
+  var snap = await getMachineSnapshot();
+  var currentZ = Number(snap && snap.z);
+
+  // If we have top profile data, use highest top Z + clearance
+  // Otherwise use current Z + clearance as fallback
   var localSafeZ;
-  var safeZSource;
-  if(isFinite(cachedSafeZ)){
-    // Use the caller-supplied pre-computed safe Z — skip the topResults scan.
-    localSafeZ = cachedSafeZ;
-    safeZSource = 'cached safe Z';
+  if(isFinite(highestTopZ)){
+    localSafeZ = highestTopZ + retractClearance;
   } else {
-    // Calculate local safe Z from top profile data
-    var topPts = topResults.filter(function(r){ return r.status === 'TOP'; });
-    var highestTopZ = -Infinity;
-    topPts.forEach(function(tp){
-      var z = Number(tp.z);
-      if(z > highestTopZ) highestTopZ = z;
-    });
-    if(isFinite(highestTopZ)){
-      localSafeZ = highestTopZ + retractClearance;
-      safeZSource = 'highest top Z';
-    } else {
-      safeZSource = 'current Z (no top profile)';
-      // localSafeZ resolved below after we know currentZ
-    }
-  }
-
-  // Get current Z — use provided position to skip the getMachineSnapshot() HTTP call.
-  var currentZ;
-  if(currentPos && isFinite(Number(currentPos.z))){
-    currentZ = Number(currentPos.z);
-  } else {
-    var snap = await getMachineSnapshot();
-    currentZ = Number(snap && snap.z);
-  }
-
-  // Resolve localSafeZ fallback (no cachedSafeZ and no top profile data)
-  if(localSafeZ === undefined){
     localSafeZ = (isFinite(currentZ) ? currentZ : 0) + retractClearance;
   }
+
+  var safeZSource = isFinite(highestTopZ) ? 'highest top Z' : 'current Z (no top profile)';
 
   // Only raise if we're below the safe Z
   if(isFinite(currentZ) && currentZ >= localSafeZ){
     logLine('face', label + ': current Z ' + currentZ.toFixed(3) + ' already above local safe Z ' + localSafeZ.toFixed(3));
-    return currentPos || await getWorkPosition();
+    return await getWorkPosition();
   }
 
-  logLine('face', label + ': raising to local safe Z ' + localSafeZ.toFixed(3) + ' (' + safeZSource + ')');
+  logLine('face', label + ': raising to local safe Z ' + localSafeZ.toFixed(3) + ' (' + safeZSource + ' + ' + retractClearance.toFixed(1) + ' coords clearance)');
   await moveAbs(null, null, localSafeZ, s.travelRecoveryLiftFeedRate || s.travelFeedRate || 600);
   return await getWorkPosition();
 }
 
-async function clearFaceProbeAndReturnToStartThenRaise(axis, pos, startCoord, lineCoord, contextLabel, settings){
-  var sLocal = settings || getSettingsFromUI();
+async function clearFaceProbeAndReturnToStartThenRaise(axis, pos, startCoord, lineCoord, contextLabel){
+  s = getSettingsFromUI();
   axis = String(axis || 'X').toUpperCase();
   pos = pos || await getWorkPosition();
   startCoord = Number(startCoord);
   lineCoord = Number(lineCoord);
 
-  var finishZ = Number(sLocal.finishHomeZ);
+  var finishZ = Number(s.finishHomeZ);
+  var useMachineHomeRetract = !!s.useMachineHomeRetract;
+  var machineSafeTopZ = Number(s.machineSafeTopZ);
+  var snap = await getMachineSnapshot();
   var currentZ = Number(pos && pos.z);
   var fallbackSafeZ = isFinite(currentZ) ? Math.max(currentZ, finishZ) : finishZ;
   if(!isFinite(fallbackSafeZ)) fallbackSafeZ = currentZ;
 
-  logLine('face', contextLabel + ': safe trigger retract — diagonal retract to ' + axis + '=' + startCoord.toFixed(3) + ' Z=' + Number(fallbackSafeZ).toFixed(3) + ' before next sample.');
-
-  // Diagonal move: retract face axis to start AND raise Z simultaneously.
-  // GRBL handles simultaneous multi-axis moves natively — eliminates one waitForIdle cycle vs 2-step sequential moves.
-  var moveFeed = sLocal.travelRecoveryLiftFeedRate || sLocal.travelRecoveryFeedRate || sLocal.travelFeedRate || 600;
-  if(axis === 'X'){
-    await moveAbs(startCoord, lineCoord, fallbackSafeZ, moveFeed);
+  if(useMachineHomeRetract && snap && snap.homed === true && isFinite(machineSafeTopZ)){
+    logLine('face', contextLabel + ': safe trigger retract — retracting ' + axis + ' to start ' + startCoord.toFixed(3) + ', then raising to machine-safe work Z ' + Number(fallbackSafeZ).toFixed(3) + ' before next sample.');
   } else {
-    await moveAbs(lineCoord, startCoord, fallbackSafeZ, moveFeed);
+    logLine('face', contextLabel + ': safe trigger retract — retracting ' + axis + ' to start ' + startCoord.toFixed(3) + ', then raising Z to ' + Number(fallbackSafeZ).toFixed(3) + ' before next sample.');
   }
+
+  // Step 1: Retract along the face axis back to start position at current Z.
+  // This clears the probe tip from the face before any Z raise, preventing the
+  // probe from dragging against the workpiece during the lift.
+  var moveFeed = s.travelRecoveryLiftFeedRate || s.travelRecoveryFeedRate || s.travelFeedRate || 600;
+  if(axis === 'X'){
+    await moveAbs(startCoord, lineCoord, null, moveFeed);
+  } else {
+    await moveAbs(lineCoord, startCoord, null, moveFeed);
+  }
+
+  // Step 2: Now raise Z to the safe travel height.
+  await moveAbs(null, null, fallbackSafeZ, moveFeed);
 
   return await getWorkPosition();
 }

@@ -176,7 +176,6 @@ var SM_SETTINGS_KEY = '3dmesh.combined.settings';
 // ── Combined Mode State ───────────────────────────────────────────────────────
 var combinedMeshPoints = null; // unified array: [{x,y,z,source:'surface'|'face'}]
 var _smProbingCompleteCallback = null; // set by combined mode to chain face probe after surface probe
-var _smSkipFinishMotion = false; // set by combined mode to skip smFinishMotion home detour between phases
 // ── Probe Sequence Recording ──────────────────────────────────────────────────
 var smPvizProbeSequence = [];
 var _smPvizSeqLastTime = 0;
@@ -340,11 +339,10 @@ async function smSafeLateralMove(targetX, targetY, travelFeed, clearanceZ) {
     await attempt();
   }
 
-  // Lift Z by at least 5mm relative from current position (contact point), then travel X/Y.
-  // Using Math.max(5, clearanceZ) ensures the probe pin reliably clears even if the user
-  // configured a small clearanceZ, so smEnsureProbeClear() passes through as a no-op.
-  var effectiveLift = Math.max(5, clearanceZ);
-  var liftCmd = 'G91 G1 Z' + effectiveLift.toFixed(3) + ' F' + travelFeed;
+  // Lift Z by clearanceZ coords relative from current position (contact point), then travel X/Y.
+  // This ensures clearance is always clearanceZ above wherever the probe last touched,
+  // regardless of absolute work Z.
+  var liftCmd = 'G91 G1 Z' + clearanceZ.toFixed(3) + ' F' + travelFeed;
   smLogProbe('[PLUGIN DEBUG] smSafeLateralMove: sending command: ' + liftCmd);
   pluginDebug('smSafeLateralMove: Z-lift cmd: ' + liftCmd);
   await sendCommand(liftCmd);
