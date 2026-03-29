@@ -389,19 +389,21 @@ async function runFaceProbe(axis, _calledFromCombined){
           var isLastLayer = (li === totalLayers - 1);
           if(!isLastSampleInLayer){
             var nextSampleCoord = Number(faceSamples[sampleOrder[si + 1]].sampleCoord);
-            logLine('face', 'Inter-sample return (layer ' + layerNum + '): G1 retract ' + axis + '=' + startCoord.toFixed(3) + ' at F1000, then G38.3 to ' + sampledAxis + '=' + nextSampleCoord.toFixed(3) + ' at F' + Number(s.travelFeedRate).toFixed(0) + '.');
-            // Step 1: G1 retract face axis to clear probe from wall (must NOT be G38.3 — probe is still triggered)
+            logLine('face', 'Inter-sample return (layer ' + layerNum + '): G1 back off 0.5mm on ' + axis + ' at F1000, then G38.3 diagonal to ' + axis + '=' + startCoord.toFixed(3) + ' + ' + sampledAxis + '=' + nextSampleCoord.toFixed(3) + ' at F' + Number(s.travelFeedRate).toFixed(0) + '.');
+            // Step 1: G1 back off 0.5mm on face axis to clear probe trigger
+            var _isrCurPos = await getWorkPosition();
+            var _isrBackoff = 0.5 * Math.sign(startCoord - targetCoord);
             if(axis === 'X'){
-              await moveAbs(startCoord, null, null, 1000);
+              await moveAbs(Number(_isrCurPos.x) + _isrBackoff, null, null, 1000);
             } else {
-              await moveAbs(null, startCoord, null, 1000);
+              await moveAbs(null, Number(_isrCurPos.y) + _isrBackoff, null, 1000);
             }
-            // Step 2: G38.3 lateral travel to next sample position (probe is now clear/open)
+            // Step 2: G38.3 diagonal to startCoord + next sample position
             var _isrPos;
             if(axis === 'X'){
-              _isrPos = await probeSafeMove(null, nextSampleCoord, null, s.travelFeedRate);
+              _isrPos = await probeSafeMove(startCoord, nextSampleCoord, null, s.travelFeedRate);
             } else {
-              _isrPos = await probeSafeMove(nextSampleCoord, null, null, s.travelFeedRate);
+              _isrPos = await probeSafeMove(nextSampleCoord, startCoord, null, s.travelFeedRate);
             }
             if(_isrPos.probeTriggered){
               logLine('face', 'INTER-SAMPLE TRAVEL CONTACT: probe triggered during diagonal retract at X=' + Number(_isrPos.x).toFixed(3) + ' Y=' + Number(_isrPos.y).toFixed(3) + ' Z=' + Number(_isrPos.z).toFixed(3));
@@ -426,16 +428,22 @@ async function runFaceProbe(axis, _calledFromCombined){
             }
           } else if(!isLastLayer){
             var layerTransitionZ = layerRetractZ[li];
-            logLine('face', 'Layer ' + layerNum + ' \u2192 ' + (layerNum + 1) + ': G1 retract ' + axis + '=' + startCoord.toFixed(3) + ' at F1000, then G1 Z=' + layerTransitionZ.toFixed(3) + ' at F1000 (serpentine \u2014 next layer starts at ' + sampledAxis + '=' + lineCoord.toFixed(3) + ').');
-            // Step 1: G1 retract face axis to clear probe from wall
+            logLine('face', 'Layer ' + layerNum + ' \u2192 ' + (layerNum + 1) + ': G1 back off 0.5mm on ' + axis + ' at F1000, then G38.3 diagonal to ' + axis + '=' + startCoord.toFixed(3) + ' + Z=' + layerTransitionZ.toFixed(3) + ' (serpentine \u2014 next layer starts at ' + sampledAxis + '=' + lineCoord.toFixed(3) + ').');
+            // Step 1: G1 back off 0.5mm on face axis to clear probe trigger
+            var _ltrCurPos = await getWorkPosition();
+            var _ltrBackoff = 0.5 * Math.sign(startCoord - targetCoord);
             if(axis === 'X'){
-              await moveAbs(startCoord, null, null, 1000);
+              await moveAbs(Number(_ltrCurPos.x) + _ltrBackoff, null, null, 1000);
             } else {
-              await moveAbs(null, startCoord, null, 1000);
+              await moveAbs(null, Number(_ltrCurPos.y) + _ltrBackoff, null, 1000);
             }
-            // Step 2: G1 raise Z to next-layer clearance (no G38.3 needed — just a Z move)
-            await moveAbs(null, null, layerTransitionZ, 1000);
-            var _ltrPos = await getWorkPosition();
+            // Step 2: G38.3 diagonal to startCoord + raise Z to next-layer clearance
+            var _ltrPos = await probeSafeMove(
+              axis === 'X' ? startCoord : null,
+              axis === 'Y' ? startCoord : null,
+              layerTransitionZ,
+              s.travelFeedRate
+            );
             if(_ltrPos.probeTriggered){
               logLine('face', 'INTER-SAMPLE TRAVEL CONTACT: probe triggered during layer-transition retract at X=' + Number(_ltrPos.x).toFixed(3) + ' Y=' + Number(_ltrPos.y).toFixed(3) + ' Z=' + Number(_ltrPos.z).toFixed(3));
               var _ltrRec = makeFaceContactRecord(faceResults.length + 1, _ltrPos, axis, 'EARLY_CONTACT_INTER_SAMPLE_RETRACT_' + axis, targetCoord, lineCoord);
@@ -540,19 +548,21 @@ async function runFaceProbe(axis, _calledFromCombined){
 
       if(i < faceSamples.length - 1){
         var nextLineCoord = Number(faceSamples[i + 1].sampleCoord);
-        logLine('face', 'Inter-sample return: G1 retract ' + axis + '=' + startCoord.toFixed(3) + ' at F1000, then G38.3 to ' + sampledAxis + '=' + nextLineCoord.toFixed(3) + ' at F' + Number(s.travelFeedRate).toFixed(0) + ' (no Z raise).');
-        // Step 1: G1 retract face axis to clear probe from wall (must NOT be G38.3 — probe may still be triggered)
+        logLine('face', 'Inter-sample return: G1 back off 0.5mm on ' + axis + ' at F1000, then G38.3 diagonal to ' + axis + '=' + startCoord.toFixed(3) + ' + ' + sampledAxis + '=' + nextLineCoord.toFixed(3) + ' at F' + Number(s.travelFeedRate).toFixed(0) + ' (no Z raise).');
+        // Step 1: G1 back off 0.5mm on face axis to clear probe trigger
+        var _spIsrCurPos = await getWorkPosition();
+        var _spIsrBackoff = 0.5 * Math.sign(startCoord - targetCoord);
         if(axis === 'X'){
-          await moveAbs(startCoord, null, null, 1000);
+          await moveAbs(Number(_spIsrCurPos.x) + _spIsrBackoff, null, null, 1000);
         } else {
-          await moveAbs(null, startCoord, null, 1000);
+          await moveAbs(null, Number(_spIsrCurPos.y) + _spIsrBackoff, null, 1000);
         }
-        // Step 2: G38.3 lateral travel to next sample position (probe is now clear/open)
+        // Step 2: G38.3 diagonal to startCoord + next sample position
         var _spIsrPos;
         if(axis === 'X'){
-          _spIsrPos = await probeSafeMove(null, nextLineCoord, null, s.travelFeedRate);
+          _spIsrPos = await probeSafeMove(startCoord, nextLineCoord, null, s.travelFeedRate);
         } else {
-          _spIsrPos = await probeSafeMove(nextLineCoord, null, null, s.travelFeedRate);
+          _spIsrPos = await probeSafeMove(nextLineCoord, startCoord, null, s.travelFeedRate);
         }
         if(_spIsrPos.probeTriggered){
           logLine('face', 'INTER-SAMPLE TRAVEL CONTACT: probe triggered during diagonal retract at X=' + Number(_spIsrPos.x).toFixed(3) + ' Y=' + Number(_spIsrPos.y).toFixed(3) + ' Z=' + Number(_spIsrPos.z).toFixed(3));
