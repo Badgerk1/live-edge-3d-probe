@@ -380,7 +380,7 @@ async function runFaceProbe(axis, _calledFromCombined){
             ep.sampleCoord = lineCoord;
             faceResults.push(ep);
           });
-          if(faceAdv.extras.length) updateAllResultsUI();
+          if(faceAdv.extras.length) saveProbeResultsThrottled();
 
           var contact = faceAdv.contact || faceAdv.position;
           var contactFaceCoord = axis === 'X' ? Number(contact.x) : Number(contact.y);
@@ -402,7 +402,7 @@ async function runFaceProbe(axis, _calledFromCombined){
             var lMiss = makeFaceContactRecord(faceResults.length + 1, contact, axis, 'FACE ' + axis + ' MISS', targetCoord, lineCoord);
             faceResults.push(lMiss);
           }
-          updateAllResultsUI();
+          saveProbeResultsThrottled();
 
           var isLastSampleInLayer = (si === sampleOrder.length - 1);
           var isLastLayer = (li === totalLayers - 1);
@@ -436,7 +436,7 @@ async function runFaceProbe(axis, _calledFromCombined){
                 layer: layerNum,
                 sampleTopZ: sampleTopZ
               });
-              updateAllResultsUI();
+              saveProbeResultsThrottled();
               var _isrRecovery = {recoveries: 0, totalLift: 0};
               var _isrUnitX = axis === 'X' ? Math.sign(startCoord - targetCoord) : 0;
               var _isrUnitY = axis === 'X' ? 0 : Math.sign(startCoord - targetCoord);
@@ -475,7 +475,7 @@ async function runFaceProbe(axis, _calledFromCombined){
                 layer: layerNum,
                 sampleTopZ: sampleTopZ
               });
-              updateAllResultsUI();
+              saveProbeResultsThrottled();
               var _ltrRecovery = {recoveries: 0, totalLift: 0};
               var _ltrUnitX = axis === 'X' ? Math.sign(startCoord - targetCoord) : 0;
               var _ltrUnitY = axis === 'X' ? 0 : Math.sign(startCoord - targetCoord);
@@ -486,7 +486,8 @@ async function runFaceProbe(axis, _calledFromCombined){
             }
           }
         }
-        logLine('face', 'Layer ' + layerNum + '/' + totalLayers + ' complete: ' + layerContacts + ' contact(s)');
+        logLine('face', 'Layer ' + layerNum + '/' + totalLayers + ' complete — UI updated, ' + layeredFaceResults.length + ' total contacts recorded.');
+        updateAllResultsUI();
       }
 
       saveProbeResults();
@@ -550,7 +551,7 @@ async function runFaceProbe(axis, _calledFromCombined){
         ep.sampleCoord = lineCoord;
         faceResults.push(ep);
       });
-      if(faceAdvance.extras.length) updateAllResultsUI();
+      if(faceAdvance.extras.length) saveProbeResultsThrottled();
 
       var contact = faceAdvance.contact || faceAdvance.position;
       var contactCoord = axis === 'X' ? Number(contact.x) : Number(contact.y);
@@ -563,7 +564,7 @@ async function runFaceProbe(axis, _calledFromCombined){
         var miss = makeFaceContactRecord(faceResults.length + 1, contact, axis, 'FACE ' + axis + ' MISS', targetCoord, lineCoord);
         faceResults.push(miss);
       }
-      updateAllResultsUI();
+      saveProbeResultsThrottled();
 
       if(i < faceSamples.length - 1){
         var nextLineCoord = Number(faceSamples[i + 1].sampleCoord);
@@ -587,7 +588,7 @@ async function runFaceProbe(axis, _calledFromCombined){
           logLine('face', 'INTER-SAMPLE TRAVEL CONTACT: probe triggered during diagonal retract at X=' + Number(_spIsrPos.x).toFixed(3) + ' Y=' + Number(_spIsrPos.y).toFixed(3) + ' Z=' + Number(_spIsrPos.z).toFixed(3));
           var _spIsrRec = makeFaceContactRecord(faceResults.length + 1, _spIsrPos, axis, 'EARLY_CONTACT_INTER_SAMPLE_RETRACT_' + axis, targetCoord, lineCoord);
           faceResults.push(_spIsrRec);
-          updateAllResultsUI();
+          saveProbeResultsThrottled();
           var _spIsrRecovery = {recoveries: 0, totalLift: 0};
           var _spIsrUnitX = axis === 'X' ? Math.sign(startCoord - targetCoord) : 0;
           var _spIsrUnitY = axis === 'X' ? 0 : Math.sign(startCoord - targetCoord);
@@ -618,6 +619,7 @@ async function runFaceProbe(axis, _calledFromCombined){
     logLine('face', 'ERROR: ' + e.message);
     pluginDebug('runFaceProbe ERROR: axis=' + axis + ' error="' + e.message + '"');
     setFooterStatus('Error: ' + e.message, 'bad');
+    saveProbeResults();
   } finally{
     _running = false;
     _stopRequested = false;
