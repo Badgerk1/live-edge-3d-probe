@@ -240,67 +240,6 @@
         </div>
       </div>
 
-      <div class="panel">
-        <div class="box-title">Face Probe Settings</div>
-        <div class="grid three">
-          <div class="field">
-            <label>
-              <span class="tooltip">Face Fixed Coord (coords)<span class="tip-icon">?</span>
-                <span class="tip">The non-probed axis coordinate held constant during face probing.</span>
-              </span>
-            </label>
-            <input type="number" id="faceFixedCoord" value="0" step="0.1">
-          </div>
-          <div class="field">
-            <label>
-              <span class="tooltip">Face Start Offset (coords)<span class="tip-icon">?</span>
-                <span class="tip">Starting offset from the face fixed coordinate before probing. Negative = start before the face.</span>
-              </span>
-            </label>
-            <input type="number" id="faceStartOffset" value="-10" step="0.1">
-          </div>
-          <div class="field">
-            <label>Face Probe Feed (mm/min)</label>
-            <input type="number" id="faceFeed" value="150" min="10" max="3000" step="10">
-          </div>
-          <div class="field">
-            <label>
-              <span class="tooltip">Depth Below Surface (coords)<span class="tip-icon">?</span>
-                <span class="tip">How far below the top profile Z surface to position for face probing. Uses nearest top profile point.</span>
-              </span>
-            </label>
-            <input type="number" id="faceDepthBelowSurface" value="2" min="0.1" max="50" step="0.1">
-          </div>
-          <div class="field">
-            <label>
-              <span class="tooltip">Face Probe Distance (coords)<span class="tip-icon">?</span>
-                <span class="tip">Total distance to probe along the face axis from the start offset position.</span>
-              </span>
-            </label>
-            <input type="number" id="faceProbeDistance" value="20" min="1" max="200" step="1">
-          </div>
-          <div class="field" style="grid-column:1 / -1">
-            <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="enableLayeredFace"> <span>Enable Layered Face Probe</span></label>
-            <div class="mini" style="margin-top:4px">When enabled, probes from max depth up to surface zero across all X samples at each layer. When off, existing single-pass face probe is used.</div>
-          </div>
-          <div class="field">
-            <label>
-              <span class="tooltip">Number of Face Layers<span class="tip-icon">?</span>
-                <span class="tip">How many Z layers to probe across the face depth. Layers are distributed evenly per sample from max depth to each sample's own top profile Z.</span>
-              </span>
-            </label>
-            <input type="number" id="faceLayerCount" value="3" min="2" max="20" step="1">
-          </div>
-          <div class="field">
-            <label>
-              <span class="tooltip">Face Max Depth (coords)<span class="tip-icon">?</span>
-                <span class="tip">Starting depth (deepest Z below surface zero) for layered face probing. Can match probe stylus length from 3D Probe Dimensions.</span>
-              </span>
-            </label>
-            <input type="number" id="faceMaxDepth" value="14.75" min="1" max="100" step="0.25">
-          </div>
-        </div>
-      </div>
 
       <div class="panel">
         <div class="box-title">Machine Helpers</div>
@@ -540,8 +479,8 @@
       <div class="box-title">Face Probe Configuration</div>
       <div class="grid three">
         <div class="field">
-          <label><span class="tooltip">Y Start Distance (coords)<span class="tip-icon">?</span><span class="tip">How far from the face (along the probe axis) to start the approach. Negative = start before the face. Overrides Setup &rarr; Face Start Offset when set.</span></span></label>
-          <input type="number" id="fp-yStart" value="-10" step="0.1">
+          <label><span class="tooltip">Face Start Offset (coords)<span class="tip-icon">?</span><span class="tip">Starting offset from the face fixed coordinate before probing. Negative = start before the face.</span></span></label>
+          <input type="number" id="faceStartOffset" value="-10" step="0.1">
         </div>
         <div class="field">
           <label>X Start (coords)</label>
@@ -560,10 +499,10 @@
         </div>
         <div class="field">
           <label>
-            <span class="tooltip">Z End / Max Depth (coords)<span class="tip-icon">?</span><span class="tip">Deepest Z below surface zero for face probing. Cannot exceed probe stylus length (Setup &rarr; 3D Probe Dimensions).</span></span>
+            <span class="tooltip">Face Max Depth (coords)<span class="tip-icon">?</span><span class="tip">Deepest Z below surface zero for face probing. Cannot exceed probe stylus length (Setup &rarr; 3D Probe Dimensions).</span></span>
             <span id="fp-stylus-warning" style="color:var(--bad);font-size:11px;font-weight:600;display:none"> &#9888; Exceeds stylus!</span>
           </label>
-          <input type="number" id="fp-zEnd" value="14.75" step="0.25" oninput="fpValidateZEnd()">
+          <input type="number" id="faceMaxDepth" value="14.75" min="1" max="100" step="0.25" oninput="fpValidateZEnd()">
           <div class="mini" id="fp-stylus-cap-info" style="color:var(--muted);margin-top:2px">Max = stylus callout length from Setup</div>
         </div>
         <div class="field">
@@ -571,24 +510,48 @@
           <input type="number" id="fp-xPoints" value="5" min="2" max="50" step="1">
         </div>
         <div class="field">
-          <label>Z Layers (layers down face)</label>
-          <input type="number" id="fp-zLayers" value="3" min="2" max="20" step="1">
+          <label>Face Probe Feed (mm/min)</label>
+          <input type="number" id="faceFeed" value="150" min="10" max="3000" step="10">
         </div>
         <div class="field">
-          <label>Feed Rate (mm/min)</label>
-          <input type="number" id="fp-feedRate" value="150" min="10" max="3000" step="10">
+          <label>
+            <span class="tooltip">Depth Below Surface (coords)<span class="tip-icon">?</span>
+              <span class="tip">How far below the top profile Z surface to position for face probing. Uses nearest top profile point.</span>
+            </span>
+          </label>
+          <input type="number" id="faceDepthBelowSurface" value="2" min="0.1" max="50" step="0.1">
         </div>
         <div class="field">
-          <label>Retract Distance (coords)</label>
-          <input type="number" id="fp-retractDist" value="2" min="0.1" max="20" step="0.1">
+          <label>
+            <span class="tooltip">Face Probe Distance (coords)<span class="tip-icon">?</span>
+              <span class="tip">Total distance to probe along the face axis from the start offset position.</span>
+            </span>
+          </label>
+          <input type="number" id="faceProbeDistance" value="20" min="1" max="200" step="1">
+        </div>
+        <div class="field">
+          <label>
+            <span class="tooltip">Face Fixed Coord (coords)<span class="tip-icon">?</span>
+              <span class="tip">The non-probed axis coordinate held constant during face probing.</span>
+            </span>
+          </label>
+          <input type="number" id="faceFixedCoord" value="0" step="0.1">
+        </div>
+        <div class="field">
+          <label>
+            <span class="tooltip">Z Layers (layers down face)<span class="tip-icon">?</span>
+              <span class="tip">How many Z layers to probe across the face depth. Layers are distributed evenly per sample from max depth to each sample's own top profile Z.</span>
+            </span>
+          </label>
+          <input type="number" id="faceLayerCount" value="3" min="2" max="20" step="1">
+        </div>
+        <div class="field" style="grid-column:1 / -1">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="enableLayeredFace"> <span>Enable Layered Face Probe</span></label>
+          <div class="mini" style="margin-top:4px">When enabled, probes from max depth up to surface zero across all X samples at each layer. When off, existing single-pass face probe is used.</div>
         </div>
       </div>
       <div class="callout mini" style="margin-top:8px">
-        <strong>Z Start</strong> auto-populates from Surface Row 1 (top edge = zero reference). <strong>Z End</strong> is capped at probe stylus callout length (Setup &rarr; 3D Probe Dimensions). <span style="color:var(--accent2)">&#9679; Pre-trigger safety (smEnsureProbeClear) and Travel Contact Recovery are always active during face probing.</span>
-      </div>
-      <div class="btn-row" style="margin-top:8px">
-        <button class="btn ghost" onclick="fpSyncToSetup()">&#8593; Sync to Setup Tab</button>
-        <button class="btn ghost" onclick="fpSyncFromSetup()">&#8595; Load from Setup Tab</button>
+        <strong>Z Start</strong> auto-populates from Surface Row 1 (top edge = zero reference). <strong>Face Max Depth</strong> is capped at probe stylus callout length (Setup &rarr; 3D Probe Dimensions). <span style="color:var(--accent2)">&#9679; Pre-trigger safety (smEnsureProbeClear) and Travel Contact Recovery are always active during face probing.</span>
       </div>
     </div>
 
