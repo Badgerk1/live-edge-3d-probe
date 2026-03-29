@@ -398,7 +398,28 @@ async function runFaceProbe(axis, _calledFromCombined){
             } else {
               await moveAbs(nextSampleCoord, startCoord, null, 3000);
             }
-            didOptimizedRetract = true;
+            var _isrPos = await getWorkPosition();
+            if(_isrPos.probeTriggered){
+              logLine('face', 'INTER-SAMPLE TRAVEL CONTACT: probe triggered during diagonal retract at X=' + Number(_isrPos.x).toFixed(3) + ' Y=' + Number(_isrPos.y).toFixed(3) + ' Z=' + Number(_isrPos.z).toFixed(3));
+              var _isrRec = makeFaceContactRecord(faceResults.length + 1, _isrPos, axis, 'EARLY_CONTACT_INTER_SAMPLE_RETRACT_' + axis, targetCoord, lineCoord);
+              faceResults.push(_isrRec);
+              layeredFaceResults.push({
+                x: Number(_isrPos.x),
+                y: Number(_isrPos.y),
+                z: layerZ,
+                machineZ: _isrPos.machineZ != null ? Number(_isrPos.machineZ) : null,
+                layer: layerNum,
+                sampleTopZ: sampleTopZ
+              });
+              updateAllResultsUI();
+              var _isrRecovery = {recoveries: 0, totalLift: 0};
+              var _isrUnitX = axis === 'X' ? Math.sign(startCoord - targetCoord) : 0;
+              var _isrUnitY = axis === 'X' ? 0 : Math.sign(startCoord - targetCoord);
+              await _clearTriggeredProbeByBackingOffGeneric('face', _isrPos, _isrUnitX, _isrUnitY, s, _isrRecovery);
+              didOptimizedRetract = false;
+            } else {
+              didOptimizedRetract = true;
+            }
           } else if(!isLastLayer){
             // Last sample of layer — transitioning to next layer.
             // Serpentine: next layer starts at this X position, so no X travel needed.
@@ -410,7 +431,28 @@ async function runFaceProbe(axis, _calledFromCombined){
             } else {
               await moveAbs(null, startCoord, layerTransitionZ, 3000);
             }
-            didOptimizedRetract = true;
+            var _ltrPos = await getWorkPosition();
+            if(_ltrPos.probeTriggered){
+              logLine('face', 'INTER-SAMPLE TRAVEL CONTACT: probe triggered during layer-transition retract at X=' + Number(_ltrPos.x).toFixed(3) + ' Y=' + Number(_ltrPos.y).toFixed(3) + ' Z=' + Number(_ltrPos.z).toFixed(3));
+              var _ltrRec = makeFaceContactRecord(faceResults.length + 1, _ltrPos, axis, 'EARLY_CONTACT_INTER_SAMPLE_RETRACT_' + axis, targetCoord, lineCoord);
+              faceResults.push(_ltrRec);
+              layeredFaceResults.push({
+                x: Number(_ltrPos.x),
+                y: Number(_ltrPos.y),
+                z: Number(_ltrPos.z),
+                machineZ: _ltrPos.machineZ != null ? Number(_ltrPos.machineZ) : null,
+                layer: layerNum,
+                sampleTopZ: sampleTopZ
+              });
+              updateAllResultsUI();
+              var _ltrRecovery = {recoveries: 0, totalLift: 0};
+              var _ltrUnitX = axis === 'X' ? Math.sign(startCoord - targetCoord) : 0;
+              var _ltrUnitY = axis === 'X' ? 0 : Math.sign(startCoord - targetCoord);
+              await _clearTriggeredProbeByBackingOffGeneric('face', _ltrPos, _ltrUnitX, _ltrUnitY, s, _ltrRecovery);
+              didOptimizedRetract = false;
+            } else {
+              didOptimizedRetract = true;
+            }
           }
         }
         logLine('face', 'Layer ' + layerNum + '/' + totalLayers + ' complete: ' + layerContacts + ' contact(s)');
@@ -502,7 +544,20 @@ async function runFaceProbe(axis, _calledFromCombined){
         } else {
           await moveAbs(nextLineCoord, startCoord, null, s.travelFeedRate);
         }
-        spDidOptimizedRetract = true;
+        var _spIsrPos = await getWorkPosition();
+        if(_spIsrPos.probeTriggered){
+          logLine('face', 'INTER-SAMPLE TRAVEL CONTACT: probe triggered during diagonal retract at X=' + Number(_spIsrPos.x).toFixed(3) + ' Y=' + Number(_spIsrPos.y).toFixed(3) + ' Z=' + Number(_spIsrPos.z).toFixed(3));
+          var _spIsrRec = makeFaceContactRecord(faceResults.length + 1, _spIsrPos, axis, 'EARLY_CONTACT_INTER_SAMPLE_RETRACT_' + axis, targetCoord, lineCoord);
+          faceResults.push(_spIsrRec);
+          updateAllResultsUI();
+          var _spIsrRecovery = {recoveries: 0, totalLift: 0};
+          var _spIsrUnitX = axis === 'X' ? Math.sign(startCoord - targetCoord) : 0;
+          var _spIsrUnitY = axis === 'X' ? 0 : Math.sign(startCoord - targetCoord);
+          await _clearTriggeredProbeByBackingOffGeneric('face', _spIsrPos, _spIsrUnitX, _spIsrUnitY, s, _spIsrRecovery);
+          spDidOptimizedRetract = false;
+        } else {
+          spDidOptimizedRetract = true;
+        }
       }
     }
 
