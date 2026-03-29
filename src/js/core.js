@@ -558,8 +558,8 @@ async function getWorkPosition(){
 async function waitForIdle(){
   pluginDebug('waitForIdle ENTER');
   var lastStatus = '';
-  for(var i = 0; i < 1800; i++){
-    await sleep(100);
+  for(var i = 0; i < 6000; i++){
+    await sleep(30);
     checkStop();
     var state = await _getState();
     var ms = _machineStateFrom(state);
@@ -568,7 +568,15 @@ async function waitForIdle(){
       pluginDebug('waitForIdle: status changed to "' + status + '" (poll #' + i + ')');
       lastStatus = status;
     }
-    if(status === 'idle'){ pluginDebug('waitForIdle EXIT: idle confirmed'); return; }
+    if(status === 'idle'){
+      pluginDebug('waitForIdle EXIT: idle confirmed');
+      var w = _parsePos(ms.WPos);
+      if(w) return {x:w.x, y:w.y, z:w.z, status: status, probeTriggered: !!(ms.Pn && ms.Pn.indexOf('P') !== -1)};
+      var m = _parsePos(ms.MPos), wco = _parsePos(ms.WCO);
+      if(m && wco) return {x:m.x-wco.x, y:m.y-wco.y, z:m.z-wco.z, status: status, probeTriggered: !!(ms.Pn && ms.Pn.indexOf('P') !== -1)};
+      if(m) return {x:m.x, y:m.y, z:m.z, status: status, probeTriggered: !!(ms.Pn && ms.Pn.indexOf('P') !== -1)};
+      return null;
+    }
     if(status === 'alarm'){ pluginDebug('waitForIdle ERROR: machine in alarm state'); throw new Error('Machine in alarm state'); }
   }
   pluginDebug('waitForIdle TIMEOUT: machine never reached idle');
@@ -594,8 +602,9 @@ async function moveAbs(x, y, z, feed){
   cmd += ' F' + Number(feed).toFixed(0);
   pluginDebug('moveAbs: ' + cmd);
   await sendCommand(cmd);
-  await waitForIdleWithTimeout();
+  var pos = await waitForIdleWithTimeout();
   pluginDebug('moveAbs DONE: ' + cmd);
+  return pos;
 }
 
 async function probeSafeMove(x, y, z, feed){
@@ -607,8 +616,8 @@ async function probeSafeMove(x, y, z, feed){
   cmd += ' F' + Number(feed).toFixed(0);
   pluginDebug('probeSafeMove: ' + cmd);
   await sendCommand(cmd);
-  await waitForIdleWithTimeout();
-  var pos = await getWorkPosition();
+  var pos = await waitForIdleWithTimeout();
+  if(!pos) pos = await getWorkPosition();
   pluginDebug('probeSafeMove DONE: ' + cmd + ' probeTriggered=' + pos.probeTriggered);
   return pos;
 }

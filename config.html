@@ -688,6 +688,14 @@
         </div>
         <div class="field">
           <label>
+            <span class="tooltip">Face Retract Feed (mm/min)<span class="tip-icon">?</span>
+              <span class="tip">Feed rate used when retracting between face probe samples (backoff, return to start, inter-sample travel). Higher values speed up the cycle. Defaults to Travel Feed if not set.</span>
+            </span>
+          </label>
+          <input type="number" id="faceRetractFeed" value="1000" min="10" max="6000" step="10">
+        </div>
+        <div class="field">
+          <label>
             <span class="tooltip">Depth Below Surface (coords)<span class="tip-icon">?</span>
               <span class="tip">How far below the top profile Z surface to position for face probing. Uses nearest top profile point.</span>
             </span>
@@ -1807,8 +1815,8 @@ async function getWorkPosition(){
 async function waitForIdle(){
   pluginDebug('waitForIdle ENTER');
   var lastStatus = '';
-  for(var i = 0; i < 1800; i++){
-    await sleep(100);
+  for(var i = 0; i < 6000; i++){
+    await sleep(30);
     checkStop();
     var state = await _getState();
     var ms = _machineStateFrom(state);
@@ -1817,7 +1825,15 @@ async function waitForIdle(){
       pluginDebug('waitForIdle: status changed to "' + status + '" (poll #' + i + ')');
       lastStatus = status;
     }
-    if(status === 'idle'){ pluginDebug('waitForIdle EXIT: idle confirmed'); return; }
+    if(status === 'idle'){
+      pluginDebug('waitForIdle EXIT: idle confirmed');
+      var w = _parsePos(ms.WPos);
+      if(w) return {x:w.x, y:w.y, z:w.z, status: status, probeTriggered: !!(ms.Pn && ms.Pn.indexOf('P') !== -1)};
+      var m = _parsePos(ms.MPos), wco = _parsePos(ms.WCO);
+      if(m && wco) return {x:m.x-wco.x, y:m.y-wco.y, z:m.z-wco.z, status: status, probeTriggered: !!(ms.Pn && ms.Pn.indexOf('P') !== -1)};
+      if(m) return {x:m.x, y:m.y, z:m.z, status: status, probeTriggered: !!(ms.Pn && ms.Pn.indexOf('P') !== -1)};
+      return null;
+    }
     if(status === 'alarm'){ pluginDebug('waitForIdle ERROR: machine in alarm state'); throw new Error('Machine in alarm state'); }
   }
   pluginDebug('waitForIdle TIMEOUT: machine never reached idle');
@@ -1843,8 +1859,9 @@ async function moveAbs(x, y, z, feed){
   cmd += ' F' + Number(feed).toFixed(0);
   pluginDebug('moveAbs: ' + cmd);
   await sendCommand(cmd);
-  await waitForIdleWithTimeout();
+  var pos = await waitForIdleWithTimeout();
   pluginDebug('moveAbs DONE: ' + cmd);
+  return pos;
 }
 
 async function probeSafeMove(x, y, z, feed){
@@ -1856,8 +1873,8 @@ async function probeSafeMove(x, y, z, feed){
   cmd += ' F' + Number(feed).toFixed(0);
   pluginDebug('probeSafeMove: ' + cmd);
   await sendCommand(cmd);
-  await waitForIdleWithTimeout();
-  var pos = await getWorkPosition();
+  var pos = await waitForIdleWithTimeout();
+  if(!pos) pos = await getWorkPosition();
   pluginDebug('probeSafeMove DONE: ' + cmd + ' probeTriggered=' + pos.probeTriggered);
   return pos;
 }
@@ -1896,6 +1913,7 @@ function getSettingsFromUI(){
     faceFixedCoord:       Number(document.getElementById('faceFixedCoord').value) || 0,
     faceStartOffset:      Number(document.getElementById('faceStartOffset').value) || -10,
     faceFeed:             Number(document.getElementById('faceFeed').value) || 150,
+    faceRetractFeed:      Number(document.getElementById('faceRetractFeed').value) || 1000,
     faceDepthBelowSurface:Number(document.getElementById('faceDepthBelowSurface').value) || 2,
     faceProbeDistance:    Number(document.getElementById('faceProbeDistance').value) || 20,
     enableLayeredFace: (function(){ var el = document.getElementById('enableLayeredFace'); return !!(el && el.checked); })(),
@@ -2164,7 +2182,7 @@ function resetSettings(){
   _applySettingsToUI({
     sampleAxis:'X', topFixedCoord:0, topSampleStart:0, topSampleEnd:100,
     topSampleCount:10, useInitialClearanceLift:'no', topClearZ:5, topFeed:200, topProbeDepth:5, topRetract:2,
-    travelFeedRate:600, travelRecoveryFeedRate:1500, travelRecoveryLiftFeedRate:1000, useTravelContactRecovery:'yes', travelContactStep:5, travelContactBackoff:5, travelContactLift:5, travelContactMaxRetries:5, faceFixedCoord:0, faceStartOffset:-10, faceFeed:150,
+    travelFeedRate:600, travelRecoveryFeedRate:1500, travelRecoveryLiftFeedRate:1000, useTravelContactRecovery:'yes', travelContactStep:5, travelContactBackoff:5, travelContactLift:5, travelContactMaxRetries:5, faceFixedCoord:0, faceStartOffset:-10, faceFeed:150, faceRetractFeed:1000,
     faceDepthBelowSurface:2, faceProbeDistance:20, enableLayeredFace:false, faceLayerCount:3, faceMaxDepth:14.75, faceTopSurfaceMode:'flat', finishHomeZ:10,
     useMachineHomeRetract:'yes', machineSafeTopZ:0, returnToXYZero:'yes',
     jogStepXY:1, jogStepZ:2, jogFeedXY:600, jogFeedZ:300,
@@ -2177,7 +2195,7 @@ function _applySettingsToUI(cfg){
   var ids = ['sampleAxis','topFixedCoord','topSampleStart','topSampleEnd','topSampleCount',
              'useInitialClearanceLift','topClearZ','topFeed','topProbeDepth','topRetract','travelFeedRate','travelRecoveryFeedRate','travelRecoveryLiftFeedRate',
              'useTravelContactRecovery','travelContactStep','travelContactBackoff','travelContactLift','travelContactMaxRetries',
-             'faceFixedCoord','faceStartOffset','faceFeed','faceDepthBelowSurface','faceProbeDistance',
+             'faceFixedCoord','faceStartOffset','faceFeed','faceRetractFeed','faceDepthBelowSurface','faceProbeDistance',
              'faceLayerCount','faceMaxDepth',
              'finishHomeZ','useMachineHomeRetract','machineSafeTopZ','returnToXYZero',
              'jogStepXY','jogStepZ','jogFeedXY','jogFeedZ',
@@ -6551,9 +6569,9 @@ async function probeAbsAxis(axis, target, feed){
       var curAxisPos = axis === 'X' ? Number(pos.x) : Number(pos.y);
       var probeDir = Number(target) >= curAxisPos ? 1 : -1;
       var backoffPos = curAxisPos - probeDir * 2;
-      await sendCommand('G90 G1 ' + axis + backoffPos.toFixed(3) + ' F1000');
+      await sendCommand('G90 G1 ' + axis + backoffPos.toFixed(3) + ' F' + Number(s && (s.faceRetractFeed || s.travelFeedRate) || 1000).toFixed(0));
       await waitForIdleWithTimeout();
-      await smSleep(200);
+      await smSleep(80);
     }
     await sendCommand('G90 G38.2 ' + axis + Number(target).toFixed(3) + ' F' + Number(feed).toFixed(0));
     await waitForIdleWithTimeout();
@@ -6576,7 +6594,7 @@ async function _clearTriggeredProbeByBackingOffGeneric(tab, currentPos, unitX, u
     logLine(tab, 'TRAVEL CONTACT: recovery ' + state.recoveries + '/' + maxRetries + ' backoff to X=' + Number(backX).toFixed(3) + ' Y=' + Number(backY).toFixed(3) + ' at F' + Number(s.travelRecoveryFeedRate || s.travelFeedRate).toFixed(0) + ', then lift Z to ' + Number(liftZ).toFixed(3) + ' at F' + Number(s.travelRecoveryLiftFeedRate || s.travelRecoveryFeedRate || s.travelFeedRate).toFixed(0) + ' (cumulative added lift ' + Number(state.totalLift).toFixed(3) + ' coords).');
     await moveAbs(backX, backY, null, s.travelRecoveryFeedRate || s.travelFeedRate);
     await moveAbs(null, null, liftZ, s.travelRecoveryLiftFeedRate || s.travelRecoveryFeedRate || s.travelFeedRate);
-    await sleep(120);
+    await sleep(50);
     pos = await getWorkPosition();
     if(pos.probeTriggered){
       logLine(tab, 'TRAVEL CONTACT WARNING: probe is still triggered after recovery ' + state.recoveries + '/' + maxRetries + '.');
@@ -6663,7 +6681,7 @@ async function segmentedFaceMoveWithRecovery(axis, targetCoord, fixedCoord, prob
       var unitX = axis === 'X' ? dir : 0;
       var unitY = axis === 'Y' ? dir : 0;
       pos = await _clearTriggeredProbeByBackingOffGeneric('face', pos, unitX, unitY, s, recoveryState);
-      await smSleep(200);
+      await smSleep(80);
       if(pos.probeTriggered && recoveryState.recoveries >= maxRetries){
         throw new Error('Face reposition path blocked after ' + maxRetries + ' contact recoveries (max added lift ' + Number(recoveryState.totalLift).toFixed(3) + ' coords). Raise starting Z or reposition the work.');
       }
@@ -6676,7 +6694,7 @@ async function segmentedFaceMoveWithRecovery(axis, targetCoord, fixedCoord, prob
           extras.push(downExtra);
           logLine('face', 'FACE REPOSITION CONTACT: probe re-triggered while returning to face probe Z. Backing off and lifting again.');
           pos = await _clearTriggeredProbeByBackingOffGeneric('face', pos, unitX, unitY, s, recoveryState);
-          await smSleep(200);
+          await smSleep(80);
         }
       }
     }
@@ -6895,15 +6913,15 @@ async function runFaceProbe(axis, _calledFromCombined){
             await raiseFaceTravelSafeZ('Layer ' + layerNum + ' sample ' + sampleNum + ': safe retract', null, localSafeZ);
 
             if(axis === 'X'){
-              await moveAbs(null, lineCoord, null, s.travelFeedRate);
+              await moveAbs(null, lineCoord, null, s.faceRetractFeed || s.travelFeedRate);
             } else {
-              await moveAbs(lineCoord, null, null, s.travelFeedRate);
+              await moveAbs(lineCoord, null, null, s.faceRetractFeed || s.travelFeedRate);
             }
 
             if(axis === 'X'){
-              await moveAbs(startCoord, null, null, s.travelFeedRate);
+              await moveAbs(startCoord, null, null, s.faceRetractFeed || s.travelFeedRate);
             } else {
-              await moveAbs(null, startCoord, null, s.travelFeedRate);
+              await moveAbs(null, startCoord, null, s.faceRetractFeed || s.travelFeedRate);
             }
           }
           didOptimizedRetract = false;
@@ -6945,18 +6963,18 @@ async function runFaceProbe(axis, _calledFromCombined){
           var isLastLayer = (li === totalLayers - 1);
           if(!isLastSampleInLayer){
             var nextSampleCoord = Number(faceSamples[sampleOrder[si + 1]].sampleCoord);
-            logLine('face', 'Inter-sample return (layer ' + layerNum + '): G1 retract ' + axis + '=' + startCoord.toFixed(3) + ' at F' + Number(s.travelFeedRate).toFixed(0) + ', then G1 travel to ' + sampledAxis + '=' + nextSampleCoord.toFixed(3) + ' at F' + Number(s.travelFeedRate).toFixed(0) + '.');
+            logLine('face', 'Inter-sample return (layer ' + layerNum + '): G1 retract ' + axis + '=' + startCoord.toFixed(3) + ' at F' + Number(s.faceRetractFeed || s.travelFeedRate).toFixed(0) + ', then G1 travel to ' + sampledAxis + '=' + nextSampleCoord.toFixed(3) + ' at F' + Number(s.faceRetractFeed || s.travelFeedRate).toFixed(0) + '.');
             // Step 1: G1 retract on face axis back to startCoord (fully clears workpiece)
             if(axis === 'X'){
-              await moveAbs(startCoord, null, null, s.travelFeedRate);
+              await moveAbs(startCoord, null, null, s.faceRetractFeed || s.travelFeedRate);
             } else {
-              await moveAbs(null, startCoord, null, s.travelFeedRate);
+              await moveAbs(null, startCoord, null, s.faceRetractFeed || s.travelFeedRate);
             }
             // Step 2: G1 travel on sample axis to next sample position
             if(axis === 'X'){
-              await moveAbs(null, nextSampleCoord, null, s.travelFeedRate);
+              await moveAbs(null, nextSampleCoord, null, s.faceRetractFeed || s.travelFeedRate);
             } else {
-              await moveAbs(nextSampleCoord, null, null, s.travelFeedRate);
+              await moveAbs(nextSampleCoord, null, null, s.faceRetractFeed || s.travelFeedRate);
             }
             // Safety net: check if probe was inadvertently triggered during G1 moves
             var _isrPos = await getWorkPosition();
@@ -6983,15 +7001,15 @@ async function runFaceProbe(axis, _calledFromCombined){
             }
           } else if(!isLastLayer){
             var layerTransitionZ = layerRetractZ[li];
-            logLine('face', 'Layer ' + layerNum + ' \u2192 ' + (layerNum + 1) + ': G1 retract ' + axis + '=' + startCoord.toFixed(3) + ' at F' + Number(s.travelFeedRate).toFixed(0) + ', then G1 raise Z=' + layerTransitionZ.toFixed(3) + ' at F' + Number(s.travelFeedRate).toFixed(0) + ' (serpentine \u2014 next layer starts at ' + sampledAxis + '=' + lineCoord.toFixed(3) + ').');
+            logLine('face', 'Layer ' + layerNum + ' \u2192 ' + (layerNum + 1) + ': G1 retract ' + axis + '=' + startCoord.toFixed(3) + ' at F' + Number(s.faceRetractFeed || s.travelFeedRate).toFixed(0) + ', then G1 raise Z=' + layerTransitionZ.toFixed(3) + ' at F' + Number(s.faceRetractFeed || s.travelFeedRate).toFixed(0) + ' (serpentine \u2014 next layer starts at ' + sampledAxis + '=' + lineCoord.toFixed(3) + ').');
             // Step 1: G1 retract on face axis back to startCoord (fully clears workpiece)
             if(axis === 'X'){
-              await moveAbs(startCoord, null, null, s.travelFeedRate);
+              await moveAbs(startCoord, null, null, s.faceRetractFeed || s.travelFeedRate);
             } else {
-              await moveAbs(null, startCoord, null, s.travelFeedRate);
+              await moveAbs(null, startCoord, null, s.faceRetractFeed || s.travelFeedRate);
             }
             // Step 2: G1 raise Z to next-layer clearance height
-            await moveAbs(null, null, layerTransitionZ, s.travelFeedRate);
+            await moveAbs(null, null, layerTransitionZ, s.faceRetractFeed || s.travelFeedRate);
             // Safety net: check if probe was inadvertently triggered during G1 moves
             var _ltrPos = await getWorkPosition();
             if(_ltrPos.probeTriggered){
@@ -7056,17 +7074,17 @@ async function runFaceProbe(axis, _calledFromCombined){
 
         if(axis === 'X'){
           logLine('face', 'Face sample ' + sample.index + ': moving to sample line Y=' + lineCoord.toFixed(3) + ' at safe travel Z.');
-          await moveAbs(null, lineCoord, null, s.travelFeedRate);
+          await moveAbs(null, lineCoord, null, s.faceRetractFeed || s.travelFeedRate);
         } else {
           logLine('face', 'Face sample ' + sample.index + ': moving to sample line X=' + lineCoord.toFixed(3) + ' at safe travel Z.');
-          await moveAbs(lineCoord, null, null, s.travelFeedRate);
+          await moveAbs(lineCoord, null, null, s.faceRetractFeed || s.travelFeedRate);
         }
 
         logLine('face', 'At face sample line. Moving to face start ' + axis + '=' + startCoord.toFixed(3) + ' at safe travel Z before lowering.');
         if(axis === 'X'){
-          await moveAbs(startCoord, null, null, s.travelFeedRate);
+          await moveAbs(startCoord, null, null, s.faceRetractFeed || s.travelFeedRate);
         } else {
-          await moveAbs(null, startCoord, null, s.travelFeedRate);
+          await moveAbs(null, startCoord, null, s.faceRetractFeed || s.travelFeedRate);
         }
       }
       // Consume the flag — set to true at end of previous iteration after a diagonal retract.
@@ -7099,18 +7117,18 @@ async function runFaceProbe(axis, _calledFromCombined){
 
       if(i < faceSamples.length - 1){
         var nextLineCoord = Number(faceSamples[i + 1].sampleCoord);
-        logLine('face', 'Inter-sample return: G1 retract ' + axis + '=' + startCoord.toFixed(3) + ' at F' + Number(s.travelFeedRate).toFixed(0) + ', then G1 travel to ' + sampledAxis + '=' + nextLineCoord.toFixed(3) + ' at F' + Number(s.travelFeedRate).toFixed(0) + '.');
+        logLine('face', 'Inter-sample return: G1 retract ' + axis + '=' + startCoord.toFixed(3) + ' at F' + Number(s.faceRetractFeed || s.travelFeedRate).toFixed(0) + ', then G1 travel to ' + sampledAxis + '=' + nextLineCoord.toFixed(3) + ' at F' + Number(s.faceRetractFeed || s.travelFeedRate).toFixed(0) + '.');
         // Step 1: G1 retract on face axis back to startCoord (fully clears workpiece)
         if(axis === 'X'){
-          await moveAbs(startCoord, null, null, s.travelFeedRate);
+          await moveAbs(startCoord, null, null, s.faceRetractFeed || s.travelFeedRate);
         } else {
-          await moveAbs(null, startCoord, null, s.travelFeedRate);
+          await moveAbs(null, startCoord, null, s.faceRetractFeed || s.travelFeedRate);
         }
         // Step 2: G1 travel on sample axis to next sample position
         if(axis === 'X'){
-          await moveAbs(null, nextLineCoord, null, s.travelFeedRate);
+          await moveAbs(null, nextLineCoord, null, s.faceRetractFeed || s.travelFeedRate);
         } else {
-          await moveAbs(nextLineCoord, null, null, s.travelFeedRate);
+          await moveAbs(nextLineCoord, null, null, s.faceRetractFeed || s.travelFeedRate);
         }
         // Safety net: check if probe was inadvertently triggered during G1 moves
         var _spIsrPos = await getWorkPosition();
