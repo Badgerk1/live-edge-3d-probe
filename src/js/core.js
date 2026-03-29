@@ -598,6 +598,21 @@ async function moveAbs(x, y, z, feed){
   pluginDebug('moveAbs DONE: ' + cmd);
 }
 
+async function probeSafeMove(x, y, z, feed){
+  if(x == null && y == null && z == null){ pluginDebug('probeSafeMove: no coordinates specified — skipping'); return await getWorkPosition(); }
+  var cmd = 'G90 G38.3';
+  if(x != null) cmd += ' X' + Number(x).toFixed(3);
+  if(y != null) cmd += ' Y' + Number(y).toFixed(3);
+  if(z != null) cmd += ' Z' + Number(z).toFixed(3);
+  cmd += ' F' + Number(feed).toFixed(0);
+  pluginDebug('probeSafeMove: ' + cmd);
+  await sendCommand(cmd);
+  await waitForIdleWithTimeout();
+  var pos = await getWorkPosition();
+  pluginDebug('probeSafeMove DONE: ' + cmd + ' probeTriggered=' + pos.probeTriggered);
+  return pos;
+}
+
 async function moveMachineZAbs(z, feed){
   var cmd = 'G53 G1';
   if(z != null) cmd += ' Z' + Number(z).toFixed(3);
