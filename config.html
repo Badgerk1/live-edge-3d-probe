@@ -6565,6 +6565,23 @@ var SM_SURFACE_GRID_SETTINGS_KEY = 'smSurfaceGridSettings';
 async function probeAbsAxis(axis, target, feed){
     axis = String(axis || '').toUpperCase();
     if(axis !== 'X' && axis !== 'Y') throw new Error('Unsupported face probe axis');
+    // Verify probe pin is clear before issuing G38.2; GRBL requires probe to be open to start a probe cycle.
+    var maxClearAttempts = 3;
+    for (var clearAttempt = 0; clearAttempt <= maxClearAttempts; clearAttempt++) {
+      var triggered = await smGetProbeTriggered();
+      if (!triggered) break;
+      if (clearAttempt >= maxClearAttempts) {
+        throw new Error('Probe input stuck triggered after ' + maxClearAttempts + ' clearing attempts before face probe ' + axis + '; aborting');
+      }
+      logLine('face', 'Face probe: probe pin still triggered before G38.2 on ' + axis + ' (attempt ' + (clearAttempt + 1) + '/' + maxClearAttempts + '); backing off 2mm to clear...');
+      var pos = await getWorkPosition();
+      var curAxisPos = axis === 'X' ? Number(pos.x) : Number(pos.y);
+      var probeDir = Number(target) >= curAxisPos ? 1 : -1;
+      var backoffPos = curAxisPos - probeDir * 2;
+      await sendCommand('G90 G1 ' + axis + backoffPos.toFixed(3) + ' F1000');
+      await waitForIdleWithTimeout();
+      await smSleep(200);
+    }
     await sendCommand('G90 G38.2 ' + axis + Number(target).toFixed(3) + ' F' + Number(feed).toFixed(0));
     await waitForIdleWithTimeout();
     return await getWorkPosition();
@@ -6673,6 +6690,7 @@ async function segmentedFaceMoveWithRecovery(axis, targetCoord, fixedCoord, prob
       var unitX = axis === 'X' ? dir : 0;
       var unitY = axis === 'Y' ? dir : 0;
       pos = await _clearTriggeredProbeByBackingOffGeneric('face', pos, unitX, unitY, s, recoveryState);
+      await smSleep(200);
       if(pos.probeTriggered && recoveryState.recoveries >= maxRetries){
         throw new Error('Face reposition path blocked after ' + maxRetries + ' contact recoveries (max added lift ' + Number(recoveryState.totalLift).toFixed(3) + ' coords). Raise starting Z or reposition the work.');
       }
@@ -6685,6 +6703,7 @@ async function segmentedFaceMoveWithRecovery(axis, targetCoord, fixedCoord, prob
           extras.push(downExtra);
           logLine('face', 'FACE REPOSITION CONTACT: probe re-triggered while returning to face probe Z. Backing off and lifting again.');
           pos = await _clearTriggeredProbeByBackingOffGeneric('face', pos, unitX, unitY, s, recoveryState);
+          await smSleep(200);
         }
       }
     }
