@@ -8,14 +8,14 @@
     #surface-edge-mesh-root{--bg:#10131a;--panel:#171c26;--panel2:#1c2330;--line:#2b3444;--text:#e8eef9;--muted:#9aa8bf;--accent:#6ea8ff;--accent2:#845ef7;--good:#5fd38d;--warn:#f0b35c;--bad:#ff6b6b;}
     #surface-edge-mesh-root *{box-sizing:border-box}
     #surface-edge-mesh-root{background:var(--bg);color:var(--text);font:13px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-    #surface-edge-mesh-root .app{height:100%;display:flex;flex-direction:column;max-width:1180px;margin:0 auto}
+    #surface-edge-mesh-root .app{min-height:100%;display:flex;flex-direction:column;max-width:1180px;margin:0 auto}
     #surface-edge-mesh-root .header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#1a2030,#141923)}
     #surface-edge-mesh-root .title{font-size:16px;font-weight:700}#surface-edge-mesh-root .subtitle{font-size:11px;color:var(--muted)}
     #surface-edge-mesh-root .brand{display:flex;align-items:center;gap:12px}#surface-edge-mesh-root .brand img{width:44px;height:44px;display:block;border-radius:12px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.35))}#surface-edge-mesh-root .brand-copy{display:flex;flex-direction:column}
     #surface-edge-mesh-root .tabs{display:flex;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);background:#131824;flex-wrap:wrap}
     #surface-edge-mesh-root .tab{border:1px solid var(--line);background:#151b27;color:var(--text);padding:8px 12px;border-radius:10px;cursor:pointer}
     #surface-edge-mesh-root .tab.active{background:linear-gradient(180deg,#26324b,#1b2740);border-color:#46639b}
-    #surface-edge-mesh-root .content{flex:1;overflow:auto;padding:14px;display:block}
+    #surface-edge-mesh-root .content{flex:1;overflow-y:auto;overflow-x:hidden;padding:14px;display:block}
     #surface-edge-mesh-root .tab-panel{display:none}#surface-edge-mesh-root .tab-panel.active{display:block}
     #surface-edge-mesh-root .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px}
     #surface-edge-mesh-root .box-title{font-size:14px;font-weight:700;margin-bottom:10px}
@@ -733,6 +733,9 @@
       </div>
       <div class="callout mini" style="margin-top:8px">
         <strong>Z Start</strong> auto-populates from Surface Row 1 (top edge = zero reference). <strong>Face Max Depth</strong> is capped at probe stylus callout length (Setup &rarr; 3D Probe Dimensions). <span style="color:var(--accent2)">&#9679; Pre-trigger safety (smEnsureProbeClear) and Travel Contact Recovery are always active during face probing.</span>
+      </div>
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn ghost" onclick="saveSettings()">&#128190; Save Face Settings</button>
       </div>
     </div>
 
