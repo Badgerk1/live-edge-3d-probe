@@ -1,0 +1,55 @@
+name: Create baseline branch on main merge
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Read version from manifest.json
+        id: ver
+        run: |
+          VERSION=$(jq -r .version manifest.json)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Detected version: $VERSION"
+
+      - name: Create or update baseline branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BRANCH="baseline-${{ steps.ver.outputs.version }}"
+          echo "Target baseline branch: $BRANCH"
+          # Create the branch from the current HEAD (main) using the REST API
+          SHA=$(git rev-parse HEAD)
+          # Check if branch already exists
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/git/ref/heads/$BRANCH")
+          if [ "$STATUS" = "200" ]; then
+            echo "Branch $BRANCH already exists — updating to $SHA"
+            curl -s -X PATCH \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/git/refs/heads/$BRANCH" \
+              -d "{\"sha\":\"$SHA\",\"force\":true}"
+          else
+            echo "Creating branch $BRANCH at $SHA"
+            curl -s -X POST \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/git/refs" \
+              -d "{\"ref\":\"refs/heads/$BRANCH\",\"sha\":\"$SHA\"}"
+          fi
+          echo "Done — baseline-${{ steps.ver.outputs.version }} points to $SHA"
