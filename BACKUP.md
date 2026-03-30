@@ -2,11 +2,29 @@
 
 ## Backup Created
 - **Date**: 2026-03-30
-- **Tag Name**: `backup-20260330`
-- **Branch Backed Up**: `main` (commit `d2415db`)
+- **Backup Reference**: Commit `d2415db` on `main` branch
+- **Tag Name** (to create): `backup-20260330`
 
 ## Purpose
 This backup preserves the complete state of the repository before any future changes. If things don't work out with upcoming modifications, you have a complete backup to restore from.
+
+## Creating the Backup Tag
+After merging this PR, run the following command to create the permanent backup tag:
+
+```bash
+# Create the backup tag pointing to the backup commit
+git tag -a backup-20260330 d2415db -m "Complete repository backup - 2026-03-30"
+
+# Push the tag to remote
+git push origin backup-20260330
+```
+
+Alternatively, you can create the tag through GitHub's web interface:
+1. Go to the repository's Releases page
+2. Click "Create a new release"
+3. Enter `backup-20260330` as the tag
+4. Select the commit `d2415db` as the target
+5. Add a title like "Complete Repository Backup - March 30, 2026"
 
 ## What's Backed Up
 The backup includes all files in the repository:
