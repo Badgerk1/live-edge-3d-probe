@@ -1,0 +1,37 @@
+name: Build config.html
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+# Grant the GITHUB_TOKEN read/write so that future automation steps
+# (version bumps, baseline branch creation) are not blocked by the default
+# read-only token.  See SECURITY.md §3 for background.
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build config.html
+        run: |
+          chmod +x build.sh
+          ./build.sh
+
+      - name: Verify no stale version strings remain
+        run: |
+          VERSION=$(jq -r .version manifest.json)
+          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          if grep -q "V$(( MAJOR - 1 ))\." config.html; then
+            echo "ERROR: config.html still contains previous major version strings"
+            grep "V$(( MAJOR - 1 ))\." config.html
+            exit 1
+          fi
+          echo "config.html version check passed (current: V${MAJOR})"

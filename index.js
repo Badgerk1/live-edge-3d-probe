@@ -328,7 +328,7 @@ let checkIntervalId = null;
 let __edgeProbeTimer = null;
 
 export async function onLoad(ctx) {
-  ctx.log('3D Live Edge Mesh Combined v2.1.0 plugin loaded');
+  ctx.log('3D Live Edge Mesh Combined v21.0.0 plugin loaded');
 
   // Try to load saved mesh on startup
   try {
@@ -500,5 +500,5 @@ export async function onUnload(ctx) {
     checkIntervalId = null;
   }
 
-  ctx.log('3D Live Edge Mesh Combined v2.1.0 plugin unloaded');
+  ctx.log('3D Live Edge Mesh Combined v21.0.0 plugin unloaded');
 }

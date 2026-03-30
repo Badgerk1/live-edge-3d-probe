@@ -1,4 +1,4 @@
-var SM_VERSION = 'V20.0';
+var SM_VERSION = 'V21.0';
 // ── State ─────────────────────────────────────────────────────────────────────
 var _running = false;
 var _stopRequested = false;
