@@ -1,0 +1,127 @@
+name: Version Bump & Baseline Backup
+
+# Triggered manually from the GitHub Actions UI (Actions → Version Bump &
+# Baseline Backup → Run workflow).  This is the recommended way to perform
+# version bumps and baseline-branch creation when direct GitHub API calls are
+# unavailable in the authoring environment.
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: 'Version bump type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      create_baseline:
+        description: 'Create a baseline backup branch after bumping?'
+        required: true
+        default: 'true'
+        type: boolean
+      baseline_prefix:
+        description: 'Prefix for the baseline branch name (e.g. "baseline")'
+        required: false
+        default: 'baseline'
+
+permissions:
+  contents: write
+
+jobs:
+  version-bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Read current version from manifest.json
+        id: current
+        run: |
+          VERSION=$(jq -r '.version' manifest.json)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Current version: $VERSION"
+
+      - name: Compute new version
+        id: new_ver
+        run: |
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${{ steps.current.outputs.version }}"
+          BUMP="${{ inputs.bump_type }}"
+          if [ "$BUMP" = "major" ]; then
+            MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0
+          elif [ "$BUMP" = "minor" ]; then
+            MINOR=$((MINOR + 1)); PATCH=0
+          else
+            PATCH=$((PATCH + 1))
+          fi
+          NEW="${MAJOR}.${MINOR}.${PATCH}"
+          # UI tag uses MAJOR.MINOR only (e.g. V21.0)
+          UI_TAG="V${MAJOR}.${MINOR}"
+          echo "version=$NEW"       >> "$GITHUB_OUTPUT"
+          echo "ui_tag=$UI_TAG"     >> "$GITHUB_OUTPUT"
+          echo "New version: $NEW  (UI tag: $UI_TAG)"
+
+      - name: Apply version bump to manifest.json
+        run: |
+          NEW="${{ steps.new_ver.outputs.version }}"
+          jq --arg v "$NEW" '.version = $v' manifest.json > manifest.json.tmp
+          mv manifest.json.tmp manifest.json
+
+      - name: Apply version bump to src/js/core.js (SM_VERSION)
+        run: |
+          UI_TAG="${{ steps.new_ver.outputs.ui_tag }}"
+          sed -i "s/var SM_VERSION = 'V[0-9][0-9]*\.[0-9][0-9]*';/var SM_VERSION = '${UI_TAG}';/" src/js/core.js
+
+      - name: Apply version bump to src/config-body.html
+        run: |
+          UI_TAG="${{ steps.new_ver.outputs.ui_tag }}"
+          OLD_UI_TAG="V$( echo "${{ steps.current.outputs.version }}" | cut -d. -f1-2 | sed 's/\./\\./' )"
+          # Replace sm-version-tag span fallback text
+          sed -i "s|<span id=\"sm-version-tag\">${OLD_UI_TAG}</span>|<span id=\"sm-version-tag\">${UI_TAG}</span>|g" src/config-body.html
+          # Replace mini footer tag
+          sed -i "s|3D Live Edge Mesh ${OLD_UI_TAG}|3D Live Edge Mesh ${UI_TAG}|g" src/config-body.html
+
+      - name: Apply version bump to index.js startup/shutdown log lines
+        run: |
+          NEW="${{ steps.new_ver.outputs.version }}"
+          OLD="${{ steps.current.outputs.version }}"
+          # Match any semver-style version string in the log lines
+          sed -i "s|3D Live Edge Mesh Combined v[0-9][^ ']* plugin loaded|3D Live Edge Mesh Combined v${NEW} plugin loaded|g" index.js
+          sed -i "s|3D Live Edge Mesh Combined v[0-9][^ ']* plugin unloaded|3D Live Edge Mesh Combined v${NEW} plugin unloaded|g" index.js
+
+      - name: Rebuild config.html
+        run: ./build.sh
+
+      - name: Commit version bump
+        run: |
+          NEW="${{ steps.new_ver.outputs.version }}"
+          git add manifest.json src/js/core.js src/config-body.html index.js config.html
+          git commit -m "chore: bump version to ${NEW}"
+
+      - name: Push version bump commit
+        run: git push origin main
+
+      - name: Create baseline backup branch
+        if: ${{ inputs.create_baseline == 'true' }}
+        run: |
+          NEW="${{ steps.new_ver.outputs.version }}"
+          PREFIX="${{ inputs.baseline_prefix }}"
+          DATE=$(date -u '+%Y-%m-%d')
+          BRANCH="${PREFIX}-${DATE}-v${NEW}"
+          # Use a unique suffix if the branch already exists
+          if git ls-remote --exit-code origin "refs/heads/${BRANCH}" > /dev/null 2>&1; then
+            BRANCH="${BRANCH}-$(date -u '+%H%M%S')"
+          fi
+          git checkout -b "$BRANCH"
+          git push origin "$BRANCH"
+          echo "Baseline branch created: $BRANCH"

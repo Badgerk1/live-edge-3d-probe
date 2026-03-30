@@ -1,7 +1,7 @@
 {
   "id": "com.ncsender.edgeprobe.combined",
   "name": "3D Live Edge Mesh Combined",
-  "version": "20.0.0",
+  "version": "21.0.0",
   "minAppVersion": "0.3.131",
   "entry": "index.js",
   "configUi": "config.html",
