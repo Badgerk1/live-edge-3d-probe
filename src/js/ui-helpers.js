@@ -1283,6 +1283,60 @@ function exportSurfaceOBJ(){
 // ── Combined export helpers ───────────────────────────────────────────────────
 
 /*
+ * _autoFillCombinedBottomZ()
+ * Computes the minimum Z across the surface mesh and (if available) the face mesh,
+ * then sets the combinedBottomZ input to (minZ - 2) rounded to 3 decimal places.
+ * Only auto-fills when the field is still at the initial default (data-is-default="1")
+ * or is blank — preserving any value the user has explicitly entered.
+ * Updates the hint element to explain the chosen value.
+ */
+function _autoFillCombinedBottomZ() {
+  var el = document.getElementById('combinedBottomZ');
+  if (!el) return;
+
+  // Only auto-fill when the field is blank or still at the initial default
+  if (el.getAttribute('data-is-default') !== '1' && el.value !== '') return;
+
+  var minZ = Infinity;
+
+  // Surface mesh contribution
+  if (smMeshData && smGridConfig) {
+    var cfg = smGridConfig;
+    for (var ri = 0; ri < cfg.rowCount; ri++)
+      for (var ci = 0; ci < cfg.colCount; ci++)
+        if (smMeshData[ri][ci] != null && smMeshData[ri][ci] < minZ) minZ = smMeshData[ri][ci];
+  }
+
+  // Face mesh contribution (fall back to surface-only if face data missing)
+  var rawFace = _getFaceMeshData();
+  if (rawFace.length) {
+    var faceGrid = _buildSubdividedFaceGrid(rawFace, 0.5);
+    if (faceGrid) {
+      for (var fri = 0; fri < faceGrid.numRows; fri++)
+        for (var fci = 0; fci < faceGrid.numCols; fci++) {
+          var fp = faceGrid.rows[fri][fci];
+          if (fp && fp.z < minZ) minZ = fp.z;
+        }
+    }
+  }
+
+  // Guard: no usable data yet
+  if (!isFinite(minZ)) return;
+
+  // Auto value = minZ - 2, clamped to 3 decimal places
+  var autoVal = Math.round((minZ - 2) * 1000) / 1000;
+
+  el.value = autoVal;
+  el.setAttribute('data-is-default', '0');
+
+  var hint = document.getElementById('combinedBottomZ-hint');
+  if (hint) {
+    hint.textContent = 'Auto bottom Z = min(mesh Z) \u2212 2 = ' + autoVal.toFixed(3) + ' (edit to override)';
+    hint.style.display = '';
+  }
+}
+
+/*
  * exportCombinedOBJWatertight()
  * Builds a single watertight OBJ that stitches:
  *   1) Top surface mesh  (smMeshData / smGridConfig, normal +Z)
@@ -1303,6 +1357,9 @@ function exportCombinedOBJWatertight() {
   if (!rawFace.length) {
     setFooterStatus('No face mesh data — run a face probe first.', 'warn'); return;
   }
+
+  // Auto-fill combinedBottomZ if still at default
+  _autoFillCombinedBottomZ();
 
   var bottomZEl = document.getElementById('combinedBottomZ');
   var bottomZ = bottomZEl ? Number(bottomZEl.value) : -20;

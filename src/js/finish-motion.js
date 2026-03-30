@@ -174,6 +174,13 @@ function smLoadSettings() {
   try {
     document.getElementById('btn-export-combined-obj').addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-combined-obj clicked'); exportCombinedOBJWatertight(); });
     document.getElementById('btn-export-combined-dxf').addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-combined-dxf clicked'); exportCombinedDXF(); });
+    // Clear auto-fill flag when user manually edits the Bottom Z field
+    var combinedBottomZEl = document.getElementById('combinedBottomZ');
+    if (combinedBottomZEl) combinedBottomZEl.addEventListener('input', function() {
+      this.setAttribute('data-is-default', '0');
+      var hint = document.getElementById('combinedBottomZ-hint');
+      if (hint) hint.style.display = 'none';
+    });
   } catch(e){}
 
   // Results buttons
@@ -1245,6 +1252,9 @@ function onProbeTypeChange() {
   // Combined export panel — only visible in combined mode
   var combExport = document.getElementById('combined-export-panel');
   if (combExport) combExport.style.display = (type === 'combined') ? '' : 'none';
+
+  // Auto-fill Bottom Z when switching into combined mode
+  if (type === 'combined') _autoFillCombinedBottomZ();
 }
 
 function saveUnifiedProbeLog() {

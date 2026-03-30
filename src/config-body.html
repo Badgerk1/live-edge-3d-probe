@@ -665,9 +665,10 @@
       <div class="callout mini" style="margin-bottom:10px">Stitches the <strong>Surface MinY edge (Row 1)</strong> to the <strong>Face top edge</strong> and closes the model down to a user-defined Bottom Z to produce a single watertight OBJ. DXF exports both datasets as polylines (not watertight).</div>
       <div class="field" style="max-width:320px;margin-bottom:10px">
         <label><span class="tooltip">Combined Bottom Z (coords)<span class="tip-icon">?</span><span class="tip">Z coordinate of the flat bottom cap that closes the watertight solid. Must be below all surface and face mesh Z values.</span></span>
-          <input type="number" id="combinedBottomZ" value="-20" step="0.1" style="width:80px">
+          <input type="number" id="combinedBottomZ" value="-20" step="0.1" style="width:80px" data-is-default="1">
         </label>
         <div class="mini" style="margin-top:4px">Bottom closure Z coordinate. Set below the deepest face probe layer.</div>
+        <div id="combinedBottomZ-hint" class="mini" style="margin-top:2px;color:#888;display:none"></div>
       </div>
       <div class="field" style="max-width:320px;margin-bottom:10px">
         <label><span class="tooltip">OBJ Subdivision Resolution (mm)<span class="tip-icon">?</span><span class="tip">Target vertex spacing used when resampling the face wall mesh. Smaller values give a smoother combined mesh but produce larger files. Minimum 0.5mm.</span></span>
