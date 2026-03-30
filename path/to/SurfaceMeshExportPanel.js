@@ -1,1 +1,0 @@
-<input type="number" name="surfOBJSubdivision" value="0.5" min="0.0" step="0.01">
