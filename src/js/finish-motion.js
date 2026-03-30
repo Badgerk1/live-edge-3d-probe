@@ -163,6 +163,13 @@ function smLoadSettings() {
   var btnExportFaceObj = document.getElementById('btn-export-face-obj');
   if(btnExportFaceObj) btnExportFaceObj.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-face-obj clicked'); exportFaceOBJ(); });
 
+  // Surface mesh export buttons
+  try {
+    document.getElementById('btn-export-surf-csv').addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-surf-csv clicked'); exportSurfaceMeshCSV(); });
+    document.getElementById('btn-export-surf-dxf').addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-surf-dxf clicked'); exportSurfaceDXF(); });
+    document.getElementById('btn-export-surf-obj').addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-surf-obj clicked'); exportSurfaceOBJ(); });
+  } catch(e){}
+
   // Results buttons
   var btnExportCsv = document.getElementById('btn-export-csv');
   if(btnExportCsv) btnExportCsv.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-csv clicked'); exportCSV(); });

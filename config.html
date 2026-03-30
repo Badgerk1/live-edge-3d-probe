@@ -817,6 +817,22 @@
         <button class="btn ghost" onclick="flashButton(this);toggleProbeModeView('sm')" style="font-size:12px;font-weight:600">&#9660; Heatmap</button>
       </div>
     </div>
+    <!-- Surface Mesh Export -->
+    <div class="panel">
+      <div class="box-title">Surface Mesh Export</div>
+      <div class="callout mini" style="margin-bottom:10px">Export the surface probe mesh as CSV, DXF polylines, or OBJ 3D mesh. Uses the current surface mesh data.</div>
+      <div class="field" style="max-width:320px;margin-bottom:10px">
+        <label><span class="tooltip">OBJ Subdivision Resolution (mm)<span class="tip-icon">?</span><span class="tip">Target vertex spacing for the OBJ mesh. Smaller values produce smoother curved surfaces but generate larger files. Minimum 0.5mm; 2mm recommended for most CNC workflows.</span></span>
+          <input type="number" id="surfOBJSubdivision" value="2" min="0.5" max="25" step="0.5" style="width:80px">
+        </label>
+        <div class="mini" style="margin-top:4px">Interpolates additional vertices for a smooth mesh. 2mm recommended; smaller values give more detail but larger files.</div>
+      </div>
+      <div class="btn-row">
+        <button class="btn ghost" id="btn-export-surf-csv" title="Export surface mesh as CSV">&#128196; Export CSV</button>
+        <button class="btn ghost" id="btn-export-surf-dxf" title="Export surface mesh as DXF">&#128208; Export DXF</button>
+        <button class="btn ghost" id="btn-export-surf-obj" title="Export surface mesh as OBJ">&#129518; Export OBJ</button>
+      </div>
+    </div>
   </div><!-- /surface-mesh-section -->
 
   <!-- ── Face Mesh Section ──────────────────────────────────────────── -->
@@ -3030,6 +3046,155 @@ function exportFaceOBJ(){
   document.body.removeChild(anchor);
   URL.revokeObjectURL(url);
   setFooterStatus('OBJ exported: ' + totalVerts + ' vertices, ' + triCount + ' triangles.', 'good');
+}
+
+// ── Surface mesh export ───────────────────────────────────────────────────────
+function exportSurfaceDXF(){
+  if(!smMeshData || !smGridConfig){ setFooterStatus('No surface mesh data to export.', 'warn'); return; }
+  var cfg = smGridConfig;
+
+  var dxf = '0\nSECTION\n2\nHEADER\n';
+  dxf += '9\n$ACADVER\n1\nAC1009\n';
+  dxf += '9\n$INSUNITS\n70\n4\n';
+  dxf += '0\nENDSEC\n';
+  dxf += '0\nSECTION\n2\nTABLES\n';
+  dxf += '0\nENDSEC\n';
+  dxf += '0\nSECTION\n2\nENTITIES\n';
+
+  for(var ri = 0; ri < cfg.rowCount; ri++){
+    var validPts = [];
+    for(var ci = 0; ci < cfg.colCount; ci++){
+      var z = smMeshData[ri][ci];
+      if(z != null){
+        validPts.push({
+          x: cfg.minX + ci * cfg.colSpacing,
+          y: cfg.minY + ri * cfg.rowSpacing,
+          z: z
+        });
+      }
+    }
+    if(!validPts.length) continue;
+    dxf += '0\nPOLYLINE\n8\nRow_' + (ri + 1) + '\n66\n1\n70\n8\n';
+    validPts.forEach(function(p){
+      dxf += '0\nVERTEX\n8\nRow_' + (ri + 1) + '\n';
+      dxf += '10\n' + p.x.toFixed(3) + '\n';
+      dxf += '20\n' + p.y.toFixed(3) + '\n';
+      dxf += '30\n' + p.z.toFixed(3) + '\n';
+    });
+    dxf += '0\nSEQEND\n';
+  }
+
+  dxf += '0\nENDSEC\n0\nEOF\n';
+
+  var blob = new Blob([dxf], {type:'application/dxf'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'surface_mesh_' + tsForFilename() + '.dxf';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  setFooterStatus('DXF exported.', 'good');
+}
+
+function exportSurfaceOBJ(){
+  if(!smMeshData || !smGridConfig){ setFooterStatus('No surface mesh data to export.', 'warn'); return; }
+  var cfg = smGridConfig;
+
+  var resEl = document.getElementById('surfOBJSubdivision');
+  var resolution = resEl ? parseFloat(resEl.value) : 2;
+  if(isNaN(resolution) || resolution <= 0) resolution = 2;
+
+  var obj = '# 3D Live Edge Mesh - Surface Profile\n';
+  obj += '# Plugin Version: ' + SM_VERSION + '\n';
+  obj += '# Generated ' + new Date().toISOString() + '\n';
+  obj += 'o SurfaceMesh\n';
+  obj += 'g SurfaceMesh\n';
+
+  // Build vertex and index arrays directly from the surface probe grid
+  var indexGrid = [];
+  var vIdx = 1;
+  var totalVerts = 0;
+  var subRows = [];
+
+  for(var ri = 0; ri < cfg.rowCount; ri++){
+    var subRow = [];
+    for(var ci = 0; ci < cfg.colCount; ci++){
+      var z = smMeshData[ri][ci];
+      if(z != null){
+        subRow.push({ x: cfg.minX + ci * cfg.colSpacing, y: cfg.minY + ri * cfg.rowSpacing, z: z });
+      } else {
+        subRow.push(null);
+      }
+    }
+    subRows.push(subRow);
+  }
+
+  // Emit vertices and build index grid
+  for(var ri = 0; ri < subRows.length; ri++){
+    indexGrid.push([]);
+    for(var ci = 0; ci < subRows[ri].length; ci++){
+      var p = subRows[ri][ci];
+      if(p){
+        obj += 'v ' + p.x.toFixed(3) + ' ' + p.y.toFixed(3) + ' ' + p.z.toFixed(3) + '\n';
+        indexGrid[ri].push(vIdx++);
+        totalVerts++;
+      } else {
+        indexGrid[ri].push(0);
+      }
+    }
+  }
+
+  // Triangulate adjacent quads
+  var normals = [];
+  var faces = [];
+  for(var ri = 0; ri < subRows.length - 1; ri++){
+    for(var ci = 0; ci < subRows[ri].length - 1; ci++){
+      var va = indexGrid[ri][ci], vb = indexGrid[ri][ci + 1];
+      var vc = indexGrid[ri + 1][ci + 1], vd = indexGrid[ri + 1][ci];
+      if(va && vb && vc){
+        var pa = subRows[ri][ci], pb = subRows[ri][ci + 1], pc = subRows[ri + 1][ci + 1];
+        var e1x = pb.x - pa.x, e1y = pb.y - pa.y, e1z = pb.z - pa.z;
+        var e2x = pc.x - pa.x, e2y = pc.y - pa.y, e2z = pc.z - pa.z;
+        var nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x;
+        var len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+        if(len > 0){
+          nx /= len; ny /= len; nz /= len;
+          normals.push([nx, ny, nz]);
+          var ni = normals.length;
+          faces.push([va, ni, vb, ni, vc, ni]);
+        }
+      }
+      if(va && vc && vd){
+        var pa = subRows[ri][ci], pc = subRows[ri + 1][ci + 1], pd = subRows[ri + 1][ci];
+        var e1x = pc.x - pa.x, e1y = pc.y - pa.y, e1z = pc.z - pa.z;
+        var e2x = pd.x - pa.x, e2y = pd.y - pa.y, e2z = pd.z - pa.z;
+        var nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x;
+        var len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+        if(len > 0){
+          nx /= len; ny /= len; nz /= len;
+          normals.push([nx, ny, nz]);
+          var ni = normals.length;
+          faces.push([va, ni, vc, ni, vd, ni]);
+        }
+      }
+    }
+  }
+  normals.forEach(function(n){ obj += 'vn ' + n[0].toFixed(6) + ' ' + n[1].toFixed(6) + ' ' + n[2].toFixed(6) + '\n'; });
+  obj += 's 1\n';
+  faces.forEach(function(f){ obj += 'f ' + f[0] + '//' + f[1] + ' ' + f[2] + '//' + f[3] + ' ' + f[4] + '//' + f[5] + '\n'; });
+
+  var blob = new Blob([obj], {type:'model/obj'});
+  var url = URL.createObjectURL(blob);
+  var anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = 'surface_mesh_' + tsForFilename() + '.obj';
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  URL.revokeObjectURL(url);
+  setFooterStatus('OBJ exported: ' + totalVerts + ' vertices, ' + faces.length + ' triangles.', 'good');
 }
 
 // ── Workflow manager ──────────────────────────────────────────────────────────
@@ -7416,6 +7581,13 @@ function smLoadSettings() {
   if(btnExportFaceDxf) btnExportFaceDxf.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-face-dxf clicked'); exportFaceDXF(); });
   var btnExportFaceObj = document.getElementById('btn-export-face-obj');
   if(btnExportFaceObj) btnExportFaceObj.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-face-obj clicked'); exportFaceOBJ(); });
+
+  // Surface mesh export buttons
+  try {
+    document.getElementById('btn-export-surf-csv').addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-surf-csv clicked'); exportSurfaceMeshCSV(); });
+    document.getElementById('btn-export-surf-dxf').addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-surf-dxf clicked'); exportSurfaceDXF(); });
+    document.getElementById('btn-export-surf-obj').addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-surf-obj clicked'); exportSurfaceOBJ(); });
+  } catch(e){}
 
   // Results buttons
   var btnExportCsv = document.getElementById('btn-export-csv');
