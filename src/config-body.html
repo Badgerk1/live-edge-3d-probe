@@ -648,15 +648,36 @@
       <div class="box-title">Surface Mesh Export</div>
       <div class="callout mini" style="margin-bottom:10px">Export the surface probe mesh as CSV, DXF polylines, or OBJ 3D mesh. Uses the current surface mesh data.</div>
       <div class="field" style="max-width:320px;margin-bottom:10px">
-        <label><span class="tooltip">OBJ Subdivision Resolution (mm)<span class="tip-icon">?</span><span class="tip">Target vertex spacing for the OBJ mesh. Smaller values produce smoother curved surfaces but generate larger files. Minimum 0.5mm; 2mm recommended for most CNC workflows.</span></span>
-          <input type="number" id="surfOBJSubdivision" value="2" min="0.5" max="25" step="0.5" style="width:80px">
+        <label><span class="tooltip">OBJ Subdivision Resolution (mm)<span class="tip-icon">?</span><span class="tip">Target vertex spacing for the OBJ mesh. Smaller values produce smoother curved surfaces but generate larger files. Minimum 0.5mm; 0.5mm default for fine detail.</span></span>
+          <input type="number" id="surfOBJSubdivision" value="0.5" min="0.5" max="25" step="0.5" style="width:80px">
         </label>
-        <div class="mini" style="margin-top:4px">Interpolates additional vertices for a smooth mesh. 2mm recommended; smaller values give more detail but larger files.</div>
+        <div class="mini" style="margin-top:4px">Interpolates additional vertices for a smooth mesh. 0.5mm default; increase for smaller files.</div>
       </div>
       <div class="btn-row">
         <button class="btn ghost" id="btn-export-surf-csv" title="Export surface mesh as CSV">&#128196; Export CSV</button>
         <button class="btn ghost" id="btn-export-surf-dxf" title="Export surface mesh as DXF">&#128208; Export DXF</button>
         <button class="btn ghost" id="btn-export-surf-obj" title="Export surface mesh as OBJ">&#129518; Export OBJ</button>
+      </div>
+    </div>
+    <!-- Combined Mesh Export (Watertight) — shown only in Combined mode -->
+    <div id="combined-export-panel" class="panel" style="display:none">
+      <div class="box-title">Combined Mesh Export (Watertight)</div>
+      <div class="callout mini" style="margin-bottom:10px">Stitches the <strong>Surface MinY edge (Row 1)</strong> to the <strong>Face top edge</strong> and closes the model down to a user-defined Bottom Z to produce a single watertight OBJ. DXF exports both datasets as polylines (not watertight).</div>
+      <div class="field" style="max-width:320px;margin-bottom:10px">
+        <label><span class="tooltip">Combined Bottom Z (coords)<span class="tip-icon">?</span><span class="tip">Z coordinate of the flat bottom cap that closes the watertight solid. Must be below all surface and face mesh Z values.</span></span>
+          <input type="number" id="combinedBottomZ" value="-20" step="0.1" style="width:80px">
+        </label>
+        <div class="mini" style="margin-top:4px">Bottom closure Z coordinate. Set below the deepest face probe layer.</div>
+      </div>
+      <div class="field" style="max-width:320px;margin-bottom:10px">
+        <label><span class="tooltip">OBJ Subdivision Resolution (mm)<span class="tip-icon">?</span><span class="tip">Target vertex spacing used when resampling the face wall mesh. Smaller values give a smoother combined mesh but produce larger files. Minimum 0.5mm.</span></span>
+          <input type="number" id="combinedOBJSubdivision" value="0.5" min="0.5" max="25" step="0.5" style="width:80px">
+        </label>
+        <div class="mini" style="margin-top:4px">Face wall subdivision resolution for the combined export. 0.5mm recommended.</div>
+      </div>
+      <div class="btn-row">
+        <button class="btn ghost" id="btn-export-combined-obj" title="Export single watertight OBJ (surface + face stitched)">&#129518; Export Combined OBJ (Watertight)</button>
+        <button class="btn ghost" id="btn-export-combined-dxf" title="Export combined DXF polylines (surface rows + face layers)">&#128208; Export Combined DXF (Polylines)</button>
       </div>
     </div>
   </div><!-- /surface-mesh-section -->

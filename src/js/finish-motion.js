@@ -170,6 +170,12 @@ function smLoadSettings() {
     document.getElementById('btn-export-surf-obj').addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-surf-obj clicked'); exportSurfaceOBJ(); });
   } catch(e){}
 
+  // Combined mesh export buttons
+  try {
+    document.getElementById('btn-export-combined-obj').addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-combined-obj clicked'); exportCombinedOBJWatertight(); });
+    document.getElementById('btn-export-combined-dxf').addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-combined-dxf clicked'); exportCombinedDXF(); });
+  } catch(e){}
+
   // Results buttons
   var btnExportCsv = document.getElementById('btn-export-csv');
   if(btnExportCsv) btnExportCsv.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-csv clicked'); exportCSV(); });
@@ -1235,6 +1241,10 @@ function onProbeTypeChange() {
     else if (type === 'face') runBtn.textContent = '\u25b6 Run Face Probe';
     else runBtn.textContent = '\u25b6\u25b6 Run Combined Probe';
   }
+
+  // Combined export panel — only visible in combined mode
+  var combExport = document.getElementById('combined-export-panel');
+  if (combExport) combExport.style.display = (type === 'combined') ? '' : 'none';
 }
 
 function saveUnifiedProbeLog() {

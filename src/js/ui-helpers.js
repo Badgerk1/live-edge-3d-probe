@@ -1280,6 +1280,326 @@ function exportSurfaceOBJ(){
   setFooterStatus('OBJ exported: ' + totalVerts + ' vertices, ' + faces.length + ' triangles.', 'good');
 }
 
+// ── Combined export helpers ───────────────────────────────────────────────────
+
+/*
+ * exportCombinedOBJWatertight()
+ * Builds a single watertight OBJ that stitches:
+ *   1) Top surface mesh  (smMeshData / smGridConfig, normal +Z)
+ *   2) Face wall mesh    (layeredFaceResults subdivided, normal -Y)
+ *   3) Seam strip        (surface MinY row → face top row, normal -Y/+Z)
+ *   4) Back wall         (surface MaxY row → bottomZ, normal +Y)
+ *   5) Front-lower wall  (face bottom row → bottomZ, normal -Y)
+ *   6) Bottom cap        (face-bottom projected → back-bottom at bottomZ, normal -Z)
+ *   7) Left side cap     (fan at minX, normal -X)
+ *   8) Right side cap    (fan at maxX, normal +X)
+ * All face wall vertices are resampled at the surface X positions so caps align perfectly.
+ */
+function exportCombinedOBJWatertight() {
+  if (!smMeshData || !smGridConfig) {
+    setFooterStatus('No surface mesh data — run a surface probe first.', 'warn'); return;
+  }
+  var rawFace = _getFaceMeshData();
+  if (!rawFace.length) {
+    setFooterStatus('No face mesh data — run a face probe first.', 'warn'); return;
+  }
+
+  var bottomZEl = document.getElementById('combinedBottomZ');
+  var bottomZ = bottomZEl ? Number(bottomZEl.value) : -20;
+  if (!isFinite(bottomZ)) { setFooterStatus('Invalid Combined Bottom Z value.', 'warn'); return; }
+
+  var resEl = document.getElementById('combinedOBJSubdivision');
+  var resolution = resEl ? parseFloat(resEl.value) : 0.5;
+  if (isNaN(resolution) || resolution <= 0) resolution = 0.5;
+
+  var cfg = smGridConfig;
+
+  // Validate no nulls in surface grid
+  for (var ri = 0; ri < cfg.rowCount; ri++) {
+    for (var ci = 0; ci < cfg.colCount; ci++) {
+      if (smMeshData[ri][ci] == null) {
+        setFooterStatus('Surface mesh has null Z values — watertight export requires a complete grid.', 'warn'); return;
+      }
+    }
+  }
+
+  // Build subdivided face grid (use raw face data — seam bridges any Z offset)
+  var faceGrid = _buildSubdividedFaceGrid(rawFace, resolution);
+  if (!faceGrid) { setFooterStatus('Face mesh data insufficient for export.', 'warn'); return; }
+
+  // Validate no nulls in face grid
+  for (var ri = 0; ri < faceGrid.numRows; ri++) {
+    for (var ci = 0; ci < faceGrid.numCols; ci++) {
+      if (!faceGrid.rows[ri][ci]) {
+        setFooterStatus('Face mesh has missing data — watertight export requires a complete grid.', 'warn'); return;
+      }
+    }
+  }
+
+  // Validate bottomZ is below all mesh data
+  var minSurfZ = Infinity;
+  for (var ri = 0; ri < cfg.rowCount; ri++)
+    for (var ci = 0; ci < cfg.colCount; ci++)
+      if (smMeshData[ri][ci] < minSurfZ) minSurfZ = smMeshData[ri][ci];
+  var minFaceZ = Infinity;
+  for (var ri = 0; ri < faceGrid.numRows; ri++)
+    for (var ci = 0; ci < faceGrid.numCols; ci++)
+      if (faceGrid.rows[ri][ci].z < minFaceZ) minFaceZ = faceGrid.rows[ri][ci].z;
+  if (bottomZ >= Math.min(minSurfZ, minFaceZ)) {
+    setFooterStatus('Combined Bottom Z (' + bottomZ.toFixed(3) + ') must be below the mesh minimum (' +
+      Math.min(minSurfZ, minFaceZ).toFixed(3) + ').', 'warn'); return;
+  }
+
+  // ── Vertex and face pools ────────────────────────────────────────────────────
+  var verts = [];   // {x,y,z} 0-indexed; OBJ uses 1-indexed refs
+  var normals = [];
+  var faceList = [];
+
+  function addV(x, y, z) { verts.push({x: x, y: y, z: z}); return verts.length; }
+
+  function addTri(v1, v2, v3) {
+    var p1 = verts[v1 - 1], p2 = verts[v2 - 1], p3 = verts[v3 - 1];
+    var e1x = p2.x - p1.x, e1y = p2.y - p1.y, e1z = p2.z - p1.z;
+    var e2x = p3.x - p1.x, e2y = p3.y - p1.y, e2z = p3.z - p1.z;
+    var nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x;
+    var len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+    if (len < 1e-10) return;
+    normals.push({x: nx / len, y: ny / len, z: nz / len});
+    var ni = normals.length;
+    faceList.push([v1, ni, v2, ni, v3, ni]);
+  }
+
+  // ── 1. Surface mesh (normal +Z) ──────────────────────────────────────────────
+  var surfIdx = [];
+  for (var ri = 0; ri < cfg.rowCount; ri++) {
+    surfIdx.push([]);
+    for (var ci = 0; ci < cfg.colCount; ci++) {
+      surfIdx[ri].push(addV(cfg.minX + ci * cfg.colSpacing,
+                            cfg.minY + ri * cfg.rowSpacing,
+                            smMeshData[ri][ci]));
+    }
+  }
+  for (var ri = 0; ri < cfg.rowCount - 1; ri++) {
+    for (var ci = 0; ci < cfg.colCount - 1; ci++) {
+      var va = surfIdx[ri][ci], vb = surfIdx[ri][ci + 1];
+      var vc = surfIdx[ri + 1][ci + 1], vd = surfIdx[ri + 1][ci];
+      addTri(va, vb, vc);
+      addTri(va, vc, vd);
+    }
+  }
+
+  // ── 2. Face wall resampled at surface X positions (normal -Y) ────────────────
+  // faceGrid rows: ri=0 is lowest Z (deepest), ri=numRows-1 is highest Z (top).
+  function interpFaceRow(row, x) {
+    if (!row || !row.length) return null;
+    if (x <= row[0].x) return {x: x, y: row[0].y, z: row[0].z};
+    var last = row[row.length - 1];
+    if (x >= last.x) return {x: x, y: last.y, z: last.z};
+    for (var i = 0; i < row.length - 1; i++) {
+      if (x >= row[i].x && x <= row[i + 1].x) {
+        var t = (x - row[i].x) / (row[i + 1].x - row[i].x);
+        return {x: x,
+                y: row[i].y + t * (row[i + 1].y - row[i].y),
+                z: row[i].z + t * (row[i + 1].z - row[i].z)};
+      }
+    }
+    return {x: x, y: last.y, z: last.z};
+  }
+
+  var faceResIdx = []; // [ri][ci]: ri=0 bottom/deep, ri=numRows-1 top
+  for (var ri = 0; ri < faceGrid.numRows; ri++) {
+    faceResIdx.push([]);
+    for (var ci = 0; ci < cfg.colCount; ci++) {
+      var p = interpFaceRow(faceGrid.rows[ri], cfg.minX + ci * cfg.colSpacing);
+      faceResIdx[ri].push(addV(p.x, p.y, p.z));
+    }
+  }
+  // Winding gives -Y outward normal: verified by cross product
+  for (var ri = 0; ri < faceGrid.numRows - 1; ri++) {
+    for (var ci = 0; ci < cfg.colCount - 1; ci++) {
+      var va = faceResIdx[ri][ci], vb = faceResIdx[ri][ci + 1];
+      var vc = faceResIdx[ri + 1][ci + 1], vd = faceResIdx[ri + 1][ci];
+      addTri(va, vb, vc);
+      addTri(va, vc, vd);
+    }
+  }
+
+  // ── 3. Seam: surface row 0 (MinY) → face top row (outward normal -Y/+Z) ──────
+  var faceTopRi = faceGrid.numRows - 1;
+  for (var ci = 0; ci < cfg.colCount - 1; ci++) {
+    var sa = surfIdx[0][ci], sb = surfIdx[0][ci + 1];
+    var fa = faceResIdx[faceTopRi][ci], fb = faceResIdx[faceTopRi][ci + 1];
+    addTri(sa, fa, fb);
+    addTri(sa, fb, sb);
+  }
+
+  // ── 4. Back wall: surface MaxY row → bottomZ (outward normal +Y) ─────────────
+  var backBotIdx = [];
+  for (var ci = 0; ci < cfg.colCount; ci++) {
+    backBotIdx.push(addV(cfg.minX + ci * cfg.colSpacing,
+                         cfg.minY + (cfg.rowCount - 1) * cfg.rowSpacing,
+                         bottomZ));
+  }
+  for (var ci = 0; ci < cfg.colCount - 1; ci++) {
+    var sa = surfIdx[cfg.rowCount - 1][ci], sb = surfIdx[cfg.rowCount - 1][ci + 1];
+    var ba = backBotIdx[ci], bb = backBotIdx[ci + 1];
+    addTri(sa, bb, ba);
+    addTri(sa, sb, bb);
+  }
+
+  // ── 5. Front-lower: face bottom row → bottomZ (outward normal -Y) ────────────
+  var faceBotIdx = [];
+  for (var ci = 0; ci < cfg.colCount; ci++) {
+    var p = verts[faceResIdx[0][ci] - 1];
+    faceBotIdx.push(addV(p.x, p.y, bottomZ));
+  }
+  for (var ci = 0; ci < cfg.colCount - 1; ci++) {
+    var fa = faceResIdx[0][ci], fb = faceResIdx[0][ci + 1];
+    var ba = faceBotIdx[ci], bb = faceBotIdx[ci + 1];
+    addTri(fa, ba, bb);
+    addTri(fa, bb, fb);
+  }
+
+  // ── 6. Bottom cap (outward normal -Z) ────────────────────────────────────────
+  for (var ci = 0; ci < cfg.colCount - 1; ci++) {
+    var fa = faceBotIdx[ci], fb = faceBotIdx[ci + 1];
+    var ba = backBotIdx[ci], bb = backBotIdx[ci + 1];
+    addTri(fa, ba, fb);
+    addTri(fb, ba, bb);
+  }
+
+  // ── 7. Left side cap (outward normal -X) — fan from backBotIdx[0] ────────────
+  // Polygon (CW from -X view): faceBotIdx[0] → face left col (bottom→top) → surface left col (front→back)
+  var leftPoly = [faceBotIdx[0]];
+  for (var ri = 0; ri < faceGrid.numRows; ri++) leftPoly.push(faceResIdx[ri][0]);
+  for (var ri = 0; ri < cfg.rowCount; ri++) leftPoly.push(surfIdx[ri][0]);
+  var lfan = backBotIdx[0];
+  for (var i = 0; i < leftPoly.length - 1; i++) addTri(lfan, leftPoly[i], leftPoly[i + 1]);
+
+  // ── 8. Right side cap (outward normal +X) — fan from backBotIdx[colCount-1] ──
+  // Polygon (CCW from -X view = CW from +X view): surface right col (back→front) → face right col (top→bottom) → faceBotIdx
+  var rightPoly = [];
+  for (var ri = cfg.rowCount - 1; ri >= 0; ri--) rightPoly.push(surfIdx[ri][cfg.colCount - 1]);
+  for (var ri = faceGrid.numRows - 1; ri >= 0; ri--) rightPoly.push(faceResIdx[ri][cfg.colCount - 1]);
+  rightPoly.push(faceBotIdx[cfg.colCount - 1]);
+  var rfan = backBotIdx[cfg.colCount - 1];
+  for (var i = 0; i < rightPoly.length - 1; i++) addTri(rfan, rightPoly[i], rightPoly[i + 1]);
+
+  // ── Build OBJ string ─────────────────────────────────────────────────────────
+  var obj = '# 3D Live Edge Combined Mesh \u2014 Watertight\n';
+  obj += '# Plugin Version: ' + SM_VERSION + '\n';
+  obj += '# Generated ' + new Date().toISOString() + '\n';
+  obj += '# Surface: ' + cfg.rowCount + 'x' + cfg.colCount + ' grid\n';
+  obj += '# Face wall: ' + faceGrid.numRows + 'x' + faceGrid.numCols + ' at ' + resolution + 'mm resolution\n';
+  obj += '# Bottom Z: ' + bottomZ + '\n';
+  obj += 'o CombinedMesh\n';
+  obj += 'g CombinedMesh\n';
+  verts.forEach(function(v) { obj += 'v ' + v.x.toFixed(3) + ' ' + v.y.toFixed(3) + ' ' + v.z.toFixed(3) + '\n'; });
+  normals.forEach(function(n) { obj += 'vn ' + n.x.toFixed(6) + ' ' + n.y.toFixed(6) + ' ' + n.z.toFixed(6) + '\n'; });
+  obj += 's 1\n';
+  faceList.forEach(function(f) { obj += 'f ' + f[0] + '//' + f[1] + ' ' + f[2] + '//' + f[3] + ' ' + f[4] + '//' + f[5] + '\n'; });
+
+  var blob = new Blob([obj], {type: 'model/obj'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'combined_mesh_watertight_' + tsForFilename() + '.obj';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  setFooterStatus('Combined OBJ exported: ' + verts.length + ' vertices, ' + faceList.length + ' triangles.', 'good');
+}
+
+/*
+ * exportCombinedDXF()
+ * Exports surface rows (as Surf_Row_N) and face layer rows (as Face_Layer_N)
+ * into a single AC1009 DXF file.  Note: DXF is polyline-based, not watertight.
+ */
+function exportCombinedDXF() {
+  if (!smMeshData || !smGridConfig) {
+    setFooterStatus('No surface mesh data.', 'warn'); return;
+  }
+  var rawFace = _getFaceMeshData();
+  if (!rawFace.length) {
+    setFooterStatus('No face mesh data.', 'warn'); return;
+  }
+
+  var cfg = smGridConfig;
+  var resEl = document.getElementById('combinedOBJSubdivision');
+  var resolution = resEl ? parseFloat(resEl.value) : 0.5;
+  if (isNaN(resolution) || resolution <= 0) resolution = 0.5;
+  var faceGrid = _buildSubdividedFaceGrid(rawFace, resolution);
+
+  var dxf = '0\nSECTION\n2\nHEADER\n';
+  dxf += '9\n$ACADVER\n1\nAC1009\n';
+  dxf += '9\n$INSUNITS\n70\n4\n';
+  dxf += '0\nENDSEC\n';
+  dxf += '0\nSECTION\n2\nTABLES\n';
+  dxf += '0\nENDSEC\n';
+  dxf += '0\nSECTION\n2\nENTITIES\n';
+
+  // Surface rows
+  for (var ri = 0; ri < cfg.rowCount; ri++) {
+    var validPts = [];
+    for (var ci = 0; ci < cfg.colCount; ci++) {
+      var z = smMeshData[ri][ci];
+      if (z != null) validPts.push({x: cfg.minX + ci * cfg.colSpacing, y: cfg.minY + ri * cfg.rowSpacing, z: z});
+    }
+    if (!validPts.length) continue;
+    var lname = 'Surf_Row_' + (ri + 1);
+    dxf += '0\nPOLYLINE\n8\n' + lname + '\n66\n1\n70\n8\n';
+    validPts.forEach(function(p) {
+      dxf += '0\nVERTEX\n8\n' + lname + '\n10\n' + p.x.toFixed(3) + '\n20\n' + p.y.toFixed(3) + '\n30\n' + p.z.toFixed(3) + '\n';
+    });
+    dxf += '0\nSEQEND\n';
+  }
+
+  // Face layers
+  if (faceGrid) {
+    faceGrid.rows.forEach(function(row, ri) {
+      var validPts = row.filter(function(p) { return p != null; });
+      if (!validPts.length) return;
+      var lname = 'Face_Layer_' + (ri + 1);
+      dxf += '0\nPOLYLINE\n8\n' + lname + '\n66\n1\n70\n8\n';
+      validPts.forEach(function(p) {
+        dxf += '0\nVERTEX\n8\n' + lname + '\n10\n' + p.x.toFixed(3) + '\n20\n' + p.y.toFixed(3) + '\n30\n' + p.z.toFixed(3) + '\n';
+      });
+      dxf += '0\nSEQEND\n';
+    });
+  } else {
+    // Fallback: group raw face results by layer
+    var layerGroups = {};
+    rawFace.forEach(function(p) {
+      var l = p.layer || 1;
+      if (!layerGroups[l]) layerGroups[l] = [];
+      layerGroups[l].push(p);
+    });
+    Object.keys(layerGroups).sort(function(a, b) { return Number(a) - Number(b); }).forEach(function(lk) {
+      var pts = layerGroups[lk].slice().sort(function(a, b) { return a.x - b.x; });
+      var lname = 'Face_Layer_' + lk;
+      dxf += '0\nPOLYLINE\n8\n' + lname + '\n66\n1\n70\n8\n';
+      pts.forEach(function(p) {
+        dxf += '0\nVERTEX\n8\n' + lname + '\n10\n' + Number(p.x).toFixed(3) + '\n20\n' + Number(p.y).toFixed(3) + '\n30\n' + Number(p.z).toFixed(3) + '\n';
+      });
+      dxf += '0\nSEQEND\n';
+    });
+  }
+
+  dxf += '0\nENDSEC\n0\nEOF\n';
+
+  var blob = new Blob([dxf], {type: 'application/dxf'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'combined_mesh_' + tsForFilename() + '.dxf';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  setFooterStatus('Combined DXF exported (surface rows + face layers).', 'good');
+}
+
 // ── Workflow manager ──────────────────────────────────────────────────────────
 function _getWorkflows(){ return JSON.parse(localStorage.getItem('edgeProbeWorkflows') || '{}'); }
 function _setWorkflows(wf){ localStorage.setItem('edgeProbeWorkflows', JSON.stringify(wf)); }
