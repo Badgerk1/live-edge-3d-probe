@@ -59,7 +59,8 @@
     #surface-edge-mesh-root .footer{display:flex;justify-content:space-between;gap:10px;padding:12px 14px;border-top:1px solid var(--line);background:#131824}
     #surface-edge-mesh-root .hidden{display:none !important}
     #surface-edge-mesh-root .tooltip{position:relative;display:inline-flex;align-items:center;gap:6px;cursor:help;border-bottom:1px dotted rgba(255,255,255,0.25);}
-    #surface-edge-mesh-root .tooltip .tip{visibility:hidden;opacity:0;pointer-events:none;position:absolute;left:0;top:calc(100% + 8px);width:280px;z-index:50;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:#111723;color:var(--text);box-shadow:0 10px 24px rgba(0,0,0,0.35);transition:opacity .12s ease;font-size:12px;line-height:1.35;font-weight:400;}
+    #surface-edge-mesh-root .tooltip .tip{visibility:hidden;opacity:0;pointer-events:none;position:absolute;left:calc(100% + 10px);top:50%;transform:translateY(-50%);min-width:220px;width:260px;z-index:50;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:#111723;color:var(--text);box-shadow:0 10px 24px rgba(0,0,0,0.35);transition:opacity .12s ease;font-size:12px;line-height:1.35;font-weight:400;}
+    @media (max-width:520px){#surface-edge-mesh-root .tooltip .tip{left:0;top:calc(100% + 8px);transform:none;}}
     #surface-edge-mesh-root .tooltip:hover .tip,#surface-edge-mesh-root .tooltip:focus-within .tip{visibility:visible;opacity:1;}
     #surface-edge-mesh-root .tip-icon{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:999px;border:1px solid var(--line);color:var(--muted);font-size:11px;line-height:1;flex:0 0 16px;}
     #surface-edge-mesh-root .compact .panel{padding:10px;margin-bottom:10px}
@@ -282,17 +283,17 @@
           </div>
 
           <div class="probe-fields">
-            <div class="field"><label>Shank Diameter (coords)</label><input id="probeShankDiameter" type="number" step="0.001" value="6"></div>
-            <div class="field"><label>Body Diameter (coords)</label><input id="probeBodyDiameter" type="number" step="0.001" value="33"></div>
-            <div class="field"><label>Upper Section Height (coords)</label><input id="probeUpperHeight" type="number" step="0.001" value="20"></div>
-            <div class="field"><label>Main Body Height (coords)</label><input id="probeMainBodyHeight" type="number" step="0.001" value="21"></div>
-            <div class="field"><label>Stylus Length (coords)</label><input id="probeStylusLength" type="number" step="0.001" value="26"></div>
-            <div class="field"><label>Probe Stylus Length (coords)</label><input id="probeStylusCalloutLength" type="number" step="0.001" value="14.75"></div>
-            <div class="field"><label>Ball Tip Diameter (coords)</label><input id="probeBallTipDiameter" type="number" step="0.001" value="0"></div>
-            <div class="field"><label>Total Probe Length (coords)</label><input id="probeTotalLength" type="number" step="0.001" value="67"></div>
+            <div class="field"><label><span class="tooltip">Shank Diameter (coords)<span class="tip-icon">?</span><span class="tip">Diameter of the probe shank that fits into the spindle collet. Used for collision avoidance calculations.</span></span></label><input id="probeShankDiameter" type="number" step="0.001" value="6"></div>
+            <div class="field"><label><span class="tooltip">Body Diameter (coords)<span class="tip-icon">?</span><span class="tip">Diameter of the main probe body. Widest part of the probe; used to check clearance during travel moves.</span></span></label><input id="probeBodyDiameter" type="number" step="0.001" value="33"></div>
+            <div class="field"><label><span class="tooltip">Upper Section Height (coords)<span class="tip-icon">?</span><span class="tip">Height of the upper section (shank to body transition). Part of the total probe length calculation.</span></span></label><input id="probeUpperHeight" type="number" step="0.001" value="20"></div>
+            <div class="field"><label><span class="tooltip">Main Body Height (coords)<span class="tip-icon">?</span><span class="tip">Height of the main cylindrical body section. Part of the total probe length calculation.</span></span></label><input id="probeMainBodyHeight" type="number" step="0.001" value="21"></div>
+            <div class="field"><label><span class="tooltip">Stylus Length (coords)<span class="tip-icon">?</span><span class="tip">Total length of the stylus from the body to the ball tip center. Includes the probe stylus callout length.</span></span></label><input id="probeStylusLength" type="number" step="0.001" value="26"></div>
+            <div class="field"><label><span class="tooltip">Probe Stylus Length (coords)<span class="tip-icon">?</span><span class="tip">Usable stylus length — how far below the body bottom the ball tip can reach. Sets the maximum face probe depth.</span></span></label><input id="probeStylusCalloutLength" type="number" step="0.001" value="14.75"></div>
+            <div class="field"><label><span class="tooltip">Ball Tip Diameter (coords)<span class="tip-icon">?</span><span class="tip">Diameter of the ruby or tungsten carbide ball at the probe tip. Used for accurate contact point calculation.</span></span></label><input id="probeBallTipDiameter" type="number" step="0.001" value="0"></div>
+            <div class="field"><label><span class="tooltip">Total Probe Length (coords)<span class="tip-icon">?</span><span class="tip">Full length of the probe from collet face to ball tip center. Enter manually or use Auto-Calc to compute from dimensions above.</span></span></label><input id="probeTotalLength" type="number" step="0.001" value="67"></div>
 
             <div class="probe-total-row">
-              <div class="field"><label>Auto-Calculated Total (coords)</label><input id="probeAutoTotalLength" type="text" value="67.000" readonly></div>
+              <div class="field"><label><span class="tooltip">Auto-Calculated Total (coords)<span class="tip-icon">?</span><span class="tip">Read-only. Automatically computed as: upper section height + main body height + stylus length. Click Auto-Calc to update.</span></span></label><input id="probeAutoTotalLength" type="text" value="67.000" readonly></div>
               <div></div>
               <button class="btn" id="calcProbeTotalBtn" type="button">Auto-Calc Total Length</button>
             </div>
@@ -327,15 +328,15 @@
             <input type="number" id="topFixedCoord" value="0" step="0.1">
           </div>
           <div class="field">
-            <label>Sample Start (coords)</label>
+            <label><span class="tooltip">Sample Start (coords)<span class="tip-icon">?</span><span class="tip">Starting coordinate along the sample axis where the top profile probe begins. Machine moves here before the first probe descent.</span></span></label>
             <input type="number" id="topSampleStart" value="0" step="0.1">
           </div>
           <div class="field">
-            <label>Sample End (coords)</label>
+            <label><span class="tooltip">Sample End (coords)<span class="tip-icon">?</span><span class="tip">Ending coordinate along the sample axis where the top profile probe finishes. The last probe point is taken here.</span></span></label>
             <input type="number" id="topSampleEnd" value="100" step="0.1">
           </div>
           <div class="field">
-            <label>Sample Count</label>
+            <label><span class="tooltip">Sample Count<span class="tip-icon">?</span><span class="tip">Number of evenly-spaced probe points along the sample axis. More points give higher resolution but take longer to run.</span></span></label>
             <input type="number" id="topSampleCount" value="10" min="2" max="200" step="1">
           </div>
           <div class="field">
@@ -355,7 +356,7 @@
             <input type="number" id="topClearZ" value="5" min="0.5" max="100" step="0.5">
           </div>
           <div class="field">
-            <label>Top Probe Feed (mm/min)</label>
+            <label><span class="tooltip">Top Probe Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate used when the probe descends toward the surface during top profile sampling. Slower values reduce overshoot and improve accuracy.</span></span></label>
             <input type="number" id="topFeed" value="200" min="10" max="3000" step="10">
           </div>
           <div class="field">
@@ -367,19 +368,19 @@
             <input type="number" id="topProbeDepth" value="5" min="0.5" max="50" step="0.5">
           </div>
           <div class="field">
-            <label>Retract (coords)</label>
+            <label><span class="tooltip">Retract (coords)<span class="tip-icon">?</span><span class="tip">Distance to retract Z upward after each probe contact before moving to the next sample point. Prevents dragging the ball tip across the surface.</span></span></label>
             <input type="number" id="topRetract" value="2" min="0.5" max="20" step="0.5">
           </div>
           <div class="field">
-            <label>Travel Feed (mm/min)</label>
+            <label><span class="tooltip">Travel Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate used when traveling between probe sample points (X/Y rapid between probes). Does not affect probe descent speed.</span></span></label>
             <input type="number" id="travelFeedRate" value="600" min="10" max="6000" step="10">
           </div>
           <div class="field">
-            <label>Travel Recovery Feed (X/Y mm/min)</label>
+            <label><span class="tooltip">Travel Recovery Feed (X/Y mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate used when resuming X/Y travel after a contact recovery event. Typically faster than probe feed but slower than normal travel.</span></span></label>
             <input type="number" id="travelRecoveryFeedRate" value="1500" min="10" max="12000" step="10">
           </div>
           <div class="field">
-            <label>Travel Recovery Lift Feed (Z mm/min)</label>
+            <label><span class="tooltip">Travel Recovery Lift Feed (Z mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for the Z lift move performed during a contact recovery event. Should be fast enough to clear the surface quickly.</span></span></label>
             <input type="number" id="travelRecoveryLiftFeedRate" value="1000" min="10" max="12000" step="10">
           </div>
           <div class="field">
@@ -391,23 +392,23 @@
             <select id="useTravelContactRecovery"><option value="yes">Yes</option><option value="no">No</option></select>
           </div>
           <div class="field">
-            <label>Travel Contact Step (coords)</label>
+            <label><span class="tooltip">Travel Contact Step (coords)<span class="tip-icon">?</span><span class="tip">Maximum X/Y travel distance per step during contact recovery mode. Smaller values detect probe triggers more precisely but increase travel time.</span></span></label>
             <input type="number" id="travelContactStep" value="5" min="0.2" max="50" step="0.1">
           </div>
           <div class="field">
-            <label>Travel Backoff (coords)</label>
+            <label><span class="tooltip">Travel Backoff (coords)<span class="tip-icon">?</span><span class="tip">Distance to back away from the triggered contact point before lifting Z and continuing. Prevents double-triggering on the same surface feature.</span></span></label>
             <input type="number" id="travelContactBackoff" value="5" min="0.2" max="50" step="0.1">
           </div>
           <div class="field">
-            <label>Travel Lift After Contact (coords)</label>
+            <label><span class="tooltip">Travel Lift After Contact (coords)<span class="tip-icon">?</span><span class="tip">Z distance to lift after a contact recovery event before resuming X/Y travel. Should be enough to clear the tallest surface feature in the travel path.</span></span></label>
             <input type="number" id="travelContactLift" value="5" min="0.2" max="50" step="0.1">
           </div>
           <div class="field">
-            <label>Max Travel Contact Retries</label>
+            <label><span class="tooltip">Max Travel Contact Retries<span class="tip-icon">?</span><span class="tip">Maximum number of contact recovery cycles allowed for a single travel segment. If exceeded, probing stops with an error.</span></span></label>
             <input type="number" id="travelContactMaxRetries" value="5" min="1" max="20" step="1">
           </div>
           <div class="field">
-            <label>Max Possible Recovery Lift (coords)</label>
+            <label><span class="tooltip">Max Possible Recovery Lift (coords)<span class="tip-icon">?</span><span class="tip">Read-only preview showing the maximum cumulative Z lift that could occur if contact recovery triggers the maximum number of times in a single travel segment.</span></span></label>
             <input type="text" id="travelContactMaxLiftPreview" value="25.000" readonly>
           </div>
         </div>
@@ -420,27 +421,27 @@
           <div class="stack">
             <div class="grid three">
               <div class="field">
-                <label>Saved Location X (coords)</label>
+                <label><span class="tooltip">Saved Location X (coords)<span class="tip-icon">?</span><span class="tip">Work X coordinate of the saved machine position. Click "Save Current Location" to capture the current position.</span></span></label>
                 <input type="number" id="savedLocX" value="0" step="0.001" readonly>
               </div>
               <div class="field">
-                <label>Saved Location Y (coords)</label>
+                <label><span class="tooltip">Saved Location Y (coords)<span class="tip-icon">?</span><span class="tip">Work Y coordinate of the saved machine position. Click "Save Current Location" to capture the current position.</span></span></label>
                 <input type="number" id="savedLocY" value="0" step="0.001">
               </div>
               <div class="field">
-                <label>Saved Location Z (coords)</label>
+                <label><span class="tooltip">Saved Location Z (coords)<span class="tip-icon">?</span><span class="tip">Work Z coordinate of the saved machine position. Click "Save Current Location" to capture the current position.</span></span></label>
                 <input type="number" id="savedLocZ" value="0" step="0.001">
               </div>
               <div class="field">
-                <label>Homed Status</label>
+                <label><span class="tooltip">Homed Status<span class="tip-icon">?</span><span class="tip">Shows whether the machine has been homed. Read-only — updated by "Check Homed". Machine-coordinate retract requires homed state.</span></span></label>
                 <input type="text" id="homedState" value="Unknown" readonly>
               </div>
               <div class="field">
-                <label>Machine Status</label>
+                <label><span class="tooltip">Machine Status<span class="tip-icon">?</span><span class="tip">Current controller state (Idle, Run, Hold, etc.). Read-only — updated by "Check Homed" and "Refresh Position".</span></span></label>
                 <input type="text" id="machineStatus" value="Unknown" readonly>
               </div>
               <div class="field">
-                <label>Probe Input</label>
+                <label><span class="tooltip">Probe Input<span class="tip-icon">?</span><span class="tip">Current state of the probe trigger input (Triggered / Clear). Read-only — updated by "Check Homed". Should read Clear before starting a probe cycle.</span></span></label>
                 <input type="text" id="probeState" value="Unknown" readonly>
               </div>
             </div>
@@ -449,15 +450,15 @@
               <div class="box-title">Current Position</div>
               <div class="grid three">
                 <div class="field">
-                  <label>Current Work X (coords)</label>
+                  <label><span class="tooltip">Current Work X (coords)<span class="tip-icon">?</span><span class="tip">Read-only current work X position. Updated by "Refresh Position". Used as reference for jog moves.</span></span></label>
                   <input type="number" id="currentPosX" value="0" step="0.001" readonly>
                 </div>
                 <div class="field">
-                  <label>Current Work Y (coords)</label>
+                  <label><span class="tooltip">Current Work Y (coords)<span class="tip-icon">?</span><span class="tip">Read-only current work Y position. Updated by "Refresh Position". Used as reference for jog moves.</span></span></label>
                   <input type="number" id="currentPosY" value="0" step="0.001" readonly>
                 </div>
                 <div class="field">
-                  <label>Current Work Z (coords)</label>
+                  <label><span class="tooltip">Current Work Z (coords)<span class="tip-icon">?</span><span class="tip">Read-only current work Z position. Updated by "Refresh Position". Used as reference for jog moves.</span></span></label>
                   <input type="number" id="currentPosZ" value="0" step="0.001" readonly>
                 </div>
               </div>
@@ -498,7 +499,7 @@
                 <select id="returnToXYZero"><option value="yes">Yes</option><option value="no">No</option></select>
               </div>
               <div class="field" style="grid-column:span 2">
-                <label>Finish Behavior Preview</label>
+                <label><span class="tooltip">Finish Behavior Preview<span class="tip-icon">?</span><span class="tip">Read-only summary of what will happen at the end of a probe cycle based on the settings above. Confirms your finish motion configuration.</span></span></label>
                 <input type="text" id="finishBehaviorPreview" value="Retract Z safely, then optional X0 Y0 return" readonly>
               </div>
             </div>
@@ -551,11 +552,11 @@
             </div>
             <div class="jog-meta">
               <div class="field">
-                <label>Jog Step Z (coords)</label>
+                <label><span class="tooltip">Jog Step Z (coords)<span class="tip-icon">?</span><span class="tip">Distance moved per Z jog button press. Independent of the XY step pills above. Adjust before probing to position Z accurately.</span></span></label>
                 <input type="number" id="jogStepZ" value="2" min="0.001" step="0.1">
               </div>
               <div class="field">
-                <label>Jog Feed Z (mm/min)</label>
+                <label><span class="tooltip">Jog Feed Z (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for Z axis jog moves. Keep lower than XY to avoid crashing the probe into the workpiece.</span></span></label>
                 <input type="number" id="jogFeedZ" value="300" min="1" step="10">
               </div>
             </div>
@@ -621,12 +622,12 @@
     <div class="panel">
       <div class="box-title">2D Grid Configuration</div>
       <div class="grid three">
-        <div class="field"><label>Min X (coords)</label><input type="number" id="sm-minX" value="0" step="1"></div>
-        <div class="field"><label>Max X (coords)</label><input type="number" id="sm-maxX" value="100" step="1"></div>
-        <div class="field"><label>Spacing X (coords)</label><input type="number" id="sm-spacingX" value="20" step="1" min="1"></div>
-        <div class="field"><label>Min Y (coords)</label><input type="number" id="sm-minY" value="0" step="1"></div>
-        <div class="field"><label>Max Y (coords)</label><input type="number" id="sm-maxY" value="100" step="1"></div>
-        <div class="field"><label>Spacing Y (coords)</label><input type="number" id="sm-spacingY" value="20" step="1" min="1"></div>
+        <div class="field"><label><span class="tooltip">Min X (coords)<span class="tip-icon">?</span><span class="tip">Minimum X work coordinate for the 2D surface probe grid. Sets the left boundary of the probed area.</span></span></label><input type="number" id="sm-minX" value="0" step="1"></div>
+        <div class="field"><label><span class="tooltip">Max X (coords)<span class="tip-icon">?</span><span class="tip">Maximum X work coordinate for the 2D surface probe grid. Sets the right boundary of the probed area.</span></span></label><input type="number" id="sm-maxX" value="100" step="1"></div>
+        <div class="field"><label><span class="tooltip">Spacing X (coords)<span class="tip-icon">?</span><span class="tip">Distance between probe columns along the X axis. Smaller spacing gives more data points but increases run time.</span></span></label><input type="number" id="sm-spacingX" value="20" step="1" min="1"></div>
+        <div class="field"><label><span class="tooltip">Min Y (coords)<span class="tip-icon">?</span><span class="tip">Minimum Y work coordinate for the 2D surface probe grid. Set equal to Max Y for single-row (linear) probing along X.</span></span></label><input type="number" id="sm-minY" value="0" step="1"></div>
+        <div class="field"><label><span class="tooltip">Max Y (coords)<span class="tip-icon">?</span><span class="tip">Maximum Y work coordinate for the 2D surface probe grid. Set equal to Min Y for single-row (linear) probing along X.</span></span></label><input type="number" id="sm-maxY" value="100" step="1"></div>
+        <div class="field"><label><span class="tooltip">Spacing Y (coords)<span class="tip-icon">?</span><span class="tip">Distance between probe rows along the Y axis. Smaller spacing gives more data points but increases run time.</span></span></label><input type="number" id="sm-spacingY" value="20" step="1" min="1"></div>
       </div>
       <div style="margin-top:8px;display:inline-block;padding:6px 10px;border-radius:5px;background:var(--panel2);border:1px solid var(--line);color:var(--accent2);font-size:13px;font-weight:600" id="sm-gridSizeDisplay">6 &times; 6 = 36 points</div>
       <div class="mini" style="color:var(--muted);margin-top:6px">&#128161; Set Min Y = Max Y = 0 for single-row (linear) probing along X axis</div>
@@ -634,14 +635,14 @@
     <div class="panel">
       <div class="box-title">2D Probe Settings</div>
       <div class="grid three">
-        <div class="field"><label>Probe Feed (mm/min)</label><input type="number" id="sm-probeFeed" value="100" step="10" min="1"></div>
-        <div class="field"><label>Travel Feed (mm/min)</label><input type="number" id="sm-travelFeed" value="2000" step="100" min="1"></div>
-        <div class="field"><label>Clearance Z (coords)</label><input type="number" id="sm-clearanceZ" value="5" step="0.5" min="0.5"></div>
-        <div class="field"><label>Max Plunge (coords)</label><input type="number" id="sm-maxPlunge" value="20" step="1" min="1"></div>
-        <div class="field"><label>Reference Z (coords)</label><input type="number" id="sm-referenceZ" value="0" step="0.1"></div>
+        <div class="field"><label><span class="tooltip">Probe Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for the Z probe descent at each grid point. Slower rates improve accuracy; faster rates speed up large grids.</span></span></label><input type="number" id="sm-probeFeed" value="100" step="10" min="1"></div>
+        <div class="field"><label><span class="tooltip">Travel Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for XY moves between grid probe points. Can be much faster than the probe feed.</span></span></label><input type="number" id="sm-travelFeed" value="2000" step="100" min="1"></div>
+        <div class="field"><label><span class="tooltip">Clearance Z (coords)<span class="tip-icon">?</span><span class="tip">Z height above the reference Z to raise to before each XY travel move. Must be enough to clear any surface features.</span></span></label><input type="number" id="sm-clearanceZ" value="5" step="0.5" min="0.5"></div>
+        <div class="field"><label><span class="tooltip">Max Plunge (coords)<span class="tip-icon">?</span><span class="tip">Maximum Z distance to probe downward from the clearance height. Safety limit to prevent over-travel if the surface is missing.</span></span></label><input type="number" id="sm-maxPlunge" value="20" step="1" min="1"></div>
+        <div class="field"><label><span class="tooltip">Reference Z (coords)<span class="tip-icon">?</span><span class="tip">Work Z coordinate used as the zero reference for surface compensation. Typically 0 (the programmed cutting depth).</span></span></label><input type="number" id="sm-referenceZ" value="0" step="0.1"></div>
       </div>
       <div class="btn-row" style="margin-top:10px">
-        <button class="btn ghost" id="sm-btn-save-settings" onclick="smSaveSettings()">&#128190; Save Settings</button>
+        <button class="btn ghost" id="sm-btn-save-settings" onclick="flashButton(this);smSaveSettings()">&#128190; Save Settings</button>
       </div>
     </div>
   </div><!-- /surface-config-section -->
@@ -656,18 +657,18 @@
           <input type="number" id="faceStartOffset" value="-10" step="0.1">
         </div>
         <div class="field">
-          <label>X Start (coords)</label>
+          <label><span class="tooltip">X Start (coords)<span class="tip-icon">?</span><span class="tip">Starting X work coordinate for the face probe sweep. The probe will take samples from X Start to X End across the face.</span></span></label>
           <input type="number" id="fp-xStart" value="0" step="1">
         </div>
         <div class="field">
-          <label>X End (coords)</label>
+          <label><span class="tooltip">X End (coords)<span class="tip-icon">?</span><span class="tip">Ending X work coordinate for the face probe sweep. The last sample column is taken at this position.</span></span></label>
           <input type="number" id="fp-xEnd" value="100" step="1">
         </div>
         <div class="field">
           <label><span class="tooltip">Z Start (coords)<span class="tip-icon">?</span><span class="tip">Z depth below surface zero where face probing starts. Click "Auto Row 1" to populate from Surface Row 1 (top edge = zero reference).</span></span></label>
           <div style="display:flex;gap:6px;align-items:center">
             <input type="number" id="fp-zStart" value="0" step="0.1" style="flex:1;min-width:0">
-            <button class="btn ghost" style="white-space:nowrap;flex-shrink:0;padding:6px 10px;font-size:11px" onclick="fpReadRow1ZStart()">&#8635; Auto Row 1</button>
+            <button class="btn ghost" style="white-space:nowrap;flex-shrink:0;padding:6px 10px;font-size:11px" onclick="flashButton(this);fpReadRow1ZStart()">&#8635; Auto Row 1</button>
           </div>
         </div>
         <div class="field">
@@ -679,11 +680,11 @@
           <div class="mini" id="fp-stylus-cap-info" style="color:var(--muted);margin-top:2px">Max = stylus callout length from Setup</div>
         </div>
         <div class="field">
-          <label>X Points (samples across face)</label>
+          <label><span class="tooltip">X Points (samples across face)<span class="tip-icon">?</span><span class="tip">Number of evenly-spaced probe columns from X Start to X End. More points give a more detailed face profile but take longer to run.</span></span></label>
           <input type="number" id="fp-xPoints" value="5" min="2" max="50" step="1">
         </div>
         <div class="field">
-          <label>Face Probe Feed (mm/min)</label>
+          <label><span class="tooltip">Face Probe Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for the probe move toward the face surface. Slower values reduce overshoot and improve contact accuracy.</span></span></label>
           <input type="number" id="faceFeed" value="150" min="10" max="3000" step="10">
         </div>
         <div class="field">
@@ -735,7 +736,7 @@
         <strong>Z Start</strong> auto-populates from Surface Row 1 (top edge = zero reference). <strong>Face Max Depth</strong> is capped at probe stylus callout length (Setup &rarr; 3D Probe Dimensions). <span style="color:var(--accent2)">&#9679; Pre-trigger safety (smEnsureProbeClear) and Travel Contact Recovery are always active during face probing.</span>
       </div>
       <div class="btn-row" style="margin-top:10px">
-        <button class="btn ghost" onclick="saveSettings()">&#128190; Save Face Settings</button>
+        <button class="btn ghost" onclick="flashButton(this);saveSettings()">&#128190; Save Face Settings</button>
       </div>
     </div>
 
@@ -745,8 +746,8 @@
   <div class="panel">
     <div class="box-title">Probing Control</div>
     <div class="btn-row">
-      <button class="btn" id="sm-btn-run-probe" onclick="startProbeByType()">&#9654; Run Surface Probe</button>
-      <button class="btn warn" id="sm-btn-stop-probe" disabled onclick="stopSurfaceProbing()">&#9646;&#9646; Stop</button>
+      <button class="btn" id="sm-btn-run-probe" onclick="flashButton(this);startProbeByType()">&#9654; Run Surface Probe</button>
+      <button class="btn warn" id="sm-btn-stop-probe" disabled onclick="flashButton(this);stopSurfaceProbing()">&#9646;&#9646; Stop</button>
     </div>
     <div class="progress-track" id="sm-probeProgressTrack" style="margin-top:8px;display:none"><div class="progress-fill" id="sm-probeProgressBar"></div></div>
     <div class="mini" id="sm-probeStatus" style="margin-top:6px">Ready</div>
@@ -761,7 +762,7 @@
       <canvas id="sm-surface-relief-canvas" style="width:100%;border:1px solid var(--line);border-radius:8px;background:#0d111a;display:block"></canvas>
       <div id="sm-surface-relief-tooltip" class="mini" style="color:var(--muted);margin-top:4px">Hover over map for values</div>
       <div style="text-align:center;margin-top:10px">
-        <button class="btn ghost" onclick="toggleProbeModeView('sm')" style="font-size:12px;font-weight:600">&#9650; 3D Terrain View</button>
+        <button class="btn ghost" onclick="flashButton(this);toggleProbeModeView('sm')" style="font-size:12px;font-weight:600">&#9650; 3D Terrain View</button>
         <span style="font-size:11px;color:var(--muted);margin-left:10px">Drag to rotate &middot; Scroll to zoom &middot; Right-click to pan</span>
       </div>
     </div>
@@ -808,7 +809,7 @@
         </div>
       </div>
       <div style="text-align:center;margin-top:10px">
-        <button class="btn ghost" onclick="toggleProbeModeView('sm')" style="font-size:12px;font-weight:600">&#9660; Heatmap</button>
+        <button class="btn ghost" onclick="flashButton(this);toggleProbeModeView('sm')" style="font-size:12px;font-weight:600">&#9660; Heatmap</button>
       </div>
     </div>
   </div><!-- /surface-mesh-section -->
@@ -832,7 +833,7 @@
       <canvas id="face-relief-canvas" style="width:100%;border:1px solid var(--line);border-radius:8px;background:#0d111a;display:block"></canvas>
       <div id="face-relief-tooltip" class="mini" style="color:var(--muted);margin-top:4px">Hover over map for values</div>
       <div style="text-align:center;margin-top:10px">
-        <button class="btn ghost" onclick="toggleProbeModeView('face')" style="font-size:12px;font-weight:600">&#9650; 3D Terrain View</button>
+        <button class="btn ghost" onclick="flashButton(this);toggleProbeModeView('face')" style="font-size:12px;font-weight:600">&#9650; 3D Terrain View</button>
         <span style="font-size:11px;color:var(--muted);margin-left:10px">Drag to rotate &middot; Scroll to zoom &middot; Right-click to pan</span>
       </div>
     </div>
@@ -852,7 +853,7 @@
       <div style="text-align:center;margin-top:6px;font-size:11px;color:var(--muted)">Z Exaggeration: <input type="range" id="face-z-exag" aria-label="Z Exaggeration" min="1" max="20" value="5" style="vertical-align:middle;width:90px" oninput="document.getElementById('face-z-exag-val').textContent=this.value+'&times;';renderThreeUnified3D('face')"> <span id="face-z-exag-val">5&times;</span> &nbsp;&#183;&nbsp; <label style="cursor:pointer"><input type="checkbox" id="face-contour-toggle" aria-label="Toggle contours" onchange="renderThreeUnified3D('face')"> Contours</label></div>
       <div class="mini" style="margin-top:4px;text-align:center;color:var(--muted)">Drag to rotate &middot; Scroll to zoom &middot; Right-click to pan &middot; Double-click to reset</div>
       <div style="text-align:center;margin-top:10px">
-        <button class="btn ghost" onclick="toggleProbeModeView('face')" style="font-size:12px;font-weight:600">&#9660; Heatmap</button>
+        <button class="btn ghost" onclick="flashButton(this);toggleProbeModeView('face')" style="font-size:12px;font-weight:600">&#9660; Heatmap</button>
       </div>
     </div>
     <!-- Face Mesh Point Data -->
@@ -886,7 +887,7 @@
       <div class="box-title">Face Mesh Export (DXF / OBJ)</div>
       <div class="callout mini" style="margin-bottom:10px">Export face probe results as CSV, DXF, or OBJ. In layered mode these include all layers. In single-pass mode the results are exported as layer 1.</div>
       <div class="field" style="max-width:320px;margin-bottom:10px">
-        <label>Top Surface Mode
+        <label><span class="tooltip">Top Surface Mode<span class="tip-icon">?</span><span class="tip">Controls how the top edge is represented in DXF/OBJ exports. "Flat Plane" uses the shallowest measured Z for a flat straight edge. "Probed Profile" follows each sample's actual measured top Z.</span></span>
           <select id="faceTopSurfaceMode">
             <option value="flat">Flat Plane</option>
             <option value="probed">Probed Profile</option>
@@ -895,7 +896,7 @@
         <div class="mini" style="margin-top:4px">Flat Plane: top layer uses the shallowest top profile Z (flat straight edge for CNC carving). Probed Profile: top layer uses each sample's actual measured surface Z.</div>
       </div>
       <div class="field" style="max-width:320px;margin-bottom:10px">
-        <label>OBJ Subdivision Resolution (mm)
+        <label><span class="tooltip">OBJ Subdivision Resolution (mm)<span class="tip-icon">?</span><span class="tip">Target vertex spacing for the OBJ mesh. Smaller values produce smoother curved surfaces but generate larger files. Minimum 0.5mm; 2mm recommended for most CNC workflows.</span></span>
           <input type="number" id="faceOBJSubdivision" value="2" min="0.5" max="25" step="0.5" style="width:80px">
         </label>
         <div class="mini" style="margin-top:4px">Interpolates additional vertices for a smooth mesh. 2mm recommended; smaller values give more detail but larger files.</div>
@@ -912,8 +913,8 @@
   <div class="panel">
     <div class="box-title">Probe Log</div>
     <div class="btn-row" style="margin-bottom:8px">
-      <button class="btn ghost" onclick="saveUnifiedProbeLog()">&#128190; Save Log</button>
-      <button class="btn ghost" onclick="clearUnifiedProbeLog()">&#10005; Clear Log</button>
+      <button class="btn ghost" onclick="flashButton(this);saveUnifiedProbeLog()">&#128190; Save Log</button>
+      <button class="btn ghost" onclick="flashButton(this);clearUnifiedProbeLog()">&#10005; Clear Log</button>
     </div>
     <div id="unified-log-surface-wrap">
       <div style="font-size:11px;color:var(--muted);margin-bottom:3px;font-weight:600">Surface Probe Log</div>
@@ -1155,10 +1156,10 @@
         <div class="box-title">&#128196; G-code Source</div>
         <div class="callout mini" style="margin-bottom:10px">Load the G-code program to apply Z compensation. You can paste G-code, load from a file, or use the currently loaded program in ncSender.</div>
         <div class="btn-row" style="margin-bottom:10px">
-          <button class="btn" id="apply-btn-load-ncsender" onclick="applyLoadGcodeFromNcSender()">&#128268; Load from ncSender</button>
-          <button class="btn ghost" id="apply-btn-load-file" onclick="document.getElementById('apply-gcode-file-input').click()">&#128194; Load from File</button>
+          <button class="btn" id="apply-btn-load-ncsender" onclick="flashButton(this);applyLoadGcodeFromNcSender()">&#128268; Load from ncSender</button>
+          <button class="btn ghost" id="apply-btn-load-file" onclick="flashButton(this);document.getElementById('apply-gcode-file-input').click()">&#128194; Load from File</button>
           <input type="file" id="apply-gcode-file-input" accept=".nc,.gcode,.ngc,.tap,.txt" style="display:none">
-          <button class="btn ghost" id="apply-btn-analyze-bounds" onclick="applyAnalyzeGcodeBounds()" title="Analyze loaded G-code to get XY bounding box (uses server-side analysis)">&#128270; Analyze Bounds</button>
+          <button class="btn ghost" id="apply-btn-analyze-bounds" onclick="flashButton(this);applyAnalyzeGcodeBounds()" title="Analyze loaded G-code to get XY bounding box (uses server-side analysis)">&#128270; Analyze Bounds</button>
         </div>
         <div class="status-line" id="apply-gcode-status" style="margin-top:6px">No G-code loaded</div>
         <div id="apply-gcode-bounds-info" class="callout mini" style="margin-top:8px;display:none"></div>
@@ -1169,7 +1170,7 @@
         <div class="box-title">&#9889; Surface Z Compensation</div>
         <div class="callout mini" style="margin-bottom:10px">Apply bilinear Z compensation from the surface mesh to the loaded G-code. <strong>Subdivide moves</strong> splits long linear moves into short segments that follow the mesh surface for smooth curves.</div>
         <div class="grid two" style="margin-bottom:10px">
-          <div class="field"><label>Reference Z (coords)</label><input type="number" id="apply-refZ" value="0" step="0.001"></div>
+          <div class="field"><label><span class="tooltip">Reference Z (coords)<span class="tip-icon">?</span><span class="tip">The Z height in your G-code that corresponds to the probed surface. All Z values in the G-code at this height get zero compensation; others are shifted proportionally.</span></span></label><input type="number" id="apply-refZ" value="0" step="0.001"></div>
           <div class="field">
             <label>&nbsp;</label>
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:6px">
@@ -1179,9 +1180,9 @@
           </div>
         </div>
         <div class="btn-row">
-          <button class="btn secondary" id="apply-btn-surface-comp" onclick="applyServerSurfaceCompensation()" disabled>&#9889; Apply Surface Compensation</button>
-          <button class="btn ghost" id="apply-btn-download-surface" onclick="applyDownloadCompensatedGcode('surface')" disabled>&#8659; Download</button>
-          <button class="btn" id="apply-btn-send-ncsender-surface" onclick="applySendToNcSender('surface')" disabled>&#128640; Send to ncSender</button>
+          <button class="btn secondary" id="apply-btn-surface-comp" onclick="flashButton(this);applyServerSurfaceCompensation()" disabled>&#9889; Apply Surface Compensation</button>
+          <button class="btn ghost" id="apply-btn-download-surface" onclick="flashButton(this);applyDownloadCompensatedGcode('surface')" disabled>&#8659; Download</button>
+          <button class="btn" id="apply-btn-send-ncsender-surface" onclick="flashButton(this);applySendToNcSender('surface')" disabled>&#128640; Send to ncSender</button>
         </div>
         <div class="status-line" id="apply-surface-status" style="margin-top:8px"></div>
         <div id="apply-surface-log" class="log-area" style="display:none;margin-top:8px"></div>
@@ -1193,15 +1194,15 @@
         <div class="callout mini" style="margin-bottom:10px">Apply face probe compensation to adjust the depth axis (X or Y) based on the face mesh. Requires face probe data.</div>
         <div class="grid two" style="margin-bottom:10px">
           <div class="field">
-            <label>Reference Face Position (coords)</label>
+            <label><span class="tooltip">Reference Face Position (coords)<span class="tip-icon">?</span><span class="tip">The Y (or X) coordinate where the face would be if perfectly flat. Use "Auto from mesh" to calculate from your probe data. A wrong value will distort your toolpath.</span></span></label>
             <div style="display:flex;gap:6px;align-items:center">
               <input type="number" id="apply-face-refPos" value="0" step="0.001" style="flex:1">
-              <button class="btn ghost" style="white-space:nowrap;padding:4px 8px;font-size:12px" onclick="autoCalcFaceRefPos()" title="Compute mean contact position from face mesh data and use as reference">&#8635; Auto from mesh</button>
+              <button class="btn ghost" style="white-space:nowrap;padding:4px 8px;font-size:12px" onclick="flashButton(this);autoCalcFaceRefPos()" title="Compute mean contact position from face mesh data and use as reference">&#8635; Auto from mesh</button>
             </div>
             <div id="apply-face-refPos-stats" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
           </div>
           <div class="field">
-            <label>Face Axis</label>
+            <label><span class="tooltip">Face Axis<span class="tip-icon">?</span><span class="tip">The axis along which face compensation is applied. Should match the axis used during the face probe cycle (usually Y for a front face).</span></span></label>
             <select id="apply-face-axis">
               <option value="Y" selected>Y</option>
               <option value="X">X</option>
@@ -1225,9 +1226,9 @@
           </div>
         </div>
         <div class="btn-row">
-          <button class="btn secondary" id="apply-btn-face-comp" onclick="applyFaceCompensationFromTab()" disabled>&#128736; Apply Face Compensation</button>
-          <button class="btn ghost" id="apply-btn-download-face" onclick="applyDownloadCompensatedGcode('face')" disabled>&#8659; Download</button>
-          <button class="btn" id="apply-btn-send-ncsender-face" onclick="applySendToNcSender('face')" disabled>&#128640; Send to ncSender</button>
+          <button class="btn secondary" id="apply-btn-face-comp" onclick="flashButton(this);applyFaceCompensationFromTab()" disabled>&#128736; Apply Face Compensation</button>
+          <button class="btn ghost" id="apply-btn-download-face" onclick="flashButton(this);applyDownloadCompensatedGcode('face')" disabled>&#8659; Download</button>
+          <button class="btn" id="apply-btn-send-ncsender-face" onclick="flashButton(this);applySendToNcSender('face')" disabled>&#128640; Send to ncSender</button>
         </div>
         <div class="status-line" id="apply-face-status" style="margin-top:8px"></div>
         <div id="apply-face-log" class="log-area" style="display:none;margin-top:8px"></div>
@@ -7331,15 +7332,15 @@ function smLoadSettings() {
 
   // Setup buttons
   var btnSave = document.getElementById('btn-save-settings');
-  if(btnSave) btnSave.addEventListener('click', function(){ pluginDebug('btn-save-settings clicked'); saveSettings(); });
+  if(btnSave) btnSave.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-save-settings clicked'); saveSettings(); });
   var btnLoad = document.getElementById('btn-load-settings');
-  if(btnLoad) btnLoad.addEventListener('click', function(){ pluginDebug('btn-load-settings clicked'); loadSettings(); });
+  if(btnLoad) btnLoad.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-load-settings clicked'); loadSettings(); });
   var btnReset = document.getElementById('btn-reset-settings');
-  if(btnReset) btnReset.addEventListener('click', function(){ pluginDebug('btn-reset-settings clicked'); resetSettings(); });
+  if(btnReset) btnReset.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-reset-settings clicked'); resetSettings(); });
   var btnSaveProbeDims = document.getElementById('btn-save-probe-dims');
-  if(btnSaveProbeDims) btnSaveProbeDims.addEventListener('click', function(){ pluginDebug('btn-save-probe-dims clicked'); saveProbeDimensions(); });
+  if(btnSaveProbeDims) btnSaveProbeDims.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-save-probe-dims clicked'); saveProbeDimensions(); });
   var btnSaveLocation = document.getElementById('btn-save-location');
-  if(btnSaveLocation) btnSaveLocation.addEventListener('click', function(){ pluginDebug('btn-save-location clicked'); saveCurrentLocation(); });
+  if(btnSaveLocation) btnSaveLocation.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-save-location clicked'); saveCurrentLocation(); });
   var btnGoLocation = document.getElementById('btn-go-location');
   if(btnGoLocation) btnGoLocation.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-go-location clicked'); goToSavedLocation(); });
   var btnCheckHomed = document.getElementById('btn-check-homed');
@@ -7395,29 +7396,30 @@ function smLoadSettings() {
 
   // Face probe buttons
   var btnFaceX = document.getElementById('btn-face-x');
-  if(btnFaceX) btnFaceX.addEventListener('click', function(){ pluginDebug('btn-face-x clicked'); runFaceProbe('X'); });
+  if(btnFaceX) btnFaceX.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-face-x clicked'); runFaceProbe('X'); });
   var btnFaceY = document.getElementById('btn-face-y');
-  if(btnFaceY) btnFaceY.addEventListener('click', function(){ pluginDebug('btn-face-y clicked'); runFaceProbe('Y'); });
+  if(btnFaceY) btnFaceY.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-face-y clicked'); runFaceProbe('Y'); });
   var btnStopFace = document.getElementById('btn-stop-face');
-  if(btnStopFace) btnStopFace.addEventListener('click', function(){ pluginDebug('btn-stop-face clicked'); stopAll(); });
+  if(btnStopFace) btnStopFace.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-stop-face clicked'); stopAll(); });
   var btnSaveFaceLog = document.getElementById('btn-save-face-log');
-  if(btnSaveFaceLog) btnSaveFaceLog.addEventListener('click', function(){ pluginDebug('btn-save-face-log clicked'); saveLog('face'); });
+  if(btnSaveFaceLog) btnSaveFaceLog.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-save-face-log clicked'); saveLog('face'); });
   var btnClearFaceLog = document.getElementById('btn-clear-face-log');
-  if(btnClearFaceLog) btnClearFaceLog.addEventListener('click', function(){ pluginDebug('btn-clear-face-log clicked'); clearLog('face'); });
+  if(btnClearFaceLog) btnClearFaceLog.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-clear-face-log clicked'); clearLog('face'); });
   var btnExportFaceCsv = document.getElementById('btn-export-face-csv');
-  if(btnExportFaceCsv) btnExportFaceCsv.addEventListener('click', function(){ pluginDebug('btn-export-face-csv clicked'); exportFaceCSV(); });
+  if(btnExportFaceCsv) btnExportFaceCsv.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-face-csv clicked'); exportFaceCSV(); });
   var btnExportFaceDxf = document.getElementById('btn-export-face-dxf');
-  if(btnExportFaceDxf) btnExportFaceDxf.addEventListener('click', function(){ pluginDebug('btn-export-face-dxf clicked'); exportFaceDXF(); });
+  if(btnExportFaceDxf) btnExportFaceDxf.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-face-dxf clicked'); exportFaceDXF(); });
   var btnExportFaceObj = document.getElementById('btn-export-face-obj');
-  if(btnExportFaceObj) btnExportFaceObj.addEventListener('click', function(){ pluginDebug('btn-export-face-obj clicked'); exportFaceOBJ(); });
+  if(btnExportFaceObj) btnExportFaceObj.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-face-obj clicked'); exportFaceOBJ(); });
 
   // Results buttons
   var btnExportCsv = document.getElementById('btn-export-csv');
-  if(btnExportCsv) btnExportCsv.addEventListener('click', function(){ pluginDebug('btn-export-csv clicked'); exportCSV(); });
+  if(btnExportCsv) btnExportCsv.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-csv clicked'); exportCSV(); });
   var btnClearAll = document.getElementById('btn-clear-all-results');
-  if(btnClearAll) btnClearAll.addEventListener('click', function(){ pluginDebug('btn-clear-all-results clicked'); clearAllResults(); });
+  if(btnClearAll) btnClearAll.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-clear-all-results clicked'); clearAllResults(); });
   var btnCopyResults = document.getElementById('btn-copy-results');
   if(btnCopyResults) btnCopyResults.addEventListener('click', function() {
+    flashButton(this);
     pluginDebug('btn-copy-results clicked');
     var tbody = document.getElementById('res-unified-tbody');
     if (!tbody) return;
@@ -7438,17 +7440,17 @@ function smLoadSettings() {
 
   // Actions / workflow buttons
   var btnSaveWf = document.getElementById('btn-save-workflow');
-  if(btnSaveWf) btnSaveWf.addEventListener('click', function(){ pluginDebug('btn-save-workflow clicked'); saveWorkflow(); });
+  if(btnSaveWf) btnSaveWf.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-save-workflow clicked'); saveWorkflow(); });
   var btnLoadWf = document.getElementById('btn-load-workflow');
-  if(btnLoadWf) btnLoadWf.addEventListener('click', function(){ pluginDebug('btn-load-workflow clicked'); loadWorkflow(); });
+  if(btnLoadWf) btnLoadWf.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-load-workflow clicked'); loadWorkflow(); });
   var btnExportWf = document.getElementById('btn-export-workflows');
-  if(btnExportWf) btnExportWf.addEventListener('click', function(){ pluginDebug('btn-export-workflows clicked'); exportWorkflows(); });
+  if(btnExportWf) btnExportWf.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-workflows clicked'); exportWorkflows(); });
   var btnImportWf = document.getElementById('btn-import-workflows');
-  if(btnImportWf) btnImportWf.addEventListener('click', function(){ pluginDebug('btn-import-workflows clicked'); importWorkflows(); });
+  if(btnImportWf) btnImportWf.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-import-workflows clicked'); importWorkflows(); });
   var btnSaveAllLogs = document.getElementById('btn-save-all-logs');
-  if(btnSaveAllLogs) btnSaveAllLogs.addEventListener('click', function(){ pluginDebug('btn-save-all-logs clicked'); saveAllLogs(); });
+  if(btnSaveAllLogs) btnSaveAllLogs.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-save-all-logs clicked'); saveAllLogs(); });
   var btnClearAll2 = document.getElementById('btn-clear-all-results-2');
-  if(btnClearAll2) btnClearAll2.addEventListener('click', function(){ pluginDebug('btn-clear-all-results-2 clicked'); clearAllResults(); });
+  if(btnClearAll2) btnClearAll2.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-clear-all-results-2 clicked'); clearAllResults(); });
 
   // Workflow list — event delegation for dynamically generated Load/Delete buttons
   var wfList = document.getElementById('workflow-list');
@@ -7466,37 +7468,37 @@ function smLoadSettings() {
 
   // Mesh Data Management buttons
   var btnSaveMeshFile = document.getElementById('btn-save-mesh-file');
-  if(btnSaveMeshFile) btnSaveMeshFile.addEventListener('click', function(){ pluginDebug('btn-save-mesh-file clicked'); saveMeshToFile(); });
+  if(btnSaveMeshFile) btnSaveMeshFile.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-save-mesh-file clicked'); saveMeshToFile(); });
   var btnLoadMeshFile = document.getElementById('btn-load-mesh-file');
-  if(btnLoadMeshFile) btnLoadMeshFile.addEventListener('click', function(){ pluginDebug('btn-load-mesh-file clicked'); loadMeshFromFile(); });
+  if(btnLoadMeshFile) btnLoadMeshFile.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-load-mesh-file clicked'); loadMeshFromFile(); });
   var btnSaveMeshStorage = document.getElementById('btn-save-mesh-storage');
-  if(btnSaveMeshStorage) btnSaveMeshStorage.addEventListener('click', function(){ pluginDebug('btn-save-mesh-storage clicked'); saveMeshToStorage(); });
+  if(btnSaveMeshStorage) btnSaveMeshStorage.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-save-mesh-storage clicked'); saveMeshToStorage(); });
   var btnLoadMeshStorage = document.getElementById('btn-load-mesh-storage');
-  if(btnLoadMeshStorage) btnLoadMeshStorage.addEventListener('click', function(){ pluginDebug('btn-load-mesh-storage clicked'); loadMeshFromStorage(); });
+  if(btnLoadMeshStorage) btnLoadMeshStorage.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-load-mesh-storage clicked'); loadMeshFromStorage(); });
   var btnClearMeshStorage = document.getElementById('btn-clear-mesh-storage');
-  if(btnClearMeshStorage) btnClearMeshStorage.addEventListener('click', function(){ pluginDebug('btn-clear-mesh-storage clicked'); clearMeshStorage(); });
+  if(btnClearMeshStorage) btnClearMeshStorage.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-clear-mesh-storage clicked'); clearMeshStorage(); });
 
   // 2D Surface Compensation buttons (legacy — kept for backward compatibility)
   var btnApply2d = document.getElementById('sm-btn-apply-comp');
-  if(btnApply2d) btnApply2d.addEventListener('click', function(){ pluginDebug('sm-btn-apply-comp clicked'); applySurfaceCompensation(); });
+  if(btnApply2d) btnApply2d.addEventListener('click', function(){ flashButton(this); pluginDebug('sm-btn-apply-comp clicked'); applySurfaceCompensation(); });
   var btnDownload2d = document.getElementById('sm-btn-download-comp');
-  if(btnDownload2d) btnDownload2d.addEventListener('click', function(){ pluginDebug('sm-btn-download-comp clicked'); smDownloadCompensatedGcode(); });
+  if(btnDownload2d) btnDownload2d.addEventListener('click', function(){ flashButton(this); pluginDebug('sm-btn-download-comp clicked'); smDownloadCompensatedGcode(); });
   var btnSendNcSender2d = document.getElementById('sm-btn-send-ncsender');
-  if(btnSendNcSender2d) btnSendNcSender2d.addEventListener('click', function(){ pluginDebug('sm-btn-send-ncsender clicked'); sendCompToNcSender(smCompensatedGcode, 'compensated_surface'); });
+  if(btnSendNcSender2d) btnSendNcSender2d.addEventListener('click', function(){ flashButton(this); pluginDebug('sm-btn-send-ncsender clicked'); sendCompToNcSender(smCompensatedGcode, 'compensated_surface'); });
 
   // Face Probe Tab — Mesh Data Management buttons
   var faceBtnSaveMesh = document.getElementById('face-btn-save-mesh');
-  if (faceBtnSaveMesh) faceBtnSaveMesh.addEventListener('click', function(){ pluginDebug('face-btn-save-mesh clicked'); saveFaceMeshData(); });
+  if (faceBtnSaveMesh) faceBtnSaveMesh.addEventListener('click', function(){ flashButton(this); pluginDebug('face-btn-save-mesh clicked'); saveFaceMeshData(); });
   var faceBtnLoadMesh = document.getElementById('face-btn-load-mesh');
-  if (faceBtnLoadMesh) faceBtnLoadMesh.addEventListener('click', function(){ pluginDebug('face-btn-load-mesh clicked'); loadFaceMeshData(); });
+  if (faceBtnLoadMesh) faceBtnLoadMesh.addEventListener('click', function(){ flashButton(this); pluginDebug('face-btn-load-mesh clicked'); loadFaceMeshData(); });
   var faceBtnClearMesh = document.getElementById('face-btn-clear-mesh');
-  if (faceBtnClearMesh) faceBtnClearMesh.addEventListener('click', function(){ pluginDebug('face-btn-clear-mesh clicked'); clearFaceMeshData(); });
+  if (faceBtnClearMesh) faceBtnClearMesh.addEventListener('click', function(){ flashButton(this); pluginDebug('face-btn-clear-mesh clicked'); clearFaceMeshData(); });
   var faceBtnExportJson = document.getElementById('face-btn-export-json');
-  if (faceBtnExportJson) faceBtnExportJson.addEventListener('click', function(){ pluginDebug('face-btn-export-json clicked'); exportFaceMeshJSON(); });
+  if (faceBtnExportJson) faceBtnExportJson.addEventListener('click', function(){ flashButton(this); pluginDebug('face-btn-export-json clicked'); exportFaceMeshJSON(); });
   var faceBtnExportCsvNew = document.getElementById('face-btn-export-csv-new');
-  if (faceBtnExportCsvNew) faceBtnExportCsvNew.addEventListener('click', function(){ pluginDebug('face-btn-export-csv-new clicked'); exportFaceMeshCSVNew(); });
+  if (faceBtnExportCsvNew) faceBtnExportCsvNew.addEventListener('click', function(){ flashButton(this); pluginDebug('face-btn-export-csv-new clicked'); exportFaceMeshCSVNew(); });
   var faceBtnImportMesh = document.getElementById('face-btn-import-mesh');
-  if (faceBtnImportMesh) faceBtnImportMesh.addEventListener('click', function(){ pluginDebug('face-btn-import-mesh clicked'); importFaceMeshData(); });
+  if (faceBtnImportMesh) faceBtnImportMesh.addEventListener('click', function(){ flashButton(this); pluginDebug('face-btn-import-mesh clicked'); importFaceMeshData(); });
 
   // Face probe stylus cap sync on Setup tab change
   var probeStylusEl = document.getElementById('probeStylusCalloutLength');
@@ -8316,6 +8318,7 @@ function bindProbeDimensionUI(){
   var btn = document.getElementById('calcProbeTotalBtn');
   if(btn){
     btn.addEventListener('click', function(){
+      flashButton(this);
       var total = calcProbeAutoTotalLength();
       var totalEl = document.getElementById('probeTotalLength');
       if(totalEl) totalEl.value = total.toFixed(3);
@@ -8327,32 +8330,33 @@ function bindProbeDimensionUI(){
 
   // Surface mesh buttons
   try {
-    document.getElementById('sm-btn-save-mesh').addEventListener('click', function(){ pluginDebug('sm-btn-save-mesh clicked'); saveSurfaceMesh(); });
-    document.getElementById('sm-btn-load-mesh').addEventListener('click', function(){ pluginDebug('sm-btn-load-mesh clicked'); loadSurfaceMesh(); });
-    document.getElementById('sm-btn-export-mesh').addEventListener('click', function(){ pluginDebug('sm-btn-export-mesh clicked'); exportSurfaceMesh(); });
-    document.getElementById('sm-btn-export-mesh-csv').addEventListener('click', function(){ pluginDebug('sm-btn-export-mesh-csv clicked'); exportSurfaceMeshCSV(); });
-    document.getElementById('sm-btn-import-mesh').addEventListener('click', function(){ pluginDebug('sm-btn-import-mesh clicked'); importSurfaceMesh(); });
-    document.getElementById('sm-btn-clear-mesh').addEventListener('click', function(){ pluginDebug('sm-btn-clear-mesh clicked'); clearSurfaceMesh(); });
-    document.getElementById('sm-btn-save-replay-html').addEventListener('click', function(){ pluginDebug('sm-btn-save-replay-html clicked'); smSaveReplayHtml(); });
+    document.getElementById('sm-btn-save-mesh').addEventListener('click', function(){ flashButton(this); pluginDebug('sm-btn-save-mesh clicked'); saveSurfaceMesh(); });
+    document.getElementById('sm-btn-load-mesh').addEventListener('click', function(){ flashButton(this); pluginDebug('sm-btn-load-mesh clicked'); loadSurfaceMesh(); });
+    document.getElementById('sm-btn-export-mesh').addEventListener('click', function(){ flashButton(this); pluginDebug('sm-btn-export-mesh clicked'); exportSurfaceMesh(); });
+    document.getElementById('sm-btn-export-mesh-csv').addEventListener('click', function(){ flashButton(this); pluginDebug('sm-btn-export-mesh-csv clicked'); exportSurfaceMeshCSV(); });
+    document.getElementById('sm-btn-import-mesh').addEventListener('click', function(){ flashButton(this); pluginDebug('sm-btn-import-mesh clicked'); importSurfaceMesh(); });
+    document.getElementById('sm-btn-clear-mesh').addEventListener('click', function(){ flashButton(this); pluginDebug('sm-btn-clear-mesh clicked'); clearSurfaceMesh(); });
+    document.getElementById('sm-btn-save-replay-html').addEventListener('click', function(){ flashButton(this); pluginDebug('sm-btn-save-replay-html clicked'); smSaveReplayHtml(); });
   } catch(e){}
 
   // Combined mesh buttons
   try {
-    document.getElementById('comb-btn-save-mesh').addEventListener('click', function(){ pluginDebug('comb-btn-save-mesh clicked'); saveCombinedMesh(); });
-    document.getElementById('comb-btn-export-csv').addEventListener('click', function(){ pluginDebug('comb-btn-export-csv clicked'); exportCombinedMeshCSV(); });
-    document.getElementById('comb-btn-export-json').addEventListener('click', function(){ pluginDebug('comb-btn-export-json clicked'); exportCombinedMeshJSON(); });
-    document.getElementById('comb-btn-clear-mesh').addEventListener('click', function(){ pluginDebug('comb-btn-clear-mesh clicked'); clearCombinedMesh(); });
+    document.getElementById('comb-btn-save-mesh').addEventListener('click', function(){ flashButton(this); pluginDebug('comb-btn-save-mesh clicked'); saveCombinedMesh(); });
+    document.getElementById('comb-btn-export-csv').addEventListener('click', function(){ flashButton(this); pluginDebug('comb-btn-export-csv clicked'); exportCombinedMeshCSV(); });
+    document.getElementById('comb-btn-export-json').addEventListener('click', function(){ flashButton(this); pluginDebug('comb-btn-export-json clicked'); exportCombinedMeshJSON(); });
+    document.getElementById('comb-btn-clear-mesh').addEventListener('click', function(){ flashButton(this); pluginDebug('comb-btn-clear-mesh clicked'); clearCombinedMesh(); });
   } catch(e){}
 
   // Results tab Save 3D View button
   try {
-    document.getElementById('res-btn-save-3d').addEventListener('click', save3DViewPNG);
+    document.getElementById('res-btn-save-3d').addEventListener('click', function(){ flashButton(this); save3DViewPNG(); });
   } catch(e){}
 
   // Results tab Face 3D View — save and reset buttons
   try {
     var resfaceSaveBtn = document.getElementById('resface-btn-save-3d');
     if (resfaceSaveBtn) resfaceSaveBtn.addEventListener('click', function() {
+      flashButton(this);
       var s = _threeState['resface'];
       if (s && s.renderer) {
         s.renderer.render(s.scene, s.camera);

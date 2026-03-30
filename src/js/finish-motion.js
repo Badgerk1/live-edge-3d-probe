@@ -83,15 +83,15 @@ function smLoadSettings() {
 
   // Setup buttons
   var btnSave = document.getElementById('btn-save-settings');
-  if(btnSave) btnSave.addEventListener('click', function(){ pluginDebug('btn-save-settings clicked'); saveSettings(); });
+  if(btnSave) btnSave.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-save-settings clicked'); saveSettings(); });
   var btnLoad = document.getElementById('btn-load-settings');
-  if(btnLoad) btnLoad.addEventListener('click', function(){ pluginDebug('btn-load-settings clicked'); loadSettings(); });
+  if(btnLoad) btnLoad.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-load-settings clicked'); loadSettings(); });
   var btnReset = document.getElementById('btn-reset-settings');
-  if(btnReset) btnReset.addEventListener('click', function(){ pluginDebug('btn-reset-settings clicked'); resetSettings(); });
+  if(btnReset) btnReset.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-reset-settings clicked'); resetSettings(); });
   var btnSaveProbeDims = document.getElementById('btn-save-probe-dims');
-  if(btnSaveProbeDims) btnSaveProbeDims.addEventListener('click', function(){ pluginDebug('btn-save-probe-dims clicked'); saveProbeDimensions(); });
+  if(btnSaveProbeDims) btnSaveProbeDims.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-save-probe-dims clicked'); saveProbeDimensions(); });
   var btnSaveLocation = document.getElementById('btn-save-location');
-  if(btnSaveLocation) btnSaveLocation.addEventListener('click', function(){ pluginDebug('btn-save-location clicked'); saveCurrentLocation(); });
+  if(btnSaveLocation) btnSaveLocation.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-save-location clicked'); saveCurrentLocation(); });
   var btnGoLocation = document.getElementById('btn-go-location');
   if(btnGoLocation) btnGoLocation.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-go-location clicked'); goToSavedLocation(); });
   var btnCheckHomed = document.getElementById('btn-check-homed');
@@ -147,29 +147,30 @@ function smLoadSettings() {
 
   // Face probe buttons
   var btnFaceX = document.getElementById('btn-face-x');
-  if(btnFaceX) btnFaceX.addEventListener('click', function(){ pluginDebug('btn-face-x clicked'); runFaceProbe('X'); });
+  if(btnFaceX) btnFaceX.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-face-x clicked'); runFaceProbe('X'); });
   var btnFaceY = document.getElementById('btn-face-y');
-  if(btnFaceY) btnFaceY.addEventListener('click', function(){ pluginDebug('btn-face-y clicked'); runFaceProbe('Y'); });
+  if(btnFaceY) btnFaceY.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-face-y clicked'); runFaceProbe('Y'); });
   var btnStopFace = document.getElementById('btn-stop-face');
-  if(btnStopFace) btnStopFace.addEventListener('click', function(){ pluginDebug('btn-stop-face clicked'); stopAll(); });
+  if(btnStopFace) btnStopFace.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-stop-face clicked'); stopAll(); });
   var btnSaveFaceLog = document.getElementById('btn-save-face-log');
-  if(btnSaveFaceLog) btnSaveFaceLog.addEventListener('click', function(){ pluginDebug('btn-save-face-log clicked'); saveLog('face'); });
+  if(btnSaveFaceLog) btnSaveFaceLog.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-save-face-log clicked'); saveLog('face'); });
   var btnClearFaceLog = document.getElementById('btn-clear-face-log');
-  if(btnClearFaceLog) btnClearFaceLog.addEventListener('click', function(){ pluginDebug('btn-clear-face-log clicked'); clearLog('face'); });
+  if(btnClearFaceLog) btnClearFaceLog.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-clear-face-log clicked'); clearLog('face'); });
   var btnExportFaceCsv = document.getElementById('btn-export-face-csv');
-  if(btnExportFaceCsv) btnExportFaceCsv.addEventListener('click', function(){ pluginDebug('btn-export-face-csv clicked'); exportFaceCSV(); });
+  if(btnExportFaceCsv) btnExportFaceCsv.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-face-csv clicked'); exportFaceCSV(); });
   var btnExportFaceDxf = document.getElementById('btn-export-face-dxf');
-  if(btnExportFaceDxf) btnExportFaceDxf.addEventListener('click', function(){ pluginDebug('btn-export-face-dxf clicked'); exportFaceDXF(); });
+  if(btnExportFaceDxf) btnExportFaceDxf.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-face-dxf clicked'); exportFaceDXF(); });
   var btnExportFaceObj = document.getElementById('btn-export-face-obj');
-  if(btnExportFaceObj) btnExportFaceObj.addEventListener('click', function(){ pluginDebug('btn-export-face-obj clicked'); exportFaceOBJ(); });
+  if(btnExportFaceObj) btnExportFaceObj.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-face-obj clicked'); exportFaceOBJ(); });
 
   // Results buttons
   var btnExportCsv = document.getElementById('btn-export-csv');
-  if(btnExportCsv) btnExportCsv.addEventListener('click', function(){ pluginDebug('btn-export-csv clicked'); exportCSV(); });
+  if(btnExportCsv) btnExportCsv.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-csv clicked'); exportCSV(); });
   var btnClearAll = document.getElementById('btn-clear-all-results');
-  if(btnClearAll) btnClearAll.addEventListener('click', function(){ pluginDebug('btn-clear-all-results clicked'); clearAllResults(); });
+  if(btnClearAll) btnClearAll.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-clear-all-results clicked'); clearAllResults(); });
   var btnCopyResults = document.getElementById('btn-copy-results');
   if(btnCopyResults) btnCopyResults.addEventListener('click', function() {
+    flashButton(this);
     pluginDebug('btn-copy-results clicked');
     var tbody = document.getElementById('res-unified-tbody');
     if (!tbody) return;
@@ -190,17 +191,17 @@ function smLoadSettings() {
 
   // Actions / workflow buttons
   var btnSaveWf = document.getElementById('btn-save-workflow');
-  if(btnSaveWf) btnSaveWf.addEventListener('click', function(){ pluginDebug('btn-save-workflow clicked'); saveWorkflow(); });
+  if(btnSaveWf) btnSaveWf.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-save-workflow clicked'); saveWorkflow(); });
   var btnLoadWf = document.getElementById('btn-load-workflow');
-  if(btnLoadWf) btnLoadWf.addEventListener('click', function(){ pluginDebug('btn-load-workflow clicked'); loadWorkflow(); });
+  if(btnLoadWf) btnLoadWf.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-load-workflow clicked'); loadWorkflow(); });
   var btnExportWf = document.getElementById('btn-export-workflows');
-  if(btnExportWf) btnExportWf.addEventListener('click', function(){ pluginDebug('btn-export-workflows clicked'); exportWorkflows(); });
+  if(btnExportWf) btnExportWf.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-workflows clicked'); exportWorkflows(); });
   var btnImportWf = document.getElementById('btn-import-workflows');
-  if(btnImportWf) btnImportWf.addEventListener('click', function(){ pluginDebug('btn-import-workflows clicked'); importWorkflows(); });
+  if(btnImportWf) btnImportWf.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-import-workflows clicked'); importWorkflows(); });
   var btnSaveAllLogs = document.getElementById('btn-save-all-logs');
-  if(btnSaveAllLogs) btnSaveAllLogs.addEventListener('click', function(){ pluginDebug('btn-save-all-logs clicked'); saveAllLogs(); });
+  if(btnSaveAllLogs) btnSaveAllLogs.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-save-all-logs clicked'); saveAllLogs(); });
   var btnClearAll2 = document.getElementById('btn-clear-all-results-2');
-  if(btnClearAll2) btnClearAll2.addEventListener('click', function(){ pluginDebug('btn-clear-all-results-2 clicked'); clearAllResults(); });
+  if(btnClearAll2) btnClearAll2.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-clear-all-results-2 clicked'); clearAllResults(); });
 
   // Workflow list — event delegation for dynamically generated Load/Delete buttons
   var wfList = document.getElementById('workflow-list');
@@ -218,37 +219,37 @@ function smLoadSettings() {
 
   // Mesh Data Management buttons
   var btnSaveMeshFile = document.getElementById('btn-save-mesh-file');
-  if(btnSaveMeshFile) btnSaveMeshFile.addEventListener('click', function(){ pluginDebug('btn-save-mesh-file clicked'); saveMeshToFile(); });
+  if(btnSaveMeshFile) btnSaveMeshFile.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-save-mesh-file clicked'); saveMeshToFile(); });
   var btnLoadMeshFile = document.getElementById('btn-load-mesh-file');
-  if(btnLoadMeshFile) btnLoadMeshFile.addEventListener('click', function(){ pluginDebug('btn-load-mesh-file clicked'); loadMeshFromFile(); });
+  if(btnLoadMeshFile) btnLoadMeshFile.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-load-mesh-file clicked'); loadMeshFromFile(); });
   var btnSaveMeshStorage = document.getElementById('btn-save-mesh-storage');
-  if(btnSaveMeshStorage) btnSaveMeshStorage.addEventListener('click', function(){ pluginDebug('btn-save-mesh-storage clicked'); saveMeshToStorage(); });
+  if(btnSaveMeshStorage) btnSaveMeshStorage.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-save-mesh-storage clicked'); saveMeshToStorage(); });
   var btnLoadMeshStorage = document.getElementById('btn-load-mesh-storage');
-  if(btnLoadMeshStorage) btnLoadMeshStorage.addEventListener('click', function(){ pluginDebug('btn-load-mesh-storage clicked'); loadMeshFromStorage(); });
+  if(btnLoadMeshStorage) btnLoadMeshStorage.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-load-mesh-storage clicked'); loadMeshFromStorage(); });
   var btnClearMeshStorage = document.getElementById('btn-clear-mesh-storage');
-  if(btnClearMeshStorage) btnClearMeshStorage.addEventListener('click', function(){ pluginDebug('btn-clear-mesh-storage clicked'); clearMeshStorage(); });
+  if(btnClearMeshStorage) btnClearMeshStorage.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-clear-mesh-storage clicked'); clearMeshStorage(); });
 
   // 2D Surface Compensation buttons (legacy — kept for backward compatibility)
   var btnApply2d = document.getElementById('sm-btn-apply-comp');
-  if(btnApply2d) btnApply2d.addEventListener('click', function(){ pluginDebug('sm-btn-apply-comp clicked'); applySurfaceCompensation(); });
+  if(btnApply2d) btnApply2d.addEventListener('click', function(){ flashButton(this); pluginDebug('sm-btn-apply-comp clicked'); applySurfaceCompensation(); });
   var btnDownload2d = document.getElementById('sm-btn-download-comp');
-  if(btnDownload2d) btnDownload2d.addEventListener('click', function(){ pluginDebug('sm-btn-download-comp clicked'); smDownloadCompensatedGcode(); });
+  if(btnDownload2d) btnDownload2d.addEventListener('click', function(){ flashButton(this); pluginDebug('sm-btn-download-comp clicked'); smDownloadCompensatedGcode(); });
   var btnSendNcSender2d = document.getElementById('sm-btn-send-ncsender');
-  if(btnSendNcSender2d) btnSendNcSender2d.addEventListener('click', function(){ pluginDebug('sm-btn-send-ncsender clicked'); sendCompToNcSender(smCompensatedGcode, 'compensated_surface'); });
+  if(btnSendNcSender2d) btnSendNcSender2d.addEventListener('click', function(){ flashButton(this); pluginDebug('sm-btn-send-ncsender clicked'); sendCompToNcSender(smCompensatedGcode, 'compensated_surface'); });
 
   // Face Probe Tab — Mesh Data Management buttons
   var faceBtnSaveMesh = document.getElementById('face-btn-save-mesh');
-  if (faceBtnSaveMesh) faceBtnSaveMesh.addEventListener('click', function(){ pluginDebug('face-btn-save-mesh clicked'); saveFaceMeshData(); });
+  if (faceBtnSaveMesh) faceBtnSaveMesh.addEventListener('click', function(){ flashButton(this); pluginDebug('face-btn-save-mesh clicked'); saveFaceMeshData(); });
   var faceBtnLoadMesh = document.getElementById('face-btn-load-mesh');
-  if (faceBtnLoadMesh) faceBtnLoadMesh.addEventListener('click', function(){ pluginDebug('face-btn-load-mesh clicked'); loadFaceMeshData(); });
+  if (faceBtnLoadMesh) faceBtnLoadMesh.addEventListener('click', function(){ flashButton(this); pluginDebug('face-btn-load-mesh clicked'); loadFaceMeshData(); });
   var faceBtnClearMesh = document.getElementById('face-btn-clear-mesh');
-  if (faceBtnClearMesh) faceBtnClearMesh.addEventListener('click', function(){ pluginDebug('face-btn-clear-mesh clicked'); clearFaceMeshData(); });
+  if (faceBtnClearMesh) faceBtnClearMesh.addEventListener('click', function(){ flashButton(this); pluginDebug('face-btn-clear-mesh clicked'); clearFaceMeshData(); });
   var faceBtnExportJson = document.getElementById('face-btn-export-json');
-  if (faceBtnExportJson) faceBtnExportJson.addEventListener('click', function(){ pluginDebug('face-btn-export-json clicked'); exportFaceMeshJSON(); });
+  if (faceBtnExportJson) faceBtnExportJson.addEventListener('click', function(){ flashButton(this); pluginDebug('face-btn-export-json clicked'); exportFaceMeshJSON(); });
   var faceBtnExportCsvNew = document.getElementById('face-btn-export-csv-new');
-  if (faceBtnExportCsvNew) faceBtnExportCsvNew.addEventListener('click', function(){ pluginDebug('face-btn-export-csv-new clicked'); exportFaceMeshCSVNew(); });
+  if (faceBtnExportCsvNew) faceBtnExportCsvNew.addEventListener('click', function(){ flashButton(this); pluginDebug('face-btn-export-csv-new clicked'); exportFaceMeshCSVNew(); });
   var faceBtnImportMesh = document.getElementById('face-btn-import-mesh');
-  if (faceBtnImportMesh) faceBtnImportMesh.addEventListener('click', function(){ pluginDebug('face-btn-import-mesh clicked'); importFaceMeshData(); });
+  if (faceBtnImportMesh) faceBtnImportMesh.addEventListener('click', function(){ flashButton(this); pluginDebug('face-btn-import-mesh clicked'); importFaceMeshData(); });
 
   // Face probe stylus cap sync on Setup tab change
   var probeStylusEl = document.getElementById('probeStylusCalloutLength');
@@ -1068,6 +1069,7 @@ function bindProbeDimensionUI(){
   var btn = document.getElementById('calcProbeTotalBtn');
   if(btn){
     btn.addEventListener('click', function(){
+      flashButton(this);
       var total = calcProbeAutoTotalLength();
       var totalEl = document.getElementById('probeTotalLength');
       if(totalEl) totalEl.value = total.toFixed(3);
@@ -1079,32 +1081,33 @@ function bindProbeDimensionUI(){
 
   // Surface mesh buttons
   try {
-    document.getElementById('sm-btn-save-mesh').addEventListener('click', function(){ pluginDebug('sm-btn-save-mesh clicked'); saveSurfaceMesh(); });
-    document.getElementById('sm-btn-load-mesh').addEventListener('click', function(){ pluginDebug('sm-btn-load-mesh clicked'); loadSurfaceMesh(); });
-    document.getElementById('sm-btn-export-mesh').addEventListener('click', function(){ pluginDebug('sm-btn-export-mesh clicked'); exportSurfaceMesh(); });
-    document.getElementById('sm-btn-export-mesh-csv').addEventListener('click', function(){ pluginDebug('sm-btn-export-mesh-csv clicked'); exportSurfaceMeshCSV(); });
-    document.getElementById('sm-btn-import-mesh').addEventListener('click', function(){ pluginDebug('sm-btn-import-mesh clicked'); importSurfaceMesh(); });
-    document.getElementById('sm-btn-clear-mesh').addEventListener('click', function(){ pluginDebug('sm-btn-clear-mesh clicked'); clearSurfaceMesh(); });
-    document.getElementById('sm-btn-save-replay-html').addEventListener('click', function(){ pluginDebug('sm-btn-save-replay-html clicked'); smSaveReplayHtml(); });
+    document.getElementById('sm-btn-save-mesh').addEventListener('click', function(){ flashButton(this); pluginDebug('sm-btn-save-mesh clicked'); saveSurfaceMesh(); });
+    document.getElementById('sm-btn-load-mesh').addEventListener('click', function(){ flashButton(this); pluginDebug('sm-btn-load-mesh clicked'); loadSurfaceMesh(); });
+    document.getElementById('sm-btn-export-mesh').addEventListener('click', function(){ flashButton(this); pluginDebug('sm-btn-export-mesh clicked'); exportSurfaceMesh(); });
+    document.getElementById('sm-btn-export-mesh-csv').addEventListener('click', function(){ flashButton(this); pluginDebug('sm-btn-export-mesh-csv clicked'); exportSurfaceMeshCSV(); });
+    document.getElementById('sm-btn-import-mesh').addEventListener('click', function(){ flashButton(this); pluginDebug('sm-btn-import-mesh clicked'); importSurfaceMesh(); });
+    document.getElementById('sm-btn-clear-mesh').addEventListener('click', function(){ flashButton(this); pluginDebug('sm-btn-clear-mesh clicked'); clearSurfaceMesh(); });
+    document.getElementById('sm-btn-save-replay-html').addEventListener('click', function(){ flashButton(this); pluginDebug('sm-btn-save-replay-html clicked'); smSaveReplayHtml(); });
   } catch(e){}
 
   // Combined mesh buttons
   try {
-    document.getElementById('comb-btn-save-mesh').addEventListener('click', function(){ pluginDebug('comb-btn-save-mesh clicked'); saveCombinedMesh(); });
-    document.getElementById('comb-btn-export-csv').addEventListener('click', function(){ pluginDebug('comb-btn-export-csv clicked'); exportCombinedMeshCSV(); });
-    document.getElementById('comb-btn-export-json').addEventListener('click', function(){ pluginDebug('comb-btn-export-json clicked'); exportCombinedMeshJSON(); });
-    document.getElementById('comb-btn-clear-mesh').addEventListener('click', function(){ pluginDebug('comb-btn-clear-mesh clicked'); clearCombinedMesh(); });
+    document.getElementById('comb-btn-save-mesh').addEventListener('click', function(){ flashButton(this); pluginDebug('comb-btn-save-mesh clicked'); saveCombinedMesh(); });
+    document.getElementById('comb-btn-export-csv').addEventListener('click', function(){ flashButton(this); pluginDebug('comb-btn-export-csv clicked'); exportCombinedMeshCSV(); });
+    document.getElementById('comb-btn-export-json').addEventListener('click', function(){ flashButton(this); pluginDebug('comb-btn-export-json clicked'); exportCombinedMeshJSON(); });
+    document.getElementById('comb-btn-clear-mesh').addEventListener('click', function(){ flashButton(this); pluginDebug('comb-btn-clear-mesh clicked'); clearCombinedMesh(); });
   } catch(e){}
 
   // Results tab Save 3D View button
   try {
-    document.getElementById('res-btn-save-3d').addEventListener('click', save3DViewPNG);
+    document.getElementById('res-btn-save-3d').addEventListener('click', function(){ flashButton(this); save3DViewPNG(); });
   } catch(e){}
 
   // Results tab Face 3D View — save and reset buttons
   try {
     var resfaceSaveBtn = document.getElementById('resface-btn-save-3d');
     if (resfaceSaveBtn) resfaceSaveBtn.addEventListener('click', function() {
+      flashButton(this);
       var s = _threeState['resface'];
       if (s && s.renderer) {
         s.renderer.render(s.scene, s.camera);
