@@ -309,68 +309,8 @@
 
 
       <div class="panel">
-        <div class="box-title">Top Profile Settings</div>
+        <div class="box-title">Travel &amp; Recovery Settings</div>
         <div class="grid three">
-          <div class="field">
-            <label>
-              <span class="tooltip">Sample Axis<span class="tip-icon">?</span>
-                <span class="tip">The axis along which top Z samples are collected. The other axis uses the fixed coordinate.</span>
-              </span>
-            </label>
-            <select id="sampleAxis"><option value="X">X</option><option value="Y">Y</option></select>
-          </div>
-          <div class="field">
-            <label>
-              <span class="tooltip">Top Fixed Coord (coords)<span class="tip-icon">?</span>
-                <span class="tip">The non-sampled axis coordinate held constant during the top profile scan.</span>
-              </span>
-            </label>
-            <input type="number" id="topFixedCoord" value="0" step="0.1">
-          </div>
-          <div class="field">
-            <label><span class="tooltip">Sample Start (coords)<span class="tip-icon">?</span><span class="tip">Starting coordinate along the sample axis where the top profile probe begins. Machine moves here before the first probe descent.</span></span></label>
-            <input type="number" id="topSampleStart" value="0" step="0.1">
-          </div>
-          <div class="field">
-            <label><span class="tooltip">Sample End (coords)<span class="tip-icon">?</span><span class="tip">Ending coordinate along the sample axis where the top profile probe finishes. The last probe point is taken here.</span></span></label>
-            <input type="number" id="topSampleEnd" value="100" step="0.1">
-          </div>
-          <div class="field">
-            <label><span class="tooltip">Sample Count<span class="tip-icon">?</span><span class="tip">Number of evenly-spaced probe points along the sample axis. More points give higher resolution but take longer to run.</span></span></label>
-            <input type="number" id="topSampleCount" value="10" min="2" max="200" step="1">
-          </div>
-          <div class="field">
-            <label>
-              <span class="tooltip">Use Initial Clearance Lift<span class="tip-icon">?</span>
-                <span class="tip">When enabled, the plugin raises Z before the first top-profile travel move. Turn this off if the operator manually sets a safe start Z before probing.</span>
-              </span>
-            </label>
-            <select id="useInitialClearanceLift"><option value="no">No</option><option value="yes">Yes</option></select>
-          </div>
-          <div class="field">
-            <label>
-              <span class="tooltip">Initial Clearance Lift (coords)<span class="tip-icon">?</span>
-                <span class="tip">Relative Z raise used only when Initial Clearance Lift is enabled.</span>
-              </span>
-            </label>
-            <input type="number" id="topClearZ" value="5" min="0.5" max="100" step="0.5">
-          </div>
-          <div class="field">
-            <label><span class="tooltip">Top Probe Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate used when the probe descends toward the surface during top profile sampling. Slower values reduce overshoot and improve accuracy.</span></span></label>
-            <input type="number" id="topFeed" value="200" min="10" max="3000" step="10">
-          </div>
-          <div class="field">
-            <label>
-              <span class="tooltip">Probe Depth (coords)<span class="tip-icon">?</span>
-                <span class="tip">Maximum Z distance to probe downward from the current Z position at each sample point.</span>
-              </span>
-            </label>
-            <input type="number" id="topProbeDepth" value="5" min="0.5" max="50" step="0.5">
-          </div>
-          <div class="field">
-            <label><span class="tooltip">Retract (coords)<span class="tip-icon">?</span><span class="tip">Distance to retract Z upward after each probe contact before moving to the next sample point. Prevents dragging the ball tip across the surface.</span></span></label>
-            <input type="number" id="topRetract" value="2" min="0.5" max="20" step="0.5">
-          </div>
           <div class="field">
             <label><span class="tooltip">Travel Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate used when traveling between probe sample points (X/Y rapid between probes). Does not affect probe descent speed.</span></span></label>
             <input type="number" id="travelFeedRate" value="600" min="10" max="6000" step="10">
@@ -619,6 +559,71 @@
 
   <!-- ── Surface Configuration Section ─────────────────────────────── -->
   <div id="surface-config-section">
+    <div class="panel">
+      <div class="box-title">Top Profile Settings</div>
+      <div class="grid three">
+        <div class="field">
+          <label>
+            <span class="tooltip">Sample Axis<span class="tip-icon">?</span>
+              <span class="tip">The axis along which top Z samples are collected. The other axis uses the fixed coordinate.</span>
+            </span>
+          </label>
+          <select id="sampleAxis"><option value="X">X</option><option value="Y">Y</option></select>
+        </div>
+        <div class="field">
+          <label>
+            <span class="tooltip">Top Fixed Coord (coords)<span class="tip-icon">?</span>
+              <span class="tip">The non-sampled axis coordinate held constant during the top profile scan.</span>
+            </span>
+          </label>
+          <input type="number" id="topFixedCoord" value="0" step="0.1">
+        </div>
+        <div class="field">
+          <label><span class="tooltip">Sample Start (coords)<span class="tip-icon">?</span><span class="tip">Starting coordinate along the sample axis where the top profile probe begins. Machine moves here before the first probe descent.</span></span></label>
+          <input type="number" id="topSampleStart" value="0" step="0.1">
+        </div>
+        <div class="field">
+          <label><span class="tooltip">Sample End (coords)<span class="tip-icon">?</span><span class="tip">Ending coordinate along the sample axis where the top profile probe finishes. The last probe point is taken here.</span></span></label>
+          <input type="number" id="topSampleEnd" value="100" step="0.1">
+        </div>
+        <div class="field">
+          <label><span class="tooltip">Sample Count<span class="tip-icon">?</span><span class="tip">Number of evenly-spaced probe points along the sample axis. More points give higher resolution but take longer to run.</span></span></label>
+          <input type="number" id="topSampleCount" value="10" min="2" max="200" step="1">
+        </div>
+        <div class="field">
+          <label>
+            <span class="tooltip">Use Initial Clearance Lift<span class="tip-icon">?</span>
+              <span class="tip">When enabled, the plugin raises Z before the first top-profile travel move. Turn this off if the operator manually sets a safe start Z before probing.</span>
+            </span>
+          </label>
+          <select id="useInitialClearanceLift"><option value="no">No</option><option value="yes">Yes</option></select>
+        </div>
+        <div class="field">
+          <label>
+            <span class="tooltip">Initial Clearance Lift (coords)<span class="tip-icon">?</span>
+              <span class="tip">Relative Z raise used only when Initial Clearance Lift is enabled.</span>
+            </span>
+          </label>
+          <input type="number" id="topClearZ" value="5" min="0.5" max="100" step="0.5">
+        </div>
+        <div class="field">
+          <label><span class="tooltip">Top Probe Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate used when the probe descends toward the surface during top profile sampling. Slower values reduce overshoot and improve accuracy.</span></span></label>
+          <input type="number" id="topFeed" value="200" min="10" max="3000" step="10">
+        </div>
+        <div class="field">
+          <label>
+            <span class="tooltip">Probe Depth (coords)<span class="tip-icon">?</span>
+              <span class="tip">Maximum Z distance to probe downward from the current Z position at each sample point.</span>
+            </span>
+          </label>
+          <input type="number" id="topProbeDepth" value="5" min="0.5" max="50" step="0.5">
+        </div>
+        <div class="field">
+          <label><span class="tooltip">Retract (coords)<span class="tip-icon">?</span><span class="tip">Distance to retract Z upward after each probe contact before moving to the next sample point. Prevents dragging the ball tip across the surface.</span></span></label>
+          <input type="number" id="topRetract" value="2" min="0.5" max="20" step="0.5">
+        </div>
+      </div>
+    </div>
     <div class="panel">
       <div class="box-title">2D Grid Configuration</div>
       <div class="grid three">
