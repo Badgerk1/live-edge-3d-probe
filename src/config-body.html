@@ -643,6 +643,22 @@
         <button class="btn ghost" onclick="flashButton(this);toggleProbeModeView('sm')" style="font-size:12px;font-weight:600">&#9660; Heatmap</button>
       </div>
     </div>
+    <!-- Surface Mesh Export -->
+    <div class="panel">
+      <div class="box-title">Surface Mesh Export</div>
+      <div class="callout mini" style="margin-bottom:10px">Export the surface probe mesh as CSV, DXF polylines, or OBJ 3D mesh. Uses the current surface mesh data.</div>
+      <div class="field" style="max-width:320px;margin-bottom:10px">
+        <label><span class="tooltip">OBJ Subdivision Resolution (mm)<span class="tip-icon">?</span><span class="tip">Target vertex spacing for the OBJ mesh. Smaller values produce smoother curved surfaces but generate larger files. Minimum 0.5mm; 2mm recommended for most CNC workflows.</span></span>
+          <input type="number" id="surfOBJSubdivision" value="2" min="0.5" max="25" step="0.5" style="width:80px">
+        </label>
+        <div class="mini" style="margin-top:4px">Interpolates additional vertices for a smooth mesh. 2mm recommended; smaller values give more detail but larger files.</div>
+      </div>
+      <div class="btn-row">
+        <button class="btn ghost" id="btn-export-surf-csv" title="Export surface mesh as CSV">&#128196; Export CSV</button>
+        <button class="btn ghost" id="btn-export-surf-dxf" title="Export surface mesh as DXF">&#128208; Export DXF</button>
+        <button class="btn ghost" id="btn-export-surf-obj" title="Export surface mesh as OBJ">&#129518; Export OBJ</button>
+      </div>
+    </div>
   </div><!-- /surface-mesh-section -->
 
   <!-- ── Face Mesh Section ──────────────────────────────────────────── -->
