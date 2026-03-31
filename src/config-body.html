@@ -602,6 +602,26 @@
       </div>
     </div>
 
+    <div class="panel">
+      <div class="box-title">Surface Probe Settings</div>
+      <div class="grid three">
+        <div class="field"><label><span class="tooltip">Min X (coords)<span class="tip-icon">?</span><span class="tip">Minimum X work coordinate for the 2D surface probe grid. Sets the left boundary of the probed area.</span></span></label><input type="number" id="fp-sm-minX" value="0" step="1"></div>
+        <div class="field"><label><span class="tooltip">Max X (coords)<span class="tip-icon">?</span><span class="tip">Maximum X work coordinate for the 2D surface probe grid. Sets the right boundary of the probed area.</span></span></label><input type="number" id="fp-sm-maxX" value="100" step="1"></div>
+        <div class="field"><label><span class="tooltip">Spacing X (coords)<span class="tip-icon">?</span><span class="tip">Distance between probe columns along the X axis. Smaller spacing gives more data points but increases run time.</span></span></label><input type="number" id="fp-sm-spacingX" value="20" step="1" min="1"></div>
+        <div class="field"><label><span class="tooltip">Min Y (coords)<span class="tip-icon">?</span><span class="tip">Minimum Y work coordinate for the 2D surface probe grid. Set equal to Max Y for single-row (linear) probing along X.</span></span></label><input type="number" id="fp-sm-minY" value="0" step="1"></div>
+        <div class="field"><label><span class="tooltip">Max Y (coords)<span class="tip-icon">?</span><span class="tip">Maximum Y work coordinate for the 2D surface probe grid. Set equal to Min Y for single-row (linear) probing along X.</span></span></label><input type="number" id="fp-sm-maxY" value="100" step="1"></div>
+        <div class="field"><label><span class="tooltip">Spacing Y (coords)<span class="tip-icon">?</span><span class="tip">Distance between probe rows along the Y axis. Smaller spacing gives more data points but increases run time.</span></span></label><input type="number" id="fp-sm-spacingY" value="20" step="1" min="1"></div>
+        <div class="field"><label><span class="tooltip">Probe Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for the Z probe descent at each grid point. Slower rates improve accuracy; faster rates speed up large grids.</span></span></label><input type="number" id="fp-sm-probeFeed" value="100" step="10" min="1"></div>
+        <div class="field"><label><span class="tooltip">Travel Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for XY moves between grid probe points. Can be much faster than the probe feed.</span></span></label><input type="number" id="fp-sm-travelFeed" value="2000" step="100" min="1"></div>
+        <div class="field"><label><span class="tooltip">Clearance Z (coords)<span class="tip-icon">?</span><span class="tip">Z height above the reference Z to raise to before each XY travel move. Must be enough to clear any surface features.</span></span></label><input type="number" id="fp-sm-clearanceZ" value="5" step="0.5" min="0.5"></div>
+        <div class="field"><label><span class="tooltip">Max Plunge (coords)<span class="tip-icon">?</span><span class="tip">Maximum Z distance to probe downward from the clearance height. Safety limit to prevent over-travel if the surface is missing.</span></span></label><input type="number" id="fp-sm-maxPlunge" value="20" step="1" min="1"></div>
+        <div class="field"><label><span class="tooltip">Reference Z (coords)<span class="tip-icon">?</span><span class="tip">Work Z coordinate used as the zero reference for surface compensation. Typically 0 (the programmed cutting depth).</span></span></label><input type="number" id="fp-sm-referenceZ" value="0" step="0.1"></div>
+      </div>
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn ghost" id="fp-sm-btn-save-settings" onclick="flashButton(this);fpSmSaveSettings()">&#128190; Save Surface Probe Settings</button>
+      </div>
+    </div>
+
   </div><!-- /face-config-section -->
 
   <!-- ── Probing Control ────────────────────────────────────────────── -->
