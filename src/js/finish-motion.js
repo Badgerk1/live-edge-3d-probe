@@ -1,5 +1,5 @@
 function smSaveSettings() {
-  var ids = ['sm-minX','sm-maxX','sm-spacingX','sm-minY','sm-maxY','sm-spacingY',
+  var ids = ['sm-minX','sm-maxX','sm-pointsX','sm-minY','sm-maxY','sm-pointsY',
              'sm-probeFeed','sm-travelFeed','sm-clearanceZ','sm-maxPlunge','sm-referenceZ'];
   var data = {};
   ids.forEach(function(id) {
@@ -1144,7 +1144,7 @@ function bindProbeDimensionUI(){
 
   // Grid size display updates
   try {
-    ['sm-minX','sm-maxX','sm-spacingX','sm-minY','sm-maxY','sm-spacingY'].forEach(function(id) {
+    ['sm-minX','sm-maxX','sm-pointsX','sm-minY','sm-maxY','sm-pointsY'].forEach(function(id) {
       document.getElementById(id).addEventListener('input', updateSurfaceGridSizeDisplay);
     });
     updateSurfaceGridSizeDisplay();

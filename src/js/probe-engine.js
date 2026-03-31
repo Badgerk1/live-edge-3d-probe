@@ -184,17 +184,17 @@ var _smPvizSeqLastTime = 0;
 function buildSurfaceGridConfig() {
   var minX = Number(document.getElementById('sm-minX').value);
   var maxX = Number(document.getElementById('sm-maxX').value);
-  var spacingX = Number(document.getElementById('sm-spacingX').value);
+  var colCount = Number(document.getElementById('sm-pointsX').value);
   var minY = Number(document.getElementById('sm-minY').value);
   var maxY = Number(document.getElementById('sm-maxY').value);
-  var spacingY = Number(document.getElementById('sm-spacingY').value);
-  if (minX >= maxX || minY >= maxY || spacingX <= 0 || spacingY <= 0) {
-    alert('Invalid grid settings: Min must be less than Max, spacing must be > 0');
+  var rowCount = Number(document.getElementById('sm-pointsY').value);
+  if (minX >= maxX || minY >= maxY || colCount < 2 || rowCount < 2) {
+    alert('Invalid grid settings: Min must be less than Max, points must be >= 2');
     return null;
   }
-  var colCount = Math.floor((maxX - minX) / spacingX) + 1;
-  var rowCount = Math.floor((maxY - minY) / spacingY) + 1;
-  return { minX: minX, maxX: maxX, colSpacing: spacingX, minY: minY, maxY: maxY, rowSpacing: spacingY, colCount: colCount, rowCount: rowCount };
+  var colSpacing = (maxX - minX) / (colCount - 1);
+  var rowSpacing = (maxY - minY) / (rowCount - 1);
+  return { minX: minX, maxX: maxX, colSpacing: colSpacing, minY: minY, maxY: maxY, rowSpacing: rowSpacing, colCount: colCount, rowCount: rowCount };
 }
 
 function updateSurfaceGridSizeDisplay() {
@@ -202,23 +202,21 @@ function updateSurfaceGridSizeDisplay() {
   if (!el) return;
   var vMinX = document.getElementById('sm-minX').value;
   var vMaxX = document.getElementById('sm-maxX').value;
-  var vSpacingX = document.getElementById('sm-spacingX').value;
+  var vPointsX = document.getElementById('sm-pointsX').value;
   var vMinY = document.getElementById('sm-minY').value;
   var vMaxY = document.getElementById('sm-maxY').value;
-  var vSpacingY = document.getElementById('sm-spacingY').value;
-  if (vMinX === '' || vMaxX === '' || vSpacingX === '' || vMinY === '' || vMaxY === '' || vSpacingY === '') {
+  var vPointsY = document.getElementById('sm-pointsY').value;
+  if (vMinX === '' || vMaxX === '' || vPointsX === '' || vMinY === '' || vMaxY === '' || vPointsY === '') {
     el.innerHTML = '&mdash;';
     return;
   }
-  var minX = Number(vMinX), maxX = Number(vMaxX), spacingX = Number(vSpacingX);
-  var minY = Number(vMinY), maxY = Number(vMaxY), spacingY = Number(vSpacingY);
-  if (isNaN(minX) || isNaN(maxX) || isNaN(spacingX) || isNaN(minY) || isNaN(maxY) || isNaN(spacingY) ||
-      minX >= maxX || minY >= maxY || spacingX <= 0 || spacingY <= 0) {
+  var minX = Number(vMinX), maxX = Number(vMaxX), colCount = Number(vPointsX);
+  var minY = Number(vMinY), maxY = Number(vMaxY), rowCount = Number(vPointsY);
+  if (isNaN(minX) || isNaN(maxX) || isNaN(colCount) || isNaN(minY) || isNaN(maxY) || isNaN(rowCount) ||
+      minX >= maxX || minY >= maxY || colCount < 2 || rowCount < 2) {
     el.innerHTML = '&mdash;';
     return;
   }
-  var colCount = Math.floor((maxX - minX) / spacingX) + 1;
-  var rowCount = Math.floor((maxY - minY) / spacingY) + 1;
   el.innerHTML = colCount + ' &times; ' + rowCount + ' = ' + (colCount * rowCount) + ' points';
 }
 

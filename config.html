@@ -629,10 +629,10 @@
       <div class="grid three">
         <div class="field"><label><span class="tooltip">Min X (coords)<span class="tip-icon">?</span><span class="tip">Minimum X work coordinate for the 2D surface probe grid. Sets the left boundary of the probed area.</span></span></label><input type="number" id="sm-minX" value="0" step="1"></div>
         <div class="field"><label><span class="tooltip">Max X (coords)<span class="tip-icon">?</span><span class="tip">Maximum X work coordinate for the 2D surface probe grid. Sets the right boundary of the probed area.</span></span></label><input type="number" id="sm-maxX" value="100" step="1"></div>
-        <div class="field"><label><span class="tooltip">Spacing X (coords)<span class="tip-icon">?</span><span class="tip">Distance between probe columns along the X axis. Smaller spacing gives more data points but increases run time.</span></span></label><input type="number" id="sm-spacingX" value="20" step="1" min="1"></div>
+        <div class="field"><label><span class="tooltip">Points X<span class="tip-icon">?</span><span class="tip">Number of probe columns along the X axis. Higher values give more data points but increase run time.</span></span></label><input type="number" id="sm-pointsX" value="2" step="1" min="2"></div>
         <div class="field"><label><span class="tooltip">Min Y (coords)<span class="tip-icon">?</span><span class="tip">Minimum Y work coordinate for the 2D surface probe grid. Set equal to Max Y for single-row (linear) probing along X.</span></span></label><input type="number" id="sm-minY" value="0" step="1"></div>
         <div class="field"><label><span class="tooltip">Max Y (coords)<span class="tip-icon">?</span><span class="tip">Maximum Y work coordinate for the 2D surface probe grid. Set equal to Min Y for single-row (linear) probing along X.</span></span></label><input type="number" id="sm-maxY" value="100" step="1"></div>
-        <div class="field"><label><span class="tooltip">Spacing Y (coords)<span class="tip-icon">?</span><span class="tip">Distance between probe rows along the Y axis. Smaller spacing gives more data points but increases run time.</span></span></label><input type="number" id="sm-spacingY" value="20" step="1" min="1"></div>
+        <div class="field"><label><span class="tooltip">Points Y<span class="tip-icon">?</span><span class="tip">Number of probe rows along the Y axis. Higher values give more data points but increase run time.</span></span></label><input type="number" id="sm-pointsY" value="2" step="1" min="2"></div>
       </div>
       <div style="margin-top:8px;display:inline-block;padding:6px 10px;border-radius:5px;background:var(--panel2);border:1px solid var(--line);color:var(--accent2);font-size:13px;font-weight:600" id="sm-gridSizeDisplay">6 &times; 6 = 36 points</div>
       <div class="mini" style="color:var(--muted);margin-top:6px">&#128161; Set Min Y = Max Y = 0 for single-row (linear) probing along X axis</div>
@@ -2170,17 +2170,17 @@ var _smPvizSeqLastTime = 0;
 function buildSurfaceGridConfig() {
   var minX = Number(document.getElementById('sm-minX').value);
   var maxX = Number(document.getElementById('sm-maxX').value);
-  var spacingX = Number(document.getElementById('sm-spacingX').value);
+  var colCount = Number(document.getElementById('sm-pointsX').value);
   var minY = Number(document.getElementById('sm-minY').value);
   var maxY = Number(document.getElementById('sm-maxY').value);
-  var spacingY = Number(document.getElementById('sm-spacingY').value);
-  if (minX >= maxX || minY >= maxY || spacingX <= 0 || spacingY <= 0) {
-    alert('Invalid grid settings: Min must be less than Max, spacing must be > 0');
+  var rowCount = Number(document.getElementById('sm-pointsY').value);
+  if (minX >= maxX || minY >= maxY || colCount < 2 || rowCount < 2) {
+    alert('Invalid grid settings: Min must be less than Max, points must be >= 2');
     return null;
   }
-  var colCount = Math.floor((maxX - minX) / spacingX) + 1;
-  var rowCount = Math.floor((maxY - minY) / spacingY) + 1;
-  return { minX: minX, maxX: maxX, colSpacing: spacingX, minY: minY, maxY: maxY, rowSpacing: spacingY, colCount: colCount, rowCount: rowCount };
+  var colSpacing = (maxX - minX) / (colCount - 1);
+  var rowSpacing = (maxY - minY) / (rowCount - 1);
+  return { minX: minX, maxX: maxX, colSpacing: colSpacing, minY: minY, maxY: maxY, rowSpacing: rowSpacing, colCount: colCount, rowCount: rowCount };
 }
 
 function updateSurfaceGridSizeDisplay() {
@@ -2188,23 +2188,21 @@ function updateSurfaceGridSizeDisplay() {
   if (!el) return;
   var vMinX = document.getElementById('sm-minX').value;
   var vMaxX = document.getElementById('sm-maxX').value;
-  var vSpacingX = document.getElementById('sm-spacingX').value;
+  var vPointsX = document.getElementById('sm-pointsX').value;
   var vMinY = document.getElementById('sm-minY').value;
   var vMaxY = document.getElementById('sm-maxY').value;
-  var vSpacingY = document.getElementById('sm-spacingY').value;
-  if (vMinX === '' || vMaxX === '' || vSpacingX === '' || vMinY === '' || vMaxY === '' || vSpacingY === '') {
+  var vPointsY = document.getElementById('sm-pointsY').value;
+  if (vMinX === '' || vMaxX === '' || vPointsX === '' || vMinY === '' || vMaxY === '' || vPointsY === '') {
     el.innerHTML = '&mdash;';
     return;
   }
-  var minX = Number(vMinX), maxX = Number(vMaxX), spacingX = Number(vSpacingX);
-  var minY = Number(vMinY), maxY = Number(vMaxY), spacingY = Number(vSpacingY);
-  if (isNaN(minX) || isNaN(maxX) || isNaN(spacingX) || isNaN(minY) || isNaN(maxY) || isNaN(spacingY) ||
-      minX >= maxX || minY >= maxY || spacingX <= 0 || spacingY <= 0) {
+  var minX = Number(vMinX), maxX = Number(vMaxX), colCount = Number(vPointsX);
+  var minY = Number(vMinY), maxY = Number(vMaxY), rowCount = Number(vPointsY);
+  if (isNaN(minX) || isNaN(maxX) || isNaN(colCount) || isNaN(minY) || isNaN(maxY) || isNaN(rowCount) ||
+      minX >= maxX || minY >= maxY || colCount < 2 || rowCount < 2) {
     el.innerHTML = '&mdash;';
     return;
   }
-  var colCount = Math.floor((maxX - minX) / spacingX) + 1;
-  var rowCount = Math.floor((maxY - minY) / spacingY) + 1;
   el.innerHTML = colCount + ' &times; ' + rowCount + ' = ' + (colCount * rowCount) + ' points';
 }
 
@@ -6129,7 +6127,7 @@ async function runFaceProbe(axis, _calledFromCombined){
 
 // ── Mesh Data Management ──────────────────────────────────────────────────────
 function smSaveSettings() {
-  var ids = ['sm-minX','sm-maxX','sm-spacingX','sm-minY','sm-maxY','sm-spacingY',
+  var ids = ['sm-minX','sm-maxX','sm-pointsX','sm-minY','sm-maxY','sm-pointsY',
              'sm-probeFeed','sm-travelFeed','sm-clearanceZ','sm-maxPlunge','sm-referenceZ'];
   var data = {};
   ids.forEach(function(id) {
@@ -7274,7 +7272,7 @@ function bindProbeDimensionUI(){
 
   // Grid size display updates
   try {
-    ['sm-minX','sm-maxX','sm-spacingX','sm-minY','sm-maxY','sm-spacingY'].forEach(function(id) {
+    ['sm-minX','sm-maxX','sm-pointsX','sm-minY','sm-maxY','sm-pointsY'].forEach(function(id) {
       document.getElementById(id).addEventListener('input', updateSurfaceGridSizeDisplay);
     });
     updateSurfaceGridSizeDisplay();
