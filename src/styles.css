@@ -93,6 +93,8 @@
     #surface-edge-mesh-root .jog-btn.disabled,#surface-edge-mesh-root .jog-btn:disabled{opacity:.5;cursor:not-allowed}
     #surface-edge-mesh-root .btn.btn-flash{animation:btnFlash .35s ease}
     @keyframes btnFlash{0%{box-shadow:0 0 0 rgba(115,216,95,0)}30%{box-shadow:0 0 14px rgba(115,216,95,0.6)}100%{box-shadow:0 0 0 rgba(115,216,95,0)}}
+    #surface-edge-mesh-root .btn.btn-save-confirm,#surface-edge-mesh-root .btn.ghost.btn-save-confirm{background:linear-gradient(180deg,#2a7d4f,#1d5c38) !important;border-color:#5fdb8d !important;color:#e8fdf0 !important;transition:background .3s ease,border-color .3s ease,color .3s ease}
+    #surface-edge-mesh-root .btn{transition:background .3s ease,border-color .3s ease,color .3s ease}
     #surface-edge-mesh-root .jog-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
     #surface-edge-mesh-root .jog-meta .field input{padding:9px 10px}
     #surface-edge-mesh-root .jog-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}

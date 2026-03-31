@@ -436,6 +436,20 @@ function flashButton(btn) {
   setTimeout(function() { btn.classList.remove('btn-flash'); }, 400);
 }
 
+// ── Animated save-confirm helper ──────────────────────────────────────────────
+function flashSaveButton(btn) {
+  if (!btn) return;
+  var origHTML = btn.innerHTML;
+  btn.classList.remove('btn-save-confirm');
+  void btn.offsetWidth;
+  btn.innerHTML = '\u2713 Saved!';
+  btn.classList.add('btn-save-confirm');
+  setTimeout(function() {
+    btn.classList.remove('btn-save-confirm');
+    setTimeout(function() { btn.innerHTML = origHTML; }, 300);
+  }, 1800);
+}
+
 async function jogToWorkZero(){
   var jog = getJogSettingsFromUI();
   await moveAbs(0, 0, null, jog.feedXY || 600);
@@ -4874,13 +4888,6 @@ function smSaveSettings() {
     console.warn('[smSaveSettings] Failed to save settings:', e);
     return;
   }
-  var btn = document.getElementById('sm-btn-save-settings');
-  if (btn) {
-    var orig = btn.textContent;
-    btn.textContent = '\u2713 Saved!';
-    btn.style.color = 'var(--accent2)';
-    setTimeout(function() { btn.textContent = orig; btn.style.color = ''; }, 1500);
-  }
 }
 
 function fpSmSaveSettings() {
@@ -4893,13 +4900,6 @@ function fpSmSaveSettings() {
   });
   smSaveSettings();
   try { updateSurfaceGridSizeDisplay(); } catch(e) {}
-  var fpBtn = document.getElementById('fp-sm-btn-save-settings');
-  if (fpBtn) {
-    var orig = fpBtn.textContent;
-    fpBtn.textContent = '\u2713 Saved!';
-    fpBtn.style.color = 'var(--accent2)';
-    setTimeout(function() { fpBtn.textContent = orig; fpBtn.style.color = ''; }, 1500);
-  }
 }
 
 function smLoadSettings() {
@@ -4965,15 +4965,15 @@ function smLoadSettings() {
 
   // Setup buttons
   var btnSave = document.getElementById('btn-save-settings');
-  if(btnSave) btnSave.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-save-settings clicked'); saveSettings(); });
+  if(btnSave) btnSave.addEventListener('click', function(){ flashSaveButton(this); pluginDebug('btn-save-settings clicked'); saveSettings(); });
   var btnLoad = document.getElementById('btn-load-settings');
   if(btnLoad) btnLoad.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-load-settings clicked'); loadSettings(); });
   var btnReset = document.getElementById('btn-reset-settings');
   if(btnReset) btnReset.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-reset-settings clicked'); resetSettings(); });
   var btnSaveProbeDims = document.getElementById('btn-save-probe-dims');
-  if(btnSaveProbeDims) btnSaveProbeDims.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-save-probe-dims clicked'); saveProbeDimensions(); });
+  if(btnSaveProbeDims) btnSaveProbeDims.addEventListener('click', function(){ flashSaveButton(this); pluginDebug('btn-save-probe-dims clicked'); saveProbeDimensions(); });
   var btnSaveLocation = document.getElementById('btn-save-location');
-  if(btnSaveLocation) btnSaveLocation.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-save-location clicked'); saveCurrentLocation(); });
+  if(btnSaveLocation) btnSaveLocation.addEventListener('click', function(){ flashSaveButton(this); pluginDebug('btn-save-location clicked'); saveCurrentLocation(); });
   var btnGoLocation = document.getElementById('btn-go-location');
   if(btnGoLocation) btnGoLocation.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-go-location clicked'); goToSavedLocation(); });
   var btnCheckHomed = document.getElementById('btn-check-homed');
@@ -5093,7 +5093,7 @@ function smLoadSettings() {
 
   // Actions / workflow buttons
   var btnSaveWf = document.getElementById('btn-save-workflow');
-  if(btnSaveWf) btnSaveWf.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-save-workflow clicked'); saveWorkflow(); });
+  if(btnSaveWf) btnSaveWf.addEventListener('click', function(){ flashSaveButton(this); pluginDebug('btn-save-workflow clicked'); saveWorkflow(); });
   var btnLoadWf = document.getElementById('btn-load-workflow');
   if(btnLoadWf) btnLoadWf.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-load-workflow clicked'); loadWorkflow(); });
   var btnExportWf = document.getElementById('btn-export-workflows');
@@ -5101,7 +5101,7 @@ function smLoadSettings() {
   var btnImportWf = document.getElementById('btn-import-workflows');
   if(btnImportWf) btnImportWf.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-import-workflows clicked'); importWorkflows(); });
   var btnSaveAllLogs = document.getElementById('btn-save-all-logs');
-  if(btnSaveAllLogs) btnSaveAllLogs.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-save-all-logs clicked'); saveAllLogs(); });
+  if(btnSaveAllLogs) btnSaveAllLogs.addEventListener('click', function(){ flashSaveButton(this); pluginDebug('btn-save-all-logs clicked'); saveAllLogs(); });
   var btnClearAll2 = document.getElementById('btn-clear-all-results-2');
   if(btnClearAll2) btnClearAll2.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-clear-all-results-2 clicked'); clearAllResults(); });
 
@@ -5121,11 +5121,11 @@ function smLoadSettings() {
 
   // Mesh Data Management buttons
   var btnSaveMeshFile = document.getElementById('btn-save-mesh-file');
-  if(btnSaveMeshFile) btnSaveMeshFile.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-save-mesh-file clicked'); saveMeshToFile(); });
+  if(btnSaveMeshFile) btnSaveMeshFile.addEventListener('click', function(){ flashSaveButton(this); pluginDebug('btn-save-mesh-file clicked'); saveMeshToFile(); });
   var btnLoadMeshFile = document.getElementById('btn-load-mesh-file');
   if(btnLoadMeshFile) btnLoadMeshFile.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-load-mesh-file clicked'); loadMeshFromFile(); });
   var btnSaveMeshStorage = document.getElementById('btn-save-mesh-storage');
-  if(btnSaveMeshStorage) btnSaveMeshStorage.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-save-mesh-storage clicked'); saveMeshToStorage(); });
+  if(btnSaveMeshStorage) btnSaveMeshStorage.addEventListener('click', function(){ flashSaveButton(this); pluginDebug('btn-save-mesh-storage clicked'); saveMeshToStorage(); });
   var btnLoadMeshStorage = document.getElementById('btn-load-mesh-storage');
   if(btnLoadMeshStorage) btnLoadMeshStorage.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-load-mesh-storage clicked'); loadMeshFromStorage(); });
   var btnClearMeshStorage = document.getElementById('btn-clear-mesh-storage');
@@ -5141,7 +5141,7 @@ function smLoadSettings() {
 
   // Face Probe Tab — Mesh Data Management buttons
   var faceBtnSaveMesh = document.getElementById('face-btn-save-mesh');
-  if (faceBtnSaveMesh) faceBtnSaveMesh.addEventListener('click', function(){ flashButton(this); pluginDebug('face-btn-save-mesh clicked'); saveFaceMeshData(); });
+  if (faceBtnSaveMesh) faceBtnSaveMesh.addEventListener('click', function(){ flashSaveButton(this); pluginDebug('face-btn-save-mesh clicked'); saveFaceMeshData(); });
   var faceBtnLoadMesh = document.getElementById('face-btn-load-mesh');
   if (faceBtnLoadMesh) faceBtnLoadMesh.addEventListener('click', function(){ flashButton(this); pluginDebug('face-btn-load-mesh clicked'); loadFaceMeshData(); });
   var faceBtnClearMesh = document.getElementById('face-btn-clear-mesh');
@@ -5983,18 +5983,18 @@ function bindProbeDimensionUI(){
 
   // Surface mesh buttons
   try {
-    document.getElementById('sm-btn-save-mesh').addEventListener('click', function(){ flashButton(this); pluginDebug('sm-btn-save-mesh clicked'); saveSurfaceMesh(); });
+    document.getElementById('sm-btn-save-mesh').addEventListener('click', function(){ flashSaveButton(this); pluginDebug('sm-btn-save-mesh clicked'); saveSurfaceMesh(); });
     document.getElementById('sm-btn-load-mesh').addEventListener('click', function(){ flashButton(this); pluginDebug('sm-btn-load-mesh clicked'); loadSurfaceMesh(); });
     document.getElementById('sm-btn-export-mesh').addEventListener('click', function(){ flashButton(this); pluginDebug('sm-btn-export-mesh clicked'); exportSurfaceMesh(); });
     document.getElementById('sm-btn-export-mesh-csv').addEventListener('click', function(){ flashButton(this); pluginDebug('sm-btn-export-mesh-csv clicked'); exportSurfaceMeshCSV(); });
     document.getElementById('sm-btn-import-mesh').addEventListener('click', function(){ flashButton(this); pluginDebug('sm-btn-import-mesh clicked'); importSurfaceMesh(); });
     document.getElementById('sm-btn-clear-mesh').addEventListener('click', function(){ flashButton(this); pluginDebug('sm-btn-clear-mesh clicked'); clearSurfaceMesh(); });
-    document.getElementById('sm-btn-save-replay-html').addEventListener('click', function(){ flashButton(this); pluginDebug('sm-btn-save-replay-html clicked'); smSaveReplayHtml(); });
+    document.getElementById('sm-btn-save-replay-html').addEventListener('click', function(){ flashSaveButton(this); pluginDebug('sm-btn-save-replay-html clicked'); smSaveReplayHtml(); });
   } catch(e){}
 
   // Combined mesh buttons
   try {
-    document.getElementById('comb-btn-save-mesh').addEventListener('click', function(){ flashButton(this); pluginDebug('comb-btn-save-mesh clicked'); saveCombinedMesh(); });
+    document.getElementById('comb-btn-save-mesh').addEventListener('click', function(){ flashSaveButton(this); pluginDebug('comb-btn-save-mesh clicked'); saveCombinedMesh(); });
     document.getElementById('comb-btn-export-csv').addEventListener('click', function(){ flashButton(this); pluginDebug('comb-btn-export-csv clicked'); exportCombinedMeshCSV(); });
     document.getElementById('comb-btn-export-json').addEventListener('click', function(){ flashButton(this); pluginDebug('comb-btn-export-json clicked'); exportCombinedMeshJSON(); });
     document.getElementById('comb-btn-clear-mesh').addEventListener('click', function(){ flashButton(this); pluginDebug('comb-btn-clear-mesh clicked'); clearCombinedMesh(); });
@@ -6002,14 +6002,14 @@ function bindProbeDimensionUI(){
 
   // Results tab Save 3D View button
   try {
-    document.getElementById('res-btn-save-3d').addEventListener('click', function(){ flashButton(this); save3DViewPNG(); });
+    document.getElementById('res-btn-save-3d').addEventListener('click', function(){ flashSaveButton(this); save3DViewPNG(); });
   } catch(e){}
 
   // Results tab Face 3D View — save and reset buttons
   try {
     var resfaceSaveBtn = document.getElementById('resface-btn-save-3d');
     if (resfaceSaveBtn) resfaceSaveBtn.addEventListener('click', function() {
-      flashButton(this);
+      flashSaveButton(this);
       var s = _threeState['resface'];
       if (s && s.renderer) {
         s.renderer.render(s.scene, s.camera);
