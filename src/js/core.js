@@ -679,8 +679,9 @@ async function moveMachineZAbs(z, feed){
   if(feed != null && isFinite(Number(feed))) cmd += ' F' + Number(feed).toFixed(0);
   pluginDebug('moveMachineZAbs: ' + cmd);
   await sendCommand(cmd);
-  await waitForIdleWithTimeout();
+  var pos = await waitForIdleWithTimeout();
   pluginDebug('moveMachineZAbs DONE: ' + cmd);
+  return pos;
 }
 
 // ── Settings helpers ──────────────────────────────────────────────────────────
