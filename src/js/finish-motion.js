@@ -1,7 +1,38 @@
+// ── getMaxMeasuredSurfaceZ: find the highest Z across all probe data sources ───
+//
+// Returns the maximum measured surface Z value from any available probe data:
+//   1. topResults — AUTO TOP-Z phase 0 (face probe) and standalone top probe results
+//   2. layeredFaceResults — face probe contacts (highest Z contacts are near-surface)
+//   3. faceResults — non-layered face probe contacts
+//
+// Returns null if no probe data is available.
+//
+function getMaxMeasuredSurfaceZ() {
+  var candidates = [];
+
+  // topResults: AUTO TOP-Z phase 0 (face probe) and standalone surface probe results
+  if (typeof topResults !== 'undefined' && Array.isArray(topResults) && topResults.length > 0) {
+    topResults.forEach(function(p) { if (p && isFinite(p.z)) candidates.push(p.z); });
+  }
+
+  // layeredFaceResults: face probe contacts — highest Z contacts are near-surface
+  if (typeof layeredFaceResults !== 'undefined' && Array.isArray(layeredFaceResults) && layeredFaceResults.length > 0) {
+    layeredFaceResults.forEach(function(p) { if (p && isFinite(p.z)) candidates.push(p.z); });
+  }
+
+  // faceResults: non-layered face probe contacts
+  if (typeof faceResults !== 'undefined' && Array.isArray(faceResults) && faceResults.length > 0) {
+    faceResults.forEach(function(p) { if (p && isFinite(p.z)) candidates.push(p.z); });
+  }
+
+  if (candidates.length === 0) return null;
+  return Math.max.apply(null, candidates);
+}
+
 // ── finishRunMotion: post-probe retract and home for all run modes ─────────────
 //
 // Called after every probe run (face, top, etc.) to:
-//   1. Raise Z to a safe travel height
+//   1. Raise Z to (maxSurfaceZ + clearanceOffset) above the highest measured surface point
 //   2. Optionally return X/Y to the origin (X0 Y0)
 //
 // Parameters:
@@ -10,18 +41,30 @@
 async function finishRunMotion(mode) {
   pluginDebug('finishRunMotion ENTER: mode=' + mode);
   var s = getSettingsFromUI();
-  var finishZ      = Number(s.finishHomeZ);
-  var returnXYZero = !!s.returnToXYZero;
-  var feed         = s.faceRetractFeed || s.travelFeedRate || 600;
+  var clearanceOffset = Number(s.finishHomeZ);
+  var returnXYZero    = !!s.returnToXYZero;
+  var feed            = s.faceRetractFeed || s.travelFeedRate || 600;
 
-  // Guard: if finishHomeZ is 0 or not a valid number, use a safe fallback and warn.
-  if (!isFinite(finishZ) || finishZ === 0) {
-    logLine(mode, 'Finish: WARNING — finishHomeZ is ' + finishZ + ' (unset or zero); using safe fallback of 10.0mm work Z.');
-    finishZ = 10.0;
+  // Guard: clearance offset must be a positive number.
+  if (!isFinite(clearanceOffset) || clearanceOffset <= 0) {
+    logLine(mode, 'Finish: WARNING — finishHomeZ clearance is ' + clearanceOffset + ' (invalid or non-positive); using safe fallback of 10.0mm clearance.');
+    clearanceOffset = 10.0;
   }
 
   var pos      = await getWorkPosition();
   var currentZ = Number(pos.z);
+
+  // Compute retract Z: highest measured surface + clearance offset.
+  // Fall back to currentZ + offset if no probe data is available.
+  var maxSurfaceZ = getMaxMeasuredSurfaceZ();
+  var finishZ;
+  if (maxSurfaceZ !== null) {
+    finishZ = maxSurfaceZ + clearanceOffset;
+    logLine(mode, 'Finish: highest measured surface Z=' + maxSurfaceZ.toFixed(3) + 'mm, clearance offset=' + clearanceOffset.toFixed(1) + 'mm → retracting to work Z ' + finishZ.toFixed(3));
+  } else {
+    finishZ = currentZ + clearanceOffset;
+    logLine(mode, 'Finish: no surface data available — retracting ' + clearanceOffset.toFixed(1) + 'mm above current Z=' + currentZ.toFixed(3) + ' → work Z ' + finishZ.toFixed(3));
+  }
 
   // Z retract — always use work coordinates (G0 Z{finishZ}), never G53 machine coords.
   // Only move if finishZ is actually higher than the current position.
@@ -30,7 +73,6 @@ async function finishRunMotion(mode) {
     logLine(mode, 'Finish: current work Z ' + currentZ.toFixed(3) + ' is already at or above target work Z ' + finishZ.toFixed(3) + '; no Z retract needed');
     zRetractOk = true;
   } else {
-    logLine(mode, 'Finish: retracting to work Z ' + finishZ.toFixed(3));
     await moveAbs(null, null, finishZ, feed);
     var retractPos = await getWorkPosition();
     logLine(mode, 'Finish: after retract X=' + retractPos.x.toFixed(3) + ' Y=' + retractPos.y.toFixed(3) + ' Z=' + retractPos.z.toFixed(3));
