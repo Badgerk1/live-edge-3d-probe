@@ -4883,6 +4883,25 @@ function smSaveSettings() {
   }
 }
 
+function fpSmSaveSettings() {
+  var ids = ['sm-minX','sm-maxX','sm-spacingX','sm-minY','sm-maxY','sm-spacingY',
+             'sm-probeFeed','sm-travelFeed','sm-clearanceZ','sm-maxPlunge','sm-referenceZ'];
+  ids.forEach(function(id) {
+    var fpEl = document.getElementById('fp-' + id);
+    var smEl = document.getElementById(id);
+    if (fpEl && smEl) smEl.value = fpEl.value;
+  });
+  smSaveSettings();
+  try { updateSurfaceGridSizeDisplay(); } catch(e) {}
+  var fpBtn = document.getElementById('fp-sm-btn-save-settings');
+  if (fpBtn) {
+    var orig = fpBtn.textContent;
+    fpBtn.textContent = '\u2713 Saved!';
+    fpBtn.style.color = 'var(--accent2)';
+    setTimeout(function() { fpBtn.textContent = orig; fpBtn.style.color = ''; }, 1500);
+  }
+}
+
 function smLoadSettings() {
   var raw;
   try { raw = localStorage.getItem(SM_SURFACE_GRID_SETTINGS_KEY); } catch(e) { return; }
@@ -4893,6 +4912,8 @@ function smLoadSettings() {
   Object.keys(data).forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.value = data[id];
+    var fpEl = document.getElementById('fp-' + id);
+    if (fpEl) fpEl.value = data[id];
   });
   try { updateSurfaceGridSizeDisplay(); } catch(e) { console.warn('[smLoadSettings] updateSurfaceGridSizeDisplay error:', e); }
 }
