@@ -1801,7 +1801,16 @@ function renderReliefMap(canvasId, tooltipId, points, cfg) {
 
 function renderSurfaceReliefMap() {
   var grid = smMeshData, cfg = smGridConfig;
-  if (!grid || !cfg || cfg.rowCount < 2 || cfg.colCount < 2) return;
+  if (!grid || !cfg || cfg.rowCount < 2 || cfg.colCount < 2) {
+    // No data — blank all surface relief canvases
+    ['surface-relief-canvas', 'sm-surface-relief-canvas', 'res-surface-relief-canvas'].forEach(function(id) {
+      var c = document.getElementById(id);
+      if (c) { c.width = c.width; }
+      var t = document.getElementById(id.replace('-canvas', '-tooltip'));
+      if (t) t.textContent = 'Hover over map for values';
+    });
+    return;
+  }
   var points = [];
   var zMin = Infinity, zMax = -Infinity;
   for (var ri = 0; ri < cfg.rowCount; ri++) {
@@ -1831,7 +1840,16 @@ function renderSurfaceReliefMap() {
 
 function renderFaceReliefMap() {
   var data = getFaceMeshData();
-  if (!data || data.length < 4) return;
+  if (!data || data.length < 4) {
+    // No data — blank all face relief canvases
+    ['face-relief-canvas', 'res-face-relief-canvas', 'surf-face-relief-canvas'].forEach(function(id) {
+      var c = document.getElementById(id);
+      if (c) { c.width = c.width; }
+      var t = document.getElementById(id.replace('-canvas', '-tooltip'));
+      if (t) t.textContent = 'Hover over map for values';
+    });
+    return;
+  }
 
   // Face probe Z depths (layerZ) are computed per-sample from sampleTopZ, so they
   // differ slightly between X positions for the same layer number.  Using actual Z
@@ -3541,6 +3559,24 @@ function clearSurfaceMesh() {
   updateSurfaceMeshUI();
   var clearEl = document.getElementById('sm-meshStorageStatus');
   if (clearEl) clearEl.textContent = 'Mesh cleared.';
+}
+
+// ── Clear relief-map canvases visual display ──────────────────────────────────
+// canvasIds: array of canvas element IDs to blank.
+// clearRelief3D: when true also disposes the Three.js 3D terrain scene.
+function clearReliefCanvasPanel(canvasIds, clearRelief3D) {
+  (canvasIds || []).forEach(function(id) {
+    var c = document.getElementById(id);
+    if (c) { c.width = c.width; } // resets canvas content to blank
+    var tid = id.replace('-canvas', '-tooltip');
+    var t = document.getElementById(tid);
+    if (t) t.textContent = 'Hover over map for values';
+  });
+  if (clearRelief3D) {
+    try { _threeDispose('relief'); } catch(e) {}
+    var surface = document.getElementById('relief-3d-surface');
+    if (surface) surface.innerHTML = '';
+  }
 }
 
 function updateSurfaceMeshUI() {

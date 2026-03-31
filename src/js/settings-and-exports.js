@@ -349,8 +349,15 @@ function clearAllResults() {
   topResults        = [];
   faceResults       = [];
   layeredFaceResults = [];
+  // Also clear surface mesh data so the Probe Data table and relief maps blank out
+  smMeshData   = null;
+  smGridConfig = null;
   clearPersistedProbeResults();
   updateAllResultsUI();
+  // Re-render relief maps (now with no data they will blank the canvases)
+  try { renderSurfaceReliefMap(); } catch(e) {}
+  try { renderFaceReliefMap(); }    catch(e) {}
+  try { updateSurfaceMeshUI(); }    catch(e) {}
   setFooterStatus('All probe results cleared.', 'good');
 }
 // ── Export results as unified CSV ─────────────────────────────────────────────
