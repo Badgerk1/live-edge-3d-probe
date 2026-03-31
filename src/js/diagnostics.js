@@ -111,7 +111,7 @@ var FUNCTIONS_TO_CHECK = [
   'exportSurfaceMesh', 'loadSurfaceMesh', 'saveSurfaceMesh', 'clearSurfaceMesh',
   'exportCombinedMeshCSV', 'exportCombinedMeshJSON',
   'saveCombinedMesh', 'clearCombinedMesh',
-  'switchTab', 'flashButton',
+  'switchTab', 'flashButton', 'flashSaveButton',
   'getSettingsFromUI',
   'setFooterStatus',
   'logLine',
