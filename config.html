@@ -1232,7 +1232,10 @@
       </div>
 
       <div class="panel" id="combined-mesh-data-panel" style="display:none">
-        <div class="box-title">Combined Mesh Point Data</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <div class="box-title" style="margin-bottom:0">Combined Mesh Point Data</div>
+          <button class="btn warn" id="comb-data-btn-clear" style="padding:4px 12px;font-size:12px">&#128465; Clear</button>
+        </div>
         <div class="callout mini" style="margin-bottom:8px">All probe points from both Surface and Face probes. Source column shows which probe captured each point.</div>
         <div style="max-height:280px;overflow-y:auto;border:1px solid var(--line);border-radius:10px">
           <table>
@@ -7426,6 +7429,8 @@ function bindProbeDimensionUI(){
     document.getElementById('comb-btn-export-csv').addEventListener('click', function(){ flashButton(this); pluginDebug('comb-btn-export-csv clicked'); exportCombinedMeshCSV(); });
     document.getElementById('comb-btn-export-json').addEventListener('click', function(){ flashButton(this); pluginDebug('comb-btn-export-json clicked'); exportCombinedMeshJSON(); });
     document.getElementById('comb-btn-clear-mesh').addEventListener('click', function(){ flashButton(this); pluginDebug('comb-btn-clear-mesh clicked'); clearCombinedMesh(); });
+    var combDataClearBtn = document.getElementById('comb-data-btn-clear');
+    if (combDataClearBtn) combDataClearBtn.addEventListener('click', function(){ flashButton(this); pluginDebug('comb-data-btn-clear clicked'); clearCombinedMesh(); smLogProbe('Combined results cleared.'); });
   } catch(e){}
 
   // Results tab Save 3D View button
