@@ -20,6 +20,7 @@ cat src/config-header.html \
     src/js/top-probe.js \
     src/js/face-probe.js \
     src/js/finish-motion.js \
+    src/js/diagnostics.js \
     src/config-footer.html \
     > config.html
 
