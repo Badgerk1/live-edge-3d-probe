@@ -202,7 +202,6 @@ function setFooterStatus(msg, cls){
 // ── Stop ──────────────────────────────────────────────────────────────────────
 function stopAll(){
   _stopRequested = true;
-  smStopFlag = true;
   setFooterStatus('Stop requested — halting after current move…', 'warn');
 }
 
@@ -395,57 +394,6 @@ function getJogSettingsFromUI(){
     stepZ: Number(document.getElementById('jogStepZ').value) || 0,
     feedXY: Number(document.getElementById('jogFeedXY').value) || 600,
     feedZ: Number(document.getElementById('jogFeedZ').value) || 300
-  };
-}
-
-function getSettingsFromUI(){
-  function _val(id){ var el = document.getElementById(id); return el ? el.value : null; }
-  function _num(id, def){ var v = parseFloat(_val(id)); return isFinite(v) ? v : (def !== undefined ? def : 0); }
-  function _bool(id){ var v = _val(id); return v === 'yes' || v === 'true' || v === true; }
-  function _chk(id){ var el = document.getElementById(id); return el ? el.checked : false; }
-  function _str(id, def){ var v = _val(id); return (v != null && v !== '') ? v : (def !== undefined ? def : ''); }
-  return {
-    // Travel / recovery feeds
-    travelFeedRate:             _num('travelFeedRate', 600),
-    travelRecoveryFeedRate:     _num('travelRecoveryFeedRate', 1500),
-    travelRecoveryLiftFeedRate: _num('travelRecoveryLiftFeedRate', 1000),
-    travelContactLift:          _num('travelContactLift', 5),
-    travelContactStep:          _num('travelContactStep', 5),
-    travelContactBackoff:       _num('travelContactBackoff', 5),
-    travelContactMaxRetries:    _num('travelContactMaxRetries', 5),
-    // Finish motion
-    finishHomeZ:            _num('finishHomeZ', 10),
-    useMachineHomeRetract:  _bool('useMachineHomeRetract'),
-    machineSafeTopZ:        _num('machineSafeTopZ', 0),
-    returnToXYZero:         _bool('returnToXYZero'),
-    // Mesh subdivision
-    meshSubdivisionSpacing: _num('meshSubdivisionSpacing', 2),
-    // Top profile settings
-    sampleAxis:     _str('sampleAxis', 'X'),
-    topFixedCoord:  _num('topFixedCoord', 0),
-    topFeed:        _num('topFeed', 200),
-    topProbeDepth:  _num('topProbeDepth', 5),
-    topRetract:     _num('topRetract', 2),
-    topClearZ:      _num('topClearZ', 5),
-    // Face probe settings
-    faceStartOffset:        _num('faceStartOffset', -10),
-    faceFeed:               _num('faceFeed', 150),
-    faceRetractFeed:        _num('faceRetractFeed', 1000),
-    faceDepthBelowSurface:  _num('faceDepthBelowSurface', 2),
-    faceProbeDistance:      _num('faceProbeDistance', 20),
-    faceFixedCoord:         _num('faceFixedCoord', 0),
-    faceMaxDepth:           _num('faceMaxDepth', 14.75),
-    faceLayerCount:         _num('faceLayerCount', 3),
-    enableLayeredFace:      _chk('enableLayeredFace'),
-    // Probe dimensions
-    probeShankDiameter:         _val('probeShankDiameter'),
-    probeBodyDiameter:          _val('probeBodyDiameter'),
-    probeUpperHeight:           _val('probeUpperHeight'),
-    probeMainBodyHeight:        _val('probeMainBodyHeight'),
-    probeStylusLength:          _val('probeStylusLength'),
-    probeStylusCalloutLength:   _val('probeStylusCalloutLength'),
-    probeBallTipDiameter:       _val('probeBallTipDiameter'),
-    probeTotalLength:           _val('probeTotalLength')
   };
 }
 
@@ -680,9 +628,8 @@ async function moveMachineZAbs(z, feed){
   if(feed != null && isFinite(Number(feed))) cmd += ' F' + Number(feed).toFixed(0);
   pluginDebug('moveMachineZAbs: ' + cmd);
   await sendCommand(cmd);
-  var pos = await waitForIdleWithTimeout();
+  await waitForIdleWithTimeout();
   pluginDebug('moveMachineZAbs DONE: ' + cmd);
-  return pos;
 }
 
 // ── Settings helpers ──────────────────────────────────────────────────────────

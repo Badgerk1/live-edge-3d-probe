@@ -1,5 +1,5 @@
 function smSaveSettings() {
-  var ids = ['sm-minX','sm-maxX','sm-pointsX','sm-minY','sm-maxY','sm-pointsY',
+  var ids = ['sm-minX','sm-maxX','sm-spacingX','sm-minY','sm-maxY','sm-spacingY',
              'sm-probeFeed','sm-travelFeed','sm-clearanceZ','sm-maxPlunge','sm-referenceZ'];
   var data = {};
   ids.forEach(function(id) {
@@ -1144,7 +1144,7 @@ function bindProbeDimensionUI(){
 
   // Grid size display updates
   try {
-    ['sm-minX','sm-maxX','sm-pointsX','sm-minY','sm-maxY','sm-pointsY'].forEach(function(id) {
+    ['sm-minX','sm-maxX','sm-spacingX','sm-minY','sm-maxY','sm-spacingY'].forEach(function(id) {
       document.getElementById(id).addEventListener('input', updateSurfaceGridSizeDisplay);
     });
     updateSurfaceGridSizeDisplay();
@@ -1255,11 +1255,6 @@ function onProbeTypeChange() {
 
   // Auto-fill Bottom Z when switching into combined mode
   if (type === 'combined') _autoFillCombinedBottomZ();
-
-  // Clear stale progress/status from any previous probe mode
-  smSetProgress(0);
-  smSetProbeStatus('', '');
-  setFooterStatus('Ready', '');
 }
 
 function saveUnifiedProbeLog() {
@@ -1286,10 +1281,6 @@ function clearUnifiedProbeLog() {
 function startProbeByType() {
   var type = (document.getElementById('probe-type-select') || {}).value || '2d-surface';
   var axis = (document.getElementById('probe-face-axis-select') || {}).value || 'Y';
-  setFooterStatus('Starting...', 'warn');
-  smSetProgress(0);
-  _stopRequested = false;
-  smStopFlag = false;
   if (type === '2d-surface') {
     runSurfaceProbing();
   } else if (type === 'face') {
@@ -1303,7 +1294,6 @@ function startProbeByType() {
 
 async function runCombinedProbeMode(axis) {
   if (_running) { smLogProbe('COMBINED: cannot start — another probe operation is already running (_running=true).'); pluginDebug('runCombinedProbeMode SKIP: _running=true'); setFooterStatus('Already running', 'warn'); return; }
-  _running = true;
   axis = String(axis || 'Y').toUpperCase();
   // Reset stop flags so a previously-stopped run does not block this one.
   smStopFlag = false;
@@ -1335,9 +1325,6 @@ async function runCombinedProbeMode(axis) {
         resolve(!!success);
       };
       _smSkipFinishMotion = true; // Skip home detour in combined mode — go directly to Phase 1.5/face probe
-      // Temporarily reset _running so runSurfaceProbing() does not see it as true
-      // and bail out immediately — surface probe will set _running = true itself.
-      _running = false;
       runSurfaceProbing();
     });
     pluginDebug('runCombinedProbeMode: surface probe promise resolved, surfaceSuccess=' + surfaceSuccess);

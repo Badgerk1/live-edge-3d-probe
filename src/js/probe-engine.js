@@ -184,17 +184,17 @@ var _smPvizSeqLastTime = 0;
 function buildSurfaceGridConfig() {
   var minX = Number(document.getElementById('sm-minX').value);
   var maxX = Number(document.getElementById('sm-maxX').value);
-  var colCount = Number(document.getElementById('sm-pointsX').value);
+  var spacingX = Number(document.getElementById('sm-spacingX').value);
   var minY = Number(document.getElementById('sm-minY').value);
   var maxY = Number(document.getElementById('sm-maxY').value);
-  var rowCount = Number(document.getElementById('sm-pointsY').value);
-  if (minX >= maxX || minY >= maxY || colCount < 2 || rowCount < 2) {
-    alert('Invalid grid settings: Min must be less than Max, points must be >= 2');
+  var spacingY = Number(document.getElementById('sm-spacingY').value);
+  if (minX >= maxX || minY >= maxY || spacingX <= 0 || spacingY <= 0) {
+    alert('Invalid grid settings: Min must be less than Max, spacing must be > 0');
     return null;
   }
-  var colSpacing = (maxX - minX) / (colCount - 1);
-  var rowSpacing = (maxY - minY) / (rowCount - 1);
-  return { minX: minX, maxX: maxX, colSpacing: colSpacing, minY: minY, maxY: maxY, rowSpacing: rowSpacing, colCount: colCount, rowCount: rowCount };
+  var colCount = Math.floor((maxX - minX) / spacingX) + 1;
+  var rowCount = Math.floor((maxY - minY) / spacingY) + 1;
+  return { minX: minX, maxX: maxX, colSpacing: spacingX, minY: minY, maxY: maxY, rowSpacing: spacingY, colCount: colCount, rowCount: rowCount };
 }
 
 function updateSurfaceGridSizeDisplay() {
@@ -202,21 +202,23 @@ function updateSurfaceGridSizeDisplay() {
   if (!el) return;
   var vMinX = document.getElementById('sm-minX').value;
   var vMaxX = document.getElementById('sm-maxX').value;
-  var vPointsX = document.getElementById('sm-pointsX').value;
+  var vSpacingX = document.getElementById('sm-spacingX').value;
   var vMinY = document.getElementById('sm-minY').value;
   var vMaxY = document.getElementById('sm-maxY').value;
-  var vPointsY = document.getElementById('sm-pointsY').value;
-  if (vMinX === '' || vMaxX === '' || vPointsX === '' || vMinY === '' || vMaxY === '' || vPointsY === '') {
+  var vSpacingY = document.getElementById('sm-spacingY').value;
+  if (vMinX === '' || vMaxX === '' || vSpacingX === '' || vMinY === '' || vMaxY === '' || vSpacingY === '') {
     el.innerHTML = '&mdash;';
     return;
   }
-  var minX = Number(vMinX), maxX = Number(vMaxX), colCount = Number(vPointsX);
-  var minY = Number(vMinY), maxY = Number(vMaxY), rowCount = Number(vPointsY);
-  if (isNaN(minX) || isNaN(maxX) || isNaN(colCount) || isNaN(minY) || isNaN(maxY) || isNaN(rowCount) ||
-      minX >= maxX || minY >= maxY || colCount < 2 || rowCount < 2) {
+  var minX = Number(vMinX), maxX = Number(vMaxX), spacingX = Number(vSpacingX);
+  var minY = Number(vMinY), maxY = Number(vMaxY), spacingY = Number(vSpacingY);
+  if (isNaN(minX) || isNaN(maxX) || isNaN(spacingX) || isNaN(minY) || isNaN(maxY) || isNaN(spacingY) ||
+      minX >= maxX || minY >= maxY || spacingX <= 0 || spacingY <= 0) {
     el.innerHTML = '&mdash;';
     return;
   }
+  var colCount = Math.floor((maxX - minX) / spacingX) + 1;
+  var rowCount = Math.floor((maxY - minY) / spacingY) + 1;
   el.innerHTML = colCount + ' &times; ' + rowCount + ' = ' + (colCount * rowCount) + ' points';
 }
 
@@ -478,13 +480,12 @@ async function smFinishMotion(travelFeed) {
         smLogProbe('Finish move: current machine Z ' + currentMachineZ.toFixed(3) + ' is already at or above target ' + machineSafeTopZ.toFixed(3) + '; skipping G53 retract');
       } else {
         smLogProbe('Finish move: machine is homed; retracting with G53 to machine Z ' + machineSafeTopZ.toFixed(3) + ' before X/Y travel');
-        var retractPos;
         try {
-          retractPos = await moveMachineZAbs(machineSafeTopZ, feed);
+          await moveMachineZAbs(machineSafeTopZ, feed);
         } catch(retractErr) {
           smLogProbe('Finish move: G53 retract error (' + retractErr.message + '); continuing with return');
         }
-        if (!retractPos) retractPos = await getWorkPosition();
+        var retractPos = await getWorkPosition();
         smLogProbe('DEBUG POSITION: after finish retract X=' + retractPos.x.toFixed(3) + ' Y=' + retractPos.y.toFixed(3) + ' Z=' + retractPos.z.toFixed(3));
       }
     } else {
@@ -493,8 +494,8 @@ async function smFinishMotion(travelFeed) {
         smLogProbe('Finish move: current work Z ' + currentZ.toFixed(3) + ' is already above fallback target ' + finishZ.toFixed(3) + '; keeping current Z for safe X/Y return');
       } else {
         smLogProbe('Finish move: lifting work Z to fallback ' + safeTravelZ.toFixed(3));
-        var retractPos = await moveAbs(null, null, safeTravelZ, feed);
-        if (!retractPos) retractPos = await getWorkPosition();
+        await moveAbs(null, null, safeTravelZ, feed);
+        var retractPos = await getWorkPosition();
         smLogProbe('DEBUG POSITION: after finish retract X=' + retractPos.x.toFixed(3) + ' Y=' + retractPos.y.toFixed(3) + ' Z=' + retractPos.z.toFixed(3));
       }
     }
@@ -503,26 +504,19 @@ async function smFinishMotion(travelFeed) {
       smLogProbe('Finish move: current work Z ' + currentZ.toFixed(3) + ' is already above target ' + finishZ.toFixed(3) + '; keeping current Z for safe X/Y return');
     } else {
       smLogProbe('Finish move: lifting work Z to ' + safeTravelZ.toFixed(3));
-      var retractPos = await moveAbs(null, null, safeTravelZ, feed);
-      if (!retractPos) retractPos = await getWorkPosition();
+      await moveAbs(null, null, safeTravelZ, feed);
+      var retractPos = await getWorkPosition();
       smLogProbe('DEBUG POSITION: after finish retract X=' + retractPos.x.toFixed(3) + ' Y=' + retractPos.y.toFixed(3) + ' Z=' + retractPos.z.toFixed(3));
     }
   }
 
   if (returnXYZero) {
     smLogProbe('Finish move: returning to work X0.000 Y0.000');
-    var returnPos = await moveAbs(0, 0, null, feed);
-    if (!returnPos) returnPos = await getWorkPosition();
+    await moveAbs(0, 0, null, feed);
+    var returnPos = await getWorkPosition();
     smLogProbe('DEBUG POSITION: after finish return X=' + returnPos.x.toFixed(3) + ' Y=' + returnPos.y.toFixed(3) + ' Z=' + returnPos.z.toFixed(3));
   } else {
     smLogProbe('Finish move: X/Y return disabled');
   }
-}
-
-async function finishRunMotion(tab) {
-  var s = getSettingsFromUI();
-  var feed = Number(s.travelFeedRate) || 600;
-  logLine(tab, 'Finish motion: retracting Z and returning to start position...');
-  await smFinishMotion(feed);
 }
 
