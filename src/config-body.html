@@ -1,0 +1,1130 @@
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+<div class="app" id="surface-edge-mesh-root">
+
+  <!-- ── HEADER ─────────────────────────────────────────────────────────── -->
+  <div class="header">
+    <div class="brand">
+      <img src="live_edge_icon_small.png" alt="Live edge wood slab with bark">
+      <div class="brand-copy">
+        <div class="title">3D Live Edge Mesh Combined</div>
+        <div class="subtitle" id="sm-version-subtitle"><span id="sm-version-tag">V21.0</span> &middot; Surface &amp; Face probe &middot; Unified 3D visualizer &middot; 2D bilinear Z compensation &middot; Move subdivision</div>
+      </div>
+    </div>
+    <div id="hdr-conn" class="mini" style="color:var(--muted)">Ready</div>
+  </div>
+
+  <!-- ── TABS ───────────────────────────────────────────────────────────── -->
+  <div class="tabs">
+    <button class="tab active" data-tab="setup" onclick="switchTab('setup')">&#9881; Setup</button>
+    <button class="tab" data-tab="top" onclick="switchTab('top')">&#128269; Probe</button>
+    <button class="tab" data-tab="results" onclick="switchTab('results')">&#9783; Results</button>
+    <button class="tab" data-tab="meshdata" onclick="switchTab('meshdata')">&#128202; Mesh Data</button>
+    <button class="tab" data-tab="apply" onclick="switchTab('apply')">&#9889; Apply</button>
+  </div>
+
+  <!-- ── CONTENT ────────────────────────────────────────────────────────── -->
+  <div class="content">
+
+    <!-- ── SETUP TAB ──────────────────────────────────────────────────── -->
+    <div class="tab-panel active" id="pane-setup">
+
+      <div class="panel">
+        <div class="box-title">3D Probe Dimensions</div>
+        <div class="probe-chip">Editable geometry preset for your 3D probe</div>
+        <div class="probe-dim-wrap">
+          <div class="probe-diagram">
+            <svg class="probe-svg" viewBox="0 0 560 520" xmlns="http://www.w3.org/2000/svg" aria-label="3D probe dimension sketch">
+              <defs>
+                <marker id="arrowEnd" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+                  <path d="M0,0 L8,4 L0,8 z" fill="#d8e6ff"/>
+                </marker>
+                <marker id="arrowStart" markerWidth="8" markerHeight="8" refX="2" refY="4" orient="auto">
+                  <path d="M8,0 L0,4 L8,8 z" fill="#d8e6ff"/>
+                </marker>
+              </defs>
+              <rect x="205" y="40" width="70" height="128" rx="4" fill="#242f42" stroke="#95a8c8" stroke-width="2"/>
+              <line x1="188" y1="60" x2="110" y2="60" stroke="#7688a6" stroke-width="2"/>
+              <line x1="292" y1="60" x2="370" y2="60" stroke="#7688a6" stroke-width="2"/>
+              <rect x="145" y="170" width="190" height="95" rx="4" fill="#202a3b" stroke="#95a8c8" stroke-width="2"/>
+              <path d="M145 265 L110 292 L110 318 L370 318 L370 292 L335 265" fill="#202a3b" stroke="#95a8c8" stroke-width="2"/>
+              <rect x="102" y="318" width="276" height="24" rx="2" fill="#202a3b" stroke="#95a8c8" stroke-width="2"/>
+              <rect x="189" y="342" width="102" height="18" rx="2" fill="#202a3b" stroke="#95a8c8" stroke-width="2"/>
+              <rect x="220" y="360" width="40" height="26" rx="2" fill="#202a3b" stroke="#95a8c8" stroke-width="2"/>
+              <path d="M221 386 L259 386 L271 420 L209 420 Z" fill="#202a3b" stroke="#95a8c8" stroke-width="2"/>
+              <line x1="240" y1="420" x2="240" y2="475" stroke="#95a8c8" stroke-width="5"/>
+              <circle cx="240" cy="490" r="10" fill="#202a3b" stroke="#95a8c8" stroke-width="2"/>
+
+              <line x1="105" y1="112" x2="205" y2="112" stroke="#d8e6ff" stroke-width="2" marker-start="url(#arrowStart)" marker-end="url(#arrowEnd)"/>
+              <text x="18" y="96" fill="#ffffff" font-size="16">Shank Ø</text>
+              <text x="18" y="118" fill="#87f86d" font-size="26" font-weight="700" id="probeLabelShank">6</text>
+              <text x="48" y="118" fill="#c2d3f2" font-size="16">coords</text>
+
+              <line x1="372" y1="214" x2="505" y2="214" stroke="#d8e6ff" stroke-width="2" marker-start="url(#arrowStart)" marker-end="url(#arrowEnd)"/>
+              <text x="390" y="190" fill="#ffffff" font-size="16">Body Ø</text>
+              <text x="390" y="214" fill="#87f86d" font-size="26" font-weight="700" id="probeLabelBody">33</text>
+              <text x="430" y="214" fill="#c2d3f2" font-size="16">coords</text>
+
+              <line x1="330" y1="40" x2="330" y2="168" stroke="#d8e6ff" stroke-width="2"/>
+              <line x1="316" y1="40" x2="344" y2="40" stroke="#d8e6ff" stroke-width="2"/>
+              <line x1="316" y1="168" x2="344" y2="168" stroke="#d8e6ff" stroke-width="2"/>
+              <line x1="330" y1="44" x2="330" y2="164" stroke="#d8e6ff" stroke-width="2" marker-start="url(#arrowStart)" marker-end="url(#arrowEnd)"/>
+              <text x="350" y="88" fill="#ffffff" font-size="16">Upper</text>
+              <text x="350" y="110" fill="#87f86d" font-size="26" font-weight="700" id="probeLabelUpper">20</text>
+              <text x="383" y="110" fill="#c2d3f2" font-size="16">coords</text>
+
+              <line x1="330" y1="170" x2="330" y2="342" stroke="#d8e6ff" stroke-width="2"/>
+              <line x1="316" y1="170" x2="344" y2="170" stroke="#d8e6ff" stroke-width="2"/>
+              <line x1="316" y1="342" x2="344" y2="342" stroke="#d8e6ff" stroke-width="2"/>
+              <line x1="330" y1="174" x2="330" y2="338" stroke="#d8e6ff" stroke-width="2" marker-start="url(#arrowStart)" marker-end="url(#arrowEnd)"/>
+              <text x="350" y="238" fill="#ffffff" font-size="16">Main body</text>
+              <text x="350" y="260" fill="#87f86d" font-size="26" font-weight="700" id="probeLabelMain">21</text>
+              <text x="383" y="260" fill="#c2d3f2" font-size="16">coords</text>
+
+              <line x1="105" y1="342" x2="105" y2="490" stroke="#d8e6ff" stroke-width="2"/>
+              <line x1="92" y1="342" x2="118" y2="342" stroke="#d8e6ff" stroke-width="2"/>
+              <line x1="92" y1="490" x2="118" y2="490" stroke="#d8e6ff" stroke-width="2"/>
+              <line x1="105" y1="346" x2="105" y2="486" stroke="#d8e6ff" stroke-width="2" marker-start="url(#arrowStart)" marker-end="url(#arrowEnd)"/>
+              <text x="18" y="408" fill="#ffffff" font-size="16">Stylus</text>
+              <text x="18" y="430" fill="#87f86d" font-size="26" font-weight="700" id="probeLabelStylus">26</text>
+              <text x="48" y="430" fill="#c2d3f2" font-size="16">coords</text>
+
+              <text x="282" y="450" fill="#ffffff" font-size="16">Probe stylus length</text>
+              <text x="282" y="472" fill="#87f86d" font-size="22" font-weight="700" id="probeLabelStylusCallout">14.75</text>
+              <text x="327" y="472" fill="#c2d3f2" font-size="15">coords</text>
+
+              <line x1="205" y1="502" x2="275" y2="502" stroke="#d8e6ff" stroke-width="2" marker-start="url(#arrowStart)" marker-end="url(#arrowEnd)"/>
+              <text x="282" y="496" fill="#ffffff" font-size="16">Ball tip Ø</text>
+              <text x="282" y="518" fill="#87f86d" font-size="22" font-weight="700" id="probeLabelBall">0</text>
+              <text x="312" y="518" fill="#c2d3f2" font-size="15">coords</text>
+
+              <text x="24" y="28" fill="#cfe0ff" font-size="18" font-weight="700">Live probe geometry preview</text>
+              <text x="24" y="500" fill="#ffffff" font-size="16">Total length</text>
+              <text x="24" y="522" fill="#87f86d" font-size="28" font-weight="700" id="probeLabelTotal">67</text>
+              <text x="60" y="522" fill="#c2d3f2" font-size="16">coords</text>
+            </svg>
+          </div>
+
+          <div class="probe-fields">
+            <div class="field"><label><span class="tooltip">Shank Diameter (coords)<span class="tip-icon">?</span><span class="tip">Diameter of the probe shank that fits into the spindle collet. Used for collision avoidance calculations.</span></span></label><input id="probeShankDiameter" type="number" step="0.001" value="6"></div>
+            <div class="field"><label><span class="tooltip">Body Diameter (coords)<span class="tip-icon">?</span><span class="tip">Diameter of the main probe body. Widest part of the probe; used to check clearance during travel moves.</span></span></label><input id="probeBodyDiameter" type="number" step="0.001" value="33"></div>
+            <div class="field"><label><span class="tooltip">Upper Section Height (coords)<span class="tip-icon">?</span><span class="tip">Height of the upper section (shank to body transition). Part of the total probe length calculation.</span></span></label><input id="probeUpperHeight" type="number" step="0.001" value="20"></div>
+            <div class="field"><label><span class="tooltip">Main Body Height (coords)<span class="tip-icon">?</span><span class="tip">Height of the main cylindrical body section. Part of the total probe length calculation.</span></span></label><input id="probeMainBodyHeight" type="number" step="0.001" value="21"></div>
+            <div class="field"><label><span class="tooltip">Stylus Length (coords)<span class="tip-icon">?</span><span class="tip">Total length of the stylus from the body to the ball tip center. Includes the probe stylus callout length.</span></span></label><input id="probeStylusLength" type="number" step="0.001" value="26"></div>
+            <div class="field"><label><span class="tooltip">Probe Stylus Length (coords)<span class="tip-icon">?</span><span class="tip">Usable stylus length — how far below the body bottom the ball tip can reach. Sets the maximum face probe depth.</span></span></label><input id="probeStylusCalloutLength" type="number" step="0.001" value="14.75"></div>
+            <div class="field"><label><span class="tooltip">Ball Tip Diameter (coords)<span class="tip-icon">?</span><span class="tip">Diameter of the ruby or tungsten carbide ball at the probe tip. Used for accurate contact point calculation.</span></span></label><input id="probeBallTipDiameter" type="number" step="0.001" value="0"></div>
+            <div class="field"><label><span class="tooltip">Total Probe Length (coords)<span class="tip-icon">?</span><span class="tip">Full length of the probe from collet face to ball tip center. Enter manually or use Auto-Calc to compute from dimensions above.</span></span></label><input id="probeTotalLength" type="number" step="0.001" value="67"></div>
+
+            <div class="probe-total-row">
+              <div class="field"><label><span class="tooltip">Auto-Calculated Total (coords)<span class="tip-icon">?</span><span class="tip">Read-only. Automatically computed as: upper section height + main body height + stylus length. Click Auto-Calc to update.</span></span></label><input id="probeAutoTotalLength" type="text" value="67.000" readonly></div>
+              <div></div>
+              <button class="btn" id="calcProbeTotalBtn" type="button">Auto-Calc Total Length</button>
+            </div>
+
+            <div class="probe-note">All probe dimensions are editable so different 3D probes can be used. Auto total = upper section height + main body height + stylus length.</div>
+            <div class="btn-row" style="margin-top:10px">
+              <button class="btn" id="btn-save-probe-dims" type="button">&#128190; Save Probe Dimensions</button>
+            </div>
+            <div id="probe-dims-status" class="status-line"></div>
+          </div>
+        </div>
+      </div>
+
+
+      <div class="panel">
+        <div class="box-title">Travel &amp; Recovery Settings</div>
+        <div class="grid three">
+          <div class="field">
+            <label><span class="tooltip">Travel Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate used when traveling between probe sample points (X/Y rapid between probes). Does not affect probe descent speed.</span></span></label>
+            <input type="number" id="travelFeedRate" value="600" min="10" max="6000" step="10">
+          </div>
+          <div class="field">
+            <label><span class="tooltip">Travel Recovery Feed (X/Y mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate used when resuming X/Y travel after a contact recovery event. Typically faster than probe feed but slower than normal travel.</span></span></label>
+            <input type="number" id="travelRecoveryFeedRate" value="1500" min="10" max="12000" step="10">
+          </div>
+          <div class="field">
+            <label><span class="tooltip">Travel Recovery Lift Feed (Z mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for the Z lift move performed during a contact recovery event. Should be fast enough to clear the surface quickly.</span></span></label>
+            <input type="number" id="travelRecoveryLiftFeedRate" value="1000" min="10" max="12000" step="10">
+          </div>
+          <div class="field">
+            <label>
+              <span class="tooltip">Use Travel Contact Recovery<span class="tip-icon">?</span>
+                <span class="tip">When enabled, X/Y travel is broken into small steps. If the probe triggers during travel, the plugin records an extra point, backs up opposite travel, raises Z, and keeps going until the path clears.</span>
+              </span>
+            </label>
+            <select id="useTravelContactRecovery"><option value="yes">Yes</option><option value="no">No</option></select>
+          </div>
+          <div class="field">
+            <label><span class="tooltip">Travel Contact Step (coords)<span class="tip-icon">?</span><span class="tip">Maximum X/Y travel distance per step during contact recovery mode. Smaller values detect probe triggers more precisely but increase travel time.</span></span></label>
+            <input type="number" id="travelContactStep" value="5" min="0.2" max="50" step="0.1">
+          </div>
+          <div class="field">
+            <label><span class="tooltip">Travel Backoff (coords)<span class="tip-icon">?</span><span class="tip">Distance to back away from the triggered contact point before lifting Z and continuing. Prevents double-triggering on the same surface feature.</span></span></label>
+            <input type="number" id="travelContactBackoff" value="5" min="0.2" max="50" step="0.1">
+          </div>
+          <div class="field">
+            <label><span class="tooltip">Travel Lift After Contact (coords)<span class="tip-icon">?</span><span class="tip">Z distance to lift after a contact recovery event before resuming X/Y travel. Should be enough to clear the tallest surface feature in the travel path.</span></span></label>
+            <input type="number" id="travelContactLift" value="5" min="0.2" max="50" step="0.1">
+          </div>
+          <div class="field">
+            <label><span class="tooltip">Max Travel Contact Retries<span class="tip-icon">?</span><span class="tip">Maximum number of contact recovery cycles allowed for a single travel segment. If exceeded, probing stops with an error.</span></span></label>
+            <input type="number" id="travelContactMaxRetries" value="5" min="1" max="20" step="1">
+          </div>
+          <div class="field">
+            <label><span class="tooltip">Max Possible Recovery Lift (coords)<span class="tip-icon">?</span><span class="tip">Read-only preview showing the maximum cumulative Z lift that could occur if contact recovery triggers the maximum number of times in a single travel segment.</span></span></label>
+            <input type="text" id="travelContactMaxLiftPreview" value="25.000" readonly>
+          </div>
+        </div>
+      </div>
+
+
+      <div class="panel">
+        <div class="box-title">Machine Helpers</div>
+        <div class="setup-helpers">
+          <div class="stack">
+            <div class="grid three">
+              <div class="field">
+                <label><span class="tooltip">Saved Location X (coords)<span class="tip-icon">?</span><span class="tip">Work X coordinate of the saved machine position. Click "Save Current Location" to capture the current position.</span></span></label>
+                <input type="number" id="savedLocX" value="0" step="0.001" readonly>
+              </div>
+              <div class="field">
+                <label><span class="tooltip">Saved Location Y (coords)<span class="tip-icon">?</span><span class="tip">Work Y coordinate of the saved machine position. Click "Save Current Location" to capture the current position.</span></span></label>
+                <input type="number" id="savedLocY" value="0" step="0.001">
+              </div>
+              <div class="field">
+                <label><span class="tooltip">Saved Location Z (coords)<span class="tip-icon">?</span><span class="tip">Work Z coordinate of the saved machine position. Click "Save Current Location" to capture the current position.</span></span></label>
+                <input type="number" id="savedLocZ" value="0" step="0.001">
+              </div>
+              <div class="field">
+                <label><span class="tooltip">Homed Status<span class="tip-icon">?</span><span class="tip">Shows whether the machine has been homed. Read-only — updated by "Check Homed". Machine-coordinate retract requires homed state.</span></span></label>
+                <input type="text" id="homedState" value="Unknown" readonly>
+              </div>
+              <div class="field">
+                <label><span class="tooltip">Machine Status<span class="tip-icon">?</span><span class="tip">Current controller state (Idle, Run, Hold, etc.). Read-only — updated by "Check Homed" and "Refresh Position".</span></span></label>
+                <input type="text" id="machineStatus" value="Unknown" readonly>
+              </div>
+              <div class="field">
+                <label><span class="tooltip">Probe Input<span class="tip-icon">?</span><span class="tip">Current state of the probe trigger input (Triggered / Clear). Read-only — updated by "Check Homed". Should read Clear before starting a probe cycle.</span></span></label>
+                <input type="text" id="probeState" value="Unknown" readonly>
+              </div>
+            </div>
+
+            <div class="panel" style="margin:0;padding:12px">
+              <div class="box-title">Current Position</div>
+              <div class="grid three">
+                <div class="field">
+                  <label><span class="tooltip">Current Work X (coords)<span class="tip-icon">?</span><span class="tip">Read-only current work X position. Updated by "Refresh Position". Used as reference for jog moves.</span></span></label>
+                  <input type="number" id="currentPosX" value="0" step="0.001" readonly>
+                </div>
+                <div class="field">
+                  <label><span class="tooltip">Current Work Y (coords)<span class="tip-icon">?</span><span class="tip">Read-only current work Y position. Updated by "Refresh Position". Used as reference for jog moves.</span></span></label>
+                  <input type="number" id="currentPosY" value="0" step="0.001" readonly>
+                </div>
+                <div class="field">
+                  <label><span class="tooltip">Current Work Z (coords)<span class="tip-icon">?</span><span class="tip">Read-only current work Z position. Updated by "Refresh Position". Used as reference for jog moves.</span></span></label>
+                  <input type="number" id="currentPosZ" value="0" step="0.001" readonly>
+                </div>
+              </div>
+              <div class="mini" style="margin-top:8px">Setup jog buttons use the current work position and move in absolute work coordinates.</div>
+            </div>
+
+            <div class="grid three">
+              <div class="field">
+                <label>
+                  <span class="tooltip">Finish Lift Z / Fallback Z (coords)<span class="tip-icon">?</span>
+                    <span class="tip">Absolute work Z used if machine-home retract is disabled, or as a fallback if the controller is unexpectedly not homed at finish.</span>
+                  </span>
+                </label>
+                <input type="number" id="finishHomeZ" value="10" step="0.1">
+              </div>
+              <div class="field">
+                <label>
+                  <span class="tooltip">Use Machine-Home Z Retract<span class="tip-icon">?</span>
+                    <span class="tip">When enabled, finish motion first retracts Z using machine coordinates (G53) to the Machine Safe Top Z before any X/Y move.</span>
+                  </span>
+                </label>
+                <select id="useMachineHomeRetract"><option value="yes">Yes</option><option value="no">No</option></select>
+              </div>
+              <div class="field">
+                <label>
+                  <span class="tooltip">Machine Safe Top Z (coords)<span class="tip-icon">?</span>
+                    <span class="tip">Machine-coordinate Z target used for safe retract before X/Y travel when the machine is homed.</span>
+                  </span>
+                </label>
+                <input type="number" id="machineSafeTopZ" value="0" step="0.1">
+              </div>
+              <div class="field">
+                <label>
+                  <span class="tooltip">Return X/Y to Work Zero<span class="tip-icon">?</span>
+                    <span class="tip">When enabled, the plugin finishes by retracting Z safely and then moving to X0 Y0 in work coordinates.</span>
+                  </span>
+                </label>
+                <select id="returnToXYZero"><option value="yes">Yes</option><option value="no">No</option></select>
+              </div>
+              <div class="field" style="grid-column:span 2">
+                <label><span class="tooltip">Finish Behavior Preview<span class="tip-icon">?</span><span class="tip">Read-only summary of what will happen at the end of a probe cycle based on the settings above. Confirms your finish motion configuration.</span></span></label>
+                <input type="text" id="finishBehaviorPreview" value="Retract Z safely, then optional X0 Y0 return" readonly>
+              </div>
+            </div>
+            <div class="btn-row">
+              <button class="btn ghost" id="btn-save-location">&#128205; Save Current Location</button>
+              <button class="btn ghost" id="btn-go-location">&#10148; Go To Saved Location</button>
+              <button class="btn ghost" id="btn-check-homed">&#128269; Check Homed</button>
+              <button class="btn ghost" id="btn-use-current-z-home">&#8679; Use Current Z as Fallback Z</button>
+            </div>
+            <div class="mini">Save Current Location stores the present work position in the plugin. Check Homed reads controller state and shows homed, machine, and probe input status before you start probing. Finish behavior can retract to a machine-coordinate safe-top Z before any X/Y return, with a fallback work-coordinate Z if homing state is unavailable.</div>
+          </div>
+
+          <div class="jog-card">
+            <div class="box-title">Jog Controls</div>
+            <div class="jog-topbar">
+              <div class="jog-step-group">
+                <span class="mini" style="font-size:12px;color:var(--text)">Step</span>
+                <div class="jog-step-pills">
+                  <button class="jog-pill" type="button" data-step="0.1">0.1</button>
+                  <button class="jog-pill active" type="button" data-step="1">1</button>
+                  <button class="jog-pill" type="button" data-step="10">10</button>
+                </div>
+              </div>
+              <div class="jog-feed-wrap">
+                <span class="mini" style="font-size:12px;color:var(--text)">Feed</span>
+                <input type="number" id="jogFeedXY" value="600" min="1" step="10">
+              </div>
+            </div>
+            <input type="hidden" id="jogStepXY" value="1">
+            <div class="jog-grid-wrap">
+              <div class="jog-xy-pad">
+                <button class="jog-btn" type="button" id="btn-jog-xy-up-left">&#8598;</button>
+                <button class="jog-btn" type="button" id="btn-jog-y-plus">Y+</button>
+                <button class="jog-btn" type="button" id="btn-jog-xy-up-right">&#8599;</button>
+                <button class="jog-btn" type="button" id="btn-jog-x-minus">X-</button>
+                <button class="jog-btn stop" type="button" id="btn-jog-hold">Hold</button>
+                <button class="jog-btn" type="button" id="btn-jog-x-plus">X+</button>
+                <button class="jog-btn" type="button" id="btn-jog-xy-down-left">&#8601;</button>
+                <button class="jog-btn" type="button" id="btn-jog-y-minus">Y-</button>
+                <button class="jog-btn" type="button" id="btn-jog-xy-down-right">&#8600;</button>
+              </div>
+              <div class="jog-col">
+                <button class="jog-btn" type="button" id="btn-jog-z-plus">Z+</button>
+                <button class="jog-btn" type="button" id="btn-jog-z-minus">Z-</button>
+              </div>
+              <div class="jog-col">
+                <button class="jog-btn resume" type="button" id="btn-jog-resume">Resume</button>
+                <button class="jog-btn disabled" type="button" id="btn-jog-a-minus" disabled>A-</button>
+              </div>
+            </div>
+            <div class="jog-meta">
+              <div class="field">
+                <label><span class="tooltip">Jog Step Z (coords)<span class="tip-icon">?</span><span class="tip">Distance moved per Z jog button press. Independent of the XY step pills above. Adjust before probing to position Z accurately.</span></span></label>
+                <input type="number" id="jogStepZ" value="2" min="0.001" step="0.1">
+              </div>
+              <div class="field">
+                <label><span class="tooltip">Jog Feed Z (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for Z axis jog moves. Keep lower than XY to avoid crashing the probe into the workpiece.</span></span></label>
+                <input type="number" id="jogFeedZ" value="300" min="1" step="10">
+              </div>
+            </div>
+            <div class="jog-actions">
+              <button class="btn ghost" id="btn-refresh-position">&#10227; Refresh Position</button>
+              <button class="btn ghost" id="btn-jog-work-zero">Go X0 Y0</button>
+              <button class="btn ghost" id="btn-jog-safe-top">Raise to Machine Safe Z</button>
+            </div>
+            <div class="mini" style="margin-top:10px">A-axis buttons are placeholders for future rotary support. Raise to Machine Safe Z uses G53 when the machine is homed and machine-home retract is enabled.</div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="box-title">Mesh Subdivision</div>
+        <div class="grid three">
+          <div class="field">
+            <label>
+              <span class="tooltip">Subdivision Spacing (mm)<span class="tip-icon">?</span>
+                <span class="tip">Target spacing between interpolated mesh points after probing. Smaller values produce smoother meshes but increase memory use. Minimum effective value is 0.5mm (values below 0.5 are clamped automatically). Set to 0 to disable subdivision and keep raw probe points only.</span>
+              </span>
+            </label>
+            <input type="number" id="meshSubdivisionSpacing" value="2" step="0.5" min="0" max="25">
+          </div>
+          <div class="field" style="grid-column:span 2">
+            <div class="mini" style="margin-top:18px">Bilinear interpolation is applied automatically after every probe cycle and when loading saved mesh data. The raw probe points are preserved internally. Smaller spacing = smoother exports, compensation, and visualizations.</div>
+          </div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn" id="btn-save-settings">&#128190; Save Settings</button>
+        <button class="btn ghost" id="btn-load-settings">&#128194; Load Settings</button>
+        <button class="btn ghost" id="btn-reset-settings">&#8635; Reset Defaults</button>
+        <button class="btn ghost" id="btn-run-diagnostics">&#128302; Run UI Diagnostics</button>
+      </div>
+      <div id="setup-status" class="status-line"></div>
+
+    </div><!-- /pane-setup -->
+
+    <!-- ── TOP PROFILE TAB ────────────────────────────────────────────── -->
+    <div class="tab-panel" id="pane-top">
+
+  <!-- ── Probe Type Selector ─────────────────────────────────────────── -->
+  <div class="panel">
+    <div class="box-title">Probe Mode</div>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <label style="font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap">Mode:</label>
+      <select id="probe-type-select" style="flex:1 1 200px;max-width:300px" onchange="onProbeTypeChange()">
+        <option value="2d-surface" selected>Surface Probe</option>
+        <option value="face">Face Probe</option>
+        <option value="combined">Combined (Surface + Face)</option>
+      </select>
+      <div id="probe-axis-row" style="display:none;align-items:center;gap:8px">
+        <label style="font-size:12px;color:var(--muted);white-space:nowrap">Face Axis:</label>
+        <select id="probe-face-axis-select">
+          <option value="Y" selected>Y</option>
+          <option value="X">X</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Surface Configuration Section ─────────────────────────────── -->
+  <div id="surface-config-section">
+    <div class="panel">
+      <div class="box-title">Top Profile Settings</div>
+      <div class="grid three">
+        <div class="field">
+          <label>
+            <span class="tooltip">Sample Axis<span class="tip-icon">?</span>
+              <span class="tip">The axis along which top Z samples are collected. The other axis uses the fixed coordinate.</span>
+            </span>
+          </label>
+          <select id="sampleAxis"><option value="X">X</option><option value="Y">Y</option></select>
+        </div>
+        <div class="field">
+          <label>
+            <span class="tooltip">Top Fixed Coord (coords)<span class="tip-icon">?</span>
+              <span class="tip">The non-sampled axis coordinate held constant during the top profile scan.</span>
+            </span>
+          </label>
+          <input type="number" id="topFixedCoord" value="0" step="0.1">
+        </div>
+        <div class="field">
+          <label><span class="tooltip">Sample Start (coords)<span class="tip-icon">?</span><span class="tip">Starting coordinate along the sample axis where the top profile probe begins. Machine moves here before the first probe descent.</span></span></label>
+          <input type="number" id="topSampleStart" value="0" step="0.1">
+        </div>
+        <div class="field">
+          <label><span class="tooltip">Sample End (coords)<span class="tip-icon">?</span><span class="tip">Ending coordinate along the sample axis where the top profile probe finishes. The last probe point is taken here.</span></span></label>
+          <input type="number" id="topSampleEnd" value="100" step="0.1">
+        </div>
+        <div class="field">
+          <label><span class="tooltip">Sample Count<span class="tip-icon">?</span><span class="tip">Number of evenly-spaced probe points along the sample axis. More points give higher resolution but take longer to run.</span></span></label>
+          <input type="number" id="topSampleCount" value="10" min="2" max="200" step="1">
+        </div>
+        <div class="field">
+          <label>
+            <span class="tooltip">Use Initial Clearance Lift<span class="tip-icon">?</span>
+              <span class="tip">When enabled, the plugin raises Z before the first top-profile travel move. Turn this off if the operator manually sets a safe start Z before probing.</span>
+            </span>
+          </label>
+          <select id="useInitialClearanceLift"><option value="no">No</option><option value="yes">Yes</option></select>
+        </div>
+        <div class="field">
+          <label>
+            <span class="tooltip">Initial Clearance Lift (coords)<span class="tip-icon">?</span>
+              <span class="tip">Relative Z raise used only when Initial Clearance Lift is enabled.</span>
+            </span>
+          </label>
+          <input type="number" id="topClearZ" value="5" min="0.5" max="100" step="0.5">
+        </div>
+        <div class="field">
+          <label><span class="tooltip">Top Probe Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate used when the probe descends toward the surface during top profile sampling. Slower values reduce overshoot and improve accuracy.</span></span></label>
+          <input type="number" id="topFeed" value="200" min="10" max="3000" step="10">
+        </div>
+        <div class="field">
+          <label>
+            <span class="tooltip">Probe Depth (coords)<span class="tip-icon">?</span>
+              <span class="tip">Maximum Z distance to probe downward from the current Z position at each sample point.</span>
+            </span>
+          </label>
+          <input type="number" id="topProbeDepth" value="5" min="0.5" max="50" step="0.5">
+        </div>
+        <div class="field">
+          <label><span class="tooltip">Retract (coords)<span class="tip-icon">?</span><span class="tip">Distance to retract Z upward after each probe contact before moving to the next sample point. Prevents dragging the ball tip across the surface.</span></span></label>
+          <input type="number" id="topRetract" value="2" min="0.5" max="20" step="0.5">
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="box-title">2D Grid Configuration</div>
+      <div class="grid three">
+        <div class="field"><label><span class="tooltip">Min X (coords)<span class="tip-icon">?</span><span class="tip">Minimum X work coordinate for the 2D surface probe grid. Sets the left boundary of the probed area.</span></span></label><input type="number" id="sm-minX" value="0" step="1"></div>
+        <div class="field"><label><span class="tooltip">Max X (coords)<span class="tip-icon">?</span><span class="tip">Maximum X work coordinate for the 2D surface probe grid. Sets the right boundary of the probed area.</span></span></label><input type="number" id="sm-maxX" value="100" step="1"></div>
+        <div class="field"><label><span class="tooltip">Spacing X (coords)<span class="tip-icon">?</span><span class="tip">Distance between probe columns along the X axis. Smaller spacing gives more data points but increases run time.</span></span></label><input type="number" id="sm-spacingX" value="20" step="1" min="1"></div>
+        <div class="field"><label><span class="tooltip">Min Y (coords)<span class="tip-icon">?</span><span class="tip">Minimum Y work coordinate for the 2D surface probe grid. Set equal to Max Y for single-row (linear) probing along X.</span></span></label><input type="number" id="sm-minY" value="0" step="1"></div>
+        <div class="field"><label><span class="tooltip">Max Y (coords)<span class="tip-icon">?</span><span class="tip">Maximum Y work coordinate for the 2D surface probe grid. Set equal to Min Y for single-row (linear) probing along X.</span></span></label><input type="number" id="sm-maxY" value="100" step="1"></div>
+        <div class="field"><label><span class="tooltip">Spacing Y (coords)<span class="tip-icon">?</span><span class="tip">Distance between probe rows along the Y axis. Smaller spacing gives more data points but increases run time.</span></span></label><input type="number" id="sm-spacingY" value="20" step="1" min="1"></div>
+      </div>
+      <div style="margin-top:8px;display:inline-block;padding:6px 10px;border-radius:5px;background:var(--panel2);border:1px solid var(--line);color:var(--accent2);font-size:13px;font-weight:600" id="sm-gridSizeDisplay">6 &times; 6 = 36 points</div>
+      <div class="mini" style="color:var(--muted);margin-top:6px">&#128161; Set Min Y = Max Y = 0 for single-row (linear) probing along X axis</div>
+    </div>
+    <div class="panel">
+      <div class="box-title">2D Probe Settings</div>
+      <div class="grid three">
+        <div class="field"><label><span class="tooltip">Probe Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for the Z probe descent at each grid point. Slower rates improve accuracy; faster rates speed up large grids.</span></span></label><input type="number" id="sm-probeFeed" value="100" step="10" min="1"></div>
+        <div class="field"><label><span class="tooltip">Travel Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for XY moves between grid probe points. Can be much faster than the probe feed.</span></span></label><input type="number" id="sm-travelFeed" value="2000" step="100" min="1"></div>
+        <div class="field"><label><span class="tooltip">Clearance Z (coords)<span class="tip-icon">?</span><span class="tip">Z height above the reference Z to raise to before each XY travel move. Must be enough to clear any surface features.</span></span></label><input type="number" id="sm-clearanceZ" value="5" step="0.5" min="0.5"></div>
+        <div class="field"><label><span class="tooltip">Max Plunge (coords)<span class="tip-icon">?</span><span class="tip">Maximum Z distance to probe downward from the clearance height. Safety limit to prevent over-travel if the surface is missing.</span></span></label><input type="number" id="sm-maxPlunge" value="20" step="1" min="1"></div>
+        <div class="field"><label><span class="tooltip">Reference Z (coords)<span class="tip-icon">?</span><span class="tip">Work Z coordinate used as the zero reference for surface compensation. Typically 0 (the programmed cutting depth).</span></span></label><input type="number" id="sm-referenceZ" value="0" step="0.1"></div>
+      </div>
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn ghost" id="sm-btn-save-settings" onclick="flashButton(this);smSaveSettings()">&#128190; Save Settings</button>
+      </div>
+    </div>
+  </div><!-- /surface-config-section -->
+
+  <!-- ── Face Configuration Section ────────────────────────────────── -->
+  <div id="face-config-section" style="display:none">
+    <div class="panel">
+      <div class="box-title">Face Probe Configuration</div>
+      <div class="grid three">
+        <div class="field">
+          <label><span class="tooltip">Face Start Offset (coords)<span class="tip-icon">?</span><span class="tip">Starting offset from the face fixed coordinate before probing. Negative = start before the face.</span></span></label>
+          <input type="number" id="faceStartOffset" value="-10" step="0.1">
+        </div>
+        <div class="field">
+          <label><span class="tooltip">X Start (coords)<span class="tip-icon">?</span><span class="tip">Starting X work coordinate for the face probe sweep. The probe will take samples from X Start to X End across the face.</span></span></label>
+          <input type="number" id="fp-xStart" value="0" step="1">
+        </div>
+        <div class="field">
+          <label><span class="tooltip">X End (coords)<span class="tip-icon">?</span><span class="tip">Ending X work coordinate for the face probe sweep. The last sample column is taken at this position.</span></span></label>
+          <input type="number" id="fp-xEnd" value="100" step="1">
+        </div>
+        <div class="field">
+          <label><span class="tooltip">Z Start (coords)<span class="tip-icon">?</span><span class="tip">Z depth below surface zero where face probing starts. Click "Auto Row 1" to populate from Surface Row 1 (top edge = zero reference).</span></span></label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="number" id="fp-zStart" value="0" step="0.1" style="flex:1;min-width:0">
+            <button class="btn ghost" style="white-space:nowrap;flex-shrink:0;padding:6px 10px;font-size:11px" onclick="flashButton(this);fpReadRow1ZStart()">&#8635; Auto Row 1</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>
+            <span class="tooltip">Face Max Depth (coords)<span class="tip-icon">?</span><span class="tip">Deepest Z below surface zero for face probing. Cannot exceed probe stylus length (Setup &rarr; 3D Probe Dimensions).</span></span>
+            <span id="fp-stylus-warning" style="color:var(--bad);font-size:11px;font-weight:600;display:none"> &#9888; Exceeds stylus!</span>
+          </label>
+          <input type="number" id="faceMaxDepth" value="14.75" min="1" max="100" step="0.25" oninput="fpValidateZEnd()">
+          <div class="mini" id="fp-stylus-cap-info" style="color:var(--muted);margin-top:2px">Max = stylus callout length from Setup</div>
+        </div>
+        <div class="field">
+          <label><span class="tooltip">X Points (samples across face)<span class="tip-icon">?</span><span class="tip">Number of evenly-spaced probe columns from X Start to X End. More points give a more detailed face profile but take longer to run.</span></span></label>
+          <input type="number" id="fp-xPoints" value="5" min="2" max="50" step="1">
+        </div>
+        <div class="field">
+          <label><span class="tooltip">Face Probe Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for the probe move toward the face surface. Slower values reduce overshoot and improve contact accuracy.</span></span></label>
+          <input type="number" id="faceFeed" value="150" min="10" max="3000" step="10">
+        </div>
+        <div class="field">
+          <label>
+            <span class="tooltip">Face Retract Feed (mm/min)<span class="tip-icon">?</span>
+              <span class="tip">Feed rate used when retracting between face probe samples (backoff, return to start, inter-sample travel). Higher values speed up the cycle. Defaults to Travel Feed if not set.</span>
+            </span>
+          </label>
+          <input type="number" id="faceRetractFeed" value="1000" min="10" max="6000" step="10">
+        </div>
+        <div class="field">
+          <label>
+            <span class="tooltip">Depth Below Surface (coords)<span class="tip-icon">?</span>
+              <span class="tip">How far below the top profile Z surface to position for face probing. Uses nearest top profile point.</span>
+            </span>
+          </label>
+          <input type="number" id="faceDepthBelowSurface" value="2" min="0.1" max="50" step="0.1">
+        </div>
+        <div class="field">
+          <label>
+            <span class="tooltip">Face Probe Distance (coords)<span class="tip-icon">?</span>
+              <span class="tip">Total distance to probe along the face axis from the start offset position.</span>
+            </span>
+          </label>
+          <input type="number" id="faceProbeDistance" value="20" min="1" max="200" step="1">
+        </div>
+        <div class="field">
+          <label>
+            <span class="tooltip">Face Fixed Coord (coords)<span class="tip-icon">?</span>
+              <span class="tip">The non-probed axis coordinate held constant during face probing.</span>
+            </span>
+          </label>
+          <input type="number" id="faceFixedCoord" value="0" step="0.1">
+        </div>
+        <div class="field">
+          <label>
+            <span class="tooltip">Z Layers (layers down face)<span class="tip-icon">?</span>
+              <span class="tip">How many Z layers to probe across the face depth. Layers are distributed evenly per sample from max depth to each sample's own top profile Z.</span>
+            </span>
+          </label>
+          <input type="number" id="faceLayerCount" value="3" min="2" max="20" step="1">
+        </div>
+        <div class="field" style="grid-column:1 / -1">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="enableLayeredFace"> <span>Enable Layered Face Probe</span></label>
+          <div class="mini" style="margin-top:4px">When enabled, probes from max depth up to surface zero across all X samples at each layer. When off, existing single-pass face probe is used.</div>
+        </div>
+      </div>
+      <div class="callout mini" style="margin-top:8px">
+        <strong>Z Start</strong> auto-populates from Surface Row 1 (top edge = zero reference). <strong>Face Max Depth</strong> is capped at probe stylus callout length (Setup &rarr; 3D Probe Dimensions). <span style="color:var(--accent2)">&#9679; Pre-trigger safety (smEnsureProbeClear) and Travel Contact Recovery are always active during face probing.</span>
+      </div>
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn ghost" onclick="flashButton(this);saveSettings()">&#128190; Save Face Settings</button>
+      </div>
+    </div>
+
+  </div><!-- /face-config-section -->
+
+  <!-- ── Probing Control ────────────────────────────────────────────── -->
+  <div class="panel">
+    <div class="box-title">Probing Control</div>
+    <div class="btn-row">
+      <button class="btn" id="sm-btn-run-probe" onclick="flashButton(this);startProbeByType()">&#9654; Run Surface Probe</button>
+      <button class="btn warn" id="sm-btn-stop-probe" disabled onclick="flashButton(this);stopSurfaceProbing()">&#9646;&#9646; Stop</button>
+    </div>
+    <div class="progress-track" id="sm-probeProgressTrack" style="margin-top:8px;display:none"><div class="progress-fill" id="sm-probeProgressBar"></div></div>
+    <div class="mini" id="sm-probeStatus" style="margin-top:6px">Ready</div>
+  </div>
+
+  <!-- ── Surface Mesh Section ───────────────────────────────────────── -->
+  <div id="surface-mesh-section">
+    <!-- Heatmap view (shown by default) -->
+    <div id="sm-heatmap-panel" class="panel">
+      <div class="box-title">&#127774; Surface Heatmap</div>
+      <div class="callout mini" style="margin-bottom:8px">Top-down topographic heatmap — warm colors (red/orange) = high Z, cool colors (blue/green) = low Z. Bilinear interpolation between probe points. Hover for values.</div>
+      <canvas id="sm-surface-relief-canvas" style="width:100%;border:1px solid var(--line);border-radius:8px;background:#0d111a;display:block"></canvas>
+      <div id="sm-surface-relief-tooltip" class="mini" style="color:var(--muted);margin-top:4px">Hover over map for values</div>
+      <div style="text-align:center;margin-top:10px">
+        <button class="btn ghost" onclick="flashButton(this);toggleProbeModeView('sm')" style="font-size:12px;font-weight:600">&#9650; 3D Terrain View</button>
+        <span style="font-size:11px;color:var(--muted);margin-left:10px">Drag to rotate &middot; Scroll to zoom &middot; Right-click to pan</span>
+      </div>
+    </div>
+    <!-- 3D Terrain view (hidden by default, shown on toggle or during probing) -->
+    <div id="sm-terrain-panel" class="panel" style="display:none">
+      <div class="box-title">Surface Probe Visualizer</div>
+      <div id="sm-probeViz">
+        <div id="sm-pviz-scene">
+          <div id="sm-three-canvas" class="three-canvas-wrap"></div>
+          <button id="sm-pviz-reset-btn" title="Reset view · double-click also works">&#8635; Reset View</button>
+          <div id="sm-pviz-3dscene">
+            <div id="sm-pviz-surface">
+              <!-- contact dots appended here by JS -->
+            </div>
+            <div id="sm-pviz-probe-wrap">
+              <div id="sm-pviz-probe-shadow"></div>
+              <div id="sm-pviz-probe-body">
+                <svg viewBox="0 0 20 56" width="20" height="56" xmlns="http://www.w3.org/2000/svg" style="display:block">
+                  <!-- Shank -->
+                  <rect x="7" y="0" width="6" height="14" rx="2" fill="#687890" opacity="0.9"/>
+                  <!-- Body -->
+                  <rect x="5" y="13" width="10" height="17" rx="4" fill="#95a8c8" stroke="#c8d8f0" stroke-width="0.8"/>
+                  <rect x="7" y="14" width="3" height="14" rx="2" fill="rgba(255,255,255,0.2)"/>
+                  <!-- Stylus -->
+                  <rect x="9.2" y="30" width="1.6" height="16" rx="0.8" fill="#c8d8f0"/>
+                  <!-- Ball tip -->
+                  <circle class="sm-pviz-ball-tip" cx="10" cy="50" r="4.5" fill="#d0e8ff" stroke="#b8ccec" stroke-width="0.8"/>
+                  <ellipse cx="8.5" cy="48.5" rx="1.5" ry="1" fill="rgba(255,255,255,0.55)"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="text-align:center;margin-top:6px;font-size:11px;color:var(--muted)">Z Exaggeration: <input type="range" id="sm-z-exag" aria-label="Z Exaggeration" min="1" max="20" value="5" style="vertical-align:middle;width:90px" oninput="document.getElementById('sm-z-exag-val').textContent=this.value+'&times;';smPvizRenderMesh()"> <span id="sm-z-exag-val">5&times;</span> &nbsp;&#183;&nbsp; <label style="cursor:pointer"><input type="checkbox" id="sm-contour-toggle" aria-label="Toggle contours" onchange="renderThreeUnified3D('sm')"> Contours</label></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:11px;margin-top:6px;padding:0 2px">
+          <div style="color:var(--muted)">Status: <span id="sm-pviz-status" style="color:var(--text);font-weight:600">Ready</span></div>
+          <div style="color:var(--muted)">Point: <span id="sm-pviz-point" style="color:var(--accent2);font-weight:600">&#8212; / &#8212;</span></div>
+          <div style="color:var(--muted)">Position: <span id="sm-pviz-pos" style="color:var(--text)">&#8212;</span></div>
+          <div style="color:var(--muted)">Contact Z: <span id="sm-pviz-z" style="color:var(--good);font-weight:600">&#8212;</span></div>
+        </div>
+        <div style="margin-top:6px;padding:0 2px">
+          <div class="progress-track"><div id="sm-pviz-bar" class="progress-fill"></div></div>
+          <div style="text-align:right;font-size:10px;color:var(--muted);margin-top:2px"><span id="sm-pviz-pct">0%</span></div>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:10px">
+        <button class="btn ghost" onclick="flashButton(this);toggleProbeModeView('sm')" style="font-size:12px;font-weight:600">&#9660; Heatmap</button>
+      </div>
+    </div>
+    <!-- Surface Mesh Export -->
+    <div class="panel">
+      <div class="box-title">Surface Mesh Export</div>
+      <div class="callout mini" style="margin-bottom:10px">Export the surface probe mesh as CSV, DXF polylines, or OBJ 3D mesh. Uses the current surface mesh data.</div>
+      <div class="field" style="max-width:320px;margin-bottom:10px">
+        <label><span class="tooltip">OBJ Subdivision Resolution (mm)<span class="tip-icon">?</span><span class="tip">Target vertex spacing for the OBJ mesh. Smaller values produce smoother curved surfaces but generate larger files. Minimum 0.5mm; 0.5mm default for fine detail.</span></span>
+          <input type="number" id="surfOBJSubdivision" value="0.5" min="0.5" max="25" step="0.5" style="width:80px">
+        </label>
+        <div class="mini" style="margin-top:4px">Interpolates additional vertices for a smooth mesh. 0.5mm default; increase for smaller files.</div>
+      </div>
+      <div class="btn-row">
+        <button class="btn ghost" id="btn-export-surf-csv" title="Export surface mesh as CSV">&#128196; Export CSV</button>
+        <button class="btn ghost" id="btn-export-surf-dxf" title="Export surface mesh as DXF">&#128208; Export DXF</button>
+        <button class="btn ghost" id="btn-export-surf-obj" title="Export surface mesh as OBJ">&#129518; Export OBJ</button>
+      </div>
+    </div>
+    <!-- Combined Mesh Export (Watertight) — shown only in Combined mode -->
+    <div id="combined-export-panel" class="panel" style="display:none">
+      <div class="box-title">Combined Mesh Export (Watertight)</div>
+      <div class="callout mini" style="margin-bottom:10px">Stitches the <strong>Surface MinY edge (Row 1)</strong> to the <strong>Face top edge</strong> and closes the model down to a user-defined Bottom Z to produce a single watertight OBJ. DXF exports both datasets as polylines (not watertight).</div>
+      <div class="field" style="max-width:320px;margin-bottom:10px">
+        <label><span class="tooltip">Combined Bottom Z (coords)<span class="tip-icon">?</span><span class="tip">Z coordinate of the flat bottom cap that closes the watertight solid. Must be below all surface and face mesh Z values.</span></span>
+          <input type="number" id="combinedBottomZ" value="-20" step="0.1" style="width:80px" data-is-default="1">
+        </label>
+        <div class="mini" style="margin-top:4px">Bottom closure Z coordinate. Set below the deepest face probe layer.</div>
+        <div id="combinedBottomZ-hint" class="mini" style="margin-top:2px;color:#888;display:none"></div>
+      </div>
+      <div class="field" style="max-width:320px;margin-bottom:10px">
+        <label><span class="tooltip">OBJ Subdivision Resolution (mm)<span class="tip-icon">?</span><span class="tip">Target vertex spacing used when resampling the face wall mesh. Smaller values give a smoother combined mesh but produce larger files. Minimum 0.5mm.</span></span>
+          <input type="number" id="combinedOBJSubdivision" value="0.5" min="0.5" max="25" step="0.5" style="width:80px">
+        </label>
+        <div class="mini" style="margin-top:4px">Face wall subdivision resolution for the combined export. 0.5mm recommended.</div>
+      </div>
+      <div class="btn-row">
+        <button class="btn ghost" id="btn-export-combined-obj" title="Export single watertight OBJ (surface + face stitched)">&#129518; Export Combined OBJ (Watertight)</button>
+        <button class="btn ghost" id="btn-export-combined-dxf" title="Export combined DXF polylines (surface rows + face layers)">&#128208; Export Combined DXF (Polylines)</button>
+      </div>
+    </div>
+  </div><!-- /surface-mesh-section -->
+
+  <!-- ── Face Mesh Section ──────────────────────────────────────────── -->
+  <div id="face-mesh-section" style="display:none">
+    <!-- Face Probe Control -->
+    <div class="panel">
+      <div class="box-title">Face Probe Direct Controls</div>
+      <div class="callout mini">Use the <strong>▶ Run Probe</strong> button in Probing Control above to run the face probe via the mode dropdown, or use these direct buttons to immediately probe a specific face axis.</div>
+      <div class="btn-row" style="margin-top:12px">
+        <button class="btn" id="btn-face-x">&#9654; Probe X Face</button>
+        <button class="btn" id="btn-face-y">&#9654; Probe Y Face</button>
+        <button class="btn warn" id="btn-stop-face" disabled>&#9646;&#9646; Stop</button>
+      </div>
+    </div>
+    <!-- Face Heatmap (shown by default) -->
+    <div id="face-heatmap-panel" class="panel">
+      <div class="box-title">&#127774; Face Heatmap</div>
+      <div class="callout mini" style="margin-bottom:8px">Front view (XZ plane) — warm colors = shallow contact (Y near 0), cool colors = deep contact (Y far negative). Bilinear interpolation between probe points. Hover for values.</div>
+      <canvas id="face-relief-canvas" style="width:100%;border:1px solid var(--line);border-radius:8px;background:#0d111a;display:block"></canvas>
+      <div id="face-relief-tooltip" class="mini" style="color:var(--muted);margin-top:4px">Hover over map for values</div>
+      <div style="text-align:center;margin-top:10px">
+        <button class="btn ghost" onclick="flashButton(this);toggleProbeModeView('face')" style="font-size:12px;font-weight:600">&#9650; 3D Terrain View</button>
+        <span style="font-size:11px;color:var(--muted);margin-left:10px">Drag to rotate &middot; Scroll to zoom &middot; Right-click to pan</span>
+      </div>
+    </div>
+    <!-- Face Mesh 3D Visualizer (hidden by default, shown on toggle) -->
+    <div id="face-terrain-panel" class="panel" style="display:none">
+      <div class="box-title">&#128208; Face Mesh — 3D Visualizer</div>
+      <div id="face-pviz-scene">
+        <div id="face-three-canvas" class="three-canvas-wrap"></div>
+        <button id="face-pviz-reset-btn" title="Reset view · double-click also resets">&#8635; Reset View</button>
+        <div id="face-pviz-3dscene">
+          <div id="face-pviz-surface">
+            <!-- face contact dots appended here by JS -->
+          </div>
+        </div>
+      </div>
+      <div class="mini" style="margin-top:6px;text-align:center" id="face-meshVizStatus">No face mesh data — run a face probe or load face mesh</div>
+      <div style="text-align:center;margin-top:6px;font-size:11px;color:var(--muted)">Z Exaggeration: <input type="range" id="face-z-exag" aria-label="Z Exaggeration" min="1" max="20" value="5" style="vertical-align:middle;width:90px" oninput="document.getElementById('face-z-exag-val').textContent=this.value+'&times;';renderThreeUnified3D('face')"> <span id="face-z-exag-val">5&times;</span> &nbsp;&#183;&nbsp; <label style="cursor:pointer"><input type="checkbox" id="face-contour-toggle" aria-label="Toggle contours" onchange="renderThreeUnified3D('face')"> Contours</label></div>
+      <div class="mini" style="margin-top:4px;text-align:center;color:var(--muted)">Drag to rotate &middot; Scroll to zoom &middot; Right-click to pan &middot; Double-click to reset</div>
+      <div style="text-align:center;margin-top:10px">
+        <button class="btn ghost" onclick="flashButton(this);toggleProbeModeView('face')" style="font-size:12px;font-weight:600">&#9660; Heatmap</button>
+      </div>
+    </div>
+    <!-- Face Mesh Point Data -->
+    <div class="panel">
+      <div class="box-title">Face Mesh Point Data</div>
+      <div style="max-height:260px;overflow-y:auto;border:1px solid var(--line);border-radius:10px">
+        <table>
+          <thead><tr><th>#</th><th>X</th><th>Y</th><th>Z (contact)</th><th>Layer</th></tr></thead>
+          <tbody id="face-meshTableBody"><tr><td colspan="5" style="color:var(--muted);text-align:center;padding:16px;">No data yet</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <!-- Face Mesh Data Management -->
+    <div class="panel">
+      <div class="box-title">Face Mesh Data Management</div>
+      <div class="callout mini" style="margin-bottom:12px">Save, load, export and import face mesh data. <strong>Save Face Mesh</strong> opens a file save dialog. Use <strong>Load Face Mesh</strong> to restore from browser storage. Export/Import for file-based transfer.</div>
+      <div class="btn-row">
+        <button class="btn" id="face-btn-save-mesh">&#128190; Save Face Mesh</button>
+        <button class="btn ghost" id="face-btn-load-mesh">&#128194; Load Face Mesh</button>
+        <button class="btn warn" id="face-btn-clear-mesh">&#10005; Clear Face Mesh</button>
+      </div>
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn ghost" id="face-btn-export-json">&#8659; Export JSON</button>
+        <button class="btn ghost" id="face-btn-export-csv-new">&#128196; Export CSV</button>
+        <button class="btn ghost" id="face-btn-import-mesh">&#8593; Import JSON</button>
+      </div>
+      <div class="status-line" id="face-meshStorageStatus" style="margin-top:8px"></div>
+    </div>
+    <!-- Face Mesh Export -->
+    <div class="panel">
+      <div class="box-title">Face Mesh Export (DXF / OBJ)</div>
+      <div class="callout mini" style="margin-bottom:10px">Export face probe results as CSV, DXF, or OBJ. In layered mode these include all layers. In single-pass mode the results are exported as layer 1.</div>
+      <div class="field" style="max-width:320px;margin-bottom:10px">
+        <label><span class="tooltip">Top Surface Mode<span class="tip-icon">?</span><span class="tip">Controls how the top edge is represented in DXF/OBJ exports. "Flat Plane" uses the shallowest measured Z for a flat straight edge. "Probed Profile" follows each sample's actual measured top Z.</span></span>
+          <select id="faceTopSurfaceMode">
+            <option value="flat">Flat Plane</option>
+            <option value="probed">Probed Profile</option>
+          </select>
+        </label>
+        <div class="mini" style="margin-top:4px">Flat Plane: top layer uses the shallowest top profile Z (flat straight edge for CNC carving). Probed Profile: top layer uses each sample's actual measured surface Z.</div>
+      </div>
+      <div class="field" style="max-width:320px;margin-bottom:10px">
+        <label><span class="tooltip">OBJ Subdivision Resolution (mm)<span class="tip-icon">?</span><span class="tip">Target vertex spacing for the OBJ mesh. Smaller values produce smoother curved surfaces but generate larger files. Minimum 0.5mm; 2mm recommended for most CNC workflows.</span></span>
+          <input type="number" id="faceOBJSubdivision" value="2" min="0.5" max="25" step="0.5" style="width:80px">
+        </label>
+        <div class="mini" style="margin-top:4px">Interpolates additional vertices for a smooth mesh. 2mm recommended; smaller values give more detail but larger files.</div>
+      </div>
+      <div class="btn-row">
+        <button class="btn ghost" id="btn-export-face-csv" title="Export face mesh as CSV">&#128196; Export CSV</button>
+        <button class="btn ghost" id="btn-export-face-dxf" title="Export face mesh as DXF">&#128208; Export DXF</button>
+        <button class="btn ghost" id="btn-export-face-obj" title="Export face mesh as OBJ">&#129518; Export OBJ</button>
+      </div>
+    </div>
+  </div><!-- /face-mesh-section -->
+
+  <!-- ── Unified Probe Log ───────────────────────────────────────────── -->
+  <div class="panel">
+    <div class="box-title">Probe Log</div>
+    <div class="btn-row" style="margin-bottom:8px">
+      <button class="btn ghost" onclick="flashButton(this);saveUnifiedProbeLog()">&#128190; Save Log</button>
+      <button class="btn ghost" onclick="flashButton(this);clearUnifiedProbeLog()">&#10005; Clear Log</button>
+    </div>
+    <div id="unified-log-surface-wrap">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:3px;font-weight:600">Surface Probe Log</div>
+      <div style="background:var(--panel2);border:1px solid var(--line);border-radius:10px;font-family:monospace;font-size:12px;color:var(--text);padding:8px;height:180px;overflow-y:auto;white-space:pre-wrap" id="sm-probeLog"></div>
+    </div>
+    <div id="unified-log-face-wrap" style="display:none;margin-top:10px">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:3px;font-weight:600">Face Probe Log</div>
+      <div id="face-log" class="log-area mono"></div>
+    </div>
+    <!-- Hidden buttons kept for backward-compat with JS that may call them -->
+    <button id="btn-save-face-log" style="display:none"></button>
+    <button id="btn-clear-face-log" style="display:none"></button>
+  </div>
+
+    </div><!-- /pane-top -->
+
+    <!-- ── RESULTS TAB ────────────────────────────────────────────────── -->
+    <div class="tab-panel" id="pane-results">
+
+      <!-- Top Surface 3D View panel (hidden until data is available) -->
+      <div id="res-surface-panel" style="display:none">
+        <div class="panel">
+          <div class="box-title">&#128208; Top Surface — 3D View</div>
+          <div id="res-pviz-scene">
+            <div id="res-three-canvas" class="three-canvas-wrap"></div>
+            <button id="res-pviz-reset-btn" title="Reset view · double-click also works">&#8635; Reset View</button>
+            <div id="res-pviz-3dscene">
+              <div id="res-pviz-surface">
+              </div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px" id="res-probe-summary"></div>
+          <div style="text-align:center;margin-top:6px;font-size:11px;color:var(--muted)">Z Exaggeration: <input type="range" id="res-z-exag" aria-label="Z Exaggeration" min="1" max="20" value="5" style="vertical-align:middle;width:90px" oninput="document.getElementById('res-z-exag-val').textContent=this.value+'&times;';renderResVizMesh()"> <span id="res-z-exag-val">5&times;</span> &nbsp;&#183;&nbsp; <label style="cursor:pointer"><input type="checkbox" id="res-contour-toggle" aria-label="Toggle contours" onchange="renderThreeUnified3D('res')"> Contours</label></div>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px;text-align:center">Drag to rotate &middot; Scroll to zoom &middot; Right-click to pan &middot; Double-click to reset</div>
+          <div class="btn-row" style="margin-top:10px">
+            <button class="btn" id="res-btn-save-3d">&#128190; Save 3D View</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Face Surface 3D View panel (hidden until face data is available) -->
+      <div id="res-face-panel" style="display:none">
+        <div class="panel">
+          <div class="box-title">&#128208; Face Surface — 3D View</div>
+          <div id="resface-pviz-scene">
+            <div id="resface-three-canvas" class="three-canvas-wrap"></div>
+            <button id="resface-pviz-reset-btn" title="Reset view · double-click also works">&#8635; Reset View</button>
+            <div id="resface-pviz-3dscene">
+              <div id="resface-pviz-surface">
+              </div>
+            </div>
+          </div>
+          <div class="mini" style="margin-top:6px;text-align:center" id="resface-meshVizStatus">No face data — run a face probe</div>
+          <div style="text-align:center;margin-top:6px;font-size:11px;color:var(--muted)">Z Exaggeration: <input type="range" id="resface-z-exag" aria-label="Z Exaggeration" min="1" max="20" value="5" style="vertical-align:middle;width:90px" oninput="document.getElementById('resface-z-exag-val').textContent=this.value+'&times;';renderResFaceVizMesh()"> <span id="resface-z-exag-val">5&times;</span> &nbsp;&#183;&nbsp; <label style="cursor:pointer"><input type="checkbox" id="resface-contour-toggle" aria-label="Toggle contours" onchange="renderResFaceVizMesh()"> Contours</label></div>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px;text-align:center">Drag to rotate &middot; Scroll to zoom &middot; Right-click to pan &middot; Double-click to reset</div>
+          <div class="btn-row" style="margin-top:10px">
+            <button class="btn" id="resface-btn-save-3d">&#128190; Save Face 3D View</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2D Relief Maps for Results tab — same heatmap style as Probe/Mesh Data tabs -->
+      <div id="res-relief-maps-panel" style="display:none">
+        <div class="panel" id="res-surface-relief-panel">
+          <div class="box-title">&#127774; Surface Relief Map</div>
+          <div class="callout mini" style="margin-bottom:8px">Top-down topographic heatmap (XY projection) — warm colors = high Z, cool colors = low Z. Hover for values.</div>
+          <canvas id="res-surface-relief-canvas" style="width:100%;border:1px solid var(--line);border-radius:8px;background:#0d111a;display:block"></canvas>
+          <div id="res-surface-relief-tooltip" class="mini" style="color:var(--muted);margin-top:4px">Hover over map for values</div>
+        </div>
+        <div class="panel" id="res-face-relief-panel">
+          <div class="box-title">&#127774; Face Relief Map</div>
+          <div class="callout mini" style="margin-bottom:8px">Front view (XZ projection) — warm colors = shallow contact (Y near 0), cool colors = deep contact. Hover for values.</div>
+          <canvas id="res-face-relief-canvas" style="width:100%;border:1px solid var(--line);border-radius:8px;background:#0d111a;display:block"></canvas>
+          <div id="res-face-relief-tooltip" class="mini" style="color:var(--muted);margin-top:4px">Hover over map for values</div>
+        </div>
+      </div>
+
+      <!-- Probe Data: one table for all probe points (surface + face) with Type column -->
+      <div class="panel">
+        <div class="box-title">Probe Data</div>
+        <div style="max-height:320px;overflow-y:auto;border:1px solid var(--line);border-radius:10px">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th><th>X</th><th>Y</th><th>Z</th><th>Mach Z</th><th>Type</th>
+              </tr>
+            </thead>
+            <tbody id="res-unified-tbody"><tr><td colspan="6" style="color:var(--muted);text-align:center;padding:16px;">No probe data yet</td></tr></tbody>
+          </table>
+        </div>
+        <div class="btn-row" style="margin-top:12px">
+          <button class="btn ghost" id="btn-export-csv">&#8659; Save Results</button>
+          <button class="btn ghost" id="btn-copy-results" aria-label="Copy probe results to clipboard">&#128203; Copy to Clipboard</button>
+          <button class="btn warn" id="btn-clear-all-results">&#10005; Clear All Results</button>
+        </div>
+      </div>
+
+    </div><!-- /pane-results -->
+
+    <!-- ── MESH DATA TAB ──────────────────────────────────────────────── -->
+    <div class="tab-panel" id="pane-meshdata">
+
+      <div class="panel">
+        <div class="box-title">&#128208; Surface Mesh — 3D Visualizer</div>
+        <div id="surf-pviz-scene">
+          <div id="surf-three-canvas" class="three-canvas-wrap"></div>
+          <button id="surf-pviz-reset-btn" title="Reset view · double-click also works">&#8635; Reset View</button>
+          <div id="surf-pviz-3dscene">
+            <div id="surf-pviz-surface">
+            </div>
+          </div>
+        </div>
+        <div class="mini" style="margin-top:6px;text-align:center" id="sm-meshVizStatus">No mesh data — run a surface probe or load a mesh</div>
+        <div style="text-align:center;margin-top:6px;font-size:11px;color:var(--muted)">Z Exaggeration: <input type="range" id="surf-z-exag" aria-label="Z Exaggeration" min="1" max="20" value="5" style="vertical-align:middle;width:90px" oninput="document.getElementById('surf-z-exag-val').textContent=this.value+'&times;';renderSurfVizMesh()"> <span id="surf-z-exag-val">5&times;</span> &nbsp;&#183;&nbsp; <label style="cursor:pointer"><input type="checkbox" id="surf-contour-toggle" aria-label="Toggle contours" onchange="renderThreeUnified3D('surf')"> Contours</label></div>
+        <div class="mini" style="margin-top:4px;text-align:center;color:var(--muted)">Drag to rotate &middot; Scroll to zoom &middot; Right-click to pan &middot; Double-click to reset</div>
+      </div>
+
+      <!-- ── Surface Relief Map ─────────────────────────────────────────── -->
+      <div class="panel">
+        <div class="box-title">&#127774; Surface Relief Map</div>
+        <div class="callout mini" style="margin-bottom:8px">Top-down topographic heatmap — warm colors (red/orange) = high Z, cool colors (blue/green) = low Z. Bilinear interpolation between probe points. Hover for values.</div>
+        <div style="margin-top:4px">
+          <canvas id="surface-relief-canvas" style="width:100%;border:1px solid var(--line);border-radius:8px;background:#0d111a;display:block"></canvas>
+          <div id="surface-relief-tooltip" class="mini" style="color:var(--muted);margin-top:4px">Hover over map for values</div>
+        </div>
+        <!-- ── 3D Terrain View ─────────────────────────────────────────────── -->
+        <div style="margin-top:14px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+            <span style="font-size:12px;font-weight:600;color:var(--accent2)">&#9650; 3D Face Terrain View</span>
+            <span style="font-size:11px;color:var(--muted)">Drag to rotate &middot; Scroll to zoom &middot; Right-click to pan &middot; Double-click to reset</span>
+          </div>
+          <div id="relief-3d-scene">
+            <div id="relief-three-canvas" class="three-canvas-wrap"></div>
+            <button id="relief-3d-reset-btn" type="button" title="Reset view &middot; double-click also works">&#8635; Reset View</button>
+            <div id="relief-3d-3dscene">
+              <div id="relief-3d-surface"></div>
+            </div>
+          </div>
+          <div style="text-align:center;margin-top:6px;font-size:11px;color:var(--muted)">Z Exaggeration: <input type="range" id="relief-3d-z-exag" aria-label="Z Exaggeration" min="1" max="20" value="5" style="vertical-align:middle;width:90px" oninput="document.getElementById('relief-3d-z-exag-val').textContent=this.value+'&times;';renderRelief3D()"> <span id="relief-3d-z-exag-val">5&times;</span> &nbsp;&#183;&nbsp; <label style="cursor:pointer"><input type="checkbox" id="relief-contour-toggle" aria-label="Toggle contours" onchange="renderRelief3D()"> Contours</label></div>
+        </div>
+      </div>
+
+      <!-- Face Relief Map in Mesh Data tab (shown when face probe data is available) -->
+      <div class="panel" id="surf-face-relief-panel" style="display:none">
+        <div class="box-title">&#127774; Face Relief Map</div>
+        <div class="callout mini" style="margin-bottom:8px">Front view (XZ projection) — warm colors = shallow contact (Y near 0), cool colors = deep contact. Bilinear interpolation between probe points. Hover for values.</div>
+        <canvas id="surf-face-relief-canvas" style="width:100%;border:1px solid var(--line);border-radius:8px;background:#0d111a;display:block"></canvas>
+        <div id="surf-face-relief-tooltip" class="mini" style="color:var(--muted);margin-top:4px">Hover over map for values</div>
+      </div>
+
+      <div class="panel">
+        <div class="box-title">Mesh Point Data</div>
+        <div style="max-height:260px;overflow-y:auto;border:1px solid var(--line);border-radius:10px">
+          <table>
+            <thead><tr><th>#</th><th>X</th><th>Y</th><th>Z (contact)</th><th>Offset</th></tr></thead>
+            <tbody id="sm-meshTableBody"><tr><td colspan="5" style="color:var(--muted);text-align:center;padding:16px;">No data yet</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="box-title">Mesh Data Management</div>
+        <div class="callout mini" style="margin-bottom:12px">Save, load, export and import surface mesh data. <strong>Save Mesh</strong> opens a file save dialog to choose where to save — also backs up to browser storage. Use <strong>Load Mesh</strong> to restore from browser storage. Export/Import for file-based transfer.</div>
+        <div class="btn-row">
+          <button class="btn" id="sm-btn-save-mesh">&#128190; Save Mesh</button>
+          <button class="btn ghost" id="sm-btn-load-mesh">&#128194; Load Mesh</button>
+          <button class="btn warn" id="sm-btn-clear-mesh">&#10005; Clear Mesh</button>
+        </div>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn ghost" id="sm-btn-export-mesh">&#8659; Export Mesh (JSON)</button>
+          <button class="btn ghost" id="sm-btn-export-mesh-csv">&#128196; Export Mesh (CSV)</button>
+          <button class="btn ghost" id="sm-btn-import-mesh">&#8593; Import Mesh</button>
+          <button class="btn secondary" id="sm-btn-save-replay-html">&#127916; Save Replay HTML</button>
+        </div>
+        <div class="status-line" id="sm-meshStorageStatus" style="margin-top:8px"></div>
+      </div>
+
+      <div class="panel">
+        <div class="box-title">Edge Probe Results Storage</div>
+        <div class="callout mini" style="margin-bottom:12px">Save and load edge probe results (face and top profile data). Separate from the surface mesh above.</div>
+        <div class="btn-row">
+          <button class="btn" id="btn-save-mesh-storage">&#128190; Save to Storage</button>
+          <button class="btn ghost" id="btn-load-mesh-storage">&#128194; Load from Storage</button>
+          <button class="btn ghost" id="btn-save-mesh-file">&#8659; Export JSON</button>
+          <button class="btn ghost" id="btn-load-mesh-file">&#8593; Import JSON</button>
+          <button class="btn warn" id="btn-clear-mesh-storage">&#10005; Clear Storage</button>
+        </div>
+        <div class="status-line" id="mesh-storage-status" style="margin-top:8px"></div>
+        <div id="edge-probe-results-summary" style="margin-top:10px"></div>
+      </div>
+
+      <!-- ── COMBINED MESH DATA ──────────────────────────────────────────── -->
+      <div class="panel" id="combined-mesh-panel" style="display:none">
+        <div class="box-title">&#127937; Combined Mesh — 3D Visualizer</div>
+        <div class="callout mini" style="margin-bottom:8px">Shows the top surface and face probe wall as a unified 3D shape — the slab top flowing over the live edge and down the face. <span style="color:var(--accent2)">&#9679; Blue/green = surface top</span> &nbsp; <span style="color:#e4a050">&#9679; Warm tones = face wall</span></div>
+        <div id="comb-pviz-scene">
+          <div id="comb-three-canvas" class="three-canvas-wrap"></div>
+          <button id="comb-pviz-reset-btn" title="Reset view · double-click also works">&#8635; Reset View</button>
+          <div id="comb-pviz-3dscene">
+            <div id="comb-pviz-surface">
+            </div>
+          </div>
+        </div>
+        <div class="mini" style="margin-top:6px;text-align:center" id="comb-meshVizStatus">No combined data yet</div>
+        <div style="text-align:center;margin-top:6px;font-size:11px;color:var(--muted)">Z Exaggeration: <input type="range" id="comb-z-exag" aria-label="Z Exaggeration" min="1" max="20" value="5" style="vertical-align:middle;width:90px" oninput="document.getElementById('comb-z-exag-val').textContent=this.value+'&times;';renderCombinedViz()"> <span id="comb-z-exag-val">5&times;</span> &nbsp;&#183;&nbsp; <label style="cursor:pointer"><input type="checkbox" id="comb-contour-toggle" aria-label="Toggle contours" onchange="renderCombinedViz()"> Contours</label></div>
+        <div class="mini" style="margin-top:4px;text-align:center;color:var(--muted)">Drag to rotate &middot; Scroll to zoom &middot; Right-click to pan &middot; Double-click to reset</div>
+      </div>
+
+      <div class="panel" id="combined-mesh-data-panel" style="display:none">
+        <div class="box-title">Combined Mesh Point Data</div>
+        <div class="callout mini" style="margin-bottom:8px">All probe points from both Surface and Face probes. Source column shows which probe captured each point.</div>
+        <div style="max-height:280px;overflow-y:auto;border:1px solid var(--line);border-radius:10px">
+          <table>
+            <thead><tr><th>#</th><th>Source</th><th>X</th><th>Y</th><th>Z</th></tr></thead>
+            <tbody id="comb-mesh-tbody"><tr><td colspan="5" style="color:var(--muted);text-align:center;padding:16px;">No combined data yet</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel" id="combined-mesh-mgmt-panel" style="display:none">
+        <div class="box-title">Combined Mesh Data Management</div>
+        <div class="callout mini" style="margin-bottom:12px">Save, export and clear the combined (surface + face) mesh data. <strong>Save Combined Mesh</strong> opens a file save dialog.</div>
+        <div class="btn-row">
+          <button class="btn" id="comb-btn-save-mesh">&#128190; Save Combined Mesh</button>
+          <button class="btn ghost" id="comb-btn-export-csv">&#128196; Export CSV</button>
+          <button class="btn ghost" id="comb-btn-export-json">&#8659; Export JSON</button>
+          <button class="btn warn" id="comb-btn-clear-mesh">&#10005; Clear Combined</button>
+        </div>
+        <div class="status-line" id="comb-meshStorageStatus" style="margin-top:8px"></div>
+      </div>
+
+    </div><!-- /pane-meshdata -->
+
+    <!-- ── APPLY TAB ─────────────────────────────────────────────────── -->
+    <div class="tab-panel" id="pane-apply">
+
+      <!-- G-code Source -->
+      <div class="panel">
+        <div class="box-title">&#128196; G-code Source</div>
+        <div class="callout mini" style="margin-bottom:10px">Load the G-code program to apply Z compensation. You can paste G-code, load from a file, or use the currently loaded program in ncSender.</div>
+        <div class="btn-row" style="margin-bottom:10px">
+          <button class="btn" id="apply-btn-load-ncsender" onclick="flashButton(this);applyLoadGcodeFromNcSender()">&#128268; Load from ncSender</button>
+          <button class="btn ghost" id="apply-btn-load-file" onclick="flashButton(this);document.getElementById('apply-gcode-file-input').click()">&#128194; Load from File</button>
+          <input type="file" id="apply-gcode-file-input" accept=".nc,.gcode,.ngc,.tap,.txt" style="display:none">
+          <button class="btn ghost" id="apply-btn-analyze-bounds" onclick="flashButton(this);applyAnalyzeGcodeBounds()" title="Analyze loaded G-code to get XY bounding box (uses server-side analysis)">&#128270; Analyze Bounds</button>
+        </div>
+        <div class="status-line" id="apply-gcode-status" style="margin-top:6px">No G-code loaded</div>
+        <div id="apply-gcode-bounds-info" class="callout mini" style="margin-top:8px;display:none"></div>
+      </div>
+
+      <!-- Surface Z Compensation -->
+      <div class="panel">
+        <div class="box-title">&#9889; Surface Z Compensation</div>
+        <div class="callout mini" style="margin-bottom:10px">Apply bilinear Z compensation from the surface mesh to the loaded G-code. <strong>Subdivide moves</strong> splits long linear moves into short segments that follow the mesh surface for smooth curves.</div>
+        <div class="grid two" style="margin-bottom:10px">
+          <div class="field"><label><span class="tooltip">Reference Z (coords)<span class="tip-icon">?</span><span class="tip">The Z height in your G-code that corresponds to the probed surface. All Z values in the G-code at this height get zero compensation; others are shifted proportionally.</span></span></label><input type="number" id="apply-refZ" value="0" step="0.001"></div>
+          <div class="field">
+            <label>&nbsp;</label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:6px">
+              <input type="checkbox" id="apply-subdivide" checked>
+              <span>Subdivide moves (smooth surface following)</span>
+            </label>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn secondary" id="apply-btn-surface-comp" onclick="flashButton(this);applyServerSurfaceCompensation()" disabled>&#9889; Apply Surface Compensation</button>
+          <button class="btn ghost" id="apply-btn-download-surface" onclick="flashButton(this);applyDownloadCompensatedGcode('surface')" disabled>&#8659; Download</button>
+          <button class="btn" id="apply-btn-send-ncsender-surface" onclick="flashButton(this);applySendToNcSender('surface')" disabled>&#128640; Send to ncSender</button>
+        </div>
+        <div class="status-line" id="apply-surface-status" style="margin-top:8px"></div>
+        <div id="apply-surface-log" class="log-area" style="display:none;margin-top:8px"></div>
+      </div>
+
+      <!-- Face Compensation -->
+      <div class="panel">
+        <div class="box-title">&#128736; Face Compensation</div>
+        <div class="callout mini" style="margin-bottom:10px">Apply face probe compensation to adjust the depth axis (X or Y) based on the face mesh. Requires face probe data.</div>
+        <div class="grid two" style="margin-bottom:10px">
+          <div class="field">
+            <label><span class="tooltip">Reference Face Position (coords)<span class="tip-icon">?</span><span class="tip">The Y (or X) coordinate where the face would be if perfectly flat. Use "Auto from mesh" to calculate from your probe data. A wrong value will distort your toolpath.</span></span></label>
+            <div style="display:flex;gap:6px;align-items:center">
+              <input type="number" id="apply-face-refPos" value="0" step="0.001" style="flex:1">
+              <button class="btn ghost" style="white-space:nowrap;padding:4px 8px;font-size:12px" onclick="flashButton(this);autoCalcFaceRefPos()" title="Compute mean contact position from face mesh data and use as reference">&#8635; Auto from mesh</button>
+            </div>
+            <div id="apply-face-refPos-stats" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
+          </div>
+          <div class="field">
+            <label><span class="tooltip">Face Axis<span class="tip-icon">?</span><span class="tip">The axis along which face compensation is applied. Should match the axis used during the face probe cycle (usually Y for a front face).</span></span></label>
+            <select id="apply-face-axis">
+              <option value="Y" selected>Y</option>
+              <option value="X">X</option>
+            </select>
+          </div>
+        </div>
+        <div class="callout mini warn" style="margin-bottom:10px">
+          <strong>Reference Face Position</strong> is where the face <em>would be</em> if it were perfectly flat.
+          Setting it to the average of your probe contacts means compensation only corrects for waviness — not a large bulk shift.
+          Use <strong>&#8635; Auto from mesh</strong> to calculate from your face probe data.
+          A wrong value (e.g. leaving it at&nbsp;0 when your face is at&nbsp;Y≈-20) will massively distort your G-code toolpath.
+        </div>
+        <div class="field" style="margin-bottom:10px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="apply-face-uniform" checked style="width:auto;margin:0">
+            Uniform offset per group (preserves letter shapes &amp; prevents distortion)
+          </label>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px">
+            When checked, all points in each letter/feature receive the same face offset (computed at the group&rsquo;s centroid), keeping geometry intact.
+            Uncheck only for contouring applications where per-point variation is desired.
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn secondary" id="apply-btn-face-comp" onclick="flashButton(this);applyFaceCompensationFromTab()" disabled>&#128736; Apply Face Compensation</button>
+          <button class="btn ghost" id="apply-btn-download-face" onclick="flashButton(this);applyDownloadCompensatedGcode('face')" disabled>&#8659; Download</button>
+          <button class="btn" id="apply-btn-send-ncsender-face" onclick="flashButton(this);applySendToNcSender('face')" disabled>&#128640; Send to ncSender</button>
+        </div>
+        <div class="status-line" id="apply-face-status" style="margin-top:8px"></div>
+        <div id="apply-face-log" class="log-area" style="display:none;margin-top:8px"></div>
+      </div>
+
+      <!-- G-code Preview -->
+      <div class="panel">
+        <div class="box-title">&#128203; Compensated G-code Preview</div>
+        <pre id="apply-preview" class="mono" style="max-height:200px;overflow-y:auto;padding:10px;border:1px solid var(--line);border-radius:10px;background:#0d111a;font-size:11px;white-space:pre-wrap;color:var(--muted)">No compensated G-code yet</pre>
+      </div>
+
+    </div><!-- /pane-apply -->
+
+
+  </div><!-- /content -->
+
+  <!-- ── FOOTER ─────────────────────────────────────────────────────────── -->
+  <div class="footer">
+    <div id="footer-status" class="status-line" style="margin-top:0">Ready</div>
+    <label class="mini" style="display:flex;align-items:center;gap:5px;cursor:pointer;user-select:none" title="Show [PLUGIN DEBUG] entries in probe logs and browser console">
+      <input type="checkbox" id="chk-plugin-debug" onchange="_pluginDebugMode=this.checked;pluginDebug('Debug logging '+(this.checked?'ENABLED':'DISABLED'));">
+      <span>Debug Log</span>
+    </label>
+    <div class="mini">3D Live Edge Mesh V21.0</div>
+  </div>
+
+</div><!-- /app -->
+
+
+<script>
