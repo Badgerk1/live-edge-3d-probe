@@ -13,6 +13,7 @@ function runSurfaceProbing() {
   if (!cfg) {
     // If grid config is invalid, call the completion callback with failure so combined
     // mode does not hang waiting for a callback that will never arrive.
+    _running = false;
     var _earlyCb = _smProbingCompleteCallback;
     _smProbingCompleteCallback = null;
     if (_earlyCb) { try { _earlyCb(false); } catch(_e) {} }
