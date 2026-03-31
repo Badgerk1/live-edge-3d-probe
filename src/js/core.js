@@ -202,6 +202,7 @@ function setFooterStatus(msg, cls){
 // ── Stop ──────────────────────────────────────────────────────────────────────
 function stopAll(){
   _stopRequested = true;
+  smStopFlag = true;
   setFooterStatus('Stop requested — halting after current move…', 'warn');
 }
 

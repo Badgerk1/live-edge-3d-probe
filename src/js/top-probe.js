@@ -1,5 +1,7 @@
 function runSurfaceProbing() {
   pluginDebug('runSurfaceProbing ENTER');
+  if (_running) { smSetProbeStatus('Already running', 'err'); return; }
+  _running = true;
   smStopFlag = false;
   meshSubdivisionSpacing = (function(){ var el = document.getElementById('meshSubdivisionSpacing'); return el ? Number(el.value) : meshSubdivisionSpacing; })();
   // Clear any previous mesh data so the combined-mode callback correctly detects
@@ -128,6 +130,7 @@ function runSurfaceProbing() {
     smPvizUpdate('error', { action: msg === 'Stopped by user' ? 'Stopped' : 'Error' });
     console.error('Surface probe error:', err);
   }).then(function() {
+    _running = false;
     var cb = _smProbingCompleteCallback;
     _smProbingCompleteCallback = null;
     try {

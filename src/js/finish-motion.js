@@ -1255,6 +1255,11 @@ function onProbeTypeChange() {
 
   // Auto-fill Bottom Z when switching into combined mode
   if (type === 'combined') _autoFillCombinedBottomZ();
+
+  // Clear stale progress/status from any previous probe mode
+  smSetProgress(0);
+  smSetProbeStatus('', '');
+  setFooterStatus('Ready', '');
 }
 
 function saveUnifiedProbeLog() {
@@ -1281,6 +1286,10 @@ function clearUnifiedProbeLog() {
 function startProbeByType() {
   var type = (document.getElementById('probe-type-select') || {}).value || '2d-surface';
   var axis = (document.getElementById('probe-face-axis-select') || {}).value || 'Y';
+  setFooterStatus('Starting...', 'warn');
+  smSetProgress(0);
+  _stopRequested = false;
+  smStopFlag = false;
   if (type === '2d-surface') {
     runSurfaceProbing();
   } else if (type === 'face') {
@@ -1294,6 +1303,7 @@ function startProbeByType() {
 
 async function runCombinedProbeMode(axis) {
   if (_running) { smLogProbe('COMBINED: cannot start — another probe operation is already running (_running=true).'); pluginDebug('runCombinedProbeMode SKIP: _running=true'); setFooterStatus('Already running', 'warn'); return; }
+  _running = true;
   axis = String(axis || 'Y').toUpperCase();
   // Reset stop flags so a previously-stopped run does not block this one.
   smStopFlag = false;
