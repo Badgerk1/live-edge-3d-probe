@@ -14,6 +14,8 @@ function getSettingsFromUI() {
     travelContactBackoff:        n('travelContactBackoff'),
     travelContactLift:           n('travelContactLift'),
     travelContactMaxRetries:     n('travelContactMaxRetries'),
+    probeFeed:                   n('probeFeed'),
+    retractDist:                 n('retractDist'),
     // Finish motion
     finishHomeZ:                 n('finishHomeZ'),
     useMachineHomeRetract:       b('useMachineHomeRetract'),
@@ -41,14 +43,19 @@ function getSettingsFromUI() {
     faceDepthBelowSurface:       n('faceDepthBelowSurface'),
     faceProbeDistance:           n('faceProbeDistance'),
     faceLayerCount:              n('faceLayerCount'),
+    fpZStepCount:                n('fp-zStepCount'),
+    fpZStepSize:                 n('fp-zStepSize'),
     // Probe dimensions
     probeShankDiameter:          n('probeShankDiameter'),
     probeBodyDiameter:           n('probeBodyDiameter'),
     probeUpperHeight:            n('probeUpperHeight'),
+    probeUpperLength:            n('probeUpperLength'),
     probeMainBodyHeight:         n('probeMainBodyHeight'),
+    probeLowerLength:            n('probeLowerLength'),
     probeStylusLength:           n('probeStylusLength'),
     probeStylusCalloutLength:    n('probeStylusCalloutLength'),
     probeBallTipDiameter:        n('probeBallTipDiameter'),
+    probeTipBallDiameter:        n('probeTipBallDiameter'),
     probeTotalLength:            n('probeTotalLength')
   };
 }
@@ -88,6 +95,8 @@ function loadSettings() {
   sv('travelContactBackoff',       data.travelContactBackoff);
   sv('travelContactLift',          data.travelContactLift);
   sv('travelContactMaxRetries',    data.travelContactMaxRetries);
+  sv('probeFeed',                  data.probeFeed);
+  sv('retractDist',                data.retractDist);
   // Finish motion
   sv('finishHomeZ',                data.finishHomeZ);
   sb('useMachineHomeRetract',      data.useMachineHomeRetract);
@@ -115,14 +124,19 @@ function loadSettings() {
   sv('faceDepthBelowSurface',      data.faceDepthBelowSurface);
   sv('faceProbeDistance',          data.faceProbeDistance);
   sv('faceLayerCount',             data.faceLayerCount);
+  sv('fp-zStepCount',              data.fpZStepCount);
+  sv('fp-zStepSize',               data.fpZStepSize);
   // Probe dimensions
   sv('probeShankDiameter',         data.probeShankDiameter);
   sv('probeBodyDiameter',          data.probeBodyDiameter);
   sv('probeUpperHeight',           data.probeUpperHeight);
+  sv('probeUpperLength',           data.probeUpperLength);
   sv('probeMainBodyHeight',        data.probeMainBodyHeight);
+  sv('probeLowerLength',           data.probeLowerLength);
   sv('probeStylusLength',          data.probeStylusLength);
   sv('probeStylusCalloutLength',   data.probeStylusCalloutLength);
   sv('probeBallTipDiameter',       data.probeBallTipDiameter);
+  sv('probeTipBallDiameter',       data.probeTipBallDiameter);
   sv('probeTotalLength',           data.probeTotalLength);
   // Trigger dependent previews
   try { refreshFinishBehaviorPreview(); } catch(e) {}
@@ -134,14 +148,17 @@ function resetSettings() {
     travelFeedRate: 600, travelRecoveryFeedRate: 1500, travelRecoveryLiftFeedRate: 1000,
     useTravelContactRecovery: true, travelContactStep: 5, travelContactBackoff: 5,
     travelContactLift: 5, travelContactMaxRetries: 5,
+    probeFeed: 100, retractDist: 2,
     finishHomeZ: 10, useMachineHomeRetract: true, machineSafeTopZ: 0, returnToXYZero: true,
     meshSubdivisionSpacing: 2,
     sampleAxis: 'X', topFixedCoord: 0, topSampleStart: 0, topSampleEnd: 100, topSampleCount: 10,
     topClearZ: 5, topFeed: 200, topProbeDepth: 5, topRetract: 2,
     faceFixedCoord: 0, enableLayeredFace: false, faceStartOffset: -10, faceMaxDepth: 14.75,
     faceFeed: 150, faceRetractFeed: 1000, faceDepthBelowSurface: 2, faceProbeDistance: 20, faceLayerCount: 3,
-    probeShankDiameter: 6, probeBodyDiameter: 33, probeUpperHeight: 20, probeMainBodyHeight: 21,
-    probeStylusLength: 26, probeStylusCalloutLength: 14.75, probeBallTipDiameter: 0, probeTotalLength: 67
+    fpZStepCount: 3, fpZStepSize: 1,
+    probeShankDiameter: 6, probeBodyDiameter: 33, probeUpperHeight: 20, probeUpperLength: 20,
+    probeMainBodyHeight: 21, probeLowerLength: 21,
+    probeStylusLength: 26, probeStylusCalloutLength: 14.75, probeBallTipDiameter: 0, probeTipBallDiameter: 0, probeTotalLength: 67
   };
   function sv(id, val) { var el = document.getElementById(id); if (el) el.value = val; }
   function sc(id, val) { var el = document.getElementById(id); if (el) el.checked = !!val; }
@@ -154,6 +171,8 @@ function resetSettings() {
   sv('travelContactBackoff',       defaults.travelContactBackoff);
   sv('travelContactLift',          defaults.travelContactLift);
   sv('travelContactMaxRetries',    defaults.travelContactMaxRetries);
+  sv('probeFeed',                  defaults.probeFeed);
+  sv('retractDist',                defaults.retractDist);
   sv('finishHomeZ',                defaults.finishHomeZ);
   sb('useMachineHomeRetract',      defaults.useMachineHomeRetract);
   sv('machineSafeTopZ',            defaults.machineSafeTopZ);
@@ -177,13 +196,18 @@ function resetSettings() {
   sv('faceDepthBelowSurface',      defaults.faceDepthBelowSurface);
   sv('faceProbeDistance',          defaults.faceProbeDistance);
   sv('faceLayerCount',             defaults.faceLayerCount);
+  sv('fp-zStepCount',              defaults.fpZStepCount);
+  sv('fp-zStepSize',               defaults.fpZStepSize);
   sv('probeShankDiameter',         defaults.probeShankDiameter);
   sv('probeBodyDiameter',          defaults.probeBodyDiameter);
   sv('probeUpperHeight',           defaults.probeUpperHeight);
+  sv('probeUpperLength',           defaults.probeUpperLength);
   sv('probeMainBodyHeight',        defaults.probeMainBodyHeight);
+  sv('probeLowerLength',           defaults.probeLowerLength);
   sv('probeStylusLength',          defaults.probeStylusLength);
   sv('probeStylusCalloutLength',   defaults.probeStylusCalloutLength);
   sv('probeBallTipDiameter',       defaults.probeBallTipDiameter);
+  sv('probeTipBallDiameter',       defaults.probeTipBallDiameter);
   sv('probeTotalLength',           defaults.probeTotalLength);
   try { refreshFinishBehaviorPreview(); } catch(e) {}
   try { refreshTravelRecoveryPreview(); } catch(e) {}
@@ -218,6 +242,15 @@ function refreshTravelRecoveryPreview() {
   var lift = Math.max(0, Number((document.getElementById('travelContactLift') || {}).value) || 5);
   var maxRetries = Math.max(1, Number((document.getElementById('travelContactMaxRetries') || {}).value) || 5);
   el.value = (lift * maxRetries).toFixed(3);
+  var preview = document.getElementById('travelRecoveryPreview');
+  if (preview) {
+    var useRecovery = (document.getElementById('useTravelContactRecovery') || {}).value === 'yes';
+    if (!useRecovery) {
+      preview.value = 'Travel contact recovery disabled';
+    } else {
+      preview.value = 'Recovery: lift ' + lift.toFixed(2) + ' coords, max ' + maxRetries + ' retries (max lift ' + (lift * maxRetries).toFixed(2) + ' coords)';
+    }
+  }
 }
 // ── Machine Z shortcut ────────────────────────────────────────────────────────
 async function useCurrentZAsFinishHome() {

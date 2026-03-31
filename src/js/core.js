@@ -5870,7 +5870,7 @@ function applyProbeDimensionSettings(s){
   updateProbeDimensionPreview();
 }
 
-var PROBE_DIM_IDS = ['probeShankDiameter','probeBodyDiameter','probeUpperHeight','probeMainBodyHeight','probeStylusLength','probeStylusCalloutLength','probeBallTipDiameter','probeTotalLength'];
+var PROBE_DIM_IDS = ['probeShankDiameter','probeBodyDiameter','probeUpperHeight','probeUpperLength','probeMainBodyHeight','probeLowerLength','probeStylusLength','probeStylusCalloutLength','probeBallTipDiameter','probeTipBallDiameter','probeTotalLength'];
 
 function saveProbeDimensions(){
   try{
