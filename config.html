@@ -8804,6 +8804,7 @@ function exportSurfaceOBJ() {
   lines.push('');
   norms.forEach(function(n) { lines.push('vn ' + n.x.toFixed(4) + ' ' + n.y.toFixed(4) + ' ' + n.z.toFixed(4)); });
   lines.push('');
+  lines.push('s 1');
   allTris.forEach(function(t) {
     var i0=t[0]+1, i1=t[1]+1, i2=t[2]+1;
     lines.push('f ' + i0 + '//' + i0 + ' ' + i1 + '//' + i1 + ' ' + i2 + '//' + i2);
@@ -8853,6 +8854,7 @@ function exportFaceOBJ() {
   lines.push('');
   norms.forEach(function(n) { lines.push('vn ' + n.x.toFixed(4) + ' ' + n.y.toFixed(4) + ' ' + n.z.toFixed(4)); });
   lines.push('');
+  lines.push('s 1');
   allTris.forEach(function(t) {
     var i0=t[0]+1, i1=t[1]+1, i2=t[2]+1;
     lines.push('f ' + i0 + '//' + i0 + ' ' + i1 + '//' + i1 + ' ' + i2 + '//' + i2);
@@ -8949,6 +8951,7 @@ function exportCombinedOBJWatertight() {
   lines.push('');
   norms.forEach(function(n) { lines.push('vn ' + n.x.toFixed(4) + ' ' + n.y.toFixed(4) + ' ' + n.z.toFixed(4)); });
   lines.push('');
+  lines.push('s 1');
   allTris.forEach(function(t) {
     var i0=t[0]+1, i1=t[1]+1, i2=t[2]+1;
     lines.push('f ' + i0 + '//' + i0 + ' ' + i1 + '//' + i1 + ' ' + i2 + '//' + i2);
