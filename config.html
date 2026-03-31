@@ -629,10 +629,10 @@
       <div class="grid three">
         <div class="field"><label><span class="tooltip">Min X (coords)<span class="tip-icon">?</span><span class="tip">Minimum X work coordinate for the 2D surface probe grid. Sets the left boundary of the probed area.</span></span></label><input type="number" id="sm-minX" value="0" step="1"></div>
         <div class="field"><label><span class="tooltip">Max X (coords)<span class="tip-icon">?</span><span class="tip">Maximum X work coordinate for the 2D surface probe grid. Sets the right boundary of the probed area.</span></span></label><input type="number" id="sm-maxX" value="100" step="1"></div>
-        <div class="field"><label><span class="tooltip">Points X<span class="tip-icon">?</span><span class="tip">Number of probe columns along the X axis. Higher values give more data points but increase run time.</span></span></label><input type="number" id="sm-pointsX" value="2" step="1" min="2"></div>
+        <div class="field"><label><span class="tooltip">Spacing X (coords)<span class="tip-icon">?</span><span class="tip">Distance between probe columns along the X axis. Smaller spacing gives more data points but increases run time.</span></span></label><input type="number" id="sm-spacingX" value="20" step="1" min="1"></div>
         <div class="field"><label><span class="tooltip">Min Y (coords)<span class="tip-icon">?</span><span class="tip">Minimum Y work coordinate for the 2D surface probe grid. Set equal to Max Y for single-row (linear) probing along X.</span></span></label><input type="number" id="sm-minY" value="0" step="1"></div>
         <div class="field"><label><span class="tooltip">Max Y (coords)<span class="tip-icon">?</span><span class="tip">Maximum Y work coordinate for the 2D surface probe grid. Set equal to Min Y for single-row (linear) probing along X.</span></span></label><input type="number" id="sm-maxY" value="100" step="1"></div>
-        <div class="field"><label><span class="tooltip">Points Y<span class="tip-icon">?</span><span class="tip">Number of probe rows along the Y axis. Higher values give more data points but increase run time.</span></span></label><input type="number" id="sm-pointsY" value="2" step="1" min="2"></div>
+        <div class="field"><label><span class="tooltip">Spacing Y (coords)<span class="tip-icon">?</span><span class="tip">Distance between probe rows along the Y axis. Smaller spacing gives more data points but increases run time.</span></span></label><input type="number" id="sm-spacingY" value="20" step="1" min="1"></div>
       </div>
       <div style="margin-top:8px;display:inline-block;padding:6px 10px;border-radius:5px;background:var(--panel2);border:1px solid var(--line);color:var(--accent2);font-size:13px;font-weight:600" id="sm-gridSizeDisplay">6 &times; 6 = 36 points</div>
       <div class="mini" style="color:var(--muted);margin-top:6px">&#128161; Set Min Y = Max Y = 0 for single-row (linear) probing along X axis</div>
@@ -1506,7 +1506,6 @@ function setFooterStatus(msg, cls){
 // ── Stop ──────────────────────────────────────────────────────────────────────
 function stopAll(){
   _stopRequested = true;
-  smStopFlag = true;
   setFooterStatus('Stop requested — halting after current move…', 'warn');
 }
 
@@ -1699,57 +1698,6 @@ function getJogSettingsFromUI(){
     stepZ: Number(document.getElementById('jogStepZ').value) || 0,
     feedXY: Number(document.getElementById('jogFeedXY').value) || 600,
     feedZ: Number(document.getElementById('jogFeedZ').value) || 300
-  };
-}
-
-function getSettingsFromUI(){
-  function _val(id){ var el = document.getElementById(id); return el ? el.value : null; }
-  function _num(id, def){ var v = parseFloat(_val(id)); return isFinite(v) ? v : (def !== undefined ? def : 0); }
-  function _bool(id){ var v = _val(id); return v === 'yes' || v === 'true' || v === true; }
-  function _chk(id){ var el = document.getElementById(id); return el ? el.checked : false; }
-  function _str(id, def){ var v = _val(id); return (v != null && v !== '') ? v : (def !== undefined ? def : ''); }
-  return {
-    // Travel / recovery feeds
-    travelFeedRate:             _num('travelFeedRate', 600),
-    travelRecoveryFeedRate:     _num('travelRecoveryFeedRate', 1500),
-    travelRecoveryLiftFeedRate: _num('travelRecoveryLiftFeedRate', 1000),
-    travelContactLift:          _num('travelContactLift', 5),
-    travelContactStep:          _num('travelContactStep', 5),
-    travelContactBackoff:       _num('travelContactBackoff', 5),
-    travelContactMaxRetries:    _num('travelContactMaxRetries', 5),
-    // Finish motion
-    finishHomeZ:            _num('finishHomeZ', 10),
-    useMachineHomeRetract:  _bool('useMachineHomeRetract'),
-    machineSafeTopZ:        _num('machineSafeTopZ', 0),
-    returnToXYZero:         _bool('returnToXYZero'),
-    // Mesh subdivision
-    meshSubdivisionSpacing: _num('meshSubdivisionSpacing', 2),
-    // Top profile settings
-    sampleAxis:     _str('sampleAxis', 'X'),
-    topFixedCoord:  _num('topFixedCoord', 0),
-    topFeed:        _num('topFeed', 200),
-    topProbeDepth:  _num('topProbeDepth', 5),
-    topRetract:     _num('topRetract', 2),
-    topClearZ:      _num('topClearZ', 5),
-    // Face probe settings
-    faceStartOffset:        _num('faceStartOffset', -10),
-    faceFeed:               _num('faceFeed', 150),
-    faceRetractFeed:        _num('faceRetractFeed', 1000),
-    faceDepthBelowSurface:  _num('faceDepthBelowSurface', 2),
-    faceProbeDistance:      _num('faceProbeDistance', 20),
-    faceFixedCoord:         _num('faceFixedCoord', 0),
-    faceMaxDepth:           _num('faceMaxDepth', 14.75),
-    faceLayerCount:         _num('faceLayerCount', 3),
-    enableLayeredFace:      _chk('enableLayeredFace'),
-    // Probe dimensions
-    probeShankDiameter:         _val('probeShankDiameter'),
-    probeBodyDiameter:          _val('probeBodyDiameter'),
-    probeUpperHeight:           _val('probeUpperHeight'),
-    probeMainBodyHeight:        _val('probeMainBodyHeight'),
-    probeStylusLength:          _val('probeStylusLength'),
-    probeStylusCalloutLength:   _val('probeStylusCalloutLength'),
-    probeBallTipDiameter:       _val('probeBallTipDiameter'),
-    probeTotalLength:           _val('probeTotalLength')
   };
 }
 
@@ -1984,9 +1932,8 @@ async function moveMachineZAbs(z, feed){
   if(feed != null && isFinite(Number(feed))) cmd += ' F' + Number(feed).toFixed(0);
   pluginDebug('moveMachineZAbs: ' + cmd);
   await sendCommand(cmd);
-  var pos = await waitForIdleWithTimeout();
+  await waitForIdleWithTimeout();
   pluginDebug('moveMachineZAbs DONE: ' + cmd);
-  return pos;
 }
 
 // ── Settings helpers ──────────────────────────────────────────────────────────
@@ -2223,17 +2170,17 @@ var _smPvizSeqLastTime = 0;
 function buildSurfaceGridConfig() {
   var minX = Number(document.getElementById('sm-minX').value);
   var maxX = Number(document.getElementById('sm-maxX').value);
-  var colCount = Number(document.getElementById('sm-pointsX').value);
+  var spacingX = Number(document.getElementById('sm-spacingX').value);
   var minY = Number(document.getElementById('sm-minY').value);
   var maxY = Number(document.getElementById('sm-maxY').value);
-  var rowCount = Number(document.getElementById('sm-pointsY').value);
-  if (minX >= maxX || minY >= maxY || colCount < 2 || rowCount < 2) {
-    alert('Invalid grid settings: Min must be less than Max, points must be >= 2');
+  var spacingY = Number(document.getElementById('sm-spacingY').value);
+  if (minX >= maxX || minY >= maxY || spacingX <= 0 || spacingY <= 0) {
+    alert('Invalid grid settings: Min must be less than Max, spacing must be > 0');
     return null;
   }
-  var colSpacing = (maxX - minX) / (colCount - 1);
-  var rowSpacing = (maxY - minY) / (rowCount - 1);
-  return { minX: minX, maxX: maxX, colSpacing: colSpacing, minY: minY, maxY: maxY, rowSpacing: rowSpacing, colCount: colCount, rowCount: rowCount };
+  var colCount = Math.floor((maxX - minX) / spacingX) + 1;
+  var rowCount = Math.floor((maxY - minY) / spacingY) + 1;
+  return { minX: minX, maxX: maxX, colSpacing: spacingX, minY: minY, maxY: maxY, rowSpacing: spacingY, colCount: colCount, rowCount: rowCount };
 }
 
 function updateSurfaceGridSizeDisplay() {
@@ -2241,21 +2188,23 @@ function updateSurfaceGridSizeDisplay() {
   if (!el) return;
   var vMinX = document.getElementById('sm-minX').value;
   var vMaxX = document.getElementById('sm-maxX').value;
-  var vPointsX = document.getElementById('sm-pointsX').value;
+  var vSpacingX = document.getElementById('sm-spacingX').value;
   var vMinY = document.getElementById('sm-minY').value;
   var vMaxY = document.getElementById('sm-maxY').value;
-  var vPointsY = document.getElementById('sm-pointsY').value;
-  if (vMinX === '' || vMaxX === '' || vPointsX === '' || vMinY === '' || vMaxY === '' || vPointsY === '') {
+  var vSpacingY = document.getElementById('sm-spacingY').value;
+  if (vMinX === '' || vMaxX === '' || vSpacingX === '' || vMinY === '' || vMaxY === '' || vSpacingY === '') {
     el.innerHTML = '&mdash;';
     return;
   }
-  var minX = Number(vMinX), maxX = Number(vMaxX), colCount = Number(vPointsX);
-  var minY = Number(vMinY), maxY = Number(vMaxY), rowCount = Number(vPointsY);
-  if (isNaN(minX) || isNaN(maxX) || isNaN(colCount) || isNaN(minY) || isNaN(maxY) || isNaN(rowCount) ||
-      minX >= maxX || minY >= maxY || colCount < 2 || rowCount < 2) {
+  var minX = Number(vMinX), maxX = Number(vMaxX), spacingX = Number(vSpacingX);
+  var minY = Number(vMinY), maxY = Number(vMaxY), spacingY = Number(vSpacingY);
+  if (isNaN(minX) || isNaN(maxX) || isNaN(spacingX) || isNaN(minY) || isNaN(maxY) || isNaN(spacingY) ||
+      minX >= maxX || minY >= maxY || spacingX <= 0 || spacingY <= 0) {
     el.innerHTML = '&mdash;';
     return;
   }
+  var colCount = Math.floor((maxX - minX) / spacingX) + 1;
+  var rowCount = Math.floor((maxY - minY) / spacingY) + 1;
   el.innerHTML = colCount + ' &times; ' + rowCount + ' = ' + (colCount * rowCount) + ' points';
 }
 
@@ -2517,13 +2466,12 @@ async function smFinishMotion(travelFeed) {
         smLogProbe('Finish move: current machine Z ' + currentMachineZ.toFixed(3) + ' is already at or above target ' + machineSafeTopZ.toFixed(3) + '; skipping G53 retract');
       } else {
         smLogProbe('Finish move: machine is homed; retracting with G53 to machine Z ' + machineSafeTopZ.toFixed(3) + ' before X/Y travel');
-        var retractPos;
         try {
-          retractPos = await moveMachineZAbs(machineSafeTopZ, feed);
+          await moveMachineZAbs(machineSafeTopZ, feed);
         } catch(retractErr) {
           smLogProbe('Finish move: G53 retract error (' + retractErr.message + '); continuing with return');
         }
-        if (!retractPos) retractPos = await getWorkPosition();
+        var retractPos = await getWorkPosition();
         smLogProbe('DEBUG POSITION: after finish retract X=' + retractPos.x.toFixed(3) + ' Y=' + retractPos.y.toFixed(3) + ' Z=' + retractPos.z.toFixed(3));
       }
     } else {
@@ -2532,8 +2480,8 @@ async function smFinishMotion(travelFeed) {
         smLogProbe('Finish move: current work Z ' + currentZ.toFixed(3) + ' is already above fallback target ' + finishZ.toFixed(3) + '; keeping current Z for safe X/Y return');
       } else {
         smLogProbe('Finish move: lifting work Z to fallback ' + safeTravelZ.toFixed(3));
-        var retractPos = await moveAbs(null, null, safeTravelZ, feed);
-        if (!retractPos) retractPos = await getWorkPosition();
+        await moveAbs(null, null, safeTravelZ, feed);
+        var retractPos = await getWorkPosition();
         smLogProbe('DEBUG POSITION: after finish retract X=' + retractPos.x.toFixed(3) + ' Y=' + retractPos.y.toFixed(3) + ' Z=' + retractPos.z.toFixed(3));
       }
     }
@@ -2542,27 +2490,20 @@ async function smFinishMotion(travelFeed) {
       smLogProbe('Finish move: current work Z ' + currentZ.toFixed(3) + ' is already above target ' + finishZ.toFixed(3) + '; keeping current Z for safe X/Y return');
     } else {
       smLogProbe('Finish move: lifting work Z to ' + safeTravelZ.toFixed(3));
-      var retractPos = await moveAbs(null, null, safeTravelZ, feed);
-      if (!retractPos) retractPos = await getWorkPosition();
+      await moveAbs(null, null, safeTravelZ, feed);
+      var retractPos = await getWorkPosition();
       smLogProbe('DEBUG POSITION: after finish retract X=' + retractPos.x.toFixed(3) + ' Y=' + retractPos.y.toFixed(3) + ' Z=' + retractPos.z.toFixed(3));
     }
   }
 
   if (returnXYZero) {
     smLogProbe('Finish move: returning to work X0.000 Y0.000');
-    var returnPos = await moveAbs(0, 0, null, feed);
-    if (!returnPos) returnPos = await getWorkPosition();
+    await moveAbs(0, 0, null, feed);
+    var returnPos = await getWorkPosition();
     smLogProbe('DEBUG POSITION: after finish return X=' + returnPos.x.toFixed(3) + ' Y=' + returnPos.y.toFixed(3) + ' Z=' + returnPos.z.toFixed(3));
   } else {
     smLogProbe('Finish move: X/Y return disabled');
   }
-}
-
-async function finishRunMotion(tab) {
-  var s = getSettingsFromUI();
-  var feed = Number(s.travelFeedRate) || 600;
-  logLine(tab, 'Finish motion: retracting Z and returning to start position...');
-  await smFinishMotion(feed);
 }
 
 // ── Probe Visualizer helpers ──────────────────────────────────────────────────
@@ -4135,8 +4076,6 @@ function populateUnifiedProbeTable() {
 
 function runSurfaceProbing() {
   pluginDebug('runSurfaceProbing ENTER');
-  if (_running) { smSetProbeStatus('Already running', 'err'); return; }
-  _running = true;
   smStopFlag = false;
   meshSubdivisionSpacing = (function(){ var el = document.getElementById('meshSubdivisionSpacing'); return el ? Number(el.value) : meshSubdivisionSpacing; })();
   // Clear any previous mesh data so the combined-mode callback correctly detects
@@ -4148,7 +4087,6 @@ function runSurfaceProbing() {
   if (!cfg) {
     // If grid config is invalid, call the completion callback with failure so combined
     // mode does not hang waiting for a callback that will never arrive.
-    _running = false;
     var _earlyCb = _smProbingCompleteCallback;
     _smProbingCompleteCallback = null;
     if (_earlyCb) { try { _earlyCb(false); } catch(_e) {} }
@@ -4266,7 +4204,6 @@ function runSurfaceProbing() {
     smPvizUpdate('error', { action: msg === 'Stopped by user' ? 'Stopped' : 'Error' });
     console.error('Surface probe error:', err);
   }).then(function() {
-    _running = false;
     var cb = _smProbingCompleteCallback;
     _smProbingCompleteCallback = null;
     try {
@@ -6192,7 +6129,7 @@ async function runFaceProbe(axis, _calledFromCombined){
 
 // ── Mesh Data Management ──────────────────────────────────────────────────────
 function smSaveSettings() {
-  var ids = ['sm-minX','sm-maxX','sm-pointsX','sm-minY','sm-maxY','sm-pointsY',
+  var ids = ['sm-minX','sm-maxX','sm-spacingX','sm-minY','sm-maxY','sm-spacingY',
              'sm-probeFeed','sm-travelFeed','sm-clearanceZ','sm-maxPlunge','sm-referenceZ'];
   var data = {};
   ids.forEach(function(id) {
@@ -7337,7 +7274,7 @@ function bindProbeDimensionUI(){
 
   // Grid size display updates
   try {
-    ['sm-minX','sm-maxX','sm-pointsX','sm-minY','sm-maxY','sm-pointsY'].forEach(function(id) {
+    ['sm-minX','sm-maxX','sm-spacingX','sm-minY','sm-maxY','sm-spacingY'].forEach(function(id) {
       document.getElementById(id).addEventListener('input', updateSurfaceGridSizeDisplay);
     });
     updateSurfaceGridSizeDisplay();
@@ -7448,11 +7385,6 @@ function onProbeTypeChange() {
 
   // Auto-fill Bottom Z when switching into combined mode
   if (type === 'combined') _autoFillCombinedBottomZ();
-
-  // Clear stale progress/status from any previous probe mode
-  smSetProgress(0);
-  smSetProbeStatus('', '');
-  setFooterStatus('Ready', '');
 }
 
 function saveUnifiedProbeLog() {
@@ -7479,10 +7411,6 @@ function clearUnifiedProbeLog() {
 function startProbeByType() {
   var type = (document.getElementById('probe-type-select') || {}).value || '2d-surface';
   var axis = (document.getElementById('probe-face-axis-select') || {}).value || 'Y';
-  setFooterStatus('Starting...', 'warn');
-  smSetProgress(0);
-  _stopRequested = false;
-  smStopFlag = false;
   if (type === '2d-surface') {
     runSurfaceProbing();
   } else if (type === 'face') {
@@ -7496,7 +7424,6 @@ function startProbeByType() {
 
 async function runCombinedProbeMode(axis) {
   if (_running) { smLogProbe('COMBINED: cannot start — another probe operation is already running (_running=true).'); pluginDebug('runCombinedProbeMode SKIP: _running=true'); setFooterStatus('Already running', 'warn'); return; }
-  _running = true;
   axis = String(axis || 'Y').toUpperCase();
   // Reset stop flags so a previously-stopped run does not block this one.
   smStopFlag = false;
@@ -7528,9 +7455,6 @@ async function runCombinedProbeMode(axis) {
         resolve(!!success);
       };
       _smSkipFinishMotion = true; // Skip home detour in combined mode — go directly to Phase 1.5/face probe
-      // Temporarily reset _running so runSurfaceProbing() does not see it as true
-      // and bail out immediately — surface probe will set _running = true itself.
-      _running = false;
       runSurfaceProbing();
     });
     pluginDebug('runCombinedProbeMode: surface probe promise resolved, surfaceSuccess=' + surfaceSuccess);
