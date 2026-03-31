@@ -1506,6 +1506,7 @@ function setFooterStatus(msg, cls){
 // ── Stop ──────────────────────────────────────────────────────────────────────
 function stopAll(){
   _stopRequested = true;
+  smStopFlag = true;
   setFooterStatus('Stop requested — halting after current move…', 'warn');
 }
 
@@ -4134,6 +4135,8 @@ function populateUnifiedProbeTable() {
 
 function runSurfaceProbing() {
   pluginDebug('runSurfaceProbing ENTER');
+  if (_running) { smSetProbeStatus('Already running', 'err'); return; }
+  _running = true;
   smStopFlag = false;
   meshSubdivisionSpacing = (function(){ var el = document.getElementById('meshSubdivisionSpacing'); return el ? Number(el.value) : meshSubdivisionSpacing; })();
   // Clear any previous mesh data so the combined-mode callback correctly detects
@@ -4262,6 +4265,7 @@ function runSurfaceProbing() {
     smPvizUpdate('error', { action: msg === 'Stopped by user' ? 'Stopped' : 'Error' });
     console.error('Surface probe error:', err);
   }).then(function() {
+    _running = false;
     var cb = _smProbingCompleteCallback;
     _smProbingCompleteCallback = null;
     try {
@@ -7443,6 +7447,11 @@ function onProbeTypeChange() {
 
   // Auto-fill Bottom Z when switching into combined mode
   if (type === 'combined') _autoFillCombinedBottomZ();
+
+  // Clear stale progress/status from any previous probe mode
+  smSetProgress(0);
+  smSetProbeStatus('', '');
+  setFooterStatus('Ready', '');
 }
 
 function saveUnifiedProbeLog() {
@@ -7469,6 +7478,10 @@ function clearUnifiedProbeLog() {
 function startProbeByType() {
   var type = (document.getElementById('probe-type-select') || {}).value || '2d-surface';
   var axis = (document.getElementById('probe-face-axis-select') || {}).value || 'Y';
+  setFooterStatus('Starting...', 'warn');
+  smSetProgress(0);
+  _stopRequested = false;
+  smStopFlag = false;
   if (type === '2d-surface') {
     runSurfaceProbing();
   } else if (type === 'face') {
@@ -7482,6 +7495,7 @@ function startProbeByType() {
 
 async function runCombinedProbeMode(axis) {
   if (_running) { smLogProbe('COMBINED: cannot start — another probe operation is already running (_running=true).'); pluginDebug('runCombinedProbeMode SKIP: _running=true'); setFooterStatus('Already running', 'warn'); return; }
+  _running = true;
   axis = String(axis || 'Y').toUpperCase();
   // Reset stop flags so a previously-stopped run does not block this one.
   smStopFlag = false;
