@@ -892,6 +892,16 @@
         <button class="btn ghost" id="btn-export-surf-obj" title="Export surface mesh as OBJ">&#129518; Export OBJ</button>
       </div>
     </div>
+    <!-- Combined Mode Settings — shown only in Combined mode -->
+    <div id="combined-settings-panel" class="panel" style="display:none">
+      <div class="box-title">Combined Mode Settings</div>
+      <div class="field" style="max-width:320px;margin-bottom:10px">
+        <label><span class="tooltip">Phase Pause (ms)<span class="tip-icon">?</span><span class="tip">Delay in milliseconds inserted between the end of the surface probe row and the start of the face probe phase. Gives the machine and operator time to settle. Default: 2000ms.</span></span>
+          <input type="number" id="combined-phase-pause" value="2000" min="0" max="30000" step="100" style="width:100px">
+        </label>
+        <div class="mini" style="margin-top:4px">Pause before face probe starts. 0 = no delay. Saved with Settings.</div>
+      </div>
+    </div>
     <!-- Combined Mesh Export (Watertight) — shown only in Combined mode -->
     <div id="combined-export-panel" class="panel" style="display:none">
       <div class="box-title">Combined Mesh Export (Watertight)</div>
@@ -7568,6 +7578,10 @@ function onProbeTypeChange() {
   var combExport = document.getElementById('combined-export-panel');
   if (combExport) combExport.style.display = (type === 'combined') ? '' : 'none';
 
+  // Combined settings panel — only visible in combined mode
+  var combSettings = document.getElementById('combined-settings-panel');
+  if (combSettings) combSettings.style.display = (type === 'combined') ? '' : 'none';
+
   // Auto-fill Bottom Z when switching into combined mode
   if (type === 'combined') _autoFillCombinedBottomZ();
 }
@@ -7789,6 +7803,16 @@ async function runCombinedProbeMode(axis) {
     if (!probeCleared) {
       setFooterStatus('Combined probe: could not clear probe before face phase.', 'bad');
       return;
+    }
+
+    // Configurable pause between surface probe phase and face probe phase
+    var phasePauseMs = Math.max(0, Number((document.getElementById('combined-phase-pause') || {}).value) || 0);
+    if (phasePauseMs > 0) {
+      smLogProbe('COMBINED: surface probe row complete — pausing ' + phasePauseMs + 'ms before face probe...');
+      logLine('face', 'COMBINED MODE: surface probe row complete — pausing ' + phasePauseMs + 'ms before face probe...');
+      await sleep(phasePauseMs);
+      smLogProbe('COMBINED: pause complete — starting face probe phase (axis=' + axis + ')...');
+      logLine('face', 'COMBINED MODE: pause complete — starting face probe phase (axis=' + axis + ')...');
     }
 
     setFooterStatus('Combined probe: running face probe phase (' + axis + ')\u2026', 'warn');
@@ -8244,6 +8268,8 @@ function getSettingsFromUI() {
     faceLayerCount:              n('faceLayerCount'),
     fpZStepCount:                n('fp-zStepCount'),
     fpZStepSize:                 n('fp-zStepSize'),
+    // Combined mode
+    combinedPhasePause:          n('combined-phase-pause'),
     // Probe dimensions
     probeShankDiameter:          n('probeShankDiameter'),
     probeBodyDiameter:           n('probeBodyDiameter'),
@@ -8325,6 +8351,8 @@ function loadSettings() {
   sv('faceLayerCount',             data.faceLayerCount);
   sv('fp-zStepCount',              data.fpZStepCount);
   sv('fp-zStepSize',               data.fpZStepSize);
+  // Combined mode
+  sv('combined-phase-pause',       data.combinedPhasePause);
   // Probe dimensions
   sv('probeShankDiameter',         data.probeShankDiameter);
   sv('probeBodyDiameter',          data.probeBodyDiameter);
@@ -8355,6 +8383,7 @@ function resetSettings() {
     faceFixedCoord: 0, enableLayeredFace: false, faceStartOffset: -10, faceMaxDepth: 14.75,
     faceFeed: 150, faceRetractFeed: 1000, faceDepthBelowSurface: 2, faceProbeDistance: 20, faceLayerCount: 3,
     fpZStepCount: 3, fpZStepSize: 1,
+    combinedPhasePause: 2000,
     probeShankDiameter: 6, probeBodyDiameter: 33, probeUpperHeight: 20, probeUpperLength: 20,
     probeMainBodyHeight: 21, probeLowerLength: 21,
     probeStylusLength: 26, probeStylusCalloutLength: 14.75, probeBallTipDiameter: 0, probeTipBallDiameter: 0, probeTotalLength: 67
@@ -8397,6 +8426,7 @@ function resetSettings() {
   sv('faceLayerCount',             defaults.faceLayerCount);
   sv('fp-zStepCount',              defaults.fpZStepCount);
   sv('fp-zStepSize',               defaults.fpZStepSize);
+  sv('combined-phase-pause',       defaults.combinedPhasePause);
   sv('probeShankDiameter',         defaults.probeShankDiameter);
   sv('probeBodyDiameter',          defaults.probeBodyDiameter);
   sv('probeUpperHeight',           defaults.probeUpperHeight);

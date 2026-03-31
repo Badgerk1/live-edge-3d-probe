@@ -45,6 +45,8 @@ function getSettingsFromUI() {
     faceLayerCount:              n('faceLayerCount'),
     fpZStepCount:                n('fp-zStepCount'),
     fpZStepSize:                 n('fp-zStepSize'),
+    // Combined mode
+    combinedPhasePause:          n('combined-phase-pause'),
     // Probe dimensions
     probeShankDiameter:          n('probeShankDiameter'),
     probeBodyDiameter:           n('probeBodyDiameter'),
@@ -126,6 +128,8 @@ function loadSettings() {
   sv('faceLayerCount',             data.faceLayerCount);
   sv('fp-zStepCount',              data.fpZStepCount);
   sv('fp-zStepSize',               data.fpZStepSize);
+  // Combined mode
+  sv('combined-phase-pause',       data.combinedPhasePause);
   // Probe dimensions
   sv('probeShankDiameter',         data.probeShankDiameter);
   sv('probeBodyDiameter',          data.probeBodyDiameter);
@@ -156,6 +160,7 @@ function resetSettings() {
     faceFixedCoord: 0, enableLayeredFace: false, faceStartOffset: -10, faceMaxDepth: 14.75,
     faceFeed: 150, faceRetractFeed: 1000, faceDepthBelowSurface: 2, faceProbeDistance: 20, faceLayerCount: 3,
     fpZStepCount: 3, fpZStepSize: 1,
+    combinedPhasePause: 2000,
     probeShankDiameter: 6, probeBodyDiameter: 33, probeUpperHeight: 20, probeUpperLength: 20,
     probeMainBodyHeight: 21, probeLowerLength: 21,
     probeStylusLength: 26, probeStylusCalloutLength: 14.75, probeBallTipDiameter: 0, probeTipBallDiameter: 0, probeTotalLength: 67
@@ -198,6 +203,7 @@ function resetSettings() {
   sv('faceLayerCount',             defaults.faceLayerCount);
   sv('fp-zStepCount',              defaults.fpZStepCount);
   sv('fp-zStepSize',               defaults.fpZStepSize);
+  sv('combined-phase-pause',       defaults.combinedPhasePause);
   sv('probeShankDiameter',         defaults.probeShankDiameter);
   sv('probeBodyDiameter',          defaults.probeBodyDiameter);
   sv('probeUpperHeight',           defaults.probeUpperHeight);

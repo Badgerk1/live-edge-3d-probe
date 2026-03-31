@@ -715,6 +715,16 @@
         <button class="btn ghost" id="btn-export-surf-obj" title="Export surface mesh as OBJ">&#129518; Export OBJ</button>
       </div>
     </div>
+    <!-- Combined Mode Settings — shown only in Combined mode -->
+    <div id="combined-settings-panel" class="panel" style="display:none">
+      <div class="box-title">Combined Mode Settings</div>
+      <div class="field" style="max-width:320px;margin-bottom:10px">
+        <label><span class="tooltip">Phase Pause (ms)<span class="tip-icon">?</span><span class="tip">Delay in milliseconds inserted between the end of the surface probe row and the start of the face probe phase. Gives the machine and operator time to settle. Default: 2000ms.</span></span>
+          <input type="number" id="combined-phase-pause" value="2000" min="0" max="30000" step="100" style="width:100px">
+        </label>
+        <div class="mini" style="margin-top:4px">Pause before face probe starts. 0 = no delay. Saved with Settings.</div>
+      </div>
+    </div>
     <!-- Combined Mesh Export (Watertight) — shown only in Combined mode -->
     <div id="combined-export-panel" class="panel" style="display:none">
       <div class="box-title">Combined Mesh Export (Watertight)</div>

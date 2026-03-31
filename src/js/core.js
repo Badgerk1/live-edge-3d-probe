@@ -6196,6 +6196,10 @@ function onProbeTypeChange() {
   var combExport = document.getElementById('combined-export-panel');
   if (combExport) combExport.style.display = (type === 'combined') ? '' : 'none';
 
+  // Combined settings panel — only visible in combined mode
+  var combSettings = document.getElementById('combined-settings-panel');
+  if (combSettings) combSettings.style.display = (type === 'combined') ? '' : 'none';
+
   // Auto-fill Bottom Z when switching into combined mode
   if (type === 'combined') _autoFillCombinedBottomZ();
 }
@@ -6417,6 +6421,16 @@ async function runCombinedProbeMode(axis) {
     if (!probeCleared) {
       setFooterStatus('Combined probe: could not clear probe before face phase.', 'bad');
       return;
+    }
+
+    // Configurable pause between surface probe phase and face probe phase
+    var phasePauseMs = Math.max(0, Number((document.getElementById('combined-phase-pause') || {}).value) || 0);
+    if (phasePauseMs > 0) {
+      smLogProbe('COMBINED: surface probe row complete — pausing ' + phasePauseMs + 'ms before face probe...');
+      logLine('face', 'COMBINED MODE: surface probe row complete — pausing ' + phasePauseMs + 'ms before face probe...');
+      await sleep(phasePauseMs);
+      smLogProbe('COMBINED: pause complete — starting face probe phase (axis=' + axis + ')...');
+      logLine('face', 'COMBINED MODE: pause complete — starting face probe phase (axis=' + axis + ')...');
     }
 
     setFooterStatus('Combined probe: running face probe phase (' + axis + ')\u2026', 'warn');
