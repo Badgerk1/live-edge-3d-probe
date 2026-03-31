@@ -248,8 +248,8 @@
             <div class="grid three">
               <div class="field">
                 <label>
-                  <span class="tooltip">Finish Lift Z / Fallback Z (coords)<span class="tip-icon">?</span>
-                    <span class="tip">Absolute work Z used if machine-home retract is disabled, or as a fallback if the controller is unexpectedly not homed at finish.</span>
+                  <span class="tooltip">Finish Clearance (mm above highest point)<span class="tip-icon">?</span>
+                    <span class="tip">How many mm above the highest measured surface point to retract Z before returning to X0 Y0. E.g. setting 10 will retract to 10mm above the tallest probe contact measured during this run.</span>
                   </span>
                 </label>
                 <input type="number" id="finishHomeZ" value="10" step="0.1">
@@ -287,9 +287,9 @@
               <button class="btn ghost" id="btn-save-location">&#128205; Save Current Location</button>
               <button class="btn ghost" id="btn-go-location">&#10148; Go To Saved Location</button>
               <button class="btn ghost" id="btn-check-homed">&#128269; Check Homed</button>
-              <button class="btn ghost" id="btn-use-current-z-home">&#8679; Use Current Z as Fallback Z</button>
+              <button class="btn ghost" id="btn-use-current-z-home">&#8679; Set Clearance From Current Z</button>
             </div>
-            <div class="mini">Save Current Location stores the present work position in the plugin. Check Homed reads controller state and shows homed, machine, and probe input status before you start probing. Finish behavior can retract to a machine-coordinate safe-top Z before any X/Y return, with a fallback work-coordinate Z if homing state is unavailable.</div>
+            <div class="mini">Save Current Location stores the present work position in the plugin. Check Homed reads controller state and shows homed, machine, and probe input status before you start probing. Finish Clearance sets how many mm above the highest measured probe contact to retract Z before any X/Y return.</div>
           </div>
 
           <div class="jog-card">

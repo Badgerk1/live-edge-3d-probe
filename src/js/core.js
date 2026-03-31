@@ -1182,18 +1182,30 @@ async function raiseFaceTravelSafeZ(label, feed, safeZ) {
 async function smFinishMotion(travelFeed) {
   pluginDebug('smFinishMotion ENTER: travelFeed=' + travelFeed);
   var s = getSettingsFromUI();
-  var finishZ = Number(s.finishHomeZ);
+  var clearanceOffset = Number(s.finishHomeZ);
   var returnXYZero = !!s.returnToXYZero;
   var feed = travelFeed || s.travelFeedRate || 600; // 600 mm/min safe fallback
 
-  // Guard: if finishHomeZ is 0 or not a valid number, use a safe fallback and warn.
-  if (!isFinite(finishZ) || finishZ === 0) {
-    smLogProbe('Finish move: WARNING — finishHomeZ is ' + finishZ + ' (unset or zero); using safe fallback of 10.0mm work Z.');
-    finishZ = 10.0;
+  // Guard: clearance offset must be a positive number.
+  if (!isFinite(clearanceOffset) || clearanceOffset <= 0) {
+    smLogProbe('Finish move: WARNING — finishHomeZ clearance is ' + clearanceOffset + ' (invalid or non-positive); using safe fallback of 10.0mm clearance.');
+    clearanceOffset = 10.0;
   }
 
   var pos = await getWorkPosition();
   var currentZ = Number(pos.z);
+
+  // Compute retract Z: highest measured surface + clearance offset.
+  // Fall back to currentZ + offset if no probe data is available.
+  var maxSurfaceZ = (typeof getMaxMeasuredSurfaceZ === 'function') ? getMaxMeasuredSurfaceZ() : null;
+  var finishZ;
+  if (maxSurfaceZ !== null) {
+    finishZ = maxSurfaceZ + clearanceOffset;
+    smLogProbe('Finish move: highest measured surface Z=' + maxSurfaceZ.toFixed(3) + 'mm, clearance offset=' + clearanceOffset.toFixed(1) + 'mm → retracting to work Z ' + finishZ.toFixed(3));
+  } else {
+    finishZ = currentZ + clearanceOffset;
+    smLogProbe('Finish move: no surface data available — retracting ' + clearanceOffset.toFixed(1) + 'mm above current Z=' + currentZ.toFixed(3) + ' → work Z ' + finishZ.toFixed(3));
+  }
 
   // Z retract — always use work coordinates (G0 Z{finishZ}), never G53 machine coords.
   // Only move if finishZ is actually higher than the current position.

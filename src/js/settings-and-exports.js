@@ -229,15 +229,15 @@ function resetSettings() {
 function refreshFinishBehaviorPreview() {
   var el = document.getElementById('finishBehaviorPreview');
   if (!el) return;
-  var useMachineHome = (document.getElementById('useMachineHomeRetract') || {}).value === 'yes';
   var returnXY = (document.getElementById('returnToXYZero') || {}).value === 'yes';
-  var finishZ = Number((document.getElementById('finishHomeZ') || {}).value);
-  var safeTopZ = Number((document.getElementById('machineSafeTopZ') || {}).value);
+  var clearanceOffset = Number((document.getElementById('finishHomeZ') || {}).value);
   var parts = [];
-  if (useMachineHome) {
-    parts.push('Retract to machine safe Z ' + (isFinite(safeTopZ) ? safeTopZ.toFixed(2) : '?'));
+  var maxSurfZ = (typeof getMaxMeasuredSurfaceZ === 'function') ? getMaxMeasuredSurfaceZ() : null;
+  if (maxSurfZ !== null && isFinite(clearanceOffset)) {
+    var retractTo = maxSurfZ + clearanceOffset;
+    parts.push('Retract to work Z ' + retractTo.toFixed(3) + ' (' + clearanceOffset.toFixed(1) + 'mm above highest point Z=' + maxSurfZ.toFixed(3) + ')');
   } else {
-    parts.push('Retract work Z to ' + (isFinite(finishZ) ? finishZ.toFixed(2) : '?'));
+    parts.push('Retract to [highest measured Z + ' + (isFinite(clearanceOffset) ? clearanceOffset.toFixed(1) : '?') + 'mm clearance]');
   }
   if (returnXY) parts.push('return to X0 Y0');
   el.value = parts.join(', then ');
@@ -265,9 +265,17 @@ async function useCurrentZAsFinishHome() {
     var workPos = await getWorkPosition();
     var zEl = document.getElementById('finishHomeZ');
     if (zEl && workPos && isFinite(workPos.z)) {
-      zEl.value = Number(workPos.z).toFixed(3);
-      refreshFinishBehaviorPreview();
-      setFooterStatus('Fallback Z set to current work Z: ' + Number(workPos.z).toFixed(3), 'good');
+      var maxSurfZ = (typeof getMaxMeasuredSurfaceZ === 'function') ? getMaxMeasuredSurfaceZ() : null;
+      if (maxSurfZ !== null) {
+        var clearance = Number(workPos.z) - maxSurfZ;
+        zEl.value = clearance.toFixed(3);
+        refreshFinishBehaviorPreview();
+        setFooterStatus('Clearance set to ' + clearance.toFixed(3) + 'mm above highest surface (current Z=' + Number(workPos.z).toFixed(3) + ', surface=' + maxSurfZ.toFixed(3) + ')', 'good');
+      } else {
+        zEl.value = Number(workPos.z).toFixed(3);
+        refreshFinishBehaviorPreview();
+        setFooterStatus('Clearance set to ' + Number(workPos.z).toFixed(3) + 'mm (no surface data yet; jog to desired clearance height first)', 'good');
+      }
       updateMachineHelperUI(snap);
     }
   } catch(e) {
