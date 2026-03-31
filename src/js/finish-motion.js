@@ -1335,6 +1335,9 @@ async function runCombinedProbeMode(axis) {
         resolve(!!success);
       };
       _smSkipFinishMotion = true; // Skip home detour in combined mode — go directly to Phase 1.5/face probe
+      // Temporarily reset _running so runSurfaceProbing() does not see it as true
+      // and bail out immediately — surface probe will set _running = true itself.
+      _running = false;
       runSurfaceProbing();
     });
     pluginDebug('runCombinedProbeMode: surface probe promise resolved, surfaceSuccess=' + surfaceSuccess);
