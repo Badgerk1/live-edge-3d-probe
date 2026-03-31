@@ -6057,6 +6057,8 @@ function bindProbeDimensionUI(){
     document.getElementById('comb-btn-export-csv').addEventListener('click', function(){ flashButton(this); pluginDebug('comb-btn-export-csv clicked'); exportCombinedMeshCSV(); });
     document.getElementById('comb-btn-export-json').addEventListener('click', function(){ flashButton(this); pluginDebug('comb-btn-export-json clicked'); exportCombinedMeshJSON(); });
     document.getElementById('comb-btn-clear-mesh').addEventListener('click', function(){ flashButton(this); pluginDebug('comb-btn-clear-mesh clicked'); clearCombinedMesh(); });
+    var combDataClearBtn = document.getElementById('comb-data-btn-clear');
+    if (combDataClearBtn) combDataClearBtn.addEventListener('click', function(){ flashButton(this); pluginDebug('comb-data-btn-clear clicked'); clearCombinedMesh(); smLogProbe('Combined results cleared.'); });
   } catch(e){}
 
   // Results tab Save 3D View button
