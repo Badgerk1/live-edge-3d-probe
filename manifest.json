@@ -1,0 +1,17 @@
+{
+  "id": "com.ncsender.edgeprobe.combined",
+  "name": "3D Live Edge Mesh Combined",
+  "version": "21.0.0",
+  "minAppVersion": "0.3.131",
+  "entry": "index.js",
+  "configUi": "config.html",
+  "author": "Badgerk1",
+  "description": "Combined 3D Live Edge Mesh + Surface Mesh Probe — 1D/2D top probing, face probing, bilinear Z compensation with move subdivision, mesh visualization, G-code bounds analysis, server-side mesh persistence, workflow management.",
+  "category": "gcode-generator",
+  "priority": 50,
+  "platforms": { "v1": "0.3.131", "pro-v1": "0.3.131", "pro-v2": "2.0.0" },
+  "events": [],
+  "permissions": ["gcode.modify"],
+  "toolMenu": [{ "id": "open-config", "label": "3D Live Edge Mesh Combined", "icon": "live_edge_icon.png", "clientOnly": true }],
+  "icon": "live_edge_icon.png"
+}
