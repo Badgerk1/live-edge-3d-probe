@@ -518,3 +518,10 @@ async function smFinishMotion(travelFeed) {
   }
 }
 
+async function finishRunMotion(tab) {
+  var s = getSettingsFromUI();
+  var feed = Number(s.travelFeedRate) || 600;
+  logLine(tab, 'Finish motion: retracting Z and returning to start position...');
+  await smFinishMotion(feed);
+}
+
