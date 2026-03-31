@@ -455,35 +455,53 @@ function exportSurfaceDXF() {
   dxf += _dxfFooter();
   _dxfDownload(dxf, 'surface_mesh_' + Date.now() + '.dxf');
 }
-// ── Surface OBJ export ────────────────────────────────────────────────────────
+// ── Surface OBJ export (Delaunay triangulation + vertex normals) ───────────────
 function exportSurfaceOBJ() {
   if (!smMeshData || !smGridConfig) { alert('No surface mesh data. Run a surface probe first.'); return; }
   var cfg = smGridConfig, grid = smMeshData;
-  var subdivStep = Math.max(0.5, Number((document.getElementById('surfOBJSubdivision') || {}).value) || 0.5);
   var lines = ['# 3D Live Edge Mesh — Surface OBJ', '# Plugin Version: ' + SM_VERSION, '# Exported: ' + new Date().toISOString(), ''];
-  var vIdx = 1;
-  var faceStrs = [];
-  // Build vertices and quad faces from grid
-  var vMap = [];
+
+  // Collect all valid 3D points from the subdivided grid
+  var pts3d = [];
   for (var ri = 0; ri < cfg.rowCount; ri++) {
-    vMap.push([]);
     for (var ci = 0; ci < cfg.colCount; ci++) {
       var z = grid[ri][ci];
-      if (z != null) {
-        lines.push('v ' + (cfg.minX + ci * cfg.colSpacing).toFixed(4) + ' ' + (cfg.minY + ri * cfg.rowSpacing).toFixed(4) + ' ' + z.toFixed(4));
-        vMap[ri].push(vIdx++);
-      } else {
-        vMap[ri].push(null);
+      if (z != null && isFinite(z)) {
+        pts3d.push({ x: cfg.minX + ci * cfg.colSpacing, y: cfg.minY + ri * cfg.rowSpacing, z: z });
       }
     }
   }
-  for (var fr = 0; fr < cfg.rowCount - 1; fr++) {
-    for (var fc = 0; fc < cfg.colCount - 1; fc++) {
-      var a = vMap[fr][fc], b = vMap[fr][fc + 1], c = vMap[fr + 1][fc + 1], d = vMap[fr + 1][fc];
-      if (a && b && c && d) { faceStrs.push('f ' + a + ' ' + b + ' ' + c + ' ' + d); }
-    }
-  }
-  lines = lines.concat(faceStrs);
+  if (pts3d.length < 3) { alert('Insufficient surface data for OBJ export.'); return; }
+
+  // Delaunay triangulation projected to X-Y plane
+  var pts2d = pts3d.map(function(p) { return { x: p.x, y: p.y }; });
+  var triangles = bowyerWatsonDelaunay(pts2d);
+  if (!triangles.length) { alert('Delaunay triangulation produced no triangles.'); return; }
+
+  // Ensure normals point upward (+Z) — flip winding if needed
+  triangles = triangles.map(function(t) {
+    var p0 = pts3d[t[0]], p1 = pts3d[t[1]], p2 = pts3d[t[2]];
+    var nz = (p1.x - p0.x) * (p2.y - p0.y) - (p1.y - p0.y) * (p2.x - p0.x);
+    return nz < 0 ? [t[0], t[2], t[1]] : t;
+  });
+
+  // Compute per-vertex normals from triangle face normals
+  var vnormals = _computeVertexNormals(pts3d, triangles);
+
+  // Write vertices
+  pts3d.forEach(function(p) {
+    lines.push('v ' + p.x.toFixed(4) + ' ' + p.y.toFixed(4) + ' ' + p.z.toFixed(4));
+  });
+  lines.push('');
+  // Write vertex normals
+  vnormals.forEach(function(n) {
+    lines.push('vn ' + n[0].toFixed(6) + ' ' + n[1].toFixed(6) + ' ' + n[2].toFixed(6));
+  });
+  lines.push('');
+  // Write triangle faces (1-indexed, vertex//normal format)
+  triangles.forEach(function(t) {
+    lines.push('f ' + (t[0]+1) + '//' + (t[0]+1) + ' ' + (t[1]+1) + '//' + (t[1]+1) + ' ' + (t[2]+1) + '//' + (t[2]+1));
+  });
   _objDownload(lines.join('\n'), 'surface_mesh_' + Date.now() + '.obj');
 }
 // ── Face DXF export ───────────────────────────────────────────────────────────
@@ -505,36 +523,50 @@ function exportFaceDXF() {
   dxf += _dxfFooter();
   _dxfDownload(dxf, 'face_mesh_' + Date.now() + '.dxf');
 }
-// ── Face OBJ export ───────────────────────────────────────────────────────────
+// ── Face OBJ export (Delaunay triangulation + vertex normals) ─────────────────
 function exportFaceOBJ() {
   var data = getFaceMeshData();
   if (!data || !data.length) { alert('No face mesh data. Run a face probe first.'); return; }
   var lines = ['# 3D Live Edge Mesh — Face OBJ', '# Plugin Version: ' + SM_VERSION, '# Exported: ' + new Date().toISOString(), ''];
-  var vIdx = 1;
-  var faceStrs = [];
-  // Group by layer, build quads between adjacent layers at same X
-  var byLayer = {};
-  data.forEach(function(p) { var l = p.layer != null ? p.layer : 1; if (!byLayer[l]) byLayer[l] = []; byLayer[l].push(p); });
-  var layerKeys = Object.keys(byLayer).map(Number).sort(function(a,b){return a-b;});
-  var layerVerts = {};
-  layerKeys.forEach(function(l) {
-    var pts = byLayer[l].slice().sort(function(a,b){ return Number(a.x)-Number(b.x); });
-    layerVerts[l] = [];
-    pts.forEach(function(p) {
-      lines.push('v ' + Number(p.x).toFixed(4) + ' ' + Number(p.y).toFixed(4) + ' ' + Number(p.z).toFixed(4));
-      layerVerts[l].push(vIdx++);
-    });
-  });
-  // Build quads between adjacent layers
-  for (var li = 0; li < layerKeys.length - 1; li++) {
-    var l0 = layerKeys[li], l1 = layerKeys[li + 1];
-    var v0 = layerVerts[l0], v1 = layerVerts[l1];
-    var len = Math.min(v0.length, v1.length);
-    for (var pi = 0; pi < len - 1; pi++) {
-      faceStrs.push('f ' + v0[pi] + ' ' + v0[pi+1] + ' ' + v1[pi+1] + ' ' + v1[pi]);
+
+  // Collect all valid 3D points (already subdivided via getFaceMeshData)
+  var pts3d = [];
+  data.forEach(function(p) {
+    if (isFinite(Number(p.x)) && isFinite(Number(p.y)) && isFinite(Number(p.z))) {
+      pts3d.push({ x: Number(p.x), y: Number(p.y), z: Number(p.z) });
     }
-  }
-  lines = lines.concat(faceStrs);
+  });
+  if (pts3d.length < 3) { alert('Insufficient face mesh data for OBJ export.'); return; }
+
+  // Delaunay triangulation projected to X-Z plane (face wall)
+  var pts2d = pts3d.map(function(p) { return { x: p.x, y: p.z }; });
+  var triangles = bowyerWatsonDelaunay(pts2d);
+  if (!triangles.length) { alert('Delaunay triangulation produced no triangles.'); return; }
+
+  // Ensure normals point in -Y direction (toward viewer, away from face wall)
+  triangles = triangles.map(function(t) {
+    var p0 = pts3d[t[0]], p1 = pts3d[t[1]], p2 = pts3d[t[2]];
+    var ny = (p1.z - p0.z) * (p2.x - p0.x) - (p1.x - p0.x) * (p2.z - p0.z);
+    return ny > 0 ? [t[0], t[2], t[1]] : t;
+  });
+
+  // Compute per-vertex normals from triangle face normals
+  var vnormals = _computeVertexNormals(pts3d, triangles);
+
+  // Write vertices
+  pts3d.forEach(function(p) {
+    lines.push('v ' + p.x.toFixed(4) + ' ' + p.y.toFixed(4) + ' ' + p.z.toFixed(4));
+  });
+  lines.push('');
+  // Write vertex normals
+  vnormals.forEach(function(n) {
+    lines.push('vn ' + n[0].toFixed(6) + ' ' + n[1].toFixed(6) + ' ' + n[2].toFixed(6));
+  });
+  lines.push('');
+  // Write triangle faces (1-indexed, vertex//normal format)
+  triangles.forEach(function(t) {
+    lines.push('f ' + (t[0]+1) + '//' + (t[0]+1) + ' ' + (t[1]+1) + '//' + (t[1]+1) + ' ' + (t[2]+1) + '//' + (t[2]+1));
+  });
   _objDownload(lines.join('\n'), 'face_mesh_' + Date.now() + '.obj');
 }
 // ── Combined DXF export ───────────────────────────────────────────────────────
@@ -566,7 +598,7 @@ function exportCombinedDXF() {
   dxf += _dxfFooter();
   _dxfDownload(dxf, 'combined_mesh_' + Date.now() + '.dxf');
 }
-// ── Combined OBJ watertight export ────────────────────────────────────────────
+// ── Combined OBJ watertight export (Delaunay triangulation + vertex normals) ───
 function exportCombinedOBJWatertight() {
   var faceData = getFaceMeshData();
   if (!smMeshData || !smGridConfig || !faceData || !faceData.length) {
@@ -577,59 +609,68 @@ function exportCombinedOBJWatertight() {
   var cfg = smGridConfig, grid = smMeshData;
   var lines = ['# 3D Live Edge Mesh — Combined Watertight OBJ', '# Plugin Version: ' + SM_VERSION, ''];
   var vIdx = 1;
-  var faceStrs = [];
-  // Surface vertices (grid)
-  var surfV = [];
+  var allNormals = [];
+  var allFaces = [];
+
+  // ── Surface mesh (Delaunay, X-Y projection, normals pointing +Z) ─────────────
+  var surfPts3d = [];
   for (var ri = 0; ri < cfg.rowCount; ri++) {
-    surfV.push([]);
     for (var ci = 0; ci < cfg.colCount; ci++) {
       var z = grid[ri][ci];
-      var vz = (z != null) ? z : 0;
-      lines.push('v ' + (cfg.minX + ci * cfg.colSpacing).toFixed(4) + ' ' + (cfg.minY + ri * cfg.rowSpacing).toFixed(4) + ' ' + vz.toFixed(4));
-      surfV[ri].push(vIdx++);
+      var vz = (z != null && isFinite(z)) ? z : 0;
+      surfPts3d.push({ x: cfg.minX + ci * cfg.colSpacing, y: cfg.minY + ri * cfg.rowSpacing, z: vz });
     }
   }
-  // Surface quads
-  for (var fr = 0; fr < cfg.rowCount - 1; fr++) {
-    for (var fc = 0; fc < cfg.colCount - 1; fc++) {
-      faceStrs.push('f ' + surfV[fr][fc] + ' ' + surfV[fr][fc+1] + ' ' + surfV[fr+1][fc+1] + ' ' + surfV[fr+1][fc]);
-    }
-  }
-  // Face mesh vertices (layered, sorted by layer then x)
-  var byLayer = {};
-  faceData.forEach(function(p){ var l = p.layer != null ? p.layer : 1; if (!byLayer[l]) byLayer[l] = []; byLayer[l].push(p); });
-  var layerKeys = Object.keys(byLayer).map(Number).sort(function(a,b){return a-b;});
-  var layerVerts = {};
-  layerKeys.forEach(function(l) {
-    var pts = byLayer[l].slice().sort(function(a,b){ return Number(a.x)-Number(b.x); });
-    layerVerts[l] = [];
-    pts.forEach(function(p) {
-      lines.push('v ' + Number(p.x).toFixed(4) + ' ' + Number(p.y).toFixed(4) + ' ' + Number(p.z).toFixed(4));
-      layerVerts[l].push(vIdx++);
-    });
+  var surfOffset = 0; // vertex index offset (0-based)
+  var surfTris = bowyerWatsonDelaunay(surfPts3d.map(function(p) { return { x: p.x, y: p.y }; }));
+  surfTris = surfTris.map(function(t) {
+    var p0 = surfPts3d[t[0]], p1 = surfPts3d[t[1]], p2 = surfPts3d[t[2]];
+    var nz = (p1.x - p0.x) * (p2.y - p0.y) - (p1.y - p0.y) * (p2.x - p0.x);
+    return nz < 0 ? [t[0], t[2], t[1]] : t;
   });
-  // Face quads between adjacent layers
-  for (var li = 0; li < layerKeys.length - 1; li++) {
-    var l0 = layerKeys[li], l1 = layerKeys[li+1];
-    var v0 = layerVerts[l0], v1 = layerVerts[l1];
-    var len = Math.min(v0.length, v1.length);
-    for (var pi = 0; pi < len - 1; pi++) {
-      faceStrs.push('f ' + v0[pi] + ' ' + v0[pi+1] + ' ' + v1[pi+1] + ' ' + v1[pi]);
+  var surfNormals = _computeVertexNormals(surfPts3d, surfTris);
+  surfPts3d.forEach(function(p) {
+    lines.push('v ' + p.x.toFixed(4) + ' ' + p.y.toFixed(4) + ' ' + p.z.toFixed(4));
+  });
+  surfNormals.forEach(function(n) { allNormals.push(n); });
+  surfTris.forEach(function(t) {
+    var a = t[0] + surfOffset + 1, b = t[1] + surfOffset + 1, c = t[2] + surfOffset + 1;
+    allFaces.push('f ' + a + '//' + a + ' ' + b + '//' + b + ' ' + c + '//' + c);
+  });
+
+  // ── Face mesh (Delaunay, X-Z projection, normals pointing -Y) ───────────────
+  var facePts3d = [];
+  faceData.forEach(function(p) {
+    if (isFinite(Number(p.x)) && isFinite(Number(p.y)) && isFinite(Number(p.z))) {
+      facePts3d.push({ x: Number(p.x), y: Number(p.y), z: Number(p.z) });
     }
+  });
+  if (facePts3d.length >= 3) {
+    var faceOffset = surfPts3d.length; // 0-based offset
+    var faceTris = bowyerWatsonDelaunay(facePts3d.map(function(p) { return { x: p.x, y: p.z }; }));
+    faceTris = faceTris.map(function(t) {
+      var p0 = facePts3d[t[0]], p1 = facePts3d[t[1]], p2 = facePts3d[t[2]];
+      var ny = (p1.z - p0.z) * (p2.x - p0.x) - (p1.x - p0.x) * (p2.z - p0.z);
+      return ny > 0 ? [t[0], t[2], t[1]] : t;
+    });
+    var faceNormals = _computeVertexNormals(facePts3d, faceTris);
+    facePts3d.forEach(function(p) {
+      lines.push('v ' + p.x.toFixed(4) + ' ' + p.y.toFixed(4) + ' ' + p.z.toFixed(4));
+    });
+    faceNormals.forEach(function(n) { allNormals.push(n); });
+    faceTris.forEach(function(t) {
+      var a = t[0] + faceOffset + 1, b = t[1] + faceOffset + 1, c = t[2] + faceOffset + 1;
+      allFaces.push('f ' + a + '//' + a + ' ' + b + '//' + b + ' ' + c + '//' + c);
+    });
   }
-  // Bottom cap vertices at combinedBottomZ
-  var bottomColCount = cfg.colCount;
-  var bottomVStart = vIdx;
-  for (var bc = 0; bc < bottomColCount; bc++) {
-    lines.push('v ' + (cfg.minX + bc * cfg.colSpacing).toFixed(4) + ' ' + cfg.minY.toFixed(4) + ' ' + bottomZ.toFixed(4));
-    vIdx++;
-  }
-  // Bottom cap quads (close bottom edge of surface front row to bottomZ)
-  var frontRow = surfV[0]; // minY row
-  for (var bc2 = 0; bc2 < bottomColCount - 1; bc2++) {
-    faceStrs.push('f ' + frontRow[bc2] + ' ' + frontRow[bc2+1] + ' ' + (bottomVStart+bc2+1) + ' ' + (bottomVStart+bc2));
-  }
-  lines = lines.concat(faceStrs);
+
+  // Write all vertex normals then all faces
+  lines.push('');
+  allNormals.forEach(function(n) {
+    lines.push('vn ' + n[0].toFixed(6) + ' ' + n[1].toFixed(6) + ' ' + n[2].toFixed(6));
+  });
+  lines.push('');
+  lines = lines.concat(allFaces);
   _objDownload(lines.join('\n'), 'combined_watertight_' + Date.now() + '.obj');
 }
 // ── Workflow stubs (UI buttons not yet present in HTML) ────────────────────────

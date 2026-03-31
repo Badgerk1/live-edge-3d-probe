@@ -2259,6 +2259,130 @@ function subdivideFaceMesh(pts, spacing) {
   return newPts.length >= pts.length ? newPts : pts;
 }
 
+// ── Delaunay Triangulation (Bowyer-Watson) ────────────────────────────────────
+/**
+ * bowyerWatsonDelaunay(pts2d)
+ * Computes a Delaunay triangulation of a 2D point set using the Bowyer-Watson
+ * algorithm — the same algorithm used by 3D scanners.
+ * pts2d: array of {x, y} objects; indices correspond to positions in the array.
+ * Returns: array of [i0, i1, i2] triangles (CCW in 2D). Indices into pts2d.
+ */
+function bowyerWatsonDelaunay(pts2d) {
+  var n = pts2d.length;
+  if (n < 3) return [];
+
+  // Bounding box for super-triangle
+  var minX = pts2d[0].x, maxX = pts2d[0].x, minY = pts2d[0].y, maxY = pts2d[0].y;
+  for (var i = 1; i < n; i++) {
+    if (pts2d[i].x < minX) minX = pts2d[i].x;
+    if (pts2d[i].x > maxX) maxX = pts2d[i].x;
+    if (pts2d[i].y < minY) minY = pts2d[i].y;
+    if (pts2d[i].y > maxY) maxY = pts2d[i].y;
+  }
+  var dx = (maxX - minX) || 1, dy = (maxY - minY) || 1;
+  var dmax = Math.max(dx, dy) * 20;
+  var midX = (minX + maxX) / 2, midY = (minY + maxY) / 2;
+
+  // All points including super-triangle vertices appended at indices n, n+1, n+2
+  var all = pts2d.slice();
+  all.push({ x: midX - dmax,      y: midY - dmax      });
+  all.push({ x: midX,             y: midY + dmax * 2  });
+  all.push({ x: midX + dmax,      y: midY - dmax      });
+
+  // Start with super-triangle (CCW winding); each triangle is [a, b, c] as indices into all[]
+  // n+0 = bottom-left, n+1 = top-center, n+2 = bottom-right
+  // CCW order: bottom-left → bottom-right → top-center
+  var triangles = [[n, n + 2, n + 1]];
+
+  for (var pi = 0; pi < n; pi++) {
+    var px = all[pi].x, py = all[pi].y;
+
+    // Find all triangles whose circumcircle contains this point
+    var bad = [];
+    for (var ti = 0; ti < triangles.length; ti++) {
+      var t = triangles[ti];
+      if (_dtCircumcircleContains(all, t[0], t[1], t[2], px, py)) bad.push(ti);
+    }
+
+    // Collect boundary edges of the polygon hole (edges shared by only one bad triangle)
+    var polygon = [];
+    for (var bi = 0; bi < bad.length; bi++) {
+      var bt = triangles[bad[bi]];
+      var edges = [[bt[0], bt[1]], [bt[1], bt[2]], [bt[2], bt[0]]];
+      for (var ei = 0; ei < 3; ei++) {
+        var e = edges[ei];
+        var shared = false;
+        for (var bj = 0; bj < bad.length; bj++) {
+          if (bj === bi) continue;
+          var bt2 = triangles[bad[bj]];
+          var e2s = [[bt2[0], bt2[1]], [bt2[1], bt2[2]], [bt2[2], bt2[0]]];
+          for (var ej = 0; ej < 3; ej++) {
+            var e2 = e2s[ej];
+            if ((e[0] === e2[0] && e[1] === e2[1]) || (e[0] === e2[1] && e[1] === e2[0])) {
+              shared = true; break;
+            }
+          }
+          if (shared) break;
+        }
+        if (!shared) polygon.push(e);
+      }
+    }
+
+    // Remove bad triangles (in reverse order to preserve indices)
+    for (var bi2 = bad.length - 1; bi2 >= 0; bi2--) triangles.splice(bad[bi2], 1);
+
+    // Re-triangulate hole using boundary edges and new point
+    for (var ei2 = 0; ei2 < polygon.length; ei2++) {
+      triangles.push([polygon[ei2][0], polygon[ei2][1], pi]);
+    }
+  }
+
+  // Remove triangles that share any vertex with the super-triangle
+  return triangles.filter(function(t) { return t[0] < n && t[1] < n && t[2] < n; });
+}
+
+/**
+ * _dtCircumcircleContains(pts, ai, bi, ci, px, py)
+ * Returns true if (px, py) lies strictly inside the circumcircle of triangle (ai, bi, ci).
+ * Uses the standard determinant test (positive = inside for CCW triangles).
+ */
+function _dtCircumcircleContains(pts, ai, bi, ci, px, py) {
+  var ax = pts[ai].x - px, ay = pts[ai].y - py;
+  var bx = pts[bi].x - px, by = pts[bi].y - py;
+  var cx = pts[ci].x - px, cy = pts[ci].y - py;
+  return (ax * (by * (cx * cx + cy * cy) - cy * (bx * bx + by * by)) -
+          ay * (bx * (cx * cx + cy * cy) - cx * (bx * bx + by * by)) +
+          (ax * ax + ay * ay) * (bx * cy - by * cx)) > 0;
+}
+
+/**
+ * _computeVertexNormals(pts3d, triangles)
+ * Computes per-vertex normals by averaging the face normals of adjacent triangles.
+ * pts3d: array of {x, y, z}.
+ * triangles: array of [i0, i1, i2] (0-based indices into pts3d).
+ * Returns: array of [nx, ny, nz] unit vectors, one per vertex.
+ */
+function _computeVertexNormals(pts3d, triangles) {
+  var normals = pts3d.map(function() { return [0, 0, 0]; });
+  for (var ti = 0; ti < triangles.length; ti++) {
+    var t = triangles[ti];
+    var p0 = pts3d[t[0]], p1 = pts3d[t[1]], p2 = pts3d[t[2]];
+    var e1x = p1.x - p0.x, e1y = p1.y - p0.y, e1z = p1.z - p0.z;
+    var e2x = p2.x - p0.x, e2y = p2.y - p0.y, e2z = p2.z - p0.z;
+    var nx = e1y * e2z - e1z * e2y;
+    var ny = e1z * e2x - e1x * e2z;
+    var nz = e1x * e2y - e1y * e2x;
+    normals[t[0]][0] += nx; normals[t[0]][1] += ny; normals[t[0]][2] += nz;
+    normals[t[1]][0] += nx; normals[t[1]][1] += ny; normals[t[1]][2] += nz;
+    normals[t[2]][0] += nx; normals[t[2]][1] += ny; normals[t[2]][2] += nz;
+  }
+  return normals.map(function(n) {
+    var len = Math.sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
+    if (len < 1e-10) return [0, 0, 1];
+    return [n[0] / len, n[1] / len, n[2] / len];
+  });
+}
+
 // Smooth subdivided surface mesh with bilinear interpolation between probe points
 function _buildThreeSurface(grid, cfg, zMin, zMax, zExag) {
   var SUB = 8;
@@ -2940,6 +3064,11 @@ function runSurfaceProbing() {
     var subdivided = subdivideSurfaceMesh(result, cfg, meshSubdivisionSpacing);
     smMeshData = subdivided.grid;
     smGridConfig = subdivided.config;
+    var _rawSMPts = (cfg.rowCount || 0) * (cfg.colCount || 0);
+    var _subSMPts = (subdivided.config.rowCount || 0) * (subdivided.config.colCount || 0);
+    if (_subSMPts > _rawSMPts) {
+      smLogProbe('Mesh subdivision: ' + _rawSMPts + ' raw points \u2192 ' + _subSMPts + ' subdivided points at ' + Number(meshSubdivisionSpacing).toFixed(1) + 'mm spacing');
+    }
     smSetProbeStatus('Probing complete! ' + totalPoints + ' points captured.', 'ok');
     smLogProbe('Done! Probing complete.');
     pluginDebug('runSurfaceProbing COMPLETE: ' + totalPoints + ' points captured, meshData rows=' + result.length);
@@ -4805,7 +4934,11 @@ async function runFaceProbe(axis, _calledFromCombined){
       if (!_calledFromCombined) switchTab('results');
       setFooterStatus('Layered face probe ' + axis + ' complete: ' + totalLayers + ' layers x ' + faceSamples.length + ' samples = ' + layeredFaceResults.length + ' contacts', 'good');
       layeredFaceResultsRaw = layeredFaceResults.slice();
+      var _rawCountLayered = layeredFaceResults.length;
       layeredFaceResults = subdivideFaceMesh(layeredFaceResults, meshSubdivisionSpacing);
+      if (layeredFaceResults.length !== _rawCountLayered) {
+        logLine('face', 'Mesh subdivision: ' + _rawCountLayered + ' raw points \u2192 ' + layeredFaceResults.length + ' subdivided points at ' + Number(meshSubdivisionSpacing).toFixed(1) + 'mm spacing');
+      }
       updateFaceMeshDataUI();
       // Re-render surface mesh visualizers to include face wall (even when no surface mesh is present)
       smPvizRenderMesh();
@@ -4912,7 +5045,11 @@ async function runFaceProbe(axis, _calledFromCombined){
     pluginDebug('runFaceProbe COMPLETE: axis=' + axis + ' samples=' + faceSamples.length);
     setFooterStatus('Face probe ' + axis + ' complete: ' + faceSamples.length + ' sample(s)', 'good');
     layeredFaceResultsRaw = layeredFaceResults.slice();
+    var _rawCountSingle = layeredFaceResults.length;
     layeredFaceResults = subdivideFaceMesh(layeredFaceResults, meshSubdivisionSpacing);
+    if (layeredFaceResults.length !== _rawCountSingle) {
+      logLine('face', 'Mesh subdivision: ' + _rawCountSingle + ' raw points \u2192 ' + layeredFaceResults.length + ' subdivided points at ' + Number(meshSubdivisionSpacing).toFixed(1) + 'mm spacing');
+    }
     updateFaceMeshDataUI();
     populateUnifiedProbeTable();
     saveProbeResults();
@@ -5470,7 +5607,11 @@ function loadFaceMeshData() {
     var data = JSON.parse(raw);
     if (data.faceMeshData && data.faceMeshData.length) {
       layeredFaceResultsRaw = data.faceMeshData;
+      var _rawCountLoad = data.faceMeshData.length;
       layeredFaceResults = subdivideFaceMesh(data.faceMeshData, meshSubdivisionSpacing);
+      if (layeredFaceResults.length !== _rawCountLoad) {
+        logLine('face', 'Mesh subdivision: ' + _rawCountLoad + ' raw points \u2192 ' + layeredFaceResults.length + ' subdivided points at ' + Number(meshSubdivisionSpacing).toFixed(1) + 'mm spacing');
+      }
       updateFaceMeshDataUI();
       var el = document.getElementById('face-meshStorageStatus');
       if (el) el.textContent = 'Face mesh loaded from browser storage (' + layeredFaceResults.length + ' points).';
@@ -5530,7 +5671,11 @@ function importFaceMeshData() {
         var pts = data.faceMeshData || data;
         if (!Array.isArray(pts)) throw new Error('Expected an array of face mesh points');
         layeredFaceResultsRaw = pts;
+        var _rawCountImport = pts.length;
         layeredFaceResults = subdivideFaceMesh(pts, meshSubdivisionSpacing);
+        if (layeredFaceResults.length !== _rawCountImport) {
+          logLine('face', 'Mesh subdivision: ' + _rawCountImport + ' raw points \u2192 ' + layeredFaceResults.length + ' subdivided points at ' + Number(meshSubdivisionSpacing).toFixed(1) + 'mm spacing');
+        }
         updateFaceMeshDataUI();
         var statusEl = document.getElementById('face-meshStorageStatus');
         if (statusEl) statusEl.textContent = 'Face mesh imported: ' + pts.length + ' points.';

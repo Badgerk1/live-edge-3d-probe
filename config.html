@@ -3641,6 +3641,130 @@ function subdivideFaceMesh(pts, spacing) {
   return newPts.length >= pts.length ? newPts : pts;
 }
 
+// ── Delaunay Triangulation (Bowyer-Watson) ────────────────────────────────────
+/**
+ * bowyerWatsonDelaunay(pts2d)
+ * Computes a Delaunay triangulation of a 2D point set using the Bowyer-Watson
+ * algorithm — the same algorithm used by 3D scanners.
+ * pts2d: array of {x, y} objects; indices correspond to positions in the array.
+ * Returns: array of [i0, i1, i2] triangles (CCW in 2D). Indices into pts2d.
+ */
+function bowyerWatsonDelaunay(pts2d) {
+  var n = pts2d.length;
+  if (n < 3) return [];
+
+  // Bounding box for super-triangle
+  var minX = pts2d[0].x, maxX = pts2d[0].x, minY = pts2d[0].y, maxY = pts2d[0].y;
+  for (var i = 1; i < n; i++) {
+    if (pts2d[i].x < minX) minX = pts2d[i].x;
+    if (pts2d[i].x > maxX) maxX = pts2d[i].x;
+    if (pts2d[i].y < minY) minY = pts2d[i].y;
+    if (pts2d[i].y > maxY) maxY = pts2d[i].y;
+  }
+  var dx = (maxX - minX) || 1, dy = (maxY - minY) || 1;
+  var dmax = Math.max(dx, dy) * 20;
+  var midX = (minX + maxX) / 2, midY = (minY + maxY) / 2;
+
+  // All points including super-triangle vertices appended at indices n, n+1, n+2
+  var all = pts2d.slice();
+  all.push({ x: midX - dmax,      y: midY - dmax      });
+  all.push({ x: midX,             y: midY + dmax * 2  });
+  all.push({ x: midX + dmax,      y: midY - dmax      });
+
+  // Start with super-triangle (CCW winding); each triangle is [a, b, c] as indices into all[]
+  // n+0 = bottom-left, n+1 = top-center, n+2 = bottom-right
+  // CCW order: bottom-left → bottom-right → top-center
+  var triangles = [[n, n + 2, n + 1]];
+
+  for (var pi = 0; pi < n; pi++) {
+    var px = all[pi].x, py = all[pi].y;
+
+    // Find all triangles whose circumcircle contains this point
+    var bad = [];
+    for (var ti = 0; ti < triangles.length; ti++) {
+      var t = triangles[ti];
+      if (_dtCircumcircleContains(all, t[0], t[1], t[2], px, py)) bad.push(ti);
+    }
+
+    // Collect boundary edges of the polygon hole (edges shared by only one bad triangle)
+    var polygon = [];
+    for (var bi = 0; bi < bad.length; bi++) {
+      var bt = triangles[bad[bi]];
+      var edges = [[bt[0], bt[1]], [bt[1], bt[2]], [bt[2], bt[0]]];
+      for (var ei = 0; ei < 3; ei++) {
+        var e = edges[ei];
+        var shared = false;
+        for (var bj = 0; bj < bad.length; bj++) {
+          if (bj === bi) continue;
+          var bt2 = triangles[bad[bj]];
+          var e2s = [[bt2[0], bt2[1]], [bt2[1], bt2[2]], [bt2[2], bt2[0]]];
+          for (var ej = 0; ej < 3; ej++) {
+            var e2 = e2s[ej];
+            if ((e[0] === e2[0] && e[1] === e2[1]) || (e[0] === e2[1] && e[1] === e2[0])) {
+              shared = true; break;
+            }
+          }
+          if (shared) break;
+        }
+        if (!shared) polygon.push(e);
+      }
+    }
+
+    // Remove bad triangles (in reverse order to preserve indices)
+    for (var bi2 = bad.length - 1; bi2 >= 0; bi2--) triangles.splice(bad[bi2], 1);
+
+    // Re-triangulate hole using boundary edges and new point
+    for (var ei2 = 0; ei2 < polygon.length; ei2++) {
+      triangles.push([polygon[ei2][0], polygon[ei2][1], pi]);
+    }
+  }
+
+  // Remove triangles that share any vertex with the super-triangle
+  return triangles.filter(function(t) { return t[0] < n && t[1] < n && t[2] < n; });
+}
+
+/**
+ * _dtCircumcircleContains(pts, ai, bi, ci, px, py)
+ * Returns true if (px, py) lies strictly inside the circumcircle of triangle (ai, bi, ci).
+ * Uses the standard determinant test (positive = inside for CCW triangles).
+ */
+function _dtCircumcircleContains(pts, ai, bi, ci, px, py) {
+  var ax = pts[ai].x - px, ay = pts[ai].y - py;
+  var bx = pts[bi].x - px, by = pts[bi].y - py;
+  var cx = pts[ci].x - px, cy = pts[ci].y - py;
+  return (ax * (by * (cx * cx + cy * cy) - cy * (bx * bx + by * by)) -
+          ay * (bx * (cx * cx + cy * cy) - cx * (bx * bx + by * by)) +
+          (ax * ax + ay * ay) * (bx * cy - by * cx)) > 0;
+}
+
+/**
+ * _computeVertexNormals(pts3d, triangles)
+ * Computes per-vertex normals by averaging the face normals of adjacent triangles.
+ * pts3d: array of {x, y, z}.
+ * triangles: array of [i0, i1, i2] (0-based indices into pts3d).
+ * Returns: array of [nx, ny, nz] unit vectors, one per vertex.
+ */
+function _computeVertexNormals(pts3d, triangles) {
+  var normals = pts3d.map(function() { return [0, 0, 0]; });
+  for (var ti = 0; ti < triangles.length; ti++) {
+    var t = triangles[ti];
+    var p0 = pts3d[t[0]], p1 = pts3d[t[1]], p2 = pts3d[t[2]];
+    var e1x = p1.x - p0.x, e1y = p1.y - p0.y, e1z = p1.z - p0.z;
+    var e2x = p2.x - p0.x, e2y = p2.y - p0.y, e2z = p2.z - p0.z;
+    var nx = e1y * e2z - e1z * e2y;
+    var ny = e1z * e2x - e1x * e2z;
+    var nz = e1x * e2y - e1y * e2x;
+    normals[t[0]][0] += nx; normals[t[0]][1] += ny; normals[t[0]][2] += nz;
+    normals[t[1]][0] += nx; normals[t[1]][1] += ny; normals[t[1]][2] += nz;
+    normals[t[2]][0] += nx; normals[t[2]][1] += ny; normals[t[2]][2] += nz;
+  }
+  return normals.map(function(n) {
+    var len = Math.sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
+    if (len < 1e-10) return [0, 0, 1];
+    return [n[0] / len, n[1] / len, n[2] / len];
+  });
+}
+
 // Smooth subdivided surface mesh with bilinear interpolation between probe points
 function _buildThreeSurface(grid, cfg, zMin, zMax, zExag) {
   var SUB = 8;
@@ -4322,6 +4446,11 @@ function runSurfaceProbing() {
     var subdivided = subdivideSurfaceMesh(result, cfg, meshSubdivisionSpacing);
     smMeshData = subdivided.grid;
     smGridConfig = subdivided.config;
+    var _rawSMPts = (cfg.rowCount || 0) * (cfg.colCount || 0);
+    var _subSMPts = (subdivided.config.rowCount || 0) * (subdivided.config.colCount || 0);
+    if (_subSMPts > _rawSMPts) {
+      smLogProbe('Mesh subdivision: ' + _rawSMPts + ' raw points \u2192 ' + _subSMPts + ' subdivided points at ' + Number(meshSubdivisionSpacing).toFixed(1) + 'mm spacing');
+    }
     smSetProbeStatus('Probing complete! ' + totalPoints + ' points captured.', 'ok');
     smLogProbe('Done! Probing complete.');
     pluginDebug('runSurfaceProbing COMPLETE: ' + totalPoints + ' points captured, meshData rows=' + result.length);
@@ -6187,7 +6316,11 @@ async function runFaceProbe(axis, _calledFromCombined){
       if (!_calledFromCombined) switchTab('results');
       setFooterStatus('Layered face probe ' + axis + ' complete: ' + totalLayers + ' layers x ' + faceSamples.length + ' samples = ' + layeredFaceResults.length + ' contacts', 'good');
       layeredFaceResultsRaw = layeredFaceResults.slice();
+      var _rawCountLayered = layeredFaceResults.length;
       layeredFaceResults = subdivideFaceMesh(layeredFaceResults, meshSubdivisionSpacing);
+      if (layeredFaceResults.length !== _rawCountLayered) {
+        logLine('face', 'Mesh subdivision: ' + _rawCountLayered + ' raw points \u2192 ' + layeredFaceResults.length + ' subdivided points at ' + Number(meshSubdivisionSpacing).toFixed(1) + 'mm spacing');
+      }
       updateFaceMeshDataUI();
       // Re-render surface mesh visualizers to include face wall (even when no surface mesh is present)
       smPvizRenderMesh();
@@ -6294,7 +6427,11 @@ async function runFaceProbe(axis, _calledFromCombined){
     pluginDebug('runFaceProbe COMPLETE: axis=' + axis + ' samples=' + faceSamples.length);
     setFooterStatus('Face probe ' + axis + ' complete: ' + faceSamples.length + ' sample(s)', 'good');
     layeredFaceResultsRaw = layeredFaceResults.slice();
+    var _rawCountSingle = layeredFaceResults.length;
     layeredFaceResults = subdivideFaceMesh(layeredFaceResults, meshSubdivisionSpacing);
+    if (layeredFaceResults.length !== _rawCountSingle) {
+      logLine('face', 'Mesh subdivision: ' + _rawCountSingle + ' raw points \u2192 ' + layeredFaceResults.length + ' subdivided points at ' + Number(meshSubdivisionSpacing).toFixed(1) + 'mm spacing');
+    }
     updateFaceMeshDataUI();
     populateUnifiedProbeTable();
     saveProbeResults();
@@ -6852,7 +6989,11 @@ function loadFaceMeshData() {
     var data = JSON.parse(raw);
     if (data.faceMeshData && data.faceMeshData.length) {
       layeredFaceResultsRaw = data.faceMeshData;
+      var _rawCountLoad = data.faceMeshData.length;
       layeredFaceResults = subdivideFaceMesh(data.faceMeshData, meshSubdivisionSpacing);
+      if (layeredFaceResults.length !== _rawCountLoad) {
+        logLine('face', 'Mesh subdivision: ' + _rawCountLoad + ' raw points \u2192 ' + layeredFaceResults.length + ' subdivided points at ' + Number(meshSubdivisionSpacing).toFixed(1) + 'mm spacing');
+      }
       updateFaceMeshDataUI();
       var el = document.getElementById('face-meshStorageStatus');
       if (el) el.textContent = 'Face mesh loaded from browser storage (' + layeredFaceResults.length + ' points).';
@@ -6912,7 +7053,11 @@ function importFaceMeshData() {
         var pts = data.faceMeshData || data;
         if (!Array.isArray(pts)) throw new Error('Expected an array of face mesh points');
         layeredFaceResultsRaw = pts;
+        var _rawCountImport = pts.length;
         layeredFaceResults = subdivideFaceMesh(pts, meshSubdivisionSpacing);
+        if (layeredFaceResults.length !== _rawCountImport) {
+          logLine('face', 'Mesh subdivision: ' + _rawCountImport + ' raw points \u2192 ' + layeredFaceResults.length + ' subdivided points at ' + Number(meshSubdivisionSpacing).toFixed(1) + 'mm spacing');
+        }
         updateFaceMeshDataUI();
         var statusEl = document.getElementById('face-meshStorageStatus');
         if (statusEl) statusEl.textContent = 'Face mesh imported: ' + pts.length + ' points.';
@@ -8695,35 +8840,53 @@ function exportSurfaceDXF() {
   dxf += _dxfFooter();
   _dxfDownload(dxf, 'surface_mesh_' + Date.now() + '.dxf');
 }
-// ── Surface OBJ export ────────────────────────────────────────────────────────
+// ── Surface OBJ export (Delaunay triangulation + vertex normals) ───────────────
 function exportSurfaceOBJ() {
   if (!smMeshData || !smGridConfig) { alert('No surface mesh data. Run a surface probe first.'); return; }
   var cfg = smGridConfig, grid = smMeshData;
-  var subdivStep = Math.max(0.5, Number((document.getElementById('surfOBJSubdivision') || {}).value) || 0.5);
   var lines = ['# 3D Live Edge Mesh — Surface OBJ', '# Plugin Version: ' + SM_VERSION, '# Exported: ' + new Date().toISOString(), ''];
-  var vIdx = 1;
-  var faceStrs = [];
-  // Build vertices and quad faces from grid
-  var vMap = [];
+
+  // Collect all valid 3D points from the subdivided grid
+  var pts3d = [];
   for (var ri = 0; ri < cfg.rowCount; ri++) {
-    vMap.push([]);
     for (var ci = 0; ci < cfg.colCount; ci++) {
       var z = grid[ri][ci];
-      if (z != null) {
-        lines.push('v ' + (cfg.minX + ci * cfg.colSpacing).toFixed(4) + ' ' + (cfg.minY + ri * cfg.rowSpacing).toFixed(4) + ' ' + z.toFixed(4));
-        vMap[ri].push(vIdx++);
-      } else {
-        vMap[ri].push(null);
+      if (z != null && isFinite(z)) {
+        pts3d.push({ x: cfg.minX + ci * cfg.colSpacing, y: cfg.minY + ri * cfg.rowSpacing, z: z });
       }
     }
   }
-  for (var fr = 0; fr < cfg.rowCount - 1; fr++) {
-    for (var fc = 0; fc < cfg.colCount - 1; fc++) {
-      var a = vMap[fr][fc], b = vMap[fr][fc + 1], c = vMap[fr + 1][fc + 1], d = vMap[fr + 1][fc];
-      if (a && b && c && d) { faceStrs.push('f ' + a + ' ' + b + ' ' + c + ' ' + d); }
-    }
-  }
-  lines = lines.concat(faceStrs);
+  if (pts3d.length < 3) { alert('Insufficient surface data for OBJ export.'); return; }
+
+  // Delaunay triangulation projected to X-Y plane
+  var pts2d = pts3d.map(function(p) { return { x: p.x, y: p.y }; });
+  var triangles = bowyerWatsonDelaunay(pts2d);
+  if (!triangles.length) { alert('Delaunay triangulation produced no triangles.'); return; }
+
+  // Ensure normals point upward (+Z) — flip winding if needed
+  triangles = triangles.map(function(t) {
+    var p0 = pts3d[t[0]], p1 = pts3d[t[1]], p2 = pts3d[t[2]];
+    var nz = (p1.x - p0.x) * (p2.y - p0.y) - (p1.y - p0.y) * (p2.x - p0.x);
+    return nz < 0 ? [t[0], t[2], t[1]] : t;
+  });
+
+  // Compute per-vertex normals from triangle face normals
+  var vnormals = _computeVertexNormals(pts3d, triangles);
+
+  // Write vertices
+  pts3d.forEach(function(p) {
+    lines.push('v ' + p.x.toFixed(4) + ' ' + p.y.toFixed(4) + ' ' + p.z.toFixed(4));
+  });
+  lines.push('');
+  // Write vertex normals
+  vnormals.forEach(function(n) {
+    lines.push('vn ' + n[0].toFixed(6) + ' ' + n[1].toFixed(6) + ' ' + n[2].toFixed(6));
+  });
+  lines.push('');
+  // Write triangle faces (1-indexed, vertex//normal format)
+  triangles.forEach(function(t) {
+    lines.push('f ' + (t[0]+1) + '//' + (t[0]+1) + ' ' + (t[1]+1) + '//' + (t[1]+1) + ' ' + (t[2]+1) + '//' + (t[2]+1));
+  });
   _objDownload(lines.join('\n'), 'surface_mesh_' + Date.now() + '.obj');
 }
 // ── Face DXF export ───────────────────────────────────────────────────────────
@@ -8745,36 +8908,50 @@ function exportFaceDXF() {
   dxf += _dxfFooter();
   _dxfDownload(dxf, 'face_mesh_' + Date.now() + '.dxf');
 }
-// ── Face OBJ export ───────────────────────────────────────────────────────────
+// ── Face OBJ export (Delaunay triangulation + vertex normals) ─────────────────
 function exportFaceOBJ() {
   var data = getFaceMeshData();
   if (!data || !data.length) { alert('No face mesh data. Run a face probe first.'); return; }
   var lines = ['# 3D Live Edge Mesh — Face OBJ', '# Plugin Version: ' + SM_VERSION, '# Exported: ' + new Date().toISOString(), ''];
-  var vIdx = 1;
-  var faceStrs = [];
-  // Group by layer, build quads between adjacent layers at same X
-  var byLayer = {};
-  data.forEach(function(p) { var l = p.layer != null ? p.layer : 1; if (!byLayer[l]) byLayer[l] = []; byLayer[l].push(p); });
-  var layerKeys = Object.keys(byLayer).map(Number).sort(function(a,b){return a-b;});
-  var layerVerts = {};
-  layerKeys.forEach(function(l) {
-    var pts = byLayer[l].slice().sort(function(a,b){ return Number(a.x)-Number(b.x); });
-    layerVerts[l] = [];
-    pts.forEach(function(p) {
-      lines.push('v ' + Number(p.x).toFixed(4) + ' ' + Number(p.y).toFixed(4) + ' ' + Number(p.z).toFixed(4));
-      layerVerts[l].push(vIdx++);
-    });
-  });
-  // Build quads between adjacent layers
-  for (var li = 0; li < layerKeys.length - 1; li++) {
-    var l0 = layerKeys[li], l1 = layerKeys[li + 1];
-    var v0 = layerVerts[l0], v1 = layerVerts[l1];
-    var len = Math.min(v0.length, v1.length);
-    for (var pi = 0; pi < len - 1; pi++) {
-      faceStrs.push('f ' + v0[pi] + ' ' + v0[pi+1] + ' ' + v1[pi+1] + ' ' + v1[pi]);
+
+  // Collect all valid 3D points (already subdivided via getFaceMeshData)
+  var pts3d = [];
+  data.forEach(function(p) {
+    if (isFinite(Number(p.x)) && isFinite(Number(p.y)) && isFinite(Number(p.z))) {
+      pts3d.push({ x: Number(p.x), y: Number(p.y), z: Number(p.z) });
     }
-  }
-  lines = lines.concat(faceStrs);
+  });
+  if (pts3d.length < 3) { alert('Insufficient face mesh data for OBJ export.'); return; }
+
+  // Delaunay triangulation projected to X-Z plane (face wall)
+  var pts2d = pts3d.map(function(p) { return { x: p.x, y: p.z }; });
+  var triangles = bowyerWatsonDelaunay(pts2d);
+  if (!triangles.length) { alert('Delaunay triangulation produced no triangles.'); return; }
+
+  // Ensure normals point in -Y direction (toward viewer, away from face wall)
+  triangles = triangles.map(function(t) {
+    var p0 = pts3d[t[0]], p1 = pts3d[t[1]], p2 = pts3d[t[2]];
+    var ny = (p1.z - p0.z) * (p2.x - p0.x) - (p1.x - p0.x) * (p2.z - p0.z);
+    return ny > 0 ? [t[0], t[2], t[1]] : t;
+  });
+
+  // Compute per-vertex normals from triangle face normals
+  var vnormals = _computeVertexNormals(pts3d, triangles);
+
+  // Write vertices
+  pts3d.forEach(function(p) {
+    lines.push('v ' + p.x.toFixed(4) + ' ' + p.y.toFixed(4) + ' ' + p.z.toFixed(4));
+  });
+  lines.push('');
+  // Write vertex normals
+  vnormals.forEach(function(n) {
+    lines.push('vn ' + n[0].toFixed(6) + ' ' + n[1].toFixed(6) + ' ' + n[2].toFixed(6));
+  });
+  lines.push('');
+  // Write triangle faces (1-indexed, vertex//normal format)
+  triangles.forEach(function(t) {
+    lines.push('f ' + (t[0]+1) + '//' + (t[0]+1) + ' ' + (t[1]+1) + '//' + (t[1]+1) + ' ' + (t[2]+1) + '//' + (t[2]+1));
+  });
   _objDownload(lines.join('\n'), 'face_mesh_' + Date.now() + '.obj');
 }
 // ── Combined DXF export ───────────────────────────────────────────────────────
@@ -8806,7 +8983,7 @@ function exportCombinedDXF() {
   dxf += _dxfFooter();
   _dxfDownload(dxf, 'combined_mesh_' + Date.now() + '.dxf');
 }
-// ── Combined OBJ watertight export ────────────────────────────────────────────
+// ── Combined OBJ watertight export (Delaunay triangulation + vertex normals) ───
 function exportCombinedOBJWatertight() {
   var faceData = getFaceMeshData();
   if (!smMeshData || !smGridConfig || !faceData || !faceData.length) {
@@ -8817,59 +8994,68 @@ function exportCombinedOBJWatertight() {
   var cfg = smGridConfig, grid = smMeshData;
   var lines = ['# 3D Live Edge Mesh — Combined Watertight OBJ', '# Plugin Version: ' + SM_VERSION, ''];
   var vIdx = 1;
-  var faceStrs = [];
-  // Surface vertices (grid)
-  var surfV = [];
+  var allNormals = [];
+  var allFaces = [];
+
+  // ── Surface mesh (Delaunay, X-Y projection, normals pointing +Z) ─────────────
+  var surfPts3d = [];
   for (var ri = 0; ri < cfg.rowCount; ri++) {
-    surfV.push([]);
     for (var ci = 0; ci < cfg.colCount; ci++) {
       var z = grid[ri][ci];
-      var vz = (z != null) ? z : 0;
-      lines.push('v ' + (cfg.minX + ci * cfg.colSpacing).toFixed(4) + ' ' + (cfg.minY + ri * cfg.rowSpacing).toFixed(4) + ' ' + vz.toFixed(4));
-      surfV[ri].push(vIdx++);
+      var vz = (z != null && isFinite(z)) ? z : 0;
+      surfPts3d.push({ x: cfg.minX + ci * cfg.colSpacing, y: cfg.minY + ri * cfg.rowSpacing, z: vz });
     }
   }
-  // Surface quads
-  for (var fr = 0; fr < cfg.rowCount - 1; fr++) {
-    for (var fc = 0; fc < cfg.colCount - 1; fc++) {
-      faceStrs.push('f ' + surfV[fr][fc] + ' ' + surfV[fr][fc+1] + ' ' + surfV[fr+1][fc+1] + ' ' + surfV[fr+1][fc]);
-    }
-  }
-  // Face mesh vertices (layered, sorted by layer then x)
-  var byLayer = {};
-  faceData.forEach(function(p){ var l = p.layer != null ? p.layer : 1; if (!byLayer[l]) byLayer[l] = []; byLayer[l].push(p); });
-  var layerKeys = Object.keys(byLayer).map(Number).sort(function(a,b){return a-b;});
-  var layerVerts = {};
-  layerKeys.forEach(function(l) {
-    var pts = byLayer[l].slice().sort(function(a,b){ return Number(a.x)-Number(b.x); });
-    layerVerts[l] = [];
-    pts.forEach(function(p) {
-      lines.push('v ' + Number(p.x).toFixed(4) + ' ' + Number(p.y).toFixed(4) + ' ' + Number(p.z).toFixed(4));
-      layerVerts[l].push(vIdx++);
-    });
+  var surfOffset = 0; // vertex index offset (0-based)
+  var surfTris = bowyerWatsonDelaunay(surfPts3d.map(function(p) { return { x: p.x, y: p.y }; }));
+  surfTris = surfTris.map(function(t) {
+    var p0 = surfPts3d[t[0]], p1 = surfPts3d[t[1]], p2 = surfPts3d[t[2]];
+    var nz = (p1.x - p0.x) * (p2.y - p0.y) - (p1.y - p0.y) * (p2.x - p0.x);
+    return nz < 0 ? [t[0], t[2], t[1]] : t;
   });
-  // Face quads between adjacent layers
-  for (var li = 0; li < layerKeys.length - 1; li++) {
-    var l0 = layerKeys[li], l1 = layerKeys[li+1];
-    var v0 = layerVerts[l0], v1 = layerVerts[l1];
-    var len = Math.min(v0.length, v1.length);
-    for (var pi = 0; pi < len - 1; pi++) {
-      faceStrs.push('f ' + v0[pi] + ' ' + v0[pi+1] + ' ' + v1[pi+1] + ' ' + v1[pi]);
+  var surfNormals = _computeVertexNormals(surfPts3d, surfTris);
+  surfPts3d.forEach(function(p) {
+    lines.push('v ' + p.x.toFixed(4) + ' ' + p.y.toFixed(4) + ' ' + p.z.toFixed(4));
+  });
+  surfNormals.forEach(function(n) { allNormals.push(n); });
+  surfTris.forEach(function(t) {
+    var a = t[0] + surfOffset + 1, b = t[1] + surfOffset + 1, c = t[2] + surfOffset + 1;
+    allFaces.push('f ' + a + '//' + a + ' ' + b + '//' + b + ' ' + c + '//' + c);
+  });
+
+  // ── Face mesh (Delaunay, X-Z projection, normals pointing -Y) ───────────────
+  var facePts3d = [];
+  faceData.forEach(function(p) {
+    if (isFinite(Number(p.x)) && isFinite(Number(p.y)) && isFinite(Number(p.z))) {
+      facePts3d.push({ x: Number(p.x), y: Number(p.y), z: Number(p.z) });
     }
+  });
+  if (facePts3d.length >= 3) {
+    var faceOffset = surfPts3d.length; // 0-based offset
+    var faceTris = bowyerWatsonDelaunay(facePts3d.map(function(p) { return { x: p.x, y: p.z }; }));
+    faceTris = faceTris.map(function(t) {
+      var p0 = facePts3d[t[0]], p1 = facePts3d[t[1]], p2 = facePts3d[t[2]];
+      var ny = (p1.z - p0.z) * (p2.x - p0.x) - (p1.x - p0.x) * (p2.z - p0.z);
+      return ny > 0 ? [t[0], t[2], t[1]] : t;
+    });
+    var faceNormals = _computeVertexNormals(facePts3d, faceTris);
+    facePts3d.forEach(function(p) {
+      lines.push('v ' + p.x.toFixed(4) + ' ' + p.y.toFixed(4) + ' ' + p.z.toFixed(4));
+    });
+    faceNormals.forEach(function(n) { allNormals.push(n); });
+    faceTris.forEach(function(t) {
+      var a = t[0] + faceOffset + 1, b = t[1] + faceOffset + 1, c = t[2] + faceOffset + 1;
+      allFaces.push('f ' + a + '//' + a + ' ' + b + '//' + b + ' ' + c + '//' + c);
+    });
   }
-  // Bottom cap vertices at combinedBottomZ
-  var bottomColCount = cfg.colCount;
-  var bottomVStart = vIdx;
-  for (var bc = 0; bc < bottomColCount; bc++) {
-    lines.push('v ' + (cfg.minX + bc * cfg.colSpacing).toFixed(4) + ' ' + cfg.minY.toFixed(4) + ' ' + bottomZ.toFixed(4));
-    vIdx++;
-  }
-  // Bottom cap quads (close bottom edge of surface front row to bottomZ)
-  var frontRow = surfV[0]; // minY row
-  for (var bc2 = 0; bc2 < bottomColCount - 1; bc2++) {
-    faceStrs.push('f ' + frontRow[bc2] + ' ' + frontRow[bc2+1] + ' ' + (bottomVStart+bc2+1) + ' ' + (bottomVStart+bc2));
-  }
-  lines = lines.concat(faceStrs);
+
+  // Write all vertex normals then all faces
+  lines.push('');
+  allNormals.forEach(function(n) {
+    lines.push('vn ' + n[0].toFixed(6) + ' ' + n[1].toFixed(6) + ' ' + n[2].toFixed(6));
+  });
+  lines.push('');
+  lines = lines.concat(allFaces);
   _objDownload(lines.join('\n'), 'combined_watertight_' + Date.now() + '.obj');
 }
 // ── Workflow stubs (UI buttons not yet present in HTML) ────────────────────────
