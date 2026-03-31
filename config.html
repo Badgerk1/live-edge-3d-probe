@@ -5918,24 +5918,27 @@ async function runFaceProbe(axis, _calledFromCombined){
 
     var faceSamples = [];
     if(topPts.length && sampledAxis !== axis){
-      // When Phase 0 has already measured real top-Z values at the exact face X
-      // positions, use those directly instead of re-interpolating from the mesh.
-      // Only fall back to fpBuildFaceSamplesFromConfig() when no auto top-Z pass
-      // was made (e.g. called from combined mode or fp-xStart/fp-xEnd missing).
-      var configSamples = (!_p0Ran && smMeshData && smGridConfig) ? fpBuildFaceSamplesFromConfig() : null;
+      // When Phase 0 (standalone) or Phase 1.5 (combined) has already measured real
+      // top-Z values at the exact face X positions, use those directly.
+      // Only fall back to fpBuildFaceSamplesFromConfig() (mesh interpolation) when
+      // no auto top-Z pass was made AND we are not in combined mode (combined mode
+      // always provides real Phase 1.5 measured values via topResults).
+      var configSamples = (!_p0Ran && !_calledFromCombined && smMeshData && smGridConfig) ? fpBuildFaceSamplesFromConfig() : null;
       if(configSamples && configSamples.length >= 2){
         faceSamples = configSamples;
         logLine('face', 'Face probe: user requested ' + faceSamples.length + ' X samples (fp-xPoints).');
         logLine('face', 'Face probe: X positions = [' + faceSamples.map(function(s){ return s.sampleCoord.toFixed(1); }).join(', ') + ']');
         logLine('face', 'Face probe: interpolated topZ = [' + faceSamples.map(function(s){ return s.topZ.toFixed(3); }).join(', ') + ']');
       } else {
-        // Use topPts directly — these are real measured values when Phase 0 ran,
-        // or the best available data when it did not.
+        // Use topPts directly — real measured values from Phase 0 (standalone) or
+        // Phase 1.5 (combined mode), or the best available data when neither ran.
         faceSamples = topPts.map(function(tp, idx){
           return { index: idx + 1, sampleCoord: Number(tp.sampleCoord), topZ: Number(tp.z) };
         });
         if(_p0Ran){
           logLine('face', 'Face probe: using ' + faceSamples.length + ' measured top-Z reference points from Phase 0 auto top-Z pass.');
+        } else if(_calledFromCombined){
+          logLine('face', 'Face probe: using ' + faceSamples.length + ' measured top-Z reference points from Phase 1.5 (combined mode).');
         } else {
           logLine('face', 'Using ' + faceSamples.length + ' indexed face sample(s) from top profile along ' + sampledAxis + ' (no mesh data for interpolation).');
         }
@@ -8133,6 +8136,20 @@ async function finishRunMotion(mode) {
   var machineSafeTopZ     = Number(s.machineSafeTopZ);
   var returnXYZero        = !!s.returnToXYZero;
   var feed                = s.faceRetractFeed || s.travelFeedRate || 600;
+
+  // Guard: if finishHomeZ is 0 or not a valid number, use a safe fallback and warn.
+  if (!isFinite(finishZ) || finishZ === 0) {
+    logLine(mode, 'Finish: WARNING — finishHomeZ is ' + finishZ + ' (unset or zero); using safe fallback of 10.0mm work Z.');
+    finishZ = 10.0;
+  }
+
+  // Guard: if machine-home retract is enabled but machineSafeTopZ is 0 (default/unset),
+  // the machine would retract to the absolute top of travel which is usually not intended.
+  // Disable machine-home retract and fall back to work Z retract using finishHomeZ.
+  if (useMachineRetract && (!isFinite(machineSafeTopZ) || machineSafeTopZ === 0)) {
+    logLine(mode, 'Finish: WARNING — machineSafeTopZ is ' + machineSafeTopZ + ' (unset or zero); disabling machine-home Z retract and falling back to work Z ' + finishZ.toFixed(3) + '. Set machineSafeTopZ to a non-zero machine coordinate in Setup.');
+    useMachineRetract = false;
+  }
 
   var pos        = await getWorkPosition();
   var currentZ   = Number(pos.z);

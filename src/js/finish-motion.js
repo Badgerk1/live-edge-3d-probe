@@ -16,6 +16,20 @@ async function finishRunMotion(mode) {
   var returnXYZero        = !!s.returnToXYZero;
   var feed                = s.faceRetractFeed || s.travelFeedRate || 600;
 
+  // Guard: if finishHomeZ is 0 or not a valid number, use a safe fallback and warn.
+  if (!isFinite(finishZ) || finishZ === 0) {
+    logLine(mode, 'Finish: WARNING — finishHomeZ is ' + finishZ + ' (unset or zero); using safe fallback of 10.0mm work Z.');
+    finishZ = 10.0;
+  }
+
+  // Guard: if machine-home retract is enabled but machineSafeTopZ is 0 (default/unset),
+  // the machine would retract to the absolute top of travel which is usually not intended.
+  // Disable machine-home retract and fall back to work Z retract using finishHomeZ.
+  if (useMachineRetract && (!isFinite(machineSafeTopZ) || machineSafeTopZ === 0)) {
+    logLine(mode, 'Finish: WARNING — machineSafeTopZ is ' + machineSafeTopZ + ' (unset or zero); disabling machine-home Z retract and falling back to work Z ' + finishZ.toFixed(3) + '. Set machineSafeTopZ to a non-zero machine coordinate in Setup.');
+    useMachineRetract = false;
+  }
+
   var pos        = await getWorkPosition();
   var currentZ   = Number(pos.z);
   var safeTravelZ = isFinite(currentZ) ? Math.max(currentZ, finishZ) : finishZ;
