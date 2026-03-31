@@ -1183,69 +1183,45 @@ async function smFinishMotion(travelFeed) {
   pluginDebug('smFinishMotion ENTER: travelFeed=' + travelFeed);
   var s = getSettingsFromUI();
   var finishZ = Number(s.finishHomeZ);
-  var useMachineHomeRetract = !!s.useMachineHomeRetract;
-  var machineSafeTopZ = Number(s.machineSafeTopZ);
   var returnXYZero = !!s.returnToXYZero;
   var feed = travelFeed || s.travelFeedRate || 600; // 600 mm/min safe fallback
 
+  // Guard: if finishHomeZ is 0 or not a valid number, use a safe fallback and warn.
+  if (!isFinite(finishZ) || finishZ === 0) {
+    smLogProbe('Finish move: WARNING — finishHomeZ is ' + finishZ + ' (unset or zero); using safe fallback of 10.0mm work Z.');
+    finishZ = 10.0;
+  }
+
   var pos = await getWorkPosition();
   var currentZ = Number(pos.z);
-  var safeTravelZ = isFinite(currentZ) ? Math.max(currentZ, finishZ) : finishZ;
 
-  var state = await _getState();
-  var ms = _machineStateFrom(state);
-  var homed = _detectHomed(ms, state);
-
-  if (useMachineHomeRetract) {
-    if (homed === true) {
-      // Use machine position snapshot to skip G53 retract if already above target
-      var mPos = _parsePos(ms.MPos);
-      var wco = _parsePos(ms.WCO);
-      var currentMachineZ = null;
-      if (mPos) {
-        currentMachineZ = mPos.z;
-      } else if (wco && isFinite(currentZ)) {
-        currentMachineZ = currentZ + wco.z;
-      }
-      if (currentMachineZ !== null && machineSafeTopZ <= currentMachineZ) {
-        smLogProbe('Finish move: current machine Z ' + currentMachineZ.toFixed(3) + ' is already at or above target ' + machineSafeTopZ.toFixed(3) + '; skipping G53 retract');
-      } else {
-        smLogProbe('Finish move: machine is homed; retracting with G53 to machine Z ' + machineSafeTopZ.toFixed(3) + ' before X/Y travel');
-        try {
-          await moveMachineZAbs(machineSafeTopZ, feed);
-        } catch(retractErr) {
-          smLogProbe('Finish move: G53 retract error (' + retractErr.message + '); continuing with return');
-        }
-        var retractPos = await getWorkPosition();
-        smLogProbe('DEBUG POSITION: after finish retract X=' + retractPos.x.toFixed(3) + ' Y=' + retractPos.y.toFixed(3) + ' Z=' + retractPos.z.toFixed(3));
-      }
-    } else {
-      smLogProbe('Finish move warning: machine-home retract enabled but homed state is not available; falling back to work Z ' + safeTravelZ.toFixed(3));
-      if (isFinite(currentZ) && finishZ <= currentZ) {
-        smLogProbe('Finish move: current work Z ' + currentZ.toFixed(3) + ' is already above fallback target ' + finishZ.toFixed(3) + '; keeping current Z for safe X/Y return');
-      } else {
-        smLogProbe('Finish move: lifting work Z to fallback ' + safeTravelZ.toFixed(3));
-        await moveAbs(null, null, safeTravelZ, feed);
-        var retractPos = await getWorkPosition();
-        smLogProbe('DEBUG POSITION: after finish retract X=' + retractPos.x.toFixed(3) + ' Y=' + retractPos.y.toFixed(3) + ' Z=' + retractPos.z.toFixed(3));
-      }
-    }
+  // Z retract — always use work coordinates (G0 Z{finishZ}), never G53 machine coords.
+  // Only move if finishZ is actually higher than the current position.
+  var zRetractOk = false;
+  if (isFinite(currentZ) && finishZ <= currentZ) {
+    smLogProbe('Finish move: current work Z ' + currentZ.toFixed(3) + ' is already at or above target work Z ' + finishZ.toFixed(3) + '; no Z retract needed');
+    zRetractOk = true;
   } else {
-    if (isFinite(currentZ) && finishZ <= currentZ) {
-      smLogProbe('Finish move: current work Z ' + currentZ.toFixed(3) + ' is already above target ' + finishZ.toFixed(3) + '; keeping current Z for safe X/Y return');
+    smLogProbe('Finish move: retracting to work Z ' + finishZ.toFixed(3));
+    await moveAbs(null, null, finishZ, feed);
+    var retractPos = await getWorkPosition();
+    smLogProbe('Finish move: after retract X=' + retractPos.x.toFixed(3) + ' Y=' + retractPos.y.toFixed(3) + ' Z=' + retractPos.z.toFixed(3));
+    if (Number(retractPos.z) >= finishZ - 0.5) {
+      zRetractOk = true;
     } else {
-      smLogProbe('Finish move: lifting work Z to ' + safeTravelZ.toFixed(3));
-      await moveAbs(null, null, safeTravelZ, feed);
-      var retractPos = await getWorkPosition();
-      smLogProbe('DEBUG POSITION: after finish retract X=' + retractPos.x.toFixed(3) + ' Y=' + retractPos.y.toFixed(3) + ' Z=' + retractPos.z.toFixed(3));
+      smLogProbe('Finish move: ERROR — Z retract did not reach target (got Z=' + Number(retractPos.z).toFixed(3) + ', expected >= ' + (finishZ - 0.5).toFixed(3) + '); aborting XY return to prevent collision');
     }
   }
 
   if (returnXYZero) {
-    smLogProbe('Finish move: returning to work X0.000 Y0.000');
-    await moveAbs(0, 0, null, feed);
-    var returnPos = await getWorkPosition();
-    smLogProbe('DEBUG POSITION: after finish return X=' + returnPos.x.toFixed(3) + ' Y=' + returnPos.y.toFixed(3) + ' Z=' + returnPos.z.toFixed(3));
+    if (!zRetractOk) {
+      smLogProbe('Finish move: skipping X/Y return — Z retract did not succeed');
+    } else {
+      smLogProbe('Finish move: returning to work X0.000 Y0.000');
+      await moveAbs(0, 0, null, feed);
+      var returnPos = await getWorkPosition();
+      smLogProbe('Finish move: after return X=' + returnPos.x.toFixed(3) + ' Y=' + returnPos.y.toFixed(3) + ' Z=' + returnPos.z.toFixed(3));
+    }
   } else {
     smLogProbe('Finish move: X/Y return disabled');
   }
