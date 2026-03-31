@@ -575,73 +575,78 @@
     </div>
   </div>
 
-  <!-- ── Surface Configuration Section ─────────────────────────────── -->
-  <div id="surface-config-section">
-    <div class="panel">
-      <div class="box-title">Top Profile Settings</div>
-      <div class="grid three">
-        <div class="field">
-          <label>
-            <span class="tooltip">Sample Axis<span class="tip-icon">?</span>
-              <span class="tip">The axis along which top Z samples are collected. The other axis uses the fixed coordinate.</span>
-            </span>
-          </label>
-          <select id="sampleAxis"><option value="X">X</option><option value="Y">Y</option></select>
-        </div>
-        <div class="field">
-          <label>
-            <span class="tooltip">Top Fixed Coord (coords)<span class="tip-icon">?</span>
-              <span class="tip">The non-sampled axis coordinate held constant during the top profile scan.</span>
-            </span>
-          </label>
-          <input type="number" id="topFixedCoord" value="0" step="0.1">
-        </div>
-        <div class="field">
-          <label><span class="tooltip">Sample Start (coords)<span class="tip-icon">?</span><span class="tip">Starting coordinate along the sample axis where the top profile probe begins. Machine moves here before the first probe descent.</span></span></label>
-          <input type="number" id="topSampleStart" value="0" step="0.1">
-        </div>
-        <div class="field">
-          <label><span class="tooltip">Sample End (coords)<span class="tip-icon">?</span><span class="tip">Ending coordinate along the sample axis where the top profile probe finishes. The last probe point is taken here.</span></span></label>
-          <input type="number" id="topSampleEnd" value="100" step="0.1">
-        </div>
-        <div class="field">
-          <label><span class="tooltip">Sample Count<span class="tip-icon">?</span><span class="tip">Number of evenly-spaced probe points along the sample axis. More points give higher resolution but take longer to run.</span></span></label>
-          <input type="number" id="topSampleCount" value="10" min="2" max="200" step="1">
-        </div>
-        <div class="field">
-          <label>
-            <span class="tooltip">Use Initial Clearance Lift<span class="tip-icon">?</span>
-              <span class="tip">When enabled, the plugin raises Z before the first top-profile travel move. Turn this off if the operator manually sets a safe start Z before probing.</span>
-            </span>
-          </label>
-          <select id="useInitialClearanceLift"><option value="no">No</option><option value="yes">Yes</option></select>
-        </div>
-        <div class="field">
-          <label>
-            <span class="tooltip">Initial Clearance Lift (coords)<span class="tip-icon">?</span>
-              <span class="tip">Relative Z raise used only when Initial Clearance Lift is enabled.</span>
-            </span>
-          </label>
-          <input type="number" id="topClearZ" value="5" min="0.5" max="100" step="0.5">
-        </div>
-        <div class="field">
-          <label><span class="tooltip">Top Probe Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate used when the probe descends toward the surface during top profile sampling. Slower values reduce overshoot and improve accuracy.</span></span></label>
-          <input type="number" id="topFeed" value="200" min="10" max="3000" step="10">
-        </div>
-        <div class="field">
-          <label>
-            <span class="tooltip">Probe Depth (coords)<span class="tip-icon">?</span>
-              <span class="tip">Maximum Z distance to probe downward from the current Z position at each sample point.</span>
-            </span>
-          </label>
-          <input type="number" id="topProbeDepth" value="5" min="0.5" max="50" step="0.5">
-        </div>
-        <div class="field">
-          <label><span class="tooltip">Retract (coords)<span class="tip-icon">?</span><span class="tip">Distance to retract Z upward after each probe contact before moving to the next sample point. Prevents dragging the ball tip across the surface.</span></span></label>
-          <input type="number" id="topRetract" value="2" min="0.5" max="20" step="0.5">
-        </div>
+  <!-- ── Top Profile Settings (always visible — used by both Surface and Face probe modes) ── -->
+  <div class="panel">
+    <div class="box-title">Top Profile Settings</div>
+    <div class="grid three">
+      <div class="field">
+        <label>
+          <span class="tooltip">Sample Axis<span class="tip-icon">?</span>
+            <span class="tip">The axis along which top Z samples are collected. The other axis uses the fixed coordinate.</span>
+          </span>
+        </label>
+        <select id="sampleAxis"><option value="X">X</option><option value="Y">Y</option></select>
+      </div>
+      <div class="field">
+        <label>
+          <span class="tooltip">Top Fixed Coord (coords)<span class="tip-icon">?</span>
+            <span class="tip">The non-sampled axis coordinate held constant during the top profile scan.</span>
+          </span>
+        </label>
+        <input type="number" id="topFixedCoord" value="0" step="0.1">
+      </div>
+      <div class="field">
+        <label><span class="tooltip">Sample Start (coords)<span class="tip-icon">?</span><span class="tip">Starting coordinate along the sample axis where the top profile probe begins. Machine moves here before the first probe descent.</span></span></label>
+        <input type="number" id="topSampleStart" value="0" step="0.1">
+      </div>
+      <div class="field">
+        <label><span class="tooltip">Sample End (coords)<span class="tip-icon">?</span><span class="tip">Ending coordinate along the sample axis where the top profile probe finishes. The last probe point is taken here.</span></span></label>
+        <input type="number" id="topSampleEnd" value="100" step="0.1">
+      </div>
+      <div class="field">
+        <label><span class="tooltip">Sample Count<span class="tip-icon">?</span><span class="tip">Number of evenly-spaced probe points along the sample axis. More points give higher resolution but take longer to run.</span></span></label>
+        <input type="number" id="topSampleCount" value="10" min="2" max="200" step="1">
+      </div>
+      <div class="field">
+        <label>
+          <span class="tooltip">Use Initial Clearance Lift<span class="tip-icon">?</span>
+            <span class="tip">When enabled, the plugin raises Z before the first top-profile travel move. Turn this off if the operator manually sets a safe start Z before probing.</span>
+          </span>
+        </label>
+        <select id="useInitialClearanceLift"><option value="no">No</option><option value="yes">Yes</option></select>
+      </div>
+      <div class="field">
+        <label>
+          <span class="tooltip">Initial Clearance Lift (coords)<span class="tip-icon">?</span>
+            <span class="tip">Relative Z raise used only when Initial Clearance Lift is enabled.</span>
+          </span>
+        </label>
+        <input type="number" id="topClearZ" value="5" min="0.5" max="100" step="0.5">
+      </div>
+      <div class="field">
+        <label><span class="tooltip">Top Probe Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate used when the probe descends toward the surface during top profile sampling. Slower values reduce overshoot and improve accuracy.</span></span></label>
+        <input type="number" id="topFeed" value="200" min="10" max="3000" step="10">
+      </div>
+      <div class="field">
+        <label>
+          <span class="tooltip">Probe Depth (coords)<span class="tip-icon">?</span>
+            <span class="tip">Maximum Z distance to probe downward from the current Z position at each sample point.</span>
+          </span>
+        </label>
+        <input type="number" id="topProbeDepth" value="5" min="0.5" max="50" step="0.5">
+      </div>
+      <div class="field">
+        <label><span class="tooltip">Retract (coords)<span class="tip-icon">?</span><span class="tip">Distance to retract Z upward after each probe contact before moving to the next sample point. Prevents dragging the ball tip across the surface.</span></span></label>
+        <input type="number" id="topRetract" value="2" min="0.5" max="20" step="0.5">
       </div>
     </div>
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn ghost" onclick="flashSaveButton(this);saveSettings()">&#128190; Save Settings</button>
+    </div>
+  </div>
+
+  <!-- ── Surface Configuration Section ─────────────────────────────── -->
+  <div id="surface-config-section">
     <div class="panel">
       <div class="box-title">2D Grid Configuration</div>
       <div class="grid three">
@@ -1080,6 +1085,9 @@
           <div class="callout mini" style="margin-bottom:8px">Top-down topographic heatmap (XY projection) — warm colors = high Z, cool colors = low Z. Hover for values.</div>
           <canvas id="res-surface-relief-canvas" style="width:100%;border:1px solid var(--line);border-radius:8px;background:#0d111a;display:block"></canvas>
           <div id="res-surface-relief-tooltip" class="mini" style="color:var(--muted);margin-top:4px">Hover over map for values</div>
+          <div class="btn-row" style="margin-top:8px">
+            <button class="btn ghost" onclick="flashButton(this);clearReliefCanvasPanel(['res-surface-relief-canvas','res-face-relief-canvas'])">&#128465; Clear</button>
+          </div>
         </div>
         <div class="panel" id="res-face-relief-panel">
           <div class="box-title">&#127774; Face Relief Map</div>
@@ -1151,6 +1159,9 @@
             </div>
           </div>
           <div style="text-align:center;margin-top:6px;font-size:11px;color:var(--muted)">Z Exaggeration: <input type="range" id="relief-3d-z-exag" aria-label="Z Exaggeration" min="1" max="20" value="5" style="vertical-align:middle;width:90px" oninput="document.getElementById('relief-3d-z-exag-val').textContent=this.value+'&times;';renderRelief3D()"> <span id="relief-3d-z-exag-val">5&times;</span> &nbsp;&#183;&nbsp; <label style="cursor:pointer"><input type="checkbox" id="relief-contour-toggle" aria-label="Toggle contours" onchange="renderRelief3D()"> Contours</label></div>
+        </div>
+        <div class="btn-row" style="margin-top:8px">
+          <button class="btn ghost" onclick="flashButton(this);clearReliefCanvasPanel(['surface-relief-canvas'],true)">&#128465; Clear</button>
         </div>
       </div>
 
@@ -3159,7 +3170,16 @@ function renderReliefMap(canvasId, tooltipId, points, cfg) {
 
 function renderSurfaceReliefMap() {
   var grid = smMeshData, cfg = smGridConfig;
-  if (!grid || !cfg || cfg.rowCount < 2 || cfg.colCount < 2) return;
+  if (!grid || !cfg || cfg.rowCount < 2 || cfg.colCount < 2) {
+    // No data — blank all surface relief canvases
+    ['surface-relief-canvas', 'sm-surface-relief-canvas', 'res-surface-relief-canvas'].forEach(function(id) {
+      var c = document.getElementById(id);
+      if (c) { c.width = c.width; }
+      var t = document.getElementById(id.replace('-canvas', '-tooltip'));
+      if (t) t.textContent = 'Hover over map for values';
+    });
+    return;
+  }
   var points = [];
   var zMin = Infinity, zMax = -Infinity;
   for (var ri = 0; ri < cfg.rowCount; ri++) {
@@ -3189,7 +3209,16 @@ function renderSurfaceReliefMap() {
 
 function renderFaceReliefMap() {
   var data = getFaceMeshData();
-  if (!data || data.length < 4) return;
+  if (!data || data.length < 4) {
+    // No data — blank all face relief canvases
+    ['face-relief-canvas', 'res-face-relief-canvas', 'surf-face-relief-canvas'].forEach(function(id) {
+      var c = document.getElementById(id);
+      if (c) { c.width = c.width; }
+      var t = document.getElementById(id.replace('-canvas', '-tooltip'));
+      if (t) t.textContent = 'Hover over map for values';
+    });
+    return;
+  }
 
   // Face probe Z depths (layerZ) are computed per-sample from sampleTopZ, so they
   // differ slightly between X positions for the same layer number.  Using actual Z
@@ -4899,6 +4928,24 @@ function clearSurfaceMesh() {
   updateSurfaceMeshUI();
   var clearEl = document.getElementById('sm-meshStorageStatus');
   if (clearEl) clearEl.textContent = 'Mesh cleared.';
+}
+
+// ── Clear relief-map canvases visual display ──────────────────────────────────
+// canvasIds: array of canvas element IDs to blank.
+// clearRelief3D: when true also disposes the Three.js 3D terrain scene.
+function clearReliefCanvasPanel(canvasIds, clearRelief3D) {
+  (canvasIds || []).forEach(function(id) {
+    var c = document.getElementById(id);
+    if (c) { c.width = c.width; } // resets canvas content to blank
+    var tid = id.replace('-canvas', '-tooltip');
+    var t = document.getElementById(tid);
+    if (t) t.textContent = 'Hover over map for values';
+  });
+  if (clearRelief3D) {
+    try { _threeDispose('relief'); } catch(e) {}
+    var surface = document.getElementById('relief-3d-surface');
+    if (surface) surface.innerHTML = '';
+  }
 }
 
 function updateSurfaceMeshUI() {
@@ -8392,8 +8439,15 @@ function clearAllResults() {
   topResults        = [];
   faceResults       = [];
   layeredFaceResults = [];
+  // Also clear surface mesh data so the Probe Data table and relief maps blank out
+  smMeshData   = null;
+  smGridConfig = null;
   clearPersistedProbeResults();
   updateAllResultsUI();
+  // Re-render relief maps (now with no data they will blank the canvases)
+  try { renderSurfaceReliefMap(); } catch(e) {}
+  try { renderFaceReliefMap(); }    catch(e) {}
+  try { updateSurfaceMeshUI(); }    catch(e) {}
   setFooterStatus('All probe results cleared.', 'good');
 }
 // ── Export results as unified CSV ─────────────────────────────────────────────
