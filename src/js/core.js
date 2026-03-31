@@ -1130,6 +1130,41 @@ async function smRetractToZ(targetZ, travelFeed) {
   pluginDebug('smRetractToZ EXIT: expected Z=' + targetZ.toFixed(3));
 }
 
+// Raise Z to a safe face-probe travel clearance height before moving between samples.
+// label  — descriptive string logged to the face probe log.
+// feed   — travel feed rate in mm/min; null/undefined uses travelFeedRate from settings.
+// safeZ  — absolute work Z to raise to; null/undefined computes from topResults (highest
+//          measured top-Z + topRetract clearance) or falls back to a relative lift of topClearZ
+//          when no top results are available.
+async function raiseFaceTravelSafeZ(label, feed, safeZ) {
+  var s = getSettingsFromUI();
+  var liftFeed = (feed != null) ? Number(feed) : (Number(s.travelFeedRate) || 600);
+  var targetZ = (safeZ != null) ? safeZ : null;
+  if (targetZ === null) {
+    // Compute from topResults: highest measured top Z + retract clearance
+    var topPts = topResults.filter(function(r){ return r.status === 'TOP'; });
+    var highestZ = -Infinity;
+    topPts.forEach(function(tp){ var tz = Number(tp.z); if (tz > highestZ) highestZ = tz; });
+    var retractClearance = Number(s.topRetract) || 2;
+    if (isFinite(highestZ)) {
+      targetZ = highestZ + retractClearance;
+    } else {
+      // No top results available — lift relative to current position
+      var curPosForLift = await getWorkPosition();
+      var clearZ = Number(s.topClearZ) || 5;
+      targetZ = Number(curPosForLift.z) + clearZ;
+    }
+  }
+  logLine('face', label + ': raising Z to safe travel height ' + targetZ.toFixed(3));
+  pluginDebug('raiseFaceTravelSafeZ: label=' + label + ' targetZ=' + targetZ.toFixed(3) + ' feed=' + liftFeed);
+  var curPos = await getWorkPosition();
+  if (Number(curPos.z) < targetZ - 0.001) {
+    await moveAbs(null, null, targetZ, liftFeed);
+  } else {
+    pluginDebug('raiseFaceTravelSafeZ SKIP: already at/above targetZ=' + targetZ.toFixed(3));
+  }
+}
+
 async function smFinishMotion(travelFeed) {
   pluginDebug('smFinishMotion ENTER: travelFeed=' + travelFeed);
   var s = getSettingsFromUI();
