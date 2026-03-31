@@ -4335,6 +4335,29 @@ async function _clearTriggeredProbeByBackingOffGeneric(tab, currentPos, unitX, u
     return pos;
   }
 
+// Build a standardised face-probe contact record for storage in faceResults.
+// n              — sequential record number (1-based)
+// pos            — position object returned by probeAbsAxis / moveAbs / getWorkPosition
+//                  ({x, y, z, machineZ, probeTriggered})
+// axis           — probe axis ('X' or 'Y')
+// status         — status tag, e.g. 'FACE Y', 'FACE Y MISS', 'EARLY_CONTACT_...'
+// targetCoord    — intended target coordinate on the probe axis
+// sampleLineCoord — coordinate on the perpendicular (sampled) axis for this line
+function makeFaceContactRecord(n, pos, axis, status, targetCoord, sampleLineCoord) {
+  return {
+    type: 'face',
+    n: n,
+    axis: axis,
+    status: status,
+    x: Number(pos.x),
+    y: Number(pos.y),
+    z: Number(pos.z),
+    machineZ: (pos.machineZ != null) ? Number(pos.machineZ) : null,
+    targetCoord: Number(targetCoord),
+    sampleCoord: Number(sampleLineCoord)
+  };
+}
+
 async function segmentedFaceMoveWithRecovery(axis, targetCoord, fixedCoord, probeZ, s, mode, sampleLineCoord, skipClearCheck){
   axis = String(axis || 'X').toUpperCase();
   mode = String(mode || 'to_start').toLowerCase();
