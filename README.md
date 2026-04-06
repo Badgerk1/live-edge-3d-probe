@@ -171,33 +171,37 @@ ncSender (host application)
 | `src/js/finish-motion.js` | Post-probe motion sequencing |
 | `src/config-footer.html` | Closing `</script>`, `</body>`, `</html>` |
 
-### Probe image asset (`probe.png`)
+### Spindle visualizer asset (`spindle.svg`)
 
-The **Surface Probe Visualizer** (Probe tab) uses `probe.png` as the animated probe graphic. The file lives in the repository root alongside `config.html` and is referenced as `src="probe.png"` from the HTML.
+The **Surface Probe Visualizer** (Probe tab) uses `spindle.svg` as the animated spindle graphic. The file lives in the repository root alongside `config.html` and is referenced as `src="spindle.svg"` from the HTML.
 
-A placeholder image is included in the repository. To replace it with your own probe picture:
+**Asset origin:** `spindle.svg` is an original SVG created for this plugin, inspired by the CNC spindle style visible in the ncSender screenshots located in [`Badgerk1/Test-files`](https://github.com/Badgerk1/Test-files). The SVG is drawn entirely with SVG primitives (no external images or fonts) and is owned by this project. No assets were copied from ncSender or any third-party source.
 
-1. Prepare your image as a **transparent PNG** (remove the white background so it looks clean on the dark visualiser backdrop). A height-to-width ratio of roughly **3 : 1** works best at the default 46 px display width.
-2. Name it `probe.png` and place it in the **repository root** (next to `config.html`).
-3. The animated `#sm-pviz-probe-body` element inherits the existing `probe-plunging` / `probe-contact` CSS class animations automatically — no JS changes are needed.
+**Animations:**
 
-To adjust the display size or shadow, edit the `.sm-probe-img` rule in `src/styles.css`, then rebuild:
+| State | Behaviour |
+|---|---|
+| Idle | Gentle 2.8 s wobble/bob (`smPvizBob` keyframe) — slight vertical travel and minimal tilt (no spin) |
+| Probing (`probe-plunging` class) | Bob paused; spindle drops toward the surface |
+| Contact (`probe-contact` class) | Green glow pulse (`smPvizBodyGlow` keyframe) on probe contact |
+
+To adjust the display size or shadow, edit the `.sm-probe-img` and `#sm-pviz-probe-body` rules in `src/styles.css`, then rebuild:
 
 ```css
 .sm-probe-img {
-  width: 46px;          /* change this to resize the probe graphic */
+  width: 46px;          /* change this to resize the spindle graphic */
   height: auto;
   display: block;
-  transform-origin: 50% 90%;
-  filter: drop-shadow(0 6px 10px rgba(0,0,0,.45));
+  transform-origin: 50% 93%;   /* pivot near probe tip (93% down) */
+  filter: drop-shadow(0 8px 14px rgba(0,0,0,.55));
 }
 ```
 
-If you change the width significantly, also update the `margin` on `#sm-pviz-probe-body` so the ball-tip still aligns with the contact-point anchor:
+If you change the width significantly, also update the `margin` on `#sm-pviz-probe-body` so the probe tip still aligns with the contact-point anchor:
 
 ```css
 #surface-edge-mesh-root #sm-pviz-probe-body {
-  margin: -120px 0 0 -23px;   /* top ≈ -(image-height × 0.87), left ≈ -(width/2) */
+  margin: -140px 0 0 -23px;   /* top ≈ -(svg viewBox height × scale), left ≈ -(width/2) */
 }
 ```
 

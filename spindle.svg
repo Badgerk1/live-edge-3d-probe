@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 150" width="48" height="150">
+  <defs>
+    <!-- Motor housing gradient (left-to-right cylindrical shading) -->
+    <linearGradient id="sg-housing" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#1c2b3e"/>
+      <stop offset="22%"  stop-color="#3d5578"/>
+      <stop offset="46%"  stop-color="#7a9dc4"/>
+      <stop offset="54%"  stop-color="#96b8d8"/>
+      <stop offset="78%"  stop-color="#3d5578"/>
+      <stop offset="100%" stop-color="#1c2b3e"/>
+    </linearGradient>
+    <!-- Shaft gradient -->
+    <linearGradient id="sg-shaft" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#18253a"/>
+      <stop offset="25%"  stop-color="#344e70"/>
+      <stop offset="48%"  stop-color="#6a8eb0"/>
+      <stop offset="52%"  stop-color="#82a8c8"/>
+      <stop offset="75%"  stop-color="#344e70"/>
+      <stop offset="100%" stop-color="#18253a"/>
+    </linearGradient>
+    <!-- Collet gradient (slightly warmer) -->
+    <linearGradient id="sg-collet" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#20303e"/>
+      <stop offset="30%"  stop-color="#566070"/>
+      <stop offset="50%"  stop-color="#9ab0be"/>
+      <stop offset="70%"  stop-color="#566070"/>
+      <stop offset="100%" stop-color="#20303e"/>
+    </linearGradient>
+    <!-- Bit shank gradient -->
+    <linearGradient id="sg-bit" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#282e34"/>
+      <stop offset="45%"  stop-color="#b8ccd8"/>
+      <stop offset="55%"  stop-color="#d4e4ee"/>
+      <stop offset="100%" stop-color="#1e242a"/>
+    </linearGradient>
+    <!-- Top-cap ellipse gradient -->
+    <radialGradient id="sg-cap" cx="40%" cy="40%" r="55%">
+      <stop offset="0%"   stop-color="#8aaac8"/>
+      <stop offset="100%" stop-color="#1a2840"/>
+    </radialGradient>
+    <!-- Rim ring gradient -->
+    <linearGradient id="sg-rim" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#141e2c"/>
+      <stop offset="50%"  stop-color="#4a6880"/>
+      <stop offset="100%" stop-color="#141e2c"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ═══ Motor Housing ════════════════════════════════════════════════ -->
+  <!-- Body cylinder -->
+  <rect x="5" y="10" width="38" height="52" rx="4" ry="4" fill="url(#sg-housing)" stroke="#253545" stroke-width="0.6"/>
+  <!-- Left specular edge -->
+  <rect x="5.5" y="11" width="3" height="50" rx="1.5" fill="rgba(200,230,255,0.07)"/>
+  <!-- Right shadow edge -->
+  <rect x="39" y="11" width="3" height="50" rx="1.5" fill="rgba(0,0,0,0.18)"/>
+  <!-- Top ellipse cap -->
+  <ellipse cx="24" cy="10" rx="19" ry="4.5" fill="url(#sg-cap)" stroke="#253545" stroke-width="0.6"/>
+  <!-- Bottom ellipse rim -->
+  <ellipse cx="24" cy="62" rx="19" ry="4.5" fill="#162030" stroke="#253545" stroke-width="0.6"/>
+  <!-- Ventilation rings -->
+  <rect x="8"  y="28" width="32" height="2.5" rx="1" fill="rgba(0,0,0,0.35)"/>
+  <rect x="8"  y="33" width="32" height="2.5" rx="1" fill="rgba(0,0,0,0.35)"/>
+  <rect x="8"  y="38" width="32" height="2.5" rx="1" fill="rgba(0,0,0,0.35)"/>
+  <!-- Highlight stripe (highlight on metal face) -->
+  <rect x="16" y="11" width="7" height="50" rx="3" fill="rgba(170,210,240,0.09)"/>
+
+  <!-- ═══ Shoulder Clamp Ring ══════════════════════════════════════════ -->
+  <rect x="8" y="64" width="32" height="7" rx="2" fill="url(#sg-rim)" stroke="#1e2e3e" stroke-width="0.5"/>
+  <!-- Knurling hint lines on clamp ring -->
+  <line x1="12" y1="64.5" x2="12" y2="70.5" stroke="rgba(100,140,170,0.25)" stroke-width="0.8"/>
+  <line x1="16" y1="64.5" x2="16" y2="70.5" stroke="rgba(100,140,170,0.25)" stroke-width="0.8"/>
+  <line x1="20" y1="64.5" x2="20" y2="70.5" stroke="rgba(100,140,170,0.25)" stroke-width="0.8"/>
+  <line x1="24" y1="64.5" x2="24" y2="70.5" stroke="rgba(100,140,170,0.25)" stroke-width="0.8"/>
+  <line x1="28" y1="64.5" x2="28" y2="70.5" stroke="rgba(100,140,170,0.25)" stroke-width="0.8"/>
+  <line x1="32" y1="64.5" x2="32" y2="70.5" stroke="rgba(100,140,170,0.25)" stroke-width="0.8"/>
+  <line x1="36" y1="64.5" x2="36" y2="70.5" stroke="rgba(100,140,170,0.25)" stroke-width="0.8"/>
+
+  <!-- ═══ Spindle Shaft ════════════════════════════════════════════════ -->
+  <rect x="11" y="71" width="26" height="38" rx="2" fill="url(#sg-shaft)" stroke="#1e2e3e" stroke-width="0.5"/>
+  <!-- Shaft highlight -->
+  <rect x="12" y="72" width="5" height="36" rx="2" fill="rgba(160,200,230,0.08)"/>
+
+  <!-- ═══ Collet Nut ════════════════════════════════════════════════════ -->
+  <!-- Hexagonal-ish collet (shown as tapered rect with flats) -->
+  <path d="M13,109 L15,120 L33,120 L35,109 Z" fill="url(#sg-collet)" stroke="#1e2e3e" stroke-width="0.5"/>
+  <!-- Collet flat lines (gives wrench-flat appearance) -->
+  <line x1="13.5" y1="112" x2="34.5" y2="112" stroke="rgba(30,50,60,0.7)" stroke-width="1"/>
+  <line x1="14"   y1="115" x2="34"   y2="115" stroke="rgba(30,50,60,0.7)" stroke-width="1"/>
+  <line x1="14.5" y1="118" x2="33.5" y2="118" stroke="rgba(30,50,60,0.7)" stroke-width="1"/>
+
+  <!-- ═══ Tool / Probe Shank ════════════════════════════════════════════ -->
+  <rect x="20" y="120" width="8" height="18" rx="1" fill="url(#sg-bit)" stroke="#18222a" stroke-width="0.4"/>
+  <!-- Shank highlight -->
+  <rect x="20.5" y="120.5" width="2" height="17" fill="rgba(220,240,255,0.12)"/>
+
+  <!-- ═══ Probe Tip ══════════════════════════════════════════════════════ -->
+  <!-- Tapered tip -->
+  <path d="M20,138 L24,150 L28,138 Z" fill="url(#sg-bit)" stroke="#10181e" stroke-width="0.4"/>
+  <!-- Tip highlight -->
+  <line x1="21" y1="140" x2="23.5" y2="149" stroke="rgba(220,240,255,0.18)" stroke-width="0.8"/>
+</svg>
