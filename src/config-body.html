@@ -667,7 +667,59 @@
             <div id="sm-pviz-probe-wrap">
               <div id="sm-pviz-probe-shadow"></div>
               <div id="sm-pviz-probe-body">
-                <img src="probe.png" alt="Probe" class="sm-probe-img">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 46 138" class="sm-probe-img" aria-label="Spindle probe">
+                  <defs>
+                    <linearGradient id="smSpB" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stop-color="#0c1d35"/><stop offset="20%" stop-color="#1e3a66"/><stop offset="50%" stop-color="#4872aa"/><stop offset="80%" stop-color="#1e3a66"/><stop offset="100%" stop-color="#0c1d35"/>
+                    </linearGradient>
+                    <linearGradient id="smSpF" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stop-color="#08121e"/><stop offset="20%" stop-color="#142440"/><stop offset="50%" stop-color="#273e6a"/><stop offset="80%" stop-color="#142440"/><stop offset="100%" stop-color="#08121e"/>
+                    </linearGradient>
+                    <linearGradient id="smSpC" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stop-color="#0e1f3a"/><stop offset="20%" stop-color="#2a4878"/><stop offset="50%" stop-color="#5888c4"/><stop offset="80%" stop-color="#2a4878"/><stop offset="100%" stop-color="#0e1f3a"/>
+                    </linearGradient>
+                    <linearGradient id="smSpS" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stop-color="#080f1a"/><stop offset="50%" stop-color="#7ab0ee"/><stop offset="100%" stop-color="#080f1a"/>
+                    </linearGradient>
+                    <linearGradient id="smSpH" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stop-color="rgba(255,255,255,0)"/><stop offset="52%" stop-color="rgba(255,255,255,0.16)"/><stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+                    </linearGradient>
+                    <radialGradient id="smSpR" cx="38%" cy="35%" r="55%">
+                      <stop offset="0%" stop-color="#ff9090"/><stop offset="45%" stop-color="#cc2828"/><stop offset="100%" stop-color="#5a0808"/>
+                    </radialGradient>
+                  </defs>
+                  <!-- mount flange -->
+                  <rect x="3" y="0" width="40" height="9" rx="2" fill="url(#smSpF)"/>
+                  <rect x="3" y="0" width="40" height="9" rx="2" fill="url(#smSpH)" opacity=".7"/>
+                  <!-- main housing body -->
+                  <rect x="9" y="9" width="28" height="52" rx="1.5" fill="url(#smSpB)"/>
+                  <rect x="9" y="9" width="28" height="52" rx="1.5" fill="url(#smSpH)" opacity=".5"/>
+                  <!-- groove ring 1 -->
+                  <rect x="6" y="27" width="34" height="4" rx="1" fill="url(#smSpF)" opacity=".9"/>
+                  <rect x="6" y="27" width="34" height="4" rx="1" fill="url(#smSpH)" opacity=".4"/>
+                  <!-- groove ring 2 -->
+                  <rect x="6" y="47" width="34" height="4" rx="1" fill="url(#smSpF)" opacity=".9"/>
+                  <!-- lower collar -->
+                  <rect x="5" y="61" width="36" height="7" rx="1.5" fill="url(#smSpF)"/>
+                  <rect x="5" y="61" width="36" height="7" rx="1.5" fill="url(#smSpH)" opacity=".6"/>
+                  <!-- collet body -->
+                  <rect x="11" y="68" width="24" height="22" rx="1" fill="url(#smSpC)"/>
+                  <rect x="11" y="68" width="24" height="22" rx="1" fill="url(#smSpH)" opacity=".4"/>
+                  <line x1="11" y1="72.5" x2="35" y2="72.5" stroke="rgba(0,0,0,.22)" stroke-width=".7"/>
+                  <line x1="11" y1="76.5" x2="35" y2="76.5" stroke="rgba(0,0,0,.22)" stroke-width=".7"/>
+                  <line x1="11" y1="80.5" x2="35" y2="80.5" stroke="rgba(0,0,0,.22)" stroke-width=".7"/>
+                  <line x1="11" y1="84.5" x2="35" y2="84.5" stroke="rgba(0,0,0,.22)" stroke-width=".7"/>
+                  <!-- collet nose taper -->
+                  <polygon points="11,90 35,90 32,96 23,100 14,96" fill="url(#smSpC)"/>
+                  <polygon points="11,90 35,90 32,96 23,100 14,96" fill="url(#smSpH)" opacity=".35"/>
+                  <!-- probe stylus rod -->
+                  <rect x="20" y="100" width="6" height="28" rx="1" fill="url(#smSpS)"/>
+                  <rect x="22.5" y="100" width="1.5" height="28" rx=".5" fill="rgba(180,220,255,.22)"/>
+                  <!-- ruby contact tip -->
+                  <circle cx="23" cy="133" r="4" fill="#140810"/>
+                  <circle cx="23" cy="133" r="3.5" fill="url(#smSpR)"/>
+                  <circle cx="21.5" cy="131.5" r="1.2" fill="rgba(255,200,200,.5)"/>
+                </svg>
               </div>
             </div>
           </div>
