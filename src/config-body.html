@@ -667,7 +667,22 @@
             <div id="sm-pviz-probe-wrap">
               <div id="sm-pviz-probe-shadow"></div>
               <div id="sm-pviz-probe-body">
-                <img src="probe.png" alt="Probe" class="sm-probe-img">
+                <!-- Spindle graphic: in-house SVG inspired by ncSender probe visual style.
+                     ncSender © 2024 siganberg, GPL-3.0/Commercial dual license.
+                     This asset is independently designed and not copied from ncSender source. -->
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 46 138" class="sm-probe-img" aria-label="Probe spindle">
+                  <rect x="16" y="1" width="14" height="24" rx="2" fill="#242f42" stroke="#95a8c8" stroke-width="1.5"/>
+                  <rect x="18" y="3" width="3" height="20" rx="1" fill="rgba(149,168,200,0.18)"/>
+                  <path d="M16 25 L8 36 L38 36 L30 25 Z" fill="#202a3b" stroke="#95a8c8" stroke-width="1.5" stroke-linejoin="round"/>
+                  <rect x="8" y="36" width="30" height="26" rx="3" fill="#1c2535" stroke="#95a8c8" stroke-width="1.5"/>
+                  <line x1="9" y1="46" x2="37" y2="46" stroke="#95a8c8" stroke-width="0.8" opacity="0.35"/>
+                  <line x1="9" y1="55" x2="37" y2="55" stroke="#95a8c8" stroke-width="0.8" opacity="0.35"/>
+                  <path d="M8 62 L15 72 L31 72 L38 62 Z" fill="#202a3b" stroke="#95a8c8" stroke-width="1.5" stroke-linejoin="round"/>
+                  <rect x="15" y="72" width="16" height="30" rx="2" fill="#202a3b" stroke="#95a8c8" stroke-width="1.5"/>
+                  <path d="M15 102 L20 110 L26 110 L31 102 Z" fill="#202a3b" stroke="#95a8c8" stroke-width="1.5" stroke-linejoin="round"/>
+                  <rect x="21" y="110" width="4" height="20" rx="1" fill="#95a8c8"/>
+                  <circle cx="23" cy="134" r="4" fill="#1c2535" stroke="#95a8c8" stroke-width="1.5"/>
+                </svg>
               </div>
             </div>
           </div>
