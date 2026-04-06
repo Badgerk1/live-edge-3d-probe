@@ -171,9 +171,37 @@ ncSender (host application)
 | `src/js/finish-motion.js` | Post-probe motion sequencing |
 | `src/config-footer.html` | Closing `</script>`, `</body>`, `</html>` |
 
-### Rebuilding `config.html`
+### Probe image asset (`probe.png`)
 
-After editing any file in `src/`, run:
+The **Surface Probe Visualizer** (Probe tab) uses `probe.png` as the animated probe graphic. The file lives in the repository root alongside `config.html` and is referenced as `src="probe.png"` from the HTML.
+
+A placeholder image is included in the repository. To replace it with your own probe picture:
+
+1. Prepare your image as a **transparent PNG** (remove the white background so it looks clean on the dark visualiser backdrop). A height-to-width ratio of roughly **3 : 1** works best at the default 46 px display width.
+2. Name it `probe.png` and place it in the **repository root** (next to `config.html`).
+3. The animated `#sm-pviz-probe-body` element inherits the existing `probe-plunging` / `probe-contact` CSS class animations automatically — no JS changes are needed.
+
+To adjust the display size or shadow, edit the `.sm-probe-img` rule in `src/styles.css`, then rebuild:
+
+```css
+.sm-probe-img {
+  width: 46px;          /* change this to resize the probe graphic */
+  height: auto;
+  display: block;
+  transform-origin: 50% 90%;
+  filter: drop-shadow(0 6px 10px rgba(0,0,0,.45));
+}
+```
+
+If you change the width significantly, also update the `margin` on `#sm-pviz-probe-body` so the ball-tip still aligns with the contact-point anchor:
+
+```css
+#surface-edge-mesh-root #sm-pviz-probe-body {
+  margin: -120px 0 0 -23px;   /* top ≈ -(image-height × 0.87), left ≈ -(width/2) */
+}
+```
+
+
 
 ```bash
 ./build.sh
