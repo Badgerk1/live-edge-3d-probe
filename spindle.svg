@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 46 130">
+  <!--
+    Spindle graphic for Live-Edge 3D Probe visualizer.
+    Original design inspired by the CNC end-mill shape in ncSender
+    (https://github.com/siganberg/ncSender, GPL-3.0).
+    This SVG is an independent, original recreation for use in
+    Badgerk1/live-edge-3d-probe under the project's own license.
+  -->
+  <defs>
+    <linearGradient id="sgHousing" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#3a5272"/>
+      <stop offset="35%"  stop-color="#6688aa"/>
+      <stop offset="65%"  stop-color="#6688aa"/>
+      <stop offset="100%" stop-color="#3a5272"/>
+    </linearGradient>
+    <linearGradient id="sgCollet" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#2e4460"/>
+      <stop offset="40%"  stop-color="#507090"/>
+      <stop offset="100%" stop-color="#2e4460"/>
+    </linearGradient>
+    <linearGradient id="sgShank" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#90a0b4"/>
+      <stop offset="25%"  stop-color="#dce6f0"/>
+      <stop offset="75%"  stop-color="#dce6f0"/>
+      <stop offset="100%" stop-color="#90a0b4"/>
+    </linearGradient>
+    <linearGradient id="sgFlute" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#788898"/>
+      <stop offset="40%"  stop-color="#aabccc"/>
+      <stop offset="100%" stop-color="#788898"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Spindle housing (top body) -->
+  <rect x="6" y="1" width="34" height="30" rx="3.5"
+        fill="url(#sgHousing)" stroke="#7090b0" stroke-width="1.2"/>
+
+  <!-- Housing highlight / sheen -->
+  <rect x="7.5" y="2.5" width="5" height="27" rx="2.5"
+        fill="rgba(255,255,255,0.13)"/>
+
+  <!-- Housing bottom band -->
+  <rect x="6" y="27" width="34" height="4" rx="1"
+        fill="#243448" stroke="#486888" stroke-width="0.8"/>
+
+  <!-- Collet nose (tapers from housing width to collet width) -->
+  <path d="M6,31 L10,50 L36,50 L40,31 Z"
+        fill="url(#sgCollet)" stroke="#4a6888" stroke-width="0.9"/>
+
+  <!-- Collet ring 1 (grip band) -->
+  <rect x="9" y="50" width="28" height="5" rx="2"
+        fill="#243448" stroke="#4a6888" stroke-width="0.8"/>
+
+  <!-- Collet ring 2 (secondary band, tighter) -->
+  <rect x="12" y="55" width="22" height="3.5" rx="1.5"
+        fill="#2e4460" stroke="#4a6888" stroke-width="0.6"/>
+
+  <!-- Tool shank (narrow cylindrical section) -->
+  <rect x="20" y="58.5" width="6" height="36"
+        fill="url(#sgShank)" stroke="#708094" stroke-width="0.5"/>
+
+  <!-- Shank highlight -->
+  <line x1="21.5" y1="59" x2="21.5" y2="94"
+        stroke="rgba(255,255,255,0.30)" stroke-width="0.9"/>
+
+  <!-- End-mill body (slightly wider than shank) -->
+  <rect x="17.5" y="94.5" width="11" height="20" rx="1"
+        fill="url(#sgFlute)" stroke="#6878a0" stroke-width="0.8"/>
+
+  <!-- Flute detail lines on end-mill body -->
+  <line x1="21" y1="95" x2="19" y2="114"
+        stroke="rgba(0,0,0,0.28)" stroke-width="0.7"/>
+  <line x1="23" y1="95" x2="25" y2="114"
+        stroke="rgba(0,0,0,0.28)" stroke-width="0.7"/>
+
+  <!-- End-mill body highlight -->
+  <line x1="19" y1="95" x2="19" y2="114"
+        stroke="rgba(255,255,255,0.18)" stroke-width="0.8"/>
+
+  <!-- Cutting tip (bullet / flat-end style) -->
+  <path d="M17.5,114.5 L15,121 L23,126 L31,121 L28.5,114.5 Z"
+        fill="#8898b0" stroke="#5878a0" stroke-width="0.8"/>
+
+  <!-- Tip flat / cutting edge -->
+  <line x1="15" y1="121" x2="31" y2="121"
+        stroke="#5878a8" stroke-width="1.4" stroke-linecap="round"/>
+
+  <!-- Tip point highlight -->
+  <line x1="20.5" y1="121.5" x2="23" y2="125.5"
+        stroke="rgba(255,255,255,0.22)" stroke-width="0.8"/>
+</svg>

@@ -121,10 +121,13 @@
     #surface-edge-mesh-root #sm-pviz-probe-wrap{position:absolute;transform-style:preserve-3d;width:0;height:0;left:50%;top:50%;transition:left .7s cubic-bezier(.4,0,.2,1),top .7s cubic-bezier(.4,0,.2,1)}
     #surface-edge-mesh-root #sm-pviz-probe-shadow{position:absolute;width:18px;height:18px;border-radius:50%;margin:-9px 0 0 -9px;background:rgba(149,168,200,.18);transform:translateZ(0)}
     #surface-edge-mesh-root #sm-pviz-probe-body{position:absolute;margin:-120px 0 0 -23px;transform:translateZ(52px);transition:transform .9s cubic-bezier(.5,0,.1,1);transform-style:preserve-3d;pointer-events:none}
-    #surface-edge-mesh-root .sm-probe-img{width:46px;height:auto;display:block;transform-origin:50% 90%;filter:drop-shadow(0 6px 10px rgba(0,0,0,.45))}
+    #surface-edge-mesh-root .sm-probe-img{width:46px;height:auto;display:block;transform-origin:50% 90%;filter:drop-shadow(0 6px 10px rgba(0,0,0,.45));animation:spindleBob 2.6s ease-in-out infinite}
     #surface-edge-mesh-root #sm-pviz-probe-body.probe-plunging{transform:translateZ(5px)}
+    #surface-edge-mesh-root #sm-pviz-probe-body.probe-plunging .sm-probe-img{animation-play-state:paused}
     #surface-edge-mesh-root #sm-pviz-probe-body.probe-contact{transform:translateZ(2px);animation:smPvizBodyGlow .55s ease-in-out 3}
+    #surface-edge-mesh-root #sm-pviz-probe-body.probe-contact .sm-probe-img{animation-play-state:paused}
     @keyframes smPvizBodyGlow{0%,100%{filter:drop-shadow(0 0 3px rgba(95,211,141,.15))}50%{filter:drop-shadow(0 0 8px rgba(95,211,141,.95)) drop-shadow(0 0 18px rgba(95,211,141,.5))}}
+    @keyframes spindleBob{0%,100%{transform:translateY(0) rotate(0deg)}25%{transform:translateY(-3px) rotate(0.5deg)}50%{transform:translateY(-1px) rotate(-0.3deg)}75%{transform:translateY(-2px) rotate(0.4deg)}}
     /* ── Results Tab 3D Visualizer ──────────────────────────────────────────── */
     #surface-edge-mesh-root #res-pviz-scene{position:relative;height:250px;background:radial-gradient(ellipse at 50% 0%,#0f1f38 0%,#060a10 70%);border:1px solid var(--line);border-radius:10px;overflow:hidden;perspective:700px;perspective-origin:50% 10%;cursor:grab;user-select:none}
     #surface-edge-mesh-root #res-pviz-scene.pviz-dragging{cursor:grabbing}
@@ -845,7 +848,7 @@
             <div id="sm-pviz-probe-wrap">
               <div id="sm-pviz-probe-shadow"></div>
               <div id="sm-pviz-probe-body">
-                <img src="probe.png" alt="Probe" class="sm-probe-img">
+                <img src="spindle.svg" alt="Spindle" class="sm-probe-img">
               </div>
             </div>
           </div>
@@ -4462,7 +4465,7 @@ function smSaveReplayHtml() {
   var meshJson = safeJson(smMeshData);
 
   // ── Probe image (same as live) ──────────────────────────────────────────────
-  var probeImg = '<img src="probe.png" alt="Probe" class="sm-probe-img">';
+  var probeImg = '<img src="spindle.svg" alt="Spindle" class="sm-probe-img">';
 
   var html = '<!DOCTYPE html>\n'
     + '<html lang="en">\n'
@@ -4503,10 +4506,13 @@ function smSaveReplayHtml() {
     + '#sm-pviz-probe-wrap{position:absolute;transform-style:preserve-3d;width:0;height:0;left:50%;top:50%;transition:left .7s cubic-bezier(.4,0,.2,1),top .7s cubic-bezier(.4,0,.2,1)}\n'
     + '#sm-pviz-probe-shadow{position:absolute;width:18px;height:18px;border-radius:50%;margin:-9px 0 0 -9px;background:rgba(149,168,200,.18);transform:translateZ(0)}\n'
     + '#sm-pviz-probe-body{position:absolute;margin:-120px 0 0 -23px;transform:translateZ(52px);transition:transform .9s cubic-bezier(.5,0,.1,1);transform-style:preserve-3d;pointer-events:none}\n'
-    + '.sm-probe-img{width:46px;height:auto;display:block;transform-origin:50% 90%;filter:drop-shadow(0 6px 10px rgba(0,0,0,.45))}\n'
+    + '.sm-probe-img{width:46px;height:auto;display:block;transform-origin:50% 90%;filter:drop-shadow(0 6px 10px rgba(0,0,0,.45));animation:spindleBob 2.6s ease-in-out infinite}\n'
     + '#sm-pviz-probe-body.probe-plunging{transform:translateZ(5px)}\n'
+    + '#sm-pviz-probe-body.probe-plunging .sm-probe-img{animation-play-state:paused}\n'
     + '#sm-pviz-probe-body.probe-contact{transform:translateZ(2px);animation:smPvizBodyGlow .55s ease-in-out 3}\n'
+    + '#sm-pviz-probe-body.probe-contact .sm-probe-img{animation-play-state:paused}\n'
     + '@keyframes smPvizBodyGlow{0%,100%{filter:drop-shadow(0 0 3px rgba(95,211,141,.15))}50%{filter:drop-shadow(0 0 8px rgba(95,211,141,.95)) drop-shadow(0 0 18px rgba(95,211,141,.5))}}\n'
+    + '@keyframes spindleBob{0%,100%{transform:translateY(0) rotate(0deg)}25%{transform:translateY(-3px) rotate(0.5deg)}50%{transform:translateY(-1px) rotate(-0.3deg)}75%{transform:translateY(-2px) rotate(0.4deg)}}\n'
     + '#sm-pviz-mesh{position:absolute;inset:0;width:100%;height:100%;opacity:0;transition:opacity 1.2s ease;pointer-events:none;transform:translateZ(3px);overflow:visible}\n'
     + '#sm-pviz-mesh.mesh-visible{opacity:1}\n'
     // info grid
