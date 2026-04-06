@@ -667,7 +667,67 @@
             <div id="sm-pviz-probe-wrap">
               <div id="sm-pviz-probe-shadow"></div>
               <div id="sm-pviz-probe-body">
-                <img src="probe.png" alt="Probe" class="sm-probe-img">
+                <!-- Spindle SVG — original artwork; see README § Probe spindle graphic -->
+                <svg class="sm-probe-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 46 130" width="46" height="130" role="img" aria-label="Probe spindle">
+                  <defs>
+                    <linearGradient id="pvizSpBody" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%"   stop-color="#1c2d4a"/>
+                      <stop offset="22%"  stop-color="#4a6898"/>
+                      <stop offset="48%"  stop-color="#96b8d8"/>
+                      <stop offset="56%"  stop-color="#c0d4ee"/>
+                      <stop offset="78%"  stop-color="#4a6898"/>
+                      <stop offset="100%" stop-color="#162338"/>
+                    </linearGradient>
+                    <linearGradient id="pvizSpRing" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%"   stop-color="#0e1a2d"/>
+                      <stop offset="35%"  stop-color="#3a5478"/>
+                      <stop offset="55%"  stop-color="#688bb8"/>
+                      <stop offset="100%" stop-color="#0a1422"/>
+                    </linearGradient>
+                    <linearGradient id="pvizSpCollet" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%"   stop-color="#14202e"/>
+                      <stop offset="40%"  stop-color="#567898"/>
+                      <stop offset="58%"  stop-color="#90b8d0"/>
+                      <stop offset="100%" stop-color="#101820"/>
+                    </linearGradient>
+                    <linearGradient id="pvizSpStylus" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%"   stop-color="#1a2030"/>
+                      <stop offset="45%"  stop-color="#788898"/>
+                      <stop offset="60%"  stop-color="#b0c0cc"/>
+                      <stop offset="100%" stop-color="#141c28"/>
+                    </linearGradient>
+                    <radialGradient id="pvizSpBall" cx="38%" cy="32%" r="60%">
+                      <stop offset="0%"   stop-color="#f06080"/>
+                      <stop offset="55%"  stop-color="#c01830"/>
+                      <stop offset="100%" stop-color="#5a0810"/>
+                    </radialGradient>
+                  </defs>
+                  <!-- Top cap -->
+                  <ellipse cx="23" cy="6" rx="19" ry="2.5" fill="#1a2840" stroke="#38587a" stroke-width="0.5"/>
+                  <!-- Main cylinder body -->
+                  <rect x="4" y="6" width="38" height="56" rx="2" fill="url(#pvizSpBody)"/>
+                  <!-- Knurl rings -->
+                  <rect x="4" y="12" width="38" height="2.5" rx="0.5" fill="url(#pvizSpRing)" opacity="0.75"/>
+                  <rect x="4" y="18" width="38" height="2.5" rx="0.5" fill="url(#pvizSpRing)" opacity="0.75"/>
+                  <rect x="4" y="24" width="38" height="2.5" rx="0.5" fill="url(#pvizSpRing)" opacity="0.75"/>
+                  <rect x="4" y="30" width="38" height="2.5" rx="0.5" fill="url(#pvizSpRing)" opacity="0.75"/>
+                  <rect x="4" y="36" width="38" height="2.5" rx="0.5" fill="url(#pvizSpRing)" opacity="0.75"/>
+                  <rect x="4" y="42" width="38" height="2.5" rx="0.5" fill="url(#pvizSpRing)" opacity="0.75"/>
+                  <rect x="4" y="48" width="38" height="2.5" rx="0.5" fill="url(#pvizSpRing)" opacity="0.75"/>
+                  <rect x="4" y="54" width="38" height="2.5" rx="0.5" fill="url(#pvizSpRing)" opacity="0.75"/>
+                  <!-- Bottom collar band -->
+                  <rect x="2" y="60" width="42" height="6" rx="2" fill="url(#pvizSpRing)"/>
+                  <!-- Collet taper -->
+                  <path d="M6,66 L40,66 L33,88 L13,88 Z" fill="url(#pvizSpCollet)"/>
+                  <!-- Collet nut ring -->
+                  <rect x="11" y="86" width="24" height="5" rx="1.5" fill="url(#pvizSpRing)"/>
+                  <!-- Stylus shaft -->
+                  <rect x="20" y="91" width="6" height="26" rx="2" fill="url(#pvizSpStylus)"/>
+                  <!-- Ruby ball tip -->
+                  <circle cx="23" cy="123" r="5.5" fill="url(#pvizSpBall)"/>
+                  <!-- Ball specular highlight -->
+                  <ellipse cx="21" cy="121" rx="1.8" ry="1.8" fill="rgba(255,220,220,0.55)"/>
+                </svg>
               </div>
             </div>
           </div>

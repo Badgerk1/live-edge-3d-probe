@@ -171,43 +171,53 @@ ncSender (host application)
 | `src/js/finish-motion.js` | Post-probe motion sequencing |
 | `src/config-footer.html` | Closing `</script>`, `</body>`, `</html>` |
 
-### Probe image asset (`probe.png`)
+### Probe spindle graphic
 
-The **Surface Probe Visualizer** (Probe tab) uses `probe.png` as the animated probe graphic. The file lives in the repository root alongside `config.html` and is referenced as `src="probe.png"` from the HTML.
+The **Surface Probe Visualizer** (Probe tab) uses an inline SVG spindle graphic embedded directly in `src/config-body.html` inside `#sm-pviz-probe-body`. No external image file is needed.
 
-A placeholder image is included in the repository. To replace it with your own probe picture:
+#### Licensing note
 
-1. Prepare your image as a **transparent PNG** (remove the white background so it looks clean on the dark visualiser backdrop). A height-to-width ratio of roughly **3 : 1** works best at the default 46 px display width.
-2. Name it `probe.png` and place it in the **repository root** (next to `config.html`).
-3. The animated `#sm-pviz-probe-body` element inherits the existing `probe-plunging` / `probe-contact` CSS class animations automatically — no JS changes are needed.
+The spindle appearance was inspired by the ncSender Pro spindle visualizer
+([siganberg/ncsenderpro.releases](https://github.com/siganberg/ncsenderpro.releases)),
+which is copyright © Francis Creation — all rights reserved. No assets were copied
+from that project. The SVG in this repository is an **original artwork** created
+independently for this plugin.
 
-To adjust the display size or shadow, edit the `.sm-probe-img` rule in `src/styles.css`, then rebuild:
+#### Idle wobble / bob animation
 
-```css
-.sm-probe-img {
-  width: 46px;          /* change this to resize the probe graphic */
-  height: auto;
-  display: block;
-  transform-origin: 50% 90%;
-  filter: drop-shadow(0 6px 10px rgba(0,0,0,.45));
-}
-```
+When idle the spindle gently bobs and sways via `@keyframes smPvizWobble` (no
+continuous spin). The `probe-plunging` class cancels the wobble and moves the probe
+downward; the `probe-contact` class replaces it with a green glow pulse. Both states
+are still driven by `smPvizSetState()` in `src/js/core.js` — no JS changes are
+needed to control them.
 
-If you change the width significantly, also update the `margin` on `#sm-pviz-probe-body` so the ball-tip still aligns with the contact-point anchor:
+#### Customising the spindle SVG
 
-```css
-#surface-edge-mesh-root #sm-pviz-probe-body {
-  margin: -120px 0 0 -23px;   /* top ≈ -(image-height × 0.87), left ≈ -(width/2) */
-}
-```
-
-
+The SVG lives inline in `src/config-body.html` (look for `id="sm-pviz-probe-body"`).
+Edit the `viewBox`, shapes, and gradients there, then rebuild:
 
 ```bash
 ./build.sh
 ```
 
-This concatenates the source partials back into a single `config.html` that ncSender loads.
+To adjust the shadow or drop-shadow, edit the `.sm-probe-svg` rule in
+`src/styles.css`:
+
+```css
+.sm-probe-svg {
+  display: block;
+  filter: drop-shadow(0 6px 12px rgba(0,0,0,.55));
+}
+```
+
+If you resize the SVG significantly, update the `margin` on `#sm-pviz-probe-body`
+so the ball-tip still aligns with the contact-point anchor:
+
+```css
+#surface-edge-mesh-root #sm-pviz-probe-body {
+  margin: -120px 0 0 -23px;   /* top ≈ -(svg-height × 0.92), left ≈ -(width/2) */
+}
+```
 
 ---
 
