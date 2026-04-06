@@ -1,0 +1,100 @@
+<!-- Spindle graphic for Live Edge 3D Probe visualizer.
+     Original artwork, shape inspired by CNC touch-probe / spindle tool silhouette.
+     ncSender (siganberg/ncsenderpro.releases, GPL-3.0) was inspected as reference only;
+     this file is new original artwork and is NOT a copy of any ncSender asset. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 180" aria-hidden="true">
+  <defs>
+    <!-- Shank gradient: silver metallic -->
+    <linearGradient id="sg-shank" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#5a6378"/>
+      <stop offset="22%"  stop-color="#9db0cc"/>
+      <stop offset="48%"  stop-color="#d8e4f0"/>
+      <stop offset="72%"  stop-color="#aabdd4"/>
+      <stop offset="100%" stop-color="#4c5870"/>
+    </linearGradient>
+    <!-- Head gradient: slightly warmer silver -->
+    <linearGradient id="sg-head" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#4a5468"/>
+      <stop offset="20%"  stop-color="#8ea3bc"/>
+      <stop offset="50%"  stop-color="#ccdaeb"/>
+      <stop offset="80%"  stop-color="#8fa4bc"/>
+      <stop offset="100%" stop-color="#44506c"/>
+    </linearGradient>
+    <!-- Extension rod gradient -->
+    <linearGradient id="sg-rod" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#52607a"/>
+      <stop offset="30%"  stop-color="#9bb2cc"/>
+      <stop offset="55%"  stop-color="#c8d8ec"/>
+      <stop offset="80%"  stop-color="#8fa6c0"/>
+      <stop offset="100%" stop-color="#4c5c78"/>
+    </linearGradient>
+    <!-- Tip gradient -->
+    <linearGradient id="sg-tip" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#6c7e96"/>
+      <stop offset="40%"  stop-color="#c4d4e4"/>
+      <stop offset="70%"  stop-color="#d8e8f4"/>
+      <stop offset="100%" stop-color="#5c6e88"/>
+    </linearGradient>
+    <!-- Cap gradient (top dark ring) -->
+    <linearGradient id="sg-cap" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#1e2634"/>
+      <stop offset="35%"  stop-color="#3c4a5e"/>
+      <stop offset="65%"  stop-color="#3c4a5e"/>
+      <stop offset="100%" stop-color="#1a2230"/>
+    </linearGradient>
+    <!-- Collet ring gradient -->
+    <linearGradient id="sg-ring" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#2c3648"/>
+      <stop offset="30%"  stop-color="#6a7e98"/>
+      <stop offset="55%"  stop-color="#8a9eb8"/>
+      <stop offset="80%"  stop-color="#6a7e98"/>
+      <stop offset="100%" stop-color="#2c3648"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ── Top cap (dark ring) ────────────────────────────────────────────── -->
+  <rect x="12" y="2" width="36" height="8" rx="2" ry="2" fill="url(#sg-cap)"/>
+
+  <!-- ── Main shank body ───────────────────────────────────────────────── -->
+  <rect x="12" y="10" width="36" height="52" fill="url(#sg-shank)"/>
+
+  <!-- Shank highlight line -->
+  <rect x="24" y="10" width="3" height="52" fill="rgba(255,255,255,0.18)" rx="1"/>
+
+  <!-- ── Collet / separator ring ───────────────────────────────────────── -->
+  <rect x="9" y="62" width="42" height="6" rx="1" fill="url(#sg-ring)"/>
+
+  <!-- ── Head / probe body (wider section) ─────────────────────────────── -->
+  <!-- Left taper -->
+  <polygon points="9,68 6,76 6,104 9,108" fill="url(#sg-head)"/>
+  <!-- Right taper -->
+  <polygon points="51,68 54,76 54,104 51,108" fill="url(#sg-head)"/>
+  <!-- Main body rectangle -->
+  <rect x="9" y="68" width="42" height="40" fill="url(#sg-head)"/>
+
+  <!-- Body highlight -->
+  <rect x="21" y="70" width="3" height="36" fill="rgba(255,255,255,0.14)" rx="1"/>
+
+  <!-- ── Lower ring / collet ────────────────────────────────────────────── -->
+  <rect x="9" y="108" width="42" height="5" rx="1" fill="url(#sg-ring)"/>
+
+  <!-- ── Extension / neck (narrow) ─────────────────────────────────────── -->
+  <!-- Trapezoid from wide to narrow -->
+  <polygon points="9,113 6,120 24,120 36,120 54,120 51,113" fill="url(#sg-rod)"/>
+  <!-- Narrow cylinder body -->
+  <rect x="24" y="120" width="12" height="28" fill="url(#sg-rod)"/>
+
+  <!-- Rod highlight -->
+  <rect x="27" y="120" width="2" height="28" fill="rgba(255,255,255,0.18)" rx="1"/>
+
+  <!-- ── Lower ring ─────────────────────────────────────────────────────── -->
+  <rect x="22" y="148" width="16" height="4" rx="1" fill="url(#sg-ring)"/>
+
+  <!-- ── Probe needle / tip ─────────────────────────────────────────────── -->
+  <rect x="27" y="152" width="6" height="16" fill="url(#sg-tip)"/>
+  <!-- Tapered tip point -->
+  <polygon points="27,168 33,168 30,178" fill="url(#sg-tip)"/>
+
+  <!-- Tip highlight -->
+  <rect x="29" y="152" width="1.5" height="16" fill="rgba(255,255,255,0.28)" rx="0.5"/>
+</svg>
