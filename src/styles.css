@@ -116,10 +116,27 @@
     #surface-edge-mesh-root #sm-pviz-probe-wrap{position:absolute;transform-style:preserve-3d;width:0;height:0;left:50%;top:50%;transition:left .7s cubic-bezier(.4,0,.2,1),top .7s cubic-bezier(.4,0,.2,1)}
     #surface-edge-mesh-root #sm-pviz-probe-shadow{position:absolute;width:18px;height:18px;border-radius:50%;margin:-9px 0 0 -9px;background:rgba(149,168,200,.18);transform:translateZ(0)}
     #surface-edge-mesh-root #sm-pviz-probe-body{position:absolute;margin:-120px 0 0 -23px;transform:translateZ(52px);transition:transform .9s cubic-bezier(.5,0,.1,1);transform-style:preserve-3d;pointer-events:none}
-    #surface-edge-mesh-root .sm-probe-img{width:46px;height:auto;display:block;transform-origin:50% 90%;filter:drop-shadow(0 6px 10px rgba(0,0,0,.45))}
+    #surface-edge-mesh-root .sm-probe-img{width:46px;height:auto;display:block;transform-origin:50% 85%;filter:drop-shadow(0 8px 16px rgba(0,0,0,.6)) drop-shadow(0 -2px 5px rgba(180,210,255,.12));animation:smProbeIdle 2.8s ease-in-out infinite}
     #surface-edge-mesh-root #sm-pviz-probe-body.probe-plunging{transform:translateZ(5px)}
-    #surface-edge-mesh-root #sm-pviz-probe-body.probe-contact{transform:translateZ(2px);animation:smPvizBodyGlow .55s ease-in-out 3}
-    @keyframes smPvizBodyGlow{0%,100%{filter:drop-shadow(0 0 3px rgba(95,211,141,.15))}50%{filter:drop-shadow(0 0 8px rgba(95,211,141,.95)) drop-shadow(0 0 18px rgba(95,211,141,.5))}}
+    #surface-edge-mesh-root #sm-pviz-probe-body.probe-plunging .sm-probe-img{animation:smProbePlunge 0.38s ease-in-out infinite alternate;filter:drop-shadow(0 4px 8px rgba(0,0,0,.75)) drop-shadow(0 0 8px rgba(100,180,255,.25))}
+    #surface-edge-mesh-root #sm-pviz-probe-body.probe-contact{transform:translateZ(2px)}
+    #surface-edge-mesh-root #sm-pviz-probe-body.probe-contact .sm-probe-img{animation:smProbeBounce .38s ease-out forwards,smPvizBodyGlow .55s ease-in-out 3}
+    /* ── Face probe body (inside face-pviz-3dscene) ── */
+    #surface-edge-mesh-root #face-pviz-probe-wrap{position:absolute;transform-style:preserve-3d;width:0;height:0;left:50%;top:35%;transition:left .5s cubic-bezier(.4,0,.2,1),top .5s cubic-bezier(.4,0,.2,1)}
+    #surface-edge-mesh-root #face-pviz-probe-shadow{position:absolute;width:14px;height:14px;border-radius:50%;margin:-7px 0 0 -7px;background:rgba(149,168,200,.15);transform:translateZ(0)}
+    #surface-edge-mesh-root #face-pviz-probe-body{position:absolute;margin:-110px 0 0 -23px;transform:translateZ(40px);transition:transform .7s cubic-bezier(.5,0,.1,1);transform-style:preserve-3d;pointer-events:none}
+    #surface-edge-mesh-root #face-pviz-probe-body .sm-probe-img{animation:smProbeIdle 3s ease-in-out infinite}
+    #surface-edge-mesh-root #face-pviz-probe-body.probe-plunging{transform:translateZ(5px)}
+    #surface-edge-mesh-root #face-pviz-probe-body.probe-plunging .sm-probe-img{animation:smProbePlunge 0.38s ease-in-out infinite alternate;filter:drop-shadow(0 4px 8px rgba(0,0,0,.75)) drop-shadow(0 0 8px rgba(100,180,255,.25))}
+    #surface-edge-mesh-root #face-pviz-probe-body.probe-contact{transform:translateZ(2px)}
+    #surface-edge-mesh-root #face-pviz-probe-body.probe-contact .sm-probe-img{animation:smProbeBounce .38s ease-out forwards,smPvizBodyGlow .55s ease-in-out 3}
+    /* Disable idle bob when user turns off Enhanced 3D animation */
+    #surface-edge-mesh-root.probe-anim-basic .sm-probe-img{animation:none !important}
+    /* ── 3D probe animation keyframes ── */
+    @keyframes smProbeIdle{0%,100%{transform:translateY(0px) rotateZ(-1.5deg);filter:drop-shadow(0 8px 16px rgba(0,0,0,.6)) drop-shadow(0 -2px 5px rgba(180,210,255,.12))}50%{transform:translateY(-6px) rotateZ(1.5deg);filter:drop-shadow(0 14px 24px rgba(0,0,0,.42)) drop-shadow(0 -3px 8px rgba(180,210,255,.18))}}
+    @keyframes smProbePlunge{0%{transform:translateY(0px) scaleY(1.00) scaleX(1.00)}100%{transform:translateY(8px) scaleY(0.92) scaleX(1.05)}}
+    @keyframes smProbeBounce{0%{transform:translateY(6px)}35%{transform:translateY(-5px)}60%{transform:translateY(2px)}78%{transform:translateY(-2px)}100%{transform:translateY(0px)}}
+    @keyframes smPvizBodyGlow{0%,100%{filter:drop-shadow(0 0 3px rgba(95,211,141,.15))}50%{filter:drop-shadow(0 0 10px rgba(95,211,141,.95)) drop-shadow(0 0 24px rgba(95,211,141,.55)) drop-shadow(0 0 42px rgba(95,211,141,.25))}}
     /* ── Results Tab 3D Visualizer ──────────────────────────────────────────── */
     #surface-edge-mesh-root #res-pviz-scene{position:relative;height:250px;background:radial-gradient(ellipse at 50% 0%,#0f1f38 0%,#060a10 70%);border:1px solid var(--line);border-radius:10px;overflow:hidden;perspective:700px;perspective-origin:50% 10%;cursor:grab;user-select:none}
     #surface-edge-mesh-root #res-pviz-scene.pviz-dragging{cursor:grabbing}

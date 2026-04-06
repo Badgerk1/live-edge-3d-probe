@@ -58,7 +58,8 @@ function getSettingsFromUI() {
     probeStylusCalloutLength:    n('probeStylusCalloutLength'),
     probeBallTipDiameter:        n('probeBallTipDiameter'),
     probeTipBallDiameter:        n('probeTipBallDiameter'),
-    probeTotalLength:            n('probeTotalLength')
+    probeTotalLength:            n('probeTotalLength'),
+    enhanced3dProbeAnim:         chk('enhanced3dProbeAnim')
   };
 }
 function saveSettings() {
@@ -142,6 +143,8 @@ function loadSettings() {
   sv('probeBallTipDiameter',       data.probeBallTipDiameter);
   sv('probeTipBallDiameter',       data.probeTipBallDiameter);
   sv('probeTotalLength',           data.probeTotalLength);
+  sc('enhanced3dProbeAnim',        data.enhanced3dProbeAnim !== false);
+  try { smProbeAnimApply(); } catch(e) {}
   // Trigger dependent previews
   try { refreshFinishBehaviorPreview(); } catch(e) {}
   try { refreshTravelRecoveryPreview(); } catch(e) {}
@@ -163,7 +166,8 @@ function resetSettings() {
     combinedPhasePause: 2000,
     probeShankDiameter: 6, probeBodyDiameter: 33, probeUpperHeight: 20, probeUpperLength: 20,
     probeMainBodyHeight: 21, probeLowerLength: 21,
-    probeStylusLength: 26, probeStylusCalloutLength: 14.75, probeBallTipDiameter: 0, probeTipBallDiameter: 0, probeTotalLength: 67
+    probeStylusLength: 26, probeStylusCalloutLength: 14.75, probeBallTipDiameter: 0, probeTipBallDiameter: 0, probeTotalLength: 67,
+    enhanced3dProbeAnim: true
   };
   function sv(id, val) { var el = document.getElementById(id); if (el) el.value = val; }
   function sc(id, val) { var el = document.getElementById(id); if (el) el.checked = !!val; }
@@ -215,6 +219,8 @@ function resetSettings() {
   sv('probeBallTipDiameter',       defaults.probeBallTipDiameter);
   sv('probeTipBallDiameter',       defaults.probeTipBallDiameter);
   sv('probeTotalLength',           defaults.probeTotalLength);
+  sc('enhanced3dProbeAnim',        defaults.enhanced3dProbeAnim);
+  try { smProbeAnimApply(); } catch(e) {}
   try { refreshFinishBehaviorPreview(); } catch(e) {}
   try { refreshTravelRecoveryPreview(); } catch(e) {}
   try { calcProbeAutoTotalLength(); } catch(e) {}

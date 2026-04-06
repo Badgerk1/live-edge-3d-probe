@@ -1275,6 +1275,36 @@ function smPvizSetState(state) {
   if (state === 'plunging') body.classList.add('probe-plunging');
   else if (state === 'contact') body.classList.add('probe-contact');
 }
+// ── Face Probe Visualizer helpers ─────────────────────────────────────────────
+function facePvizInit() {
+  // Show the face terrain panel so the probe animation is visible during probing
+  showProbeTerrainView('face');
+  // Hide Three.js canvas so probe animation is visible
+  var faceThreeWrap = document.getElementById('face-three-canvas');
+  if (faceThreeWrap) faceThreeWrap.classList.remove('three-active');
+  // Reset probe body to idle state
+  var body = document.getElementById('face-pviz-probe-body');
+  if (body) { body.className = ''; }
+  // Reset wrap to center of face scene
+  var wrap = document.getElementById('face-pviz-probe-wrap');
+  if (wrap) { wrap.style.left = '50%'; wrap.style.top = '35%'; }
+}
+function facePvizSetState(state) {
+  var body = document.getElementById('face-pviz-probe-body');
+  if (!body) return;
+  body.classList.remove('probe-plunging', 'probe-contact');
+  void body.offsetWidth; // force reflow so CSS animations restart cleanly
+  if (state === 'plunging') body.classList.add('probe-plunging');
+  else if (state === 'contact') body.classList.add('probe-contact');
+}
+// ── Enhanced 3D probe animation toggle ────────────────────────────────────────
+function smProbeAnimApply() {
+  var root = document.getElementById('surface-edge-mesh-root');
+  if (!root) return;
+  var el = document.getElementById('enhanced3dProbeAnim');
+  var enabled = !el || el.checked;
+  root.classList.toggle('probe-anim-basic', !enabled);
+}
 function smPvizXYtoPos(x, y) {
   var cfg = window._smPvizCfg;
   if (!cfg) return { left: 50, top: 50 };
@@ -3131,10 +3161,15 @@ function smSaveReplayHtml() {
     + '#sm-pviz-probe-wrap{position:absolute;transform-style:preserve-3d;width:0;height:0;left:50%;top:50%;transition:left .7s cubic-bezier(.4,0,.2,1),top .7s cubic-bezier(.4,0,.2,1)}\n'
     + '#sm-pviz-probe-shadow{position:absolute;width:18px;height:18px;border-radius:50%;margin:-9px 0 0 -9px;background:rgba(149,168,200,.18);transform:translateZ(0)}\n'
     + '#sm-pviz-probe-body{position:absolute;margin:-120px 0 0 -23px;transform:translateZ(52px);transition:transform .9s cubic-bezier(.5,0,.1,1);transform-style:preserve-3d;pointer-events:none}\n'
-    + '.sm-probe-img{width:46px;height:auto;display:block;transform-origin:50% 90%;filter:drop-shadow(0 6px 10px rgba(0,0,0,.45))}\n'
+    + '.sm-probe-img{width:46px;height:auto;display:block;transform-origin:50% 85%;filter:drop-shadow(0 8px 16px rgba(0,0,0,.6)) drop-shadow(0 -2px 5px rgba(180,210,255,.12));animation:smProbeIdle 2.8s ease-in-out infinite}\n'
     + '#sm-pviz-probe-body.probe-plunging{transform:translateZ(5px)}\n'
-    + '#sm-pviz-probe-body.probe-contact{transform:translateZ(2px);animation:smPvizBodyGlow .55s ease-in-out 3}\n'
-    + '@keyframes smPvizBodyGlow{0%,100%{filter:drop-shadow(0 0 3px rgba(95,211,141,.15))}50%{filter:drop-shadow(0 0 8px rgba(95,211,141,.95)) drop-shadow(0 0 18px rgba(95,211,141,.5))}}\n'
+    + '#sm-pviz-probe-body.probe-plunging .sm-probe-img{animation:smProbePlunge 0.38s ease-in-out infinite alternate;filter:drop-shadow(0 4px 8px rgba(0,0,0,.75)) drop-shadow(0 0 8px rgba(100,180,255,.25))}\n'
+    + '#sm-pviz-probe-body.probe-contact{transform:translateZ(2px)}\n'
+    + '#sm-pviz-probe-body.probe-contact .sm-probe-img{animation:smProbeBounce .38s ease-out forwards,smPvizBodyGlow .55s ease-in-out 3}\n'
+    + '@keyframes smProbeIdle{0%,100%{transform:translateY(0px) rotateZ(-1.5deg);filter:drop-shadow(0 8px 16px rgba(0,0,0,.6)) drop-shadow(0 -2px 5px rgba(180,210,255,.12))}50%{transform:translateY(-6px) rotateZ(1.5deg);filter:drop-shadow(0 14px 24px rgba(0,0,0,.42)) drop-shadow(0 -3px 8px rgba(180,210,255,.18))}}\n'
+    + '@keyframes smProbePlunge{0%{transform:translateY(0px) scaleY(1.00) scaleX(1.00)}100%{transform:translateY(8px) scaleY(0.92) scaleX(1.05)}}\n'
+    + '@keyframes smProbeBounce{0%{transform:translateY(6px)}35%{transform:translateY(-5px)}60%{transform:translateY(2px)}78%{transform:translateY(-2px)}100%{transform:translateY(0px)}}\n'
+    + '@keyframes smPvizBodyGlow{0%,100%{filter:drop-shadow(0 0 3px rgba(95,211,141,.15))}50%{filter:drop-shadow(0 0 10px rgba(95,211,141,.95)) drop-shadow(0 0 24px rgba(95,211,141,.55)) drop-shadow(0 0 42px rgba(95,211,141,.25))}}\n'
     + '#sm-pviz-mesh{position:absolute;inset:0;width:100%;height:100%;opacity:0;transition:opacity 1.2s ease;pointer-events:none;transform:translateZ(3px);overflow:visible}\n'
     + '#sm-pviz-mesh.mesh-visible{opacity:1}\n'
     // info grid
@@ -4452,6 +4487,7 @@ async function runFaceProbe(axis, _calledFromCombined){
   setFooterStatus('Running face probe ' + axis + '…', 'warn');
   logLine('face', '=== 3D Live Edge Mesh Plugin ' + SM_VERSION + ' ===');
   logLine('face', 'Starting face probe on axis ' + axis);
+  try { facePvizInit(); } catch(e) {}
 
   try{
     await requireStartupHomingPreflight('face probe ' + axis);
@@ -4669,6 +4705,7 @@ async function runFaceProbe(axis, _calledFromCombined){
 
           var _layerFeedLog = Number(s.faceFeed || s.topFeed || s.travelFeedRate || 0);
           logLine('face', 'Layer ' + layerNum + ' sample ' + sampleNum + ': probing toward ' + axis + ' ' + targetCoord.toFixed(3) + ' at feed ' + _layerFeedLog.toFixed(0) + ' mm/min.');
+          try { facePvizSetState('plunging'); } catch(e) {}
           var faceAdv = await segmentedFaceMoveWithRecovery(axis, targetCoord, lineCoord, layerZ, s, 'probe', lineCoord, true);
           faceAdv.extras.forEach(function(ep){
             ep.sampleCoord = lineCoord;
@@ -4679,6 +4716,7 @@ async function runFaceProbe(axis, _calledFromCombined){
           var contact = faceAdv.contact || faceAdv.position;
           var contactFaceCoord = axis === 'X' ? Number(contact.x) : Number(contact.y);
           if(faceAdv.contact){
+            try { facePvizSetState('contact'); } catch(e) {}
             logLine('face', 'FACE CONTACT: ' + axis + '=' + contactFaceCoord.toFixed(3) + ' at ' + sampledAxis + '=' + lineCoord.toFixed(3) + ' Z=' + layerZ.toFixed(3) + ' (layer ' + layerNum + ')');
             layerContacts++;
             var lRec = makeFaceContactRecord(faceResults.length + 1, contact, axis, 'FACE ' + axis, targetCoord, lineCoord);
@@ -4833,6 +4871,7 @@ async function runFaceProbe(axis, _calledFromCombined){
       await moveAbs(null, null, zForProbe, s.travelRecoveryLiftFeedRate || s.travelFeedRate);
 
       var _faceFeedLog = Number(s.faceFeed || s.topFeed || s.travelFeedRate || 0); logLine('face', 'At face start. Probing toward ' + axis + ' ' + targetCoord.toFixed(3) + ' at feed ' + _faceFeedLog.toFixed(0) + ' mm/min.');
+      try { facePvizSetState('plunging'); } catch(e) {}
       var faceAdvance = await segmentedFaceMoveWithRecovery(axis, targetCoord, lineCoord, zForProbe, s, 'probe', lineCoord, true);
       faceAdvance.extras.forEach(function(ep){
         ep.sampleCoord = lineCoord;
@@ -4843,6 +4882,7 @@ async function runFaceProbe(axis, _calledFromCombined){
       var contact = faceAdvance.contact || faceAdvance.position;
       var contactCoord = axis === 'X' ? Number(contact.x) : Number(contact.y);
       if(faceAdvance.contact){
+        try { facePvizSetState('contact'); } catch(e) {}
         logLine('face', 'Face ' + axis + ' final contact at ' + axis + '=' + contactCoord.toFixed(3) + ' on sample ' + sampledAxis + '=' + lineCoord.toFixed(3) + ' Z=' + Number(contact.z).toFixed(3));
         var rec = makeFaceContactRecord(faceResults.length + 1, contact, axis, 'FACE ' + axis, targetCoord, lineCoord);
         faceResults.push(rec);
@@ -4976,6 +5016,7 @@ function smLoadSettings() {
   try{ refreshTravelRecoveryPreview(); }catch(e){}
   try{ smPvizInitRotation(); }catch(e){}
   try{ initSurfVizRotation(); }catch(e){}
+  try{ smProbeAnimApply(); }catch(e){}
   // Wire relief reset button and dblclick for Three.js camera reset
   try {
     var reliefResetBtnEl = document.getElementById('relief-3d-reset-btn');

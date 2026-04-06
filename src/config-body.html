@@ -365,6 +365,12 @@
           </div>
         </div>
       </div>
+      <div class="panel">
+        <div class="box-title">Visualizer</div>
+        <div class="field">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="enhanced3dProbeAnim" checked onchange="smProbeAnimApply()"> <span>Enhanced 3D probe animation <span class="mini" style="color:var(--muted)">(idle bobbing &amp; wobble on the probe graphic)</span></span></label>
+        </div>
+      </div>
       <div class="btn-row">
         <button class="btn" id="btn-save-settings">&#128190; Save Settings</button>
         <button class="btn ghost" id="btn-load-settings">&#128194; Load Settings</button>
@@ -770,6 +776,12 @@
         <div id="face-pviz-3dscene">
           <div id="face-pviz-surface">
             <!-- face contact dots appended here by JS -->
+          </div>
+          <div id="face-pviz-probe-wrap">
+            <div id="face-pviz-probe-shadow"></div>
+            <div id="face-pviz-probe-body">
+              <img src="probe.png" alt="Probe" class="sm-probe-img">
+            </div>
           </div>
         </div>
       </div>
