@@ -1260,6 +1260,7 @@ async function smFinishMotion(travelFeed) {
     zRetractOk = true;
   } else {
     smLogProbe('Finish move: retracting to work Z ' + finishZ.toFixed(3));
+    smLogProbe('Finish move: sending G90 G1 Z' + finishZ.toFixed(3) + ' F' + feed);
     await moveAbs(null, null, finishZ, feed);
     var retractPos = await getWorkPosition();
     smLogProbe('Finish move: after retract X=' + retractPos.x.toFixed(3) + ' Y=' + retractPos.y.toFixed(3) + ' Z=' + retractPos.z.toFixed(3));
@@ -2977,16 +2978,24 @@ function runSurfaceProbing() {
     smLogProbe('Done! Probing complete.');
     pluginDebug('runSurfaceProbing COMPLETE: ' + totalPoints + ' points captured, meshData rows=' + result.length);
     smSetProgress(100);
-    smPvizUpdate('complete', { point: totalPoints, total: totalPoints, pct: 100 });
-    smSaveMeshToStorage();
-    try { updateSurfaceMeshUI(); } catch(vizErr) { console.warn('Surface probe: updateSurfaceMeshUI error (non-fatal):', vizErr); }
-    try { populateSurfaceResults(); } catch(vizErr) { console.warn('Surface probe: populateSurfaceResults error (non-fatal):', vizErr); }
+    // Call finish motion FIRST to minimize lag before Z retract/XY return
     var skipFinish = _smSkipFinishMotion;
     _smSkipFinishMotion = false;
+    var finishPromise;
     if (!skipFinish) {
-      return smFinishMotion(travelFeed);
+      finishPromise = smFinishMotion(travelFeed);
+    } else {
+      smLogProbe('COMBINED: Skipping smFinishMotion (going directly to face probe phase).');
+      finishPromise = Promise.resolve();
     }
-    smLogProbe('COMBINED: Skipping smFinishMotion (going directly to face probe phase).');
+    // Defer UI updates until after finish motion completes (non-blocking)
+    finishPromise.then(function() {
+      smPvizUpdate('complete', { point: totalPoints, total: totalPoints, pct: 100 });
+      smSaveMeshToStorage();
+      try { updateSurfaceMeshUI(); } catch(vizErr) { console.warn('Surface probe: updateSurfaceMeshUI error (non-fatal):', vizErr); }
+      try { populateSurfaceResults(); } catch(vizErr) { console.warn('Surface probe: populateSurfaceResults error (non-fatal):', vizErr); }
+    });
+    return finishPromise;
   }).catch(function(err) {
     // Guard against non-Error rejections (e.g. throw null / throw 'string') so that
     // the final .then() below always runs and the combined-mode callback is not lost.
@@ -3215,7 +3224,7 @@ function smSaveReplayHtml() {
     + '#sm-pviz-probe-body.probe-plunging .sm-probe-img,#sm-pviz-probe-body.probe-contact .sm-probe-img{animation:none}\n'
     + '@keyframes smProbeWobble{0%,100%{transform:translateY(0) rotateZ(0deg)}30%{transform:translateY(-3px) rotateZ(1.5deg)}70%{transform:translateY(-1.5px) rotateZ(-1deg)}}\n'
     + '#sm-pviz-probe-body.probe-plunging{transform:translateY(18px) translateZ(5px)}\n'
-    + '#sm-pviz-probe-body.probe-contact{transform:translateY(22px) translateZ(2px);animation:smPvizBodyGlow .55s ease-in-out 3}\n'
+    + '#sm-pviz-probe-body.probe-contact{transform:translateY(22px) translateZ(5px);animation:smPvizBodyGlow .55s ease-in-out 3}\n'
     + '@keyframes smPvizBodyGlow{0%,100%{filter:drop-shadow(0 0 3px rgba(95,211,141,.15))}50%{filter:drop-shadow(0 0 8px rgba(95,211,141,.95)) drop-shadow(0 0 18px rgba(95,211,141,.5))}}\n'
     + '#sm-pviz-mesh{position:absolute;inset:0;width:100%;height:100%;opacity:0;transition:opacity 1.2s ease;pointer-events:none;transform:translateZ(3px);overflow:visible}\n'
     + '#sm-pviz-mesh.mesh-visible{opacity:1}\n'
