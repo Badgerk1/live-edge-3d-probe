@@ -62,9 +62,11 @@ function getSettingsFromUI() {
   };
 }
 function saveSettings() {
+  pluginDebug('saveSettings ENTER');
   try {
     var data = getSettingsFromUI();
     localStorage.setItem(SM_SETTINGS_KEY, JSON.stringify(data));
+    pluginDebug('saveSettings: saved ' + Object.keys(data).length + ' settings');
     setFooterStatus('Settings saved.', 'good');
     var el = document.getElementById('setup-status');
     if (el) {
@@ -73,6 +75,7 @@ function saveSettings() {
       setTimeout(function() { el.textContent = ''; el.className = 'status-line'; }, 2500);
     }
   } catch(e) {
+    pluginDebug('saveSettings ERROR: ' + e.message);
     console.error('saveSettings error:', e);
     setFooterStatus('Failed to save settings: ' + e.message, 'bad');
     var el = document.getElementById('setup-status');
@@ -359,7 +362,8 @@ function updateEdgeProbeStorageUI() {
 }
 // ── Clear all results ─────────────────────────────────────────────────────────
 function clearAllResults() {
-  if (!confirm('Clear all probe results and mesh data? This cannot be undone.')) return;
+  pluginDebug('clearAllResults ENTER');
+  if (!confirm('Clear all probe results and mesh data? This cannot be undone.')) { pluginDebug('clearAllResults: cancelled by user'); return; }
   topResults        = [];
   faceResults       = [];
   layeredFaceResults = [];
@@ -368,14 +372,18 @@ function clearAllResults() {
   smGridConfig = null;
   clearPersistedProbeResults();
   updateAllResultsUI();
+  // Clear all visualization canvases
+  try { clearAllVisuals(); } catch(e) {}
   // Re-render relief maps (now with no data they will blank the canvases)
   try { renderSurfaceReliefMap(); } catch(e) {}
   try { renderFaceReliefMap(); }    catch(e) {}
   try { updateSurfaceMeshUI(); }    catch(e) {}
   setFooterStatus('All probe results cleared.', 'good');
+  pluginDebug('clearAllResults: done');
 }
 // ── Export results as unified CSV ─────────────────────────────────────────────
 function exportCSV() {
+  pluginDebug('exportCSV ENTER');
   var allData = [];
   if (smMeshData && smGridConfig) {
     var cfg = smGridConfig;
@@ -398,7 +406,7 @@ function exportCSV() {
       allData.push({ x: p.x, y: p.y, z: p.z, machineZ: p.machineZ, type: 'Face' });
     });
   }
-  if (!allData.length) { alert('No probe data to export. Run a probe first.'); return; }
+  if (!allData.length) { pluginDebug('exportCSV: no data to export'); alert('No probe data to export. Run a probe first.'); return; }
   var rows = ['# Plugin Version: ' + SM_VERSION, 'Index,X,Y,Z,Machine Z,Type'];
   allData.forEach(function(p, i) {
     rows.push((i + 1) + ',' + Number(p.x).toFixed(3) + ',' + Number(p.y).toFixed(3) + ',' +
@@ -410,9 +418,11 @@ function exportCSV() {
   a.download = 'probe_results_' + Date.now() + '.csv';
   a.click();
   URL.revokeObjectURL(a.href);
+  pluginDebug('exportCSV: exported ' + allData.length + ' points');
+  setFooterStatus('Exported ' + allData.length + ' points to CSV.', 'good');
 }
 // Alias: face CSV export uses existing implementation
-function exportFaceCSV() { exportFaceMeshCSVNew(); }
+function exportFaceCSV() { pluginDebug('exportFaceCSV called'); exportFaceMeshCSVNew(); }
 // ── DXF helpers ───────────────────────────────────────────────────────────────
 function _dxfHeader() {
   return '0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1009\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n';
@@ -509,9 +519,11 @@ function _computeVertexNormals(verts, tris) {
 }
 // ── Surface DXF export ────────────────────────────────────────────────────────
 function exportSurfaceDXF() {
-  if (!smMeshData || !smGridConfig) { alert('No surface mesh data. Run a surface probe first.'); return; }
+  pluginDebug('exportSurfaceDXF ENTER');
+  if (!smMeshData || !smGridConfig) { pluginDebug('exportSurfaceDXF: no data'); alert('No surface mesh data. Run a surface probe first.'); return; }
   var cfg = smGridConfig, grid = smMeshData;
   var dxf = _dxfHeader();
+  var polylineCount = 0;
   // Export each row as a 3D polyline
   for (var ri = 0; ri < cfg.rowCount; ri++) {
     var pts = [];
@@ -519,7 +531,7 @@ function exportSurfaceDXF() {
       var z = grid[ri][ci];
       if (z != null) pts.push({ x: cfg.minX + ci * cfg.colSpacing, y: cfg.minY + ri * cfg.rowSpacing, z: z });
     }
-    if (pts.length >= 2) dxf += _dxf3DPolyline(pts);
+    if (pts.length >= 2) { dxf += _dxf3DPolyline(pts); polylineCount++; }
   }
   // Export each column as a 3D polyline
   for (var ci2 = 0; ci2 < cfg.colCount; ci2++) {
@@ -528,14 +540,17 @@ function exportSurfaceDXF() {
       var z2 = grid[ri2][ci2];
       if (z2 != null) cpts.push({ x: cfg.minX + ci2 * cfg.colSpacing, y: cfg.minY + ri2 * cfg.rowSpacing, z: z2 });
     }
-    if (cpts.length >= 2) dxf += _dxf3DPolyline(cpts);
+    if (cpts.length >= 2) { dxf += _dxf3DPolyline(cpts); polylineCount++; }
   }
   dxf += _dxfFooter();
   _dxfDownload(dxf, 'surface_mesh_' + Date.now() + '.dxf');
+  pluginDebug('exportSurfaceDXF: exported ' + polylineCount + ' polylines');
+  setFooterStatus('Exported surface mesh to DXF.', 'good');
 }
 // ── Surface OBJ export ────────────────────────────────────────────────────────
 function exportSurfaceOBJ() {
-  if (!smMeshData || !smGridConfig) { alert('No surface mesh data. Run a surface probe first.'); return; }
+  pluginDebug('exportSurfaceOBJ ENTER');
+  if (!smMeshData || !smGridConfig) { pluginDebug('exportSurfaceOBJ: no data'); alert('No surface mesh data. Run a surface probe first.'); return; }
   var cfg = smGridConfig, grid = smMeshData;
   var lines = ['# 3D Live Edge Mesh — Surface OBJ', '# Plugin Version: ' + SM_VERSION, '# Exported: ' + new Date().toISOString(), ''];
   var allVerts = [];
@@ -578,11 +593,14 @@ function exportSurfaceOBJ() {
     lines.push('f ' + i0 + '//' + i0 + ' ' + i1 + '//' + i1 + ' ' + i2 + '//' + i2);
   });
   _objDownload(lines.join('\n'), 'surface_mesh_' + Date.now() + '.obj');
+  pluginDebug('exportSurfaceOBJ: exported ' + allVerts.length + ' vertices, ' + allTris.length + ' triangles');
+  setFooterStatus('Exported surface mesh to OBJ (' + allVerts.length + ' vertices).', 'good');
 }
 // ── Face DXF export ───────────────────────────────────────────────────────────
 function exportFaceDXF() {
+  pluginDebug('exportFaceDXF ENTER');
   var data = getFaceMeshData();
-  if (!data || !data.length) { alert('No face mesh data. Run a face probe first.'); return; }
+  if (!data || !data.length) { pluginDebug('exportFaceDXF: no data'); alert('No face mesh data. Run a face probe first.'); return; }
   var dxf = _dxfHeader();
   // Group by layer and X sample coordinate (sampleCoord), emit each as a polyline
   var byLayer = {};
@@ -591,24 +609,28 @@ function exportFaceDXF() {
     if (!byLayer[layer]) byLayer[layer] = [];
     byLayer[layer].push(p);
   });
+  var polylineCount = 0;
   Object.keys(byLayer).sort(function(a, b){ return Number(a) - Number(b); }).forEach(function(layer) {
     var pts = byLayer[layer].slice().sort(function(a, b){ return Number(a.x) - Number(b.x); });
-    if (pts.length >= 2) dxf += _dxf3DPolyline(pts.map(function(p){ return { x: p.x, y: p.y, z: p.z }; }));
+    if (pts.length >= 2) { dxf += _dxf3DPolyline(pts.map(function(p){ return { x: p.x, y: p.y, z: p.z }; })); polylineCount++; }
   });
   dxf += _dxfFooter();
   _dxfDownload(dxf, 'face_mesh_' + Date.now() + '.dxf');
+  pluginDebug('exportFaceDXF: exported ' + polylineCount + ' polylines from ' + data.length + ' points');
+  setFooterStatus('Exported face mesh to DXF.', 'good');
 }
 // ── Face OBJ export ───────────────────────────────────────────────────────────
 function exportFaceOBJ() {
+  pluginDebug('exportFaceOBJ ENTER');
   var data = getFaceMeshData();
-  if (!data || !data.length) { alert('No face mesh data. Run a face probe first.'); return; }
+  if (!data || !data.length) { pluginDebug('exportFaceOBJ: no data'); alert('No face mesh data. Run a face probe first.'); return; }
   var lines = ['# 3D Live Edge Mesh — Face OBJ', '# Plugin Version: ' + SM_VERSION, '# Exported: ' + new Date().toISOString(), ''];
   // Build 3D vertex list from all probe contacts
   var allVerts = data.map(function(p) { return {x: Number(p.x), y: Number(p.y), z: Number(p.z)}; });
   // Project to 2D (X, Z plane) for Delaunay — face points scatter across X and depth-Z
   var pts2d = allVerts.map(function(v) { return {x: v.x, y: v.z}; });
   var allTris = _delaunayTriangulate(pts2d);
-  if (!allTris.length) { alert('Triangulation failed — need at least 3 face probe points.'); return; }
+  if (!allTris.length) { pluginDebug('exportFaceOBJ: triangulation failed'); alert('Triangulation failed — need at least 3 face probe points.'); return; }
   // Ensure face normals point in -Y direction (outward from workpiece toward probe approach)
   var sumNy = 0;
   allTris.forEach(function(t) {
@@ -628,10 +650,13 @@ function exportFaceOBJ() {
     lines.push('f ' + i0 + '//' + i0 + ' ' + i1 + '//' + i1 + ' ' + i2 + '//' + i2);
   });
   _objDownload(lines.join('\n'), 'face_mesh_' + Date.now() + '.obj');
+  pluginDebug('exportFaceOBJ: exported ' + allVerts.length + ' vertices, ' + allTris.length + ' triangles');
+  setFooterStatus('Exported face mesh to OBJ (' + allVerts.length + ' vertices).', 'good');
 }
 // ── Combined DXF export ───────────────────────────────────────────────────────
 function exportCombinedDXF() {
-  if (!smMeshData && !getFaceMeshData()) { alert('No mesh data to export.'); return; }
+  pluginDebug('exportCombinedDXF ENTER');
+  if (!smMeshData && !getFaceMeshData()) { pluginDebug('exportCombinedDXF: no data'); alert('No mesh data to export.'); return; }
   var dxf = _dxfHeader();
   // Surface rows
   if (smMeshData && smGridConfig) {
@@ -657,11 +682,15 @@ function exportCombinedDXF() {
   }
   dxf += _dxfFooter();
   _dxfDownload(dxf, 'combined_mesh_' + Date.now() + '.dxf');
+  pluginDebug('exportCombinedDXF: export complete');
+  setFooterStatus('Exported combined mesh to DXF.', 'good');
 }
 // ── Combined OBJ watertight export ────────────────────────────────────────────
 function exportCombinedOBJWatertight() {
+  pluginDebug('exportCombinedOBJWatertight ENTER');
   var faceData = getFaceMeshData();
   if (!smMeshData || !smGridConfig || !faceData || !faceData.length) {
+    pluginDebug('exportCombinedOBJWatertight: missing data');
     alert('Both surface mesh and face mesh data are required for a watertight combined export.'); return;
   }
   var bottomZ = Number((document.getElementById('combinedBottomZ') || {}).value);
@@ -725,6 +754,8 @@ function exportCombinedOBJWatertight() {
     lines.push('f ' + i0 + '//' + i0 + ' ' + i1 + '//' + i1 + ' ' + i2 + '//' + i2);
   });
   _objDownload(lines.join('\n'), 'combined_watertight_' + Date.now() + '.obj');
+  pluginDebug('exportCombinedOBJWatertight: exported ' + allVerts.length + ' vertices, ' + allTris.length + ' triangles');
+  setFooterStatus('Exported combined watertight OBJ (' + allVerts.length + ' vertices).', 'good');
 }
 // ── Workflow stubs (UI buttons not yet present in HTML) ────────────────────────
 var _WORKFLOW_STORAGE_KEY = '3dmesh.combined.workflows';
