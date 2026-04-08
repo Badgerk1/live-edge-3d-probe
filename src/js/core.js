@@ -1237,6 +1237,13 @@ async function smFinishMotion(travelFeed) {
     clearanceOffset = 10.0;
   }
 
+  // Ensure absolute positioning mode (G90) is active.
+  // The preceding probe commands use G91 (relative), and some controllers
+  // may not apply G90 on the same line as the movement command; sending
+  // G90 separately guarantees the mode switch is complete before moveAbs.
+  await sendCommand('G90');
+  await waitForIdleWithTimeout();
+
   var pos = await getWorkPosition();
   var currentZ = Number(pos.z);
 
@@ -1400,12 +1407,22 @@ function smPvizUpdate(state, opts) {
       dot.className = 'sm-pviz-dot';
       dot.style.left = dpos.left + '%';
       dot.style.top  = dpos.top + '%';
-      // color by Z depth: near 0 = green, deeper negative = orange/red
+      // color by Z depth relative to collected contacts:
+      // highest Z (shallow) = green (#5fd38d), lowest Z (deep) = orange (#ff5a32)
       var dotColor = '#5fd38d';
-      if (opts.contactZ !== undefined) {
-        // scale depth over ~10 coords range: shallow (near 0) = green, deep = orange/red
-        var depth = Math.min(1, Math.max(0, Math.abs(opts.contactZ) / 10));
-        var r = Math.round(depth * 255 + (1 - depth) * 95);
+      if (opts.contactZ !== undefined && window._smPvizContacts && window._smPvizContacts.length > 0) {
+        var contacts = window._smPvizContacts;
+        var zMin = contacts[0].z, zMax = contacts[0].z;
+        for (var ci = 1; ci < contacts.length; ci++) {
+          if (contacts[ci].z < zMin) zMin = contacts[ci].z;
+          if (contacts[ci].z > zMax) zMax = contacts[ci].z;
+        }
+        // Depth 0 = highest Z (green #5fd38d), depth 1 = lowest Z (orange #ff5a32)
+        // Use a minimum range of 1mm to avoid division by zero and overly sensitive coloring
+        var zRange = Math.max(1, zMax - zMin);
+        var depth = Math.max(0, Math.min(1, (zMax - opts.contactZ) / zRange));
+        // Green RGB(95, 211, 141) -> Orange RGB(255, 90, 50)
+        var r = Math.round((1 - depth) * 95 + depth * 255);
         var g = Math.round((1 - depth) * 211 + depth * 90);
         var b = Math.round((1 - depth) * 141 + depth * 50);
         dotColor = 'rgb(' + r + ',' + g + ',' + b + ')';
@@ -3223,8 +3240,8 @@ function smSaveReplayHtml() {
     + '.sm-probe-img{width:46px;height:auto;display:block;transform-origin:50% 90%;filter:drop-shadow(0 6px 10px rgba(0,0,0,.45));animation:smProbeWobble 2.4s ease-in-out infinite}\n'
     + '#sm-pviz-probe-body.probe-plunging .sm-probe-img,#sm-pviz-probe-body.probe-contact .sm-probe-img{animation:none}\n'
     + '@keyframes smProbeWobble{0%,100%{transform:translateY(0) rotateZ(0deg)}30%{transform:translateY(-3px) rotateZ(1.5deg)}70%{transform:translateY(-1.5px) rotateZ(-1deg)}}\n'
-    + '#sm-pviz-probe-body.probe-plunging{transform:translateY(18px) translateZ(5px)}\n'
-    + '#sm-pviz-probe-body.probe-contact{transform:translateY(22px) translateZ(5px);animation:smPvizBodyGlow .55s ease-in-out 3}\n'
+    + '#sm-pviz-probe-body.probe-plunging{transform:translateY(18px) translateZ(8px)}\n'
+    + '#sm-pviz-probe-body.probe-contact{transform:translateY(20px) translateZ(6px);animation:smPvizBodyGlow .55s ease-in-out 3}\n'
     + '@keyframes smPvizBodyGlow{0%,100%{filter:drop-shadow(0 0 3px rgba(95,211,141,.15))}50%{filter:drop-shadow(0 0 8px rgba(95,211,141,.95)) drop-shadow(0 0 18px rgba(95,211,141,.5))}}\n'
     + '#sm-pviz-mesh{position:absolute;inset:0;width:100%;height:100%;opacity:0;transition:opacity 1.2s ease;pointer-events:none;transform:translateZ(3px);overflow:visible}\n'
     + '#sm-pviz-mesh.mesh-visible{opacity:1}\n'
@@ -3334,9 +3351,26 @@ function smSaveReplayHtml() {
     + '}\n'
     + '\n'
     + '// ── Color helpers ─────────────────────────────────────────────────────────\n'
+    + '// Compute Z range from probe sequence contacts for relative depth coloring\n'
+    + 'var _depthZMin = null, _depthZMax = null;\n'
+    + '(function() {\n'
+    + '  if (probeSequence && probeSequence.length > 0) {\n'
+    + '    probeSequence.forEach(function(ev) {\n'
+    + '      if (ev.type === "contact" && ev.z !== undefined) {\n'
+    + '        if (_depthZMin === null || ev.z < _depthZMin) _depthZMin = ev.z;\n'
+    + '        if (_depthZMax === null || ev.z > _depthZMax) _depthZMax = ev.z;\n'
+    + '      }\n'
+    + '    });\n'
+    + '  }\n'
+    + '  if (_depthZMin === null) _depthZMin = 0;\n'
+    + '  if (_depthZMax === null) _depthZMax = 10;\n'
+    + '  // Ensure minimum range of 1mm to avoid division by zero\n'
+    + '  if (_depthZMax - _depthZMin < 1) { _depthZMin = _depthZMax - 1; }\n'
+    + '})();\n'
     + 'function depthColor(z) {\n'
-    + '  var depth = Math.min(1, Math.max(0, Math.abs(z) / 10));\n'
-    + '  var r = Math.round(depth * 255 + (1 - depth) * 95);\n'
+    + '  // depth 0 = highest Z (green #5fd38d), depth 1 = lowest Z (orange #ff5a32)\n'
+    + '  var depth = Math.max(0, Math.min(1, (_depthZMax - z) / (_depthZMax - _depthZMin)));\n'
+    + '  var r = Math.round((1 - depth) * 95 + depth * 255);\n'
     + '  var g = Math.round((1 - depth) * 211 + depth * 90);\n'
     + '  var b = Math.round((1 - depth) * 141 + depth * 50);\n'
     + '  return "rgb(" + r + "," + g + "," + b + ")";\n'
