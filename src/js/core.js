@@ -2977,16 +2977,24 @@ function runSurfaceProbing() {
     smLogProbe('Done! Probing complete.');
     pluginDebug('runSurfaceProbing COMPLETE: ' + totalPoints + ' points captured, meshData rows=' + result.length);
     smSetProgress(100);
-    smPvizUpdate('complete', { point: totalPoints, total: totalPoints, pct: 100 });
-    smSaveMeshToStorage();
-    try { updateSurfaceMeshUI(); } catch(vizErr) { console.warn('Surface probe: updateSurfaceMeshUI error (non-fatal):', vizErr); }
-    try { populateSurfaceResults(); } catch(vizErr) { console.warn('Surface probe: populateSurfaceResults error (non-fatal):', vizErr); }
+    // Call finish motion FIRST to minimize lag before Z retract/XY return
     var skipFinish = _smSkipFinishMotion;
     _smSkipFinishMotion = false;
+    var finishPromise;
     if (!skipFinish) {
-      return smFinishMotion(travelFeed);
+      finishPromise = smFinishMotion(travelFeed);
+    } else {
+      smLogProbe('COMBINED: Skipping smFinishMotion (going directly to face probe phase).');
+      finishPromise = Promise.resolve();
     }
-    smLogProbe('COMBINED: Skipping smFinishMotion (going directly to face probe phase).');
+    // Defer UI updates until after finish motion completes (non-blocking)
+    finishPromise.then(function() {
+      smPvizUpdate('complete', { point: totalPoints, total: totalPoints, pct: 100 });
+      smSaveMeshToStorage();
+      try { updateSurfaceMeshUI(); } catch(vizErr) { console.warn('Surface probe: updateSurfaceMeshUI error (non-fatal):', vizErr); }
+      try { populateSurfaceResults(); } catch(vizErr) { console.warn('Surface probe: populateSurfaceResults error (non-fatal):', vizErr); }
+    });
+    return finishPromise;
   }).catch(function(err) {
     // Guard against non-Error rejections (e.g. throw null / throw 'string') so that
     // the final .then() below always runs and the combined-mode callback is not lost.
