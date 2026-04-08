@@ -113,14 +113,14 @@
     #surface-edge-mesh-root #sm-pviz-reset-btn:hover{color:var(--text);border-color:var(--accent2)}
     #surface-edge-mesh-root #sm-pviz-surface{position:absolute;inset:0;background-image:repeating-linear-gradient(90deg,rgba(58,85,128,0.45) 0 1px,transparent 1px 100%),repeating-linear-gradient(0deg,rgba(58,85,128,0.45) 0 1px,transparent 1px 100%);background-size:25% 33.33%;background-color:#08111e;border:1px solid rgba(58,85,128,0.65);transform-style:preserve-3d}
     #surface-edge-mesh-root .sm-pviz-dot{position:absolute;width:9px;height:9px;border-radius:50%;margin:-4.5px 0 0 -4.5px;transform:translateZ(1px);pointer-events:none;transition:opacity .3s}
-    #surface-edge-mesh-root #sm-pviz-probe-wrap{position:absolute;transform-style:preserve-3d;width:0;height:0;left:50%;top:50%;transition:left .7s cubic-bezier(.4,0,.2,1),top .7s cubic-bezier(.4,0,.2,1)}
+    #surface-edge-mesh-root #sm-pviz-probe-wrap{position:absolute;transform-style:preserve-3d;width:0;height:0;left:50%;top:50%;transition:left 25ms linear,top 25ms linear}
     #surface-edge-mesh-root #sm-pviz-probe-shadow{position:absolute;width:18px;height:18px;border-radius:50%;margin:-9px 0 0 -9px;background:rgba(149,168,200,.18);transform:translateZ(0)}
     /* transform layering for probe spindle:
        #sm-pviz-probe-body  — scene-space position + plunge (translateZ idle, translateY+translateZ on plunge/contact)
-       #sm-pviz-probe-orient — base world orientation, matches #sm-pviz-3dscene exactly (rotateX/Y/Z)
+       #sm-pviz-probe-orient — counter-rotates to keep probe vertical (tip pointing down toward surface)
        .sm-probe-img        — idle wobble/bob delta layered on top; never resets the base rotation */
-    #surface-edge-mesh-root #sm-pviz-probe-body{position:absolute;margin:-120px 0 0 -23px;transform:translateZ(52px);transition:transform .9s cubic-bezier(.5,0,.1,1);transform-style:preserve-3d;pointer-events:none}
-    #surface-edge-mesh-root #sm-pviz-probe-orient{transform-style:preserve-3d;transform:rotateX(60deg) rotateY(0deg) rotateZ(-35deg)}
+    #surface-edge-mesh-root #sm-pviz-probe-body{position:absolute;margin:-120px 0 0 -23px;transform:translateZ(52px);transition:transform 25ms linear;transform-style:preserve-3d;pointer-events:none}
+    #surface-edge-mesh-root #sm-pviz-probe-orient{transform-style:preserve-3d;transform:rotateZ(35deg) rotateX(-60deg)}
     #surface-edge-mesh-root .sm-probe-img{width:46px;height:auto;display:block;transform-origin:50% 90%;filter:drop-shadow(0 6px 10px rgba(0,0,0,.45));animation:smProbeWobble 2.4s ease-in-out infinite}
     #surface-edge-mesh-root #sm-pviz-probe-body.probe-plunging .sm-probe-img,#surface-edge-mesh-root #sm-pviz-probe-body.probe-contact .sm-probe-img{animation:none}
     @keyframes smProbeWobble{0%,100%{transform:translateY(0) rotateZ(0deg)}30%{transform:translateY(-3px) rotateZ(1.5deg)}70%{transform:translateY(-1.5px) rotateZ(-1deg)}}
