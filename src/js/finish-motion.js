@@ -10,6 +10,16 @@
 function getMaxMeasuredSurfaceZ() {
   var candidates = [];
 
+  // smMeshData: surface probe mesh grid — primary source for surface probing
+  if (typeof smMeshData !== 'undefined' && smMeshData && typeof smGridConfig !== 'undefined' && smGridConfig) {
+    for (var ri = 0; ri < smGridConfig.rowCount; ri++) {
+      for (var ci = 0; ci < smGridConfig.colCount; ci++) {
+        var z = smMeshData[ri] && smMeshData[ri][ci];
+        if (z != null && isFinite(z)) candidates.push(z);
+      }
+    }
+  }
+
   // topResults: AUTO TOP-Z phase 0 (face probe) and standalone surface probe results
   if (typeof topResults !== 'undefined' && Array.isArray(topResults) && topResults.length > 0) {
     topResults.forEach(function(p) { if (p && isFinite(p.z)) candidates.push(p.z); });

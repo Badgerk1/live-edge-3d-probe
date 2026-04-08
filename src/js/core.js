@@ -1260,6 +1260,7 @@ async function smFinishMotion(travelFeed) {
     zRetractOk = true;
   } else {
     smLogProbe('Finish move: retracting to work Z ' + finishZ.toFixed(3));
+    smLogProbe('Finish move: sending G90 G1 Z' + finishZ.toFixed(3) + ' F' + feed);
     await moveAbs(null, null, finishZ, feed);
     var retractPos = await getWorkPosition();
     smLogProbe('Finish move: after retract X=' + retractPos.x.toFixed(3) + ' Y=' + retractPos.y.toFixed(3) + ' Z=' + retractPos.z.toFixed(3));
