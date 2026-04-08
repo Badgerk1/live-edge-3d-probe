@@ -116,6 +116,8 @@ var FUNCTIONS_TO_CHECK = [
   'setFooterStatus',
   'logLine',
   'pluginDebug',
+  'clearAllVisuals',
+  'clearAllResults',
   'applyLoadGcodeFromNcSender', 'applyAnalyzeGcodeBounds',
   'smSaveReplayHtml'
 ];
