@@ -3215,7 +3215,7 @@ function smSaveReplayHtml() {
     + '#sm-pviz-probe-body.probe-plunging .sm-probe-img,#sm-pviz-probe-body.probe-contact .sm-probe-img{animation:none}\n'
     + '@keyframes smProbeWobble{0%,100%{transform:translateY(0) rotateZ(0deg)}30%{transform:translateY(-3px) rotateZ(1.5deg)}70%{transform:translateY(-1.5px) rotateZ(-1deg)}}\n'
     + '#sm-pviz-probe-body.probe-plunging{transform:translateY(18px) translateZ(5px)}\n'
-    + '#sm-pviz-probe-body.probe-contact{transform:translateY(22px) translateZ(2px);animation:smPvizBodyGlow .55s ease-in-out 3}\n'
+    + '#sm-pviz-probe-body.probe-contact{transform:translateY(22px) translateZ(5px);animation:smPvizBodyGlow .55s ease-in-out 3}\n'
     + '@keyframes smPvizBodyGlow{0%,100%{filter:drop-shadow(0 0 3px rgba(95,211,141,.15))}50%{filter:drop-shadow(0 0 8px rgba(95,211,141,.95)) drop-shadow(0 0 18px rgba(95,211,141,.5))}}\n'
     + '#sm-pviz-mesh{position:absolute;inset:0;width:100%;height:100%;opacity:0;transition:opacity 1.2s ease;pointer-events:none;transform:translateZ(3px);overflow:visible}\n'
     + '#sm-pviz-mesh.mesh-visible{opacity:1}\n'
