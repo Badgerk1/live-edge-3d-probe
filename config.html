@@ -4323,6 +4323,7 @@ function runSurfaceProbing() {
   probeRow(0).then(function() {
     smMeshDataRaw = result;
     smGridConfigRaw = cfg;
+    // Subdivide mesh immediately — needed for combined-mode callback and getMaxMeasuredSurfaceZ
     var subdivided = subdivideSurfaceMesh(result, cfg, meshSubdivisionSpacing);
     smMeshData = subdivided.grid;
     smGridConfig = subdivided.config;
@@ -4332,14 +4333,19 @@ function runSurfaceProbing() {
     smSetProgress(100);
     smPvizUpdate('complete', { point: totalPoints, total: totalPoints, pct: 100 });
     smSaveMeshToStorage();
-    try { updateSurfaceMeshUI(); } catch(vizErr) { console.warn('Surface probe: updateSurfaceMeshUI error (non-fatal):', vizErr); }
-    try { populateSurfaceResults(); } catch(vizErr) { console.warn('Surface probe: populateSurfaceResults error (non-fatal):', vizErr); }
     var skipFinish = _smSkipFinishMotion;
     _smSkipFinishMotion = false;
     if (!skipFinish) {
-      return smFinishMotion(travelFeed);
+      // Issue finish motion ASAP — defer expensive DOM/canvas updates until after retract/return
+      pluginDebug('runSurfaceProbing: issuing finish motion immediately before mesh UI updates at t=' + Date.now());
+      return smFinishMotion(travelFeed).then(function() {
+        try { updateSurfaceMeshUI(); } catch(vizErr) { console.warn('Surface probe: updateSurfaceMeshUI error (non-fatal):', vizErr); }
+        try { populateSurfaceResults(); } catch(vizErr) { console.warn('Surface probe: populateSurfaceResults error (non-fatal):', vizErr); }
+      });
     }
     smLogProbe('COMBINED: Skipping smFinishMotion (going directly to face probe phase).');
+    try { updateSurfaceMeshUI(); } catch(vizErr) { console.warn('Surface probe: updateSurfaceMeshUI error (non-fatal):', vizErr); }
+    try { populateSurfaceResults(); } catch(vizErr) { console.warn('Surface probe: populateSurfaceResults error (non-fatal):', vizErr); }
   }).catch(function(err) {
     // Guard against non-Error rejections (e.g. throw null / throw 'string') so that
     // the final .then() below always runs and the combined-mode callback is not lost.
@@ -6197,7 +6203,7 @@ async function runFaceProbe(axis, _calledFromCombined){
       pluginDebug('runFaceProbe layered: faceResults=' + faceResults.length + ' layeredFaceResults=' + layeredFaceResults.length);
       logLine('face', 'Waiting for controller idle before finish motion...');
       await waitForIdle();
-      await sleep(200);
+      pluginDebug('runFaceProbe layered: idle confirmed, issuing finish motion at t=' + Date.now());
       await finishRunMotion('face');
       if (!_calledFromCombined) switchTab('results');
       setFooterStatus('Layered face probe ' + axis + ' complete: ' + totalLayers + ' layers x ' + faceSamples.length + ' samples = ' + layeredFaceResults.length + ' contacts', 'good');
@@ -6303,7 +6309,7 @@ async function runFaceProbe(axis, _calledFromCombined){
 
     logLine('face', 'Waiting for controller idle before finish motion...');
     await waitForIdle();
-    await sleep(200);
+    pluginDebug('runFaceProbe single-pass: idle confirmed, issuing finish motion at t=' + Date.now());
     await finishRunMotion('face');
     if (!_calledFromCombined) switchTab('results');
     pluginDebug('runFaceProbe COMPLETE: axis=' + axis + ' samples=' + faceSamples.length);
