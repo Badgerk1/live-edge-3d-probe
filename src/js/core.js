@@ -1407,12 +1407,22 @@ function smPvizUpdate(state, opts) {
       dot.className = 'sm-pviz-dot';
       dot.style.left = dpos.left + '%';
       dot.style.top  = dpos.top + '%';
-      // color by Z depth: near 0 = green, deeper negative = orange/red
+      // color by Z depth relative to collected contacts:
+      // highest Z (shallow) = green (#5fd38d), lowest Z (deep) = orange (#ff5a32)
       var dotColor = '#5fd38d';
-      if (opts.contactZ !== undefined) {
-        // scale depth over ~10 coords range: shallow (near 0) = green, deep = orange/red
-        var depth = Math.min(1, Math.max(0, Math.abs(opts.contactZ) / 10));
-        var r = Math.round(depth * 255 + (1 - depth) * 95);
+      if (opts.contactZ !== undefined && window._smPvizContacts && window._smPvizContacts.length > 0) {
+        var contacts = window._smPvizContacts;
+        var zMin = contacts[0].z, zMax = contacts[0].z;
+        for (var ci = 1; ci < contacts.length; ci++) {
+          if (contacts[ci].z < zMin) zMin = contacts[ci].z;
+          if (contacts[ci].z > zMax) zMax = contacts[ci].z;
+        }
+        // Depth 0 = highest Z (green #5fd38d), depth 1 = lowest Z (orange #ff5a32)
+        // Use a minimum range of 1mm to avoid division by zero and overly sensitive coloring
+        var zRange = Math.max(1, zMax - zMin);
+        var depth = Math.max(0, Math.min(1, (zMax - opts.contactZ) / zRange));
+        // Green RGB(95, 211, 141) -> Orange RGB(255, 90, 50)
+        var r = Math.round((1 - depth) * 95 + depth * 255);
         var g = Math.round((1 - depth) * 211 + depth * 90);
         var b = Math.round((1 - depth) * 141 + depth * 50);
         dotColor = 'rgb(' + r + ',' + g + ',' + b + ')';
@@ -3341,9 +3351,26 @@ function smSaveReplayHtml() {
     + '}\n'
     + '\n'
     + '// ── Color helpers ─────────────────────────────────────────────────────────\n'
+    + '// Compute Z range from probe sequence contacts for relative depth coloring\n'
+    + 'var _depthZMin = null, _depthZMax = null;\n'
+    + '(function() {\n'
+    + '  if (probeSequence && probeSequence.length > 0) {\n'
+    + '    probeSequence.forEach(function(ev) {\n'
+    + '      if (ev.type === "contact" && ev.z !== undefined) {\n'
+    + '        if (_depthZMin === null || ev.z < _depthZMin) _depthZMin = ev.z;\n'
+    + '        if (_depthZMax === null || ev.z > _depthZMax) _depthZMax = ev.z;\n'
+    + '      }\n'
+    + '    });\n'
+    + '  }\n'
+    + '  if (_depthZMin === null) _depthZMin = 0;\n'
+    + '  if (_depthZMax === null) _depthZMax = 10;\n'
+    + '  // Ensure minimum range of 1mm to avoid division by zero\n'
+    + '  if (_depthZMax - _depthZMin < 1) { _depthZMin = _depthZMax - 1; }\n'
+    + '})();\n'
     + 'function depthColor(z) {\n'
-    + '  var depth = Math.min(1, Math.max(0, Math.abs(z) / 10));\n'
-    + '  var r = Math.round(depth * 255 + (1 - depth) * 95);\n'
+    + '  // depth 0 = highest Z (green #5fd38d), depth 1 = lowest Z (orange #ff5a32)\n'
+    + '  var depth = Math.max(0, Math.min(1, (_depthZMax - z) / (_depthZMax - _depthZMin)));\n'
+    + '  var r = Math.round((1 - depth) * 95 + depth * 255);\n'
     + '  var g = Math.round((1 - depth) * 211 + depth * 90);\n'
     + '  var b = Math.round((1 - depth) * 141 + depth * 50);\n'
     + '  return "rgb(" + r + "," + g + "," + b + ")";\n'
