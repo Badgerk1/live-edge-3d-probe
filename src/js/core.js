@@ -1013,6 +1013,26 @@ function smGetProbeTriggered() {
   });
 }
 
+// Perform an initial relative Z lift before the first probe point.
+// This ensures the probe starts above the surface, not at or below it.
+// logMode - the mode name for logging ('surface', 'face', 'sm')
+// liftAmount - relative Z coords to lift
+// feed - travel feed rate in mm/min
+async function smPerformInitialClearanceLift(logMode, liftAmount, feed) {
+  var logFn = (logMode === 'face') ? function(m) { logLine('face', m); } : smLogProbe;
+  logFn('INITIAL LIFT: Raising Z by ' + liftAmount.toFixed(3) + ' coords before first probe point...');
+  pluginDebug('smPerformInitialClearanceLift: logMode=' + logMode + ' liftAmount=' + liftAmount + ' feed=' + feed);
+  var liftCmd = 'G91 G1 Z' + liftAmount.toFixed(3) + ' F' + feed;
+  logFn('[PLUGIN DEBUG] smPerformInitialClearanceLift: sending command: ' + liftCmd);
+  await sendCommand(liftCmd);
+  await waitForIdleWithTimeout();
+  await sendCommand('G90'); // Return to absolute mode
+  await waitForIdleWithTimeout();
+  var pos = await getWorkPosition();
+  logFn('INITIAL LIFT: Z now at ' + pos.z.toFixed(3) + ' coords');
+  pluginDebug('smPerformInitialClearanceLift EXIT: Z=' + pos.z.toFixed(3));
+}
+
 // Verify probe input is open before issuing a plunge. If triggered, raises Z above
 // clearanceZ + 2 coords and waits 200ms, then re-checks. Up to maxAttempts retries.
 async function smEnsureProbeClear(clearanceZ, travelFeed) {
@@ -2936,6 +2956,16 @@ function runSurfaceProbing() {
   smLogProbe('Config: clearanceZ=' + clearanceZ + ' probeFeed=' + probeFeed + ' travelFeed=' + travelFeed + ' maxPlunge=' + maxPlunge);
   pluginDebug('runSurfaceProbing: grid ' + cfg.colCount + 'x' + cfg.rowCount + '=' + totalPoints + ' pts, clearanceZ=' + clearanceZ + ' probeFeed=' + probeFeed + ' travelFeed=' + travelFeed + ' maxPlunge=' + maxPlunge);
 
+  // Check if initial clearance lift is enabled
+  var useInitialLiftEl = document.getElementById('useInitialClearanceLift');
+  var useInitialLift = useInitialLiftEl ? useInitialLiftEl.value === 'yes' : false;
+  var topClearZ = Number((document.getElementById('topClearZ') || {}).value) || 5;
+  if (useInitialLift) {
+    smLogProbe('Initial clearance lift enabled: will raise Z by ' + topClearZ.toFixed(3) + ' coords before first probe.');
+  } else {
+    smLogProbe('Initial clearance lift disabled: starting from current Z position.');
+  }
+
   function probeRow(ri) {
     if (ri >= cfg.rowCount) return Promise.resolve();
     var rowY = cfg.minY + ri * cfg.rowSpacing;
@@ -2985,7 +3015,14 @@ function runSurfaceProbing() {
     }).then(function() { return probeRow(ri + 1); });
   }
 
-  probeRow(0).then(function() {
+  // Start probing: perform initial clearance lift if enabled, then begin probe rows
+  var startPromise = useInitialLift
+    ? smPerformInitialClearanceLift('sm', topClearZ, travelFeed)
+    : Promise.resolve();
+
+  startPromise.then(function() {
+    return probeRow(0);
+  }).then(function() {
     smMeshDataRaw = result;
     smGridConfigRaw = cfg;
     var subdivided = subdivideSurfaceMesh(result, cfg, meshSubdivisionSpacing);
@@ -4613,6 +4650,16 @@ async function runFaceProbe(axis, _calledFromCombined){
         logLine('face', 'AUTO TOP-Z: Phase 0 — probing surface Z at face X positions before face probe...');
         logLine('face', 'AUTO TOP-Z: ' + _p0xPts + ' points from X=' + _p0xStart.toFixed(3) + ' to X=' + _p0xEnd.toFixed(3) + ' at Y=' + _p0FaceY.toFixed(3));
         topResults = [];
+        
+        // Perform initial clearance lift if enabled (before Phase 0 starts)
+        var _p0UseInitialLift = s.useInitialClearanceLift;
+        if (_p0UseInitialLift) {
+          logLine('face', 'INITIAL LIFT: Performing initial clearance lift of ' + _p0ClearZ.toFixed(3) + ' coords before Phase 0...');
+          await smPerformInitialClearanceLift('face', _p0ClearZ, _p0Travel);
+        } else {
+          logLine('face', 'Initial clearance lift disabled: starting from current Z position.');
+        }
+        
         for (var _p0i = 0; _p0i < _p0xPts; _p0i++) {
           smCheckStop();
           var _p0xPos = _p0xStart + _p0i * _p0Step;
@@ -6440,6 +6487,14 @@ async function runCombinedProbeMode(axis) {
 
       var _p15Total = _p15Samples.length;
       pluginDebug('runCombinedProbeMode Phase 1.5: faceY=' + _p15FaceY + ' samples=' + _p15Total + ' maxPlunge=' + _p15MaxPlunge + ' probeFeed=' + _p15ProbeFeed);
+
+      // Perform initial clearance lift if enabled (before Phase 1.5 starts)
+      var _p15UseInitialLift = _p15Settings.useInitialClearanceLift;
+      var _p15TopClearZ = Number(_p15Settings.topClearZ) || 5;
+      if (_p15UseInitialLift) {
+        smLogProbe('COMBINED Phase 1.5: Performing initial clearance lift of ' + _p15TopClearZ.toFixed(3) + ' coords...');
+        await smPerformInitialClearanceLift('sm', _p15TopClearZ, _p15TravelFeed);
+      }
 
       for (var _p15i = 0; _p15i < _p15Total; _p15i++) {
         if (_stopRequested) { checkStop(); }
