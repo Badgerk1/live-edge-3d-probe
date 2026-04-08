@@ -2662,6 +2662,13 @@ async function smFinishMotion(travelFeed) {
     clearanceOffset = 10.0;
   }
 
+  // Ensure absolute positioning mode (G90) is active.
+  // The preceding probe commands use G91 (relative), and some controllers
+  // may not apply G90 on the same line as the movement command; sending
+  // G90 separately guarantees the mode switch is complete before moveAbs.
+  await sendCommand('G90');
+  await waitForIdleWithTimeout();
+
   var pos = await getWorkPosition();
   var currentZ = Number(pos.z);
 
