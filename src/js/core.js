@@ -1215,8 +1215,7 @@ async function smFinishMotion(travelFeed) {
     zRetractOk = true;
   } else {
     smLogProbe('Finish move: retracting to work Z ' + finishZ.toFixed(3));
-    await moveAbs(null, null, finishZ, feed);
-    var retractPos = await getWorkPosition();
+    var retractPos = await moveAbs(null, null, finishZ, feed);
     smLogProbe('Finish move: after retract X=' + retractPos.x.toFixed(3) + ' Y=' + retractPos.y.toFixed(3) + ' Z=' + retractPos.z.toFixed(3));
     if (Number(retractPos.z) >= finishZ - 0.5) {
       zRetractOk = true;
@@ -1230,8 +1229,7 @@ async function smFinishMotion(travelFeed) {
       smLogProbe('Finish move: skipping X/Y return — Z retract did not succeed');
     } else {
       smLogProbe('Finish move: returning to work X0.000 Y0.000');
-      await moveAbs(0, 0, null, feed);
-      var returnPos = await getWorkPosition();
+      var returnPos = await moveAbs(0, 0, null, feed);
       smLogProbe('Finish move: after return X=' + returnPos.x.toFixed(3) + ' Y=' + returnPos.y.toFixed(3) + ' Z=' + returnPos.z.toFixed(3));
     }
   } else {
@@ -4799,7 +4797,6 @@ async function runFaceProbe(axis, _calledFromCombined){
       pluginDebug('runFaceProbe layered: faceResults=' + faceResults.length + ' layeredFaceResults=' + layeredFaceResults.length);
       logLine('face', 'Waiting for controller idle before finish motion...');
       await waitForIdle();
-      await sleep(200);
       await finishRunMotion('face');
       if (!_calledFromCombined) switchTab('results');
       setFooterStatus('Layered face probe ' + axis + ' complete: ' + totalLayers + ' layers x ' + faceSamples.length + ' samples = ' + layeredFaceResults.length + ' contacts', 'good');
@@ -4905,7 +4902,6 @@ async function runFaceProbe(axis, _calledFromCombined){
 
     logLine('face', 'Waiting for controller idle before finish motion...');
     await waitForIdle();
-    await sleep(200);
     await finishRunMotion('face');
     if (!_calledFromCombined) switchTab('results');
     pluginDebug('runFaceProbe COMPLETE: axis=' + axis + ' samples=' + faceSamples.length);
