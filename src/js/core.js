@@ -56,6 +56,44 @@ function escHtml(v){ return String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;')
 
 function checkStop(){ if(_stopRequested) throw new Error('User stop requested'); }
 
+// ── Visual reset on plugin restart ────────────────────────────────────────────
+// Clear all canvases and Three.js scenes to prevent stale visuals on restart
+function clearAllVisuals() {
+  pluginDebug('clearAllVisuals: clearing all canvas and visualization state');
+  // Clear all canvas elements
+  var canvasIds = [
+    'sm-heatmap-canvas', 'face-heatmap-canvas', 'res-heatmap-canvas',
+    'res-face-heatmap-canvas', 'relief-2d-canvas'
+  ];
+  canvasIds.forEach(function(id) {
+    var canvas = document.getElementById(id);
+    if (canvas && canvas.getContext) {
+      var ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+  });
+  // Clear Three.js scene containers
+  var threeContainers = ['relief-3d-scene', 'res-3d-scene', 'res-face-3d-scene'];
+  threeContainers.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) {
+      // Remove all children except the canvas
+      while (el.firstChild) {
+        el.removeChild(el.firstChild);
+      }
+    }
+  });
+  // Reset internal visualization state flags
+  try {
+    if (typeof _smHeatmapRendered !== 'undefined') _smHeatmapRendered = false;
+    if (typeof _faceHeatmapRendered !== 'undefined') _faceHeatmapRendered = false;
+    if (typeof _relief3DInited !== 'undefined') _relief3DInited = false;
+  } catch(e) {}
+  pluginDebug('clearAllVisuals: done');
+}
+
 // ── Tab switching ─────────────────────────────────────────────────────────────
 function switchTab(id){
   pluginDebug('switchTab: switching to tab "' + id + '"');
@@ -572,8 +610,15 @@ async function getWorkPosition(){
 async function waitForIdle(){
   pluginDebug('waitForIdle ENTER');
   var lastStatus = '';
-  for(var i = 0; i < 6000; i++){
-    await sleep(30);
+  var pollInterval = 15; // Start with fast polling (was 30ms)
+  var pollCount = 0;
+  var maxPolls = 12000; // Maintain same total timeout (~180s)
+  for(var i = 0; i < maxPolls; i++){
+    await sleep(pollInterval);
+    pollCount++;
+    // Adaptive polling: start fast, slow down after initial period to reduce CPU load
+    if(pollCount === 20) pollInterval = 25;
+    else if(pollCount === 100) pollInterval = 35;
     checkStop();
     var state = await _getState();
     var ms = _machineStateFrom(state);
@@ -583,7 +628,7 @@ async function waitForIdle(){
       lastStatus = status;
     }
     if(status === 'idle'){
-      pluginDebug('waitForIdle EXIT: idle confirmed');
+      pluginDebug('waitForIdle EXIT: idle confirmed after ' + pollCount + ' polls');
       var w = _parsePos(ms.WPos);
       if(w) return {x:w.x, y:w.y, z:w.z, status: status, probeTriggered: !!(ms.Pn && ms.Pn.indexOf('P') !== -1)};
       var m = _parsePos(ms.MPos), wco = _parsePos(ms.WCO);
@@ -4799,7 +4844,7 @@ async function runFaceProbe(axis, _calledFromCombined){
       pluginDebug('runFaceProbe layered: faceResults=' + faceResults.length + ' layeredFaceResults=' + layeredFaceResults.length);
       logLine('face', 'Waiting for controller idle before finish motion...');
       await waitForIdle();
-      await sleep(200);
+      await sleep(50); // Reduced from 200ms - just enough for controller stability
       await finishRunMotion('face');
       if (!_calledFromCombined) switchTab('results');
       setFooterStatus('Layered face probe ' + axis + ' complete: ' + totalLayers + ' layers x ' + faceSamples.length + ' samples = ' + layeredFaceResults.length + ' contacts', 'good');
@@ -4905,7 +4950,7 @@ async function runFaceProbe(axis, _calledFromCombined){
 
     logLine('face', 'Waiting for controller idle before finish motion...');
     await waitForIdle();
-    await sleep(200);
+    await sleep(50); // Reduced from 200ms - just enough for controller stability
     await finishRunMotion('face');
     if (!_calledFromCombined) switchTab('results');
     pluginDebug('runFaceProbe COMPLETE: axis=' + axis + ' samples=' + faceSamples.length);
@@ -4935,6 +4980,7 @@ async function runFaceProbe(axis, _calledFromCombined){
 
 // ── Mesh Data Management ──────────────────────────────────────────────────────
 function smSaveSettings() {
+  pluginDebug('smSaveSettings ENTER');
   var ids = ['sm-minX','sm-maxX','sm-spacingX','sm-minY','sm-maxY','sm-spacingY',
              'sm-probeFeed','sm-travelFeed','sm-clearanceZ','sm-maxPlunge','sm-referenceZ'];
   var data = {};
@@ -4944,14 +4990,17 @@ function smSaveSettings() {
   });
   try {
     localStorage.setItem(SM_SURFACE_GRID_SETTINGS_KEY, JSON.stringify(data));
-    console.log('[smSaveSettings] Saved 2D surface grid settings:', data);
+    pluginDebug('smSaveSettings: saved ' + Object.keys(data).length + ' settings');
+    setFooterStatus('Surface grid settings saved.', 'good');
   } catch(e) {
-    console.warn('[smSaveSettings] Failed to save settings:', e);
+    pluginDebug('smSaveSettings ERROR: ' + e.message);
+    setFooterStatus('Failed to save settings: ' + e.message, 'bad');
     return;
   }
 }
 
 function fpSmSaveSettings() {
+  pluginDebug('fpSmSaveSettings ENTER');
   var ids = ['sm-minX','sm-maxX','sm-spacingX','sm-minY','sm-maxY','sm-spacingY',
              'sm-probeFeed','sm-travelFeed','sm-clearanceZ','sm-maxPlunge','sm-referenceZ'];
   ids.forEach(function(id) {
@@ -4980,6 +5029,9 @@ function smLoadSettings() {
 }
 
 (function init(){
+  pluginDebug('init: plugin initializing');
+  // Clear any stale visuals from a previous session/reload
+  try{ clearAllVisuals(); }catch(e){ pluginDebug('init: clearAllVisuals error: ' + e.message); }
   try{ var vTag=document.getElementById('sm-version-tag'); if(vTag) vTag.textContent=SM_VERSION; }catch(e){}
   setTimeout(function(){ try{ bindProbeDimensionUI(); applyProbeDimensionSettings(getSettingsFromUI()); loadProbeDimensions(); }catch(e){} }, 0);
   try{ loadPersistedLogs(); }catch(e){}
