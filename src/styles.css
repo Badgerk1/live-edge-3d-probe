@@ -112,7 +112,9 @@
     #surface-edge-mesh-root #sm-pviz-reset-btn{position:absolute;top:7px;right:9px;z-index:10;padding:3px 9px;border-radius:8px;border:1px solid rgba(58,85,128,0.55);background:rgba(8,17,30,0.72);color:var(--muted);font:10px/1.5 system-ui,-apple-system,sans-serif;cursor:pointer;transition:color .2s,border-color .2s}
     #surface-edge-mesh-root #sm-pviz-reset-btn:hover{color:var(--text);border-color:var(--accent2)}
     #surface-edge-mesh-root #sm-pviz-surface{position:absolute;inset:0;background-image:repeating-linear-gradient(90deg,rgba(58,85,128,0.45) 0 1px,transparent 1px 100%),repeating-linear-gradient(0deg,rgba(58,85,128,0.45) 0 1px,transparent 1px 100%);background-size:25% 33.33%;background-color:#08111e;border:1px solid rgba(58,85,128,0.65);transform-style:preserve-3d}
-    #surface-edge-mesh-root .sm-pviz-dot{position:absolute;width:9px;height:9px;border-radius:50%;margin:-4.5px 0 0 -4.5px;transform:translateZ(1px);pointer-events:none;transition:opacity .3s}
+    #surface-edge-mesh-root .sm-pviz-dot{position:absolute;width:9px;height:9px;border-radius:50%;margin:-4.5px 0 0 -4.5px;transform:translateZ(4px);pointer-events:none;transition:opacity .3s}
+    #surface-edge-mesh-root #sm-pviz-mesh{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;transform:translateZ(2px);overflow:visible;opacity:0;transition:opacity 0.5s ease}
+    #surface-edge-mesh-root #sm-pviz-mesh.mesh-active{opacity:1}
     #surface-edge-mesh-root #sm-pviz-probe-wrap{position:absolute;transform-style:preserve-3d;width:0;height:0;left:50%;top:50%;transition:left 25ms linear,top 25ms linear}
     #surface-edge-mesh-root #sm-pviz-probe-shadow{position:absolute;width:18px;height:18px;border-radius:50%;margin:-9px 0 0 -9px;background:rgba(149,168,200,.18);transform:translateZ(0)}
     /* transform layering for probe spindle:
@@ -125,8 +127,8 @@
     #surface-edge-mesh-root #sm-pviz-probe-body.probe-plunging .sm-probe-img,#surface-edge-mesh-root #sm-pviz-probe-body.probe-contact .sm-probe-img{animation:none}
     @keyframes smProbeWobble{0%,100%{transform:translateY(0) rotateZ(0deg)}30%{transform:translateY(-3px) rotateZ(1.5deg)}70%{transform:translateY(-1.5px) rotateZ(-1deg)}}
     #surface-edge-mesh-root #sm-pviz-probe-body.probe-plunging{transform:translateZ(4px)}
-    #surface-edge-mesh-root #sm-pviz-probe-body.probe-contact{transform:translateZ(1px);animation:smPvizBodyGlow .55s ease-in-out 3}
-    @keyframes smPvizBodyGlow{0%,100%{filter:drop-shadow(0 0 3px rgba(95,211,141,.15))}50%{filter:drop-shadow(0 0 8px rgba(95,211,141,.95)) drop-shadow(0 0 18px rgba(95,211,141,.5))}}
+    #surface-edge-mesh-root #sm-pviz-probe-body.probe-contact{transform:translateZ(4px);animation:smPvizBodyGlow .55s ease-in-out 3}
+    @keyframes smPvizBodyGlow{0%,100%{filter:drop-shadow(0 0 3px rgba(255,106,32,.15))}50%{filter:drop-shadow(0 0 8px rgba(255,106,32,.95)) drop-shadow(0 0 18px rgba(255,106,32,.5))}}
     /* ── Results Tab 3D Visualizer ──────────────────────────────────────────── */
     #surface-edge-mesh-root #res-pviz-scene{position:relative;height:250px;background:radial-gradient(ellipse at 50% 0%,#0f1f38 0%,#060a10 70%);border:1px solid var(--line);border-radius:10px;overflow:hidden;perspective:700px;perspective-origin:50% 10%;cursor:grab;user-select:none}
     #surface-edge-mesh-root #res-pviz-scene.pviz-dragging{cursor:grabbing}
