@@ -117,7 +117,9 @@
     #surface-edge-mesh-root #sm-pviz-reset-btn{position:absolute;top:7px;right:9px;z-index:10;padding:3px 9px;border-radius:8px;border:1px solid rgba(58,85,128,0.55);background:rgba(8,17,30,0.72);color:var(--muted);font:10px/1.5 system-ui,-apple-system,sans-serif;cursor:pointer;transition:color .2s,border-color .2s}
     #surface-edge-mesh-root #sm-pviz-reset-btn:hover{color:var(--text);border-color:var(--accent2)}
     #surface-edge-mesh-root #sm-pviz-surface{position:absolute;inset:0;background-image:repeating-linear-gradient(90deg,rgba(58,85,128,0.45) 0 1px,transparent 1px 100%),repeating-linear-gradient(0deg,rgba(58,85,128,0.45) 0 1px,transparent 1px 100%);background-size:25% 33.33%;background-color:#08111e;border:1px solid rgba(58,85,128,0.65);transform-style:preserve-3d}
-    #surface-edge-mesh-root .sm-pviz-dot{position:absolute;width:9px;height:9px;border-radius:50%;margin:-4.5px 0 0 -4.5px;transform:translateZ(1px);pointer-events:none;transition:opacity .3s}
+    #surface-edge-mesh-root .sm-pviz-dot{position:absolute;width:9px;height:9px;border-radius:50%;margin:-4.5px 0 0 -4.5px;transform:translateZ(4px);pointer-events:none;transition:opacity .3s}
+    #surface-edge-mesh-root #sm-pviz-mesh{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;transform:translateZ(2px);overflow:visible;opacity:0;transition:opacity 0.5s ease}
+    #surface-edge-mesh-root #sm-pviz-mesh.mesh-active{opacity:1}
     #surface-edge-mesh-root #sm-pviz-probe-wrap{position:absolute;transform-style:preserve-3d;width:0;height:0;left:50%;top:50%;transition:left 25ms linear,top 25ms linear}
     #surface-edge-mesh-root #sm-pviz-probe-shadow{position:absolute;width:18px;height:18px;border-radius:50%;margin:-9px 0 0 -9px;background:rgba(149,168,200,.18);transform:translateZ(0)}
     /* transform layering for probe spindle:
@@ -130,8 +132,8 @@
     #surface-edge-mesh-root #sm-pviz-probe-body.probe-plunging .sm-probe-img,#surface-edge-mesh-root #sm-pviz-probe-body.probe-contact .sm-probe-img{animation:none}
     @keyframes smProbeWobble{0%,100%{transform:translateY(0) rotateZ(0deg)}30%{transform:translateY(-3px) rotateZ(1.5deg)}70%{transform:translateY(-1.5px) rotateZ(-1deg)}}
     #surface-edge-mesh-root #sm-pviz-probe-body.probe-plunging{transform:translateZ(4px)}
-    #surface-edge-mesh-root #sm-pviz-probe-body.probe-contact{transform:translateZ(1px);animation:smPvizBodyGlow .55s ease-in-out 3}
-    @keyframes smPvizBodyGlow{0%,100%{filter:drop-shadow(0 0 3px rgba(95,211,141,.15))}50%{filter:drop-shadow(0 0 8px rgba(95,211,141,.95)) drop-shadow(0 0 18px rgba(95,211,141,.5))}}
+    #surface-edge-mesh-root #sm-pviz-probe-body.probe-contact{transform:translateZ(4px);animation:smPvizBodyGlow .55s ease-in-out 3}
+    @keyframes smPvizBodyGlow{0%,100%{filter:drop-shadow(0 0 3px rgba(255,106,32,.15))}50%{filter:drop-shadow(0 0 8px rgba(255,106,32,.95)) drop-shadow(0 0 18px rgba(255,106,32,.5))}}
     /* ── Results Tab 3D Visualizer ──────────────────────────────────────────── */
     #surface-edge-mesh-root #res-pviz-scene{position:relative;height:250px;background:radial-gradient(ellipse at 50% 0%,#0f1f38 0%,#060a10 70%);border:1px solid var(--line);border-radius:10px;overflow:hidden;perspective:700px;perspective-origin:50% 10%;cursor:grab;user-select:none}
     #surface-edge-mesh-root #res-pviz-scene.pviz-dragging{cursor:grabbing}
@@ -847,6 +849,7 @@
           <button id="sm-pviz-reset-btn" title="Reset view · double-click also works">&#8635; Reset View</button>
           <div id="sm-pviz-3dscene">
             <div id="sm-pviz-surface">
+              <svg id="sm-pviz-mesh" viewBox="0 0 100 100" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"></svg>
               <!-- contact dots appended here by JS -->
             </div>
             <div id="sm-pviz-probe-wrap">
@@ -2753,12 +2756,128 @@ async function smFinishMotion(travelFeed) {
 }
 
 // ── Probe Visualizer helpers ──────────────────────────────────────────────────
+var _smPvizTrackActive = false;
+var _smPvizTrackTimer = null;
+
+function smPvizStartLiveTracking() {
+  _smPvizTrackActive = true;
+  _smPvizScheduleTrack();
+}
+
+function smPvizStopLiveTracking() {
+  _smPvizTrackActive = false;
+  if (_smPvizTrackTimer) { clearTimeout(_smPvizTrackTimer); _smPvizTrackTimer = null; }
+}
+
+function _smPvizScheduleTrack() {
+  if (!_smPvizTrackActive) return;
+  _smPvizTrackTimer = setTimeout(function() {
+    _getState().then(function(state) {
+      if (!_smPvizTrackActive) return;
+      var ms = _machineStateFrom(state);
+      var w = _parsePos(ms.WPos);
+      var pos = w;
+      if (!pos) {
+        var m = _parsePos(ms.MPos), wco = _parsePos(ms.WCO);
+        if (m && wco) pos = {x: m.x - wco.x, y: m.y - wco.y, z: m.z - wco.z};
+        else if (m) pos = {x: m.x, y: m.y, z: m.z};
+      }
+      if (pos) {
+        var cfg = window._smPvizCfg;
+        if (cfg) {
+          var pvizPos = smPvizXYtoPos(pos.x, pos.y);
+          var wrap = document.getElementById('sm-pviz-probe-wrap');
+          if (wrap) { wrap.style.left = pvizPos.left + '%'; wrap.style.top = pvizPos.top + '%'; }
+          _smPvizUpdateProbeHeight(pos.z);
+        }
+        // Show orange glow if probe is triggered
+        var probeTriggered = (ms.Pn || '').indexOf('P') >= 0;
+        var body = document.getElementById('sm-pviz-probe-body');
+        if (body && probeTriggered && !body.classList.contains('probe-contact')) {
+          body.classList.add('probe-contact');
+        }
+      }
+      _smPvizScheduleTrack();
+    }).catch(function() { _smPvizScheduleTrack(); });
+  }, 200); // poll at ~5 Hz
+}
+
+function _smPvizUpdateProbeHeight(z) {
+  var body = document.getElementById('sm-pviz-probe-body');
+  var cfg = window._smPvizCfg;
+  if (!body || !cfg || !cfg.clearanceZ) return;
+  // Estimate surface Z from lowest collected contact
+  var contacts = window._smPvizContacts;
+  var surfZ = null;
+  if (contacts && contacts.length > 0) {
+    surfZ = contacts[0].z;
+    for (var ci = 1; ci < contacts.length; ci++) {
+      if (contacts[ci].z < surfZ) surfZ = contacts[ci].z;
+    }
+  }
+  if (surfZ === null) surfZ = z - cfg.clearanceZ; // estimate: current Z is near clearance height
+  var travelZ = surfZ + cfg.clearanceZ;
+  var zRange = Math.max(0.5, travelZ - surfZ);
+  var zFrac = Math.max(0, Math.min(1, (z - surfZ) / zRange));
+  var cssZ = 4 + zFrac * (52 - 4); // 4px at surface → 52px at clearance height
+  body.style.transform = 'translateZ(' + cssZ.toFixed(1) + 'px)';
+}
+
+function smPvizUpdatePartialMesh() {
+  var meshEl = document.getElementById('sm-pviz-mesh');
+  if (!meshEl) return;
+  var contacts = window._smPvizContacts;
+  var cfg = window._smPvizCfg;
+  if (!contacts || contacts.length === 0 || !cfg) {
+    while (meshEl.firstChild) meshEl.removeChild(meshEl.firstChild);
+    meshEl.classList.remove('mesh-active');
+    return;
+  }
+  while (meshEl.firstChild) meshEl.removeChild(meshEl.firstChild);
+
+  var zMin = contacts[0].z, zMax = contacts[0].z;
+  for (var ci = 1; ci < contacts.length; ci++) {
+    if (contacts[ci].z < zMin) zMin = contacts[ci].z;
+    if (contacts[ci].z > zMax) zMax = contacts[ci].z;
+  }
+  var zRange = Math.max(0.5, zMax - zMin);
+
+  var spanX = (cfg.maxX - cfg.minX) || 1;
+  var spanY = (cfg.maxY - cfg.minY) || 1;
+  var colCount = cfg.colCount || 1;
+  var rowCount = cfg.rowCount || 1;
+  var cellW = Math.max(2, 100 / colCount);
+  var cellH = Math.max(2, 100 / rowCount);
+
+  for (var i = 0; i < contacts.length; i++) {
+    var c = contacts[i];
+    var cx = (c.x - cfg.minX) / spanX * 100;
+    var cy = 100 - (c.y - cfg.minY) / spanY * 100; // Y inverted
+    var t = Math.max(0, Math.min(1, (zMax - c.z) / zRange)); // 0=high/green, 1=low/orange
+    var r = Math.round((1 - t) * 95 + t * 255);
+    var g = Math.round((1 - t) * 211 + t * 90);
+    var b = Math.round((1 - t) * 141 + t * 50);
+    var rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('x', (cx - cellW / 2).toFixed(2));
+    rect.setAttribute('y', (cy - cellH / 2).toFixed(2));
+    rect.setAttribute('width', cellW.toFixed(2));
+    rect.setAttribute('height', cellH.toFixed(2));
+    rect.setAttribute('fill', 'rgb(' + r + ',' + g + ',' + b + ')');
+    rect.setAttribute('opacity', '0.5');
+    rect.setAttribute('rx', '1');
+    meshEl.appendChild(rect);
+  }
+  meshEl.classList.add('mesh-active');
+}
+
 function smPvizInit(cfg) {
   window._smPvizCfg = cfg;
   window._smPvizContacts = [];
   // reset probe sequence recording
   smPvizProbeSequence = [];
   _smPvizSeqLastTime = Date.now();
+  // Stop any previous live tracking
+  smPvizStopLiveTracking();
   // Hide Three.js canvas so probe animation is visible during probing
   var smThreeWrap = document.getElementById('sm-three-canvas');
   if (smThreeWrap) smThreeWrap.classList.remove('three-active');
@@ -2767,6 +2886,12 @@ function smPvizInit(cfg) {
   if (surf) {
     var oldDots = surf.querySelectorAll('.sm-pviz-dot');
     for (var i = 0; i < oldDots.length; i++) oldDots[i].remove();
+  }
+  // clear progressive SVG mesh
+  var meshEl = document.getElementById('sm-pviz-mesh');
+  if (meshEl) {
+    while (meshEl.firstChild) meshEl.removeChild(meshEl.firstChild);
+    meshEl.classList.remove('mesh-active');
   }
   // set grid lines to match actual probe grid spacing
   if (surf && cfg && cfg.colCount > 1 && cfg.rowCount > 1) {
@@ -2778,12 +2903,16 @@ function smPvizInit(cfg) {
   var wrap = document.getElementById('sm-pviz-probe-wrap');
   if (wrap) { wrap.style.left = '0%'; wrap.style.top = '100%'; }
   var body = document.getElementById('sm-pviz-probe-body');
-  if (body) { body.className = ''; }
+  if (body) { body.className = ''; body.style.transform = ''; }
+  // Start live machine position tracking so probe follows machine directly
+  smPvizStartLiveTracking();
 }
 function smPvizSetState(state) {
   var body = document.getElementById('sm-pviz-probe-body');
   if (!body) return;
   body.classList.remove('probe-plunging', 'probe-contact');
+  // Clear dynamic inline Z height so CSS class translateZ takes effect
+  body.style.transform = '';
   void body.offsetWidth; // force reflow so CSS animations restart cleanly
   if (state === 'plunging') body.classList.add('probe-plunging');
   else if (state === 'contact') body.classList.add('probe-contact');
@@ -2853,7 +2982,7 @@ function smPvizUpdate(state, opts) {
     var wrap = document.getElementById('sm-pviz-probe-wrap');
     if (wrap) { wrap.style.left = pos.left + '%'; wrap.style.top = pos.top + '%'; }
   }
-  // add contact dot on the surface and store for mesh
+  // add contact dot on the surface, update progressive mesh
   if (state === 'contact' && opts.x !== undefined) {
     // store contact point for mesh rendering
     if (!window._smPvizContacts) window._smPvizContacts = [];
@@ -2867,32 +2996,41 @@ function smPvizUpdate(state, opts) {
       dot.className = 'sm-pviz-dot';
       dot.style.left = dpos.left + '%';
       dot.style.top  = dpos.top + '%';
-      // color by Z depth relative to collected contacts:
-      // highest Z (shallow) = green (#5fd38d), lowest Z (deep) = orange (#ff5a32)
-      var dotColor = '#5fd38d';
-      if (opts.contactZ !== undefined && window._smPvizContacts && window._smPvizContacts.length > 0) {
-        var contacts = window._smPvizContacts;
-        var zMin = contacts[0].z, zMax = contacts[0].z;
-        for (var ci = 1; ci < contacts.length; ci++) {
-          if (contacts[ci].z < zMin) zMin = contacts[ci].z;
-          if (contacts[ci].z > zMax) zMax = contacts[ci].z;
-        }
-        // Depth 0 = highest Z (green #5fd38d), depth 1 = lowest Z (orange #ff5a32)
-        // Use a minimum range of 1mm to avoid division by zero and overly sensitive coloring
-        var zRange = Math.max(1, zMax - zMin);
-        var depth = Math.max(0, Math.min(1, (zMax - opts.contactZ) / zRange));
-        // Green RGB(95, 211, 141) -> Orange RGB(255, 90, 50)
-        var r = Math.round((1 - depth) * 95 + depth * 255);
-        var g = Math.round((1 - depth) * 211 + depth * 90);
-        var b = Math.round((1 - depth) * 141 + depth * 50);
-        dotColor = 'rgb(' + r + ',' + g + ',' + b + ')';
+      // Contact dot: always start orange (immediate activation indicator), then update
+      // existing dots to Z-depth coloring so the newest dot stands out as orange
+      var contacts = window._smPvizContacts;
+      var zMin = contacts[0].z, zMax = contacts[0].z;
+      for (var ci = 1; ci < contacts.length; ci++) {
+        if (contacts[ci].z < zMin) zMin = contacts[ci].z;
+        if (contacts[ci].z > zMax) zMax = contacts[ci].z;
       }
-      dot.style.background = dotColor;
-      dot.style.boxShadow = '0 0 5px ' + dotColor;
+      var zRange = Math.max(1, zMax - zMin);
+      // Recolor all existing dots to Z-depth gradient
+      var oldDots = surf.querySelectorAll('.sm-pviz-dot');
+      for (var di = 0; di < oldDots.length; di++) {
+        var dc = contacts[di];
+        if (!dc) continue;
+        var depth = Math.max(0, Math.min(1, (zMax - dc.z) / zRange));
+        var dr = Math.round((1 - depth) * 95 + depth * 255);
+        var dg = Math.round((1 - depth) * 211 + depth * 90);
+        var db = Math.round((1 - depth) * 141 + depth * 50);
+        var dColor = 'rgb(' + dr + ',' + dg + ',' + db + ')';
+        oldDots[di].style.background = dColor;
+        oldDots[di].style.boxShadow = '0 0 5px ' + dColor;
+      }
+      // New dot always orange to immediately show probe activation
+      var orange = '#ff6a20';
+      dot.style.background = orange;
+      dot.style.boxShadow = '0 0 7px ' + orange + ', 0 0 3px #fff4';
       surf.appendChild(dot);
     }
+    // Update progressive mesh surface
+    smPvizUpdatePartialMesh();
   }
-  // on complete: fade in mesh surface, then switch back to heatmap view
+  // on complete: stop live tracking, render final mesh, then switch back to heatmap view
+  if (state === 'complete' || state === 'error') {
+    smPvizStopLiveTracking();
+  }
   if (state === 'complete') {
     setTimeout(function() {
       smPvizRenderMesh();
@@ -4389,7 +4527,7 @@ function runSurfaceProbing() {
   smSetProgress(0);
   var smPvizEl = document.getElementById('sm-probeViz');
   if (smPvizEl) smPvizEl.style.display = 'block';
-  smPvizInit(cfg);
+  smPvizInit({ minX: cfg.minX, maxX: cfg.maxX, minY: cfg.minY, maxY: cfg.maxY, colCount: cfg.colCount, rowCount: cfg.rowCount, clearanceZ: clearanceZ });
   smPvizUpdate(null, { point: 0, total: totalPoints, pct: 0 });
   smLogProbe('=== 3D Live Edge Mesh Plugin ' + SM_VERSION + ' ===');
   smLogProbe('Starting probing: ' + cfg.colCount + 'x' + cfg.rowCount + ' = ' + totalPoints + ' points');
@@ -4709,7 +4847,7 @@ function smSaveReplayHtml() {
     + '#sm-pviz-reset-btn{position:absolute;top:7px;right:9px;z-index:10;padding:3px 9px;border-radius:8px;border:1px solid rgba(58,85,128,.55);background:rgba(8,17,30,.72);color:var(--muted);font:10px/1.5 system-ui,-apple-system,sans-serif;cursor:pointer;transition:color .2s,border-color .2s}\n'
     + '#sm-pviz-reset-btn:hover{color:var(--text);border-color:var(--accent2)}\n'
     + '#sm-pviz-surface{position:absolute;inset:0;background-image:repeating-linear-gradient(90deg,rgba(58,85,128,.45) 0 1px,transparent 1px 100%),repeating-linear-gradient(0deg,rgba(58,85,128,.45) 0 1px,transparent 1px 100%);background-size:25% 33.33%;background-color:#08111e;border:1px solid rgba(58,85,128,.65);transform-style:preserve-3d}\n'
-    + '.sm-pviz-dot{position:absolute;width:9px;height:9px;border-radius:50%;margin:-4.5px 0 0 -4.5px;transform:translateZ(1px);pointer-events:none;transition:opacity .3s}\n'
+    + '.sm-pviz-dot{position:absolute;width:9px;height:9px;border-radius:50%;margin:-4.5px 0 0 -4.5px;transform:translateZ(4px);pointer-events:none;transition:opacity .3s}\n'
     + '#sm-pviz-probe-wrap{position:absolute;transform-style:preserve-3d;width:0;height:0;left:50%;top:50%;transition:left 25ms linear,top 25ms linear}\n'
     + '#sm-pviz-probe-shadow{position:absolute;width:18px;height:18px;border-radius:50%;margin:-9px 0 0 -9px;background:rgba(149,168,200,.18);transform:translateZ(0)}\n'
     + '#sm-pviz-probe-body{position:absolute;margin:-138px 0 0 -23px;transform:translateZ(52px);transition:transform 25ms linear;transform-style:preserve-3d;pointer-events:none}\n'
@@ -4718,10 +4856,10 @@ function smSaveReplayHtml() {
     + '#sm-pviz-probe-body.probe-plunging .sm-probe-img,#sm-pviz-probe-body.probe-contact .sm-probe-img{animation:none}\n'
     + '@keyframes smProbeWobble{0%,100%{transform:translateY(0) rotateZ(0deg)}30%{transform:translateY(-3px) rotateZ(1.5deg)}70%{transform:translateY(-1.5px) rotateZ(-1deg)}}\n'
     + '#sm-pviz-probe-body.probe-plunging{transform:translateZ(4px)}\n'
-    + '#sm-pviz-probe-body.probe-contact{transform:translateZ(1px);animation:smPvizBodyGlow .55s ease-in-out 3}\n'
-    + '@keyframes smPvizBodyGlow{0%,100%{filter:drop-shadow(0 0 3px rgba(95,211,141,.15))}50%{filter:drop-shadow(0 0 8px rgba(95,211,141,.95)) drop-shadow(0 0 18px rgba(95,211,141,.5))}}\n'
-    + '#sm-pviz-mesh{position:absolute;inset:0;width:100%;height:100%;opacity:0;transition:opacity 1.2s ease;pointer-events:none;transform:translateZ(3px);overflow:visible}\n'
-    + '#sm-pviz-mesh.mesh-visible{opacity:1}\n'
+    + '#sm-pviz-probe-body.probe-contact{transform:translateZ(4px);animation:smPvizBodyGlow .55s ease-in-out 3}\n'
+    + '@keyframes smPvizBodyGlow{0%,100%{filter:drop-shadow(0 0 3px rgba(255,106,32,.15))}50%{filter:drop-shadow(0 0 8px rgba(255,106,32,.95)) drop-shadow(0 0 18px rgba(255,106,32,.5))}}\n'
+    + '#sm-pviz-mesh{position:absolute;inset:0;width:100%;height:100%;opacity:0;transition:opacity 0.5s ease;pointer-events:none;transform:translateZ(2px);overflow:visible}\n'
+    + '#sm-pviz-mesh.mesh-visible,#sm-pviz-mesh.mesh-active{opacity:1}\n'
     // info grid
     + '#pviz-info{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:11px;margin-top:6px;padding:0 2px}\n'
     + '#pviz-info .lbl{color:var(--muted)}\n'
@@ -6387,8 +6525,8 @@ async function runFaceProbe(axis, _calledFromCombined){
             }
           }
         }
-        logLine('face', 'Layer ' + layerNum + '/' + totalLayers + ' complete — UI updated, ' + layeredFaceResults.length + ' total contacts recorded.');
-        updateAllResultsUI();
+        logLine('face', 'Layer ' + layerNum + '/' + totalLayers + ' complete — ' + layeredFaceResults.length + ' total contacts recorded.');
+        setTimeout(updateAllResultsUI, 0);
       }
 
       saveProbeResults();
