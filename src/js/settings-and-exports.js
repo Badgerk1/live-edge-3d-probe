@@ -29,6 +29,7 @@ function getSettingsFromUI() {
     topSampleStart:              n('topSampleStart'),
     topSampleEnd:                n('topSampleEnd'),
     topSampleCount:              n('topSampleCount'),
+    useInitialClearanceLift:     b('useInitialClearanceLift'),
     topClearZ:                   n('topClearZ'),
     topFeed:                     n('topFeed'),
     topProbeDepth:               n('topProbeDepth'),
@@ -115,6 +116,7 @@ function loadSettings() {
   sv('topSampleStart',             data.topSampleStart);
   sv('topSampleEnd',               data.topSampleEnd);
   sv('topSampleCount',             data.topSampleCount);
+  sb('useInitialClearanceLift',    data.useInitialClearanceLift);
   sv('topClearZ',                  data.topClearZ);
   sv('topFeed',                    data.topFeed);
   sv('topProbeDepth',              data.topProbeDepth);
@@ -159,7 +161,7 @@ function resetSettings() {
     finishHomeZ: 10, useMachineHomeRetract: true, machineSafeTopZ: 0, returnToXYZero: true,
     meshSubdivisionSpacing: 2,
     sampleAxis: 'X', topFixedCoord: 0, topSampleStart: 0, topSampleEnd: 100, topSampleCount: 10,
-    topClearZ: 5, topFeed: 200, topProbeDepth: 5, topRetract: 2,
+    useInitialClearanceLift: true, topClearZ: 5, topFeed: 200, topProbeDepth: 5, topRetract: 2,
     faceFixedCoord: 0, enableLayeredFace: false, faceStartOffset: -10, faceMaxDepth: 14.75,
     faceFeed: 150, faceRetractFeed: 1000, faceDepthBelowSurface: 2, faceProbeDistance: 20, faceLayerCount: 3,
     fpZStepCount: 3, fpZStepSize: 1,
@@ -191,6 +193,7 @@ function resetSettings() {
   sv('topSampleStart',             defaults.topSampleStart);
   sv('topSampleEnd',               defaults.topSampleEnd);
   sv('topSampleCount',             defaults.topSampleCount);
+  sb('useInitialClearanceLift',    defaults.useInitialClearanceLift);
   sv('topClearZ',                  defaults.topClearZ);
   sv('topFeed',                    defaults.topFeed);
   sv('topProbeDepth',              defaults.topProbeDepth);
