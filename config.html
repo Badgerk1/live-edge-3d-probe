@@ -907,6 +907,7 @@
           </div>
         </div>
         <div style="text-align:center;margin-top:6px;font-size:11px;color:var(--muted)">Z Exaggeration: <input type="range" id="sm-z-exag" aria-label="Z Exaggeration" min="1" max="20" value="5" style="vertical-align:middle;width:90px" oninput="document.getElementById('sm-z-exag-val').textContent=this.value+'&times;';smPvizRenderMesh()"> <span id="sm-z-exag-val">5&times;</span> &nbsp;&#183;&nbsp; <label style="cursor:pointer"><input type="checkbox" id="sm-contour-toggle" aria-label="Toggle contours" onchange="renderThreeUnified3D('sm')"> Contours</label></div>
+        <div style="text-align:center;margin-top:4px;font-size:11px;color:var(--muted)"><label style="cursor:pointer;margin-right:10px"><input type="checkbox" id="sm-pviz-surface-toggle" aria-label="Toggle surface mesh" checked onchange="smPvizUpdatePartialMesh()"> Surface mesh</label><label style="cursor:pointer"><input type="checkbox" id="sm-pviz-wireframe-toggle" aria-label="Toggle wireframe" checked onchange="smPvizUpdatePartialMesh()"> Wireframe</label></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:11px;margin-top:6px;padding:0 2px">
           <div style="color:var(--muted)">Status: <span id="sm-pviz-status" style="color:var(--text);font-weight:600">Ready</span></div>
           <div style="color:var(--muted)">Point: <span id="sm-pviz-point" style="color:var(--accent2);font-weight:600">&#8212; / &#8212;</span></div>
@@ -2827,7 +2828,8 @@ function smPvizUpdatePartialMesh() {
   var meshEl = document.getElementById('sm-pviz-mesh');
   if (!meshEl) return;
   var contacts = window._smPvizContacts;
-  var cfg = window._smPvizCfg;
+  var grid     = window._smPvizGrid;
+  var cfg      = window._smPvizCfg;
   if (!contacts || contacts.length === 0 || !cfg) {
     while (meshEl.firstChild) meshEl.removeChild(meshEl.firstChild);
     meshEl.classList.remove('mesh-active');
@@ -2835,44 +2837,142 @@ function smPvizUpdatePartialMesh() {
   }
   while (meshEl.firstChild) meshEl.removeChild(meshEl.firstChild);
 
+  // Compute Z range across all contacts
   var zMin = contacts[0].z, zMax = contacts[0].z;
-  for (var ci = 1; ci < contacts.length; ci++) {
-    if (contacts[ci].z < zMin) zMin = contacts[ci].z;
-    if (contacts[ci].z > zMax) zMax = contacts[ci].z;
+  for (var zi = 1; zi < contacts.length; zi++) {
+    if (contacts[zi].z < zMin) zMin = contacts[zi].z;
+    if (contacts[zi].z > zMax) zMax = contacts[zi].z;
   }
   var zRange = Math.max(0.5, zMax - zMin);
 
-  var spanX = (cfg.maxX - cfg.minX) || 1;
-  var spanY = (cfg.maxY - cfg.minY) || 1;
-  var colCount = cfg.colCount || 1;
+  var spanX    = (cfg.maxX - cfg.minX) || 1;
+  var spanY    = (cfg.maxY - cfg.minY) || 1;
   var rowCount = cfg.rowCount || 1;
-  var cellW = Math.max(2, 100 / colCount);
-  var cellH = Math.max(2, 100 / rowCount);
+  var colCount = cfg.colCount || 1;
 
-  for (var i = 0; i < contacts.length; i++) {
-    var c = contacts[i];
-    var cx = (c.x - cfg.minX) / spanX * 100;
-    var cy = 100 - (c.y - cfg.minY) / spanY * 100; // Y inverted
-    var t = Math.max(0, Math.min(1, (zMax - c.z) / zRange)); // 0=high/green, 1=low/orange
-    var r = Math.round((1 - t) * 95 + t * 255);
+  // Read toggle state (defaults to on)
+  var surfToggle = document.getElementById('sm-pviz-surface-toggle');
+  var wireToggle = document.getElementById('sm-pviz-wireframe-toggle');
+  var showSurface   = surfToggle ? surfToggle.checked : true;
+  var showWireframe = wireToggle ? wireToggle.checked : true;
+
+  // Map work-coordinate (x, y) → SVG viewport [0-100, 0-100]
+  // X right → left increases; Y away → top decreases (top:0% = visual top = Y-max)
+  function toSVG(x, y) {
+    return {
+      sx: (x - cfg.minX) / spanX * 100,
+      sy: 100 - (y - cfg.minY) / spanY * 100
+    };
+  }
+
+  // Map Z value → rgb color (0=high→green, 1=low→orange)
+  function zColor(z) {
+    var t = Math.max(0, Math.min(1, (zMax - z) / zRange));
+    var r = Math.round((1 - t) * 95  + t * 255);
     var g = Math.round((1 - t) * 211 + t * 90);
     var b = Math.round((1 - t) * 141 + t * 50);
-    var rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    rect.setAttribute('x', (cx - cellW / 2).toFixed(2));
-    rect.setAttribute('y', (cy - cellH / 2).toFixed(2));
-    rect.setAttribute('width', cellW.toFixed(2));
-    rect.setAttribute('height', cellH.toFixed(2));
-    rect.setAttribute('fill', 'rgb(' + r + ',' + g + ',' + b + ')');
-    rect.setAttribute('opacity', '0.5');
-    rect.setAttribute('rx', '1');
-    meshEl.appendChild(rect);
+    return 'rgb(' + r + ',' + g + ',' + b + ')';
   }
+
+  var NS = 'http://www.w3.org/2000/svg';
+
+  // ── Surface mesh (triangulated quads) ────────────────────────────────────────
+  if (showSurface && grid) {
+    for (var ri = 0; ri < rowCount - 1; ri++) {
+      for (var ci = 0; ci < colCount - 1; ci++) {
+        var p00 = grid[ri]     && grid[ri][ci];
+        var p01 = grid[ri]     && grid[ri][ci + 1];
+        var p10 = grid[ri + 1] && grid[ri + 1][ci];
+        var p11 = grid[ri + 1] && grid[ri + 1][ci + 1];
+
+        // Triangle A: (ri,ci) → (ri,ci+1) → (ri+1,ci)
+        if (p00 && p01 && p10) {
+          var s00 = toSVG(p00.x, p00.y);
+          var s01 = toSVG(p01.x, p01.y);
+          var s10 = toSVG(p10.x, p10.y);
+          var avgZa = (p00.z + p01.z + p10.z) / 3;
+          var polyA = document.createElementNS(NS, 'polygon');
+          polyA.setAttribute('points',
+            s00.sx.toFixed(3) + ',' + s00.sy.toFixed(3) + ' ' +
+            s01.sx.toFixed(3) + ',' + s01.sy.toFixed(3) + ' ' +
+            s10.sx.toFixed(3) + ',' + s10.sy.toFixed(3));
+          polyA.setAttribute('fill', zColor(avgZa));
+          polyA.setAttribute('opacity', '0.72');
+          meshEl.appendChild(polyA);
+        }
+
+        // Triangle B: (ri,ci+1) → (ri+1,ci+1) → (ri+1,ci)
+        if (p01 && p11 && p10) {
+          var s01b = toSVG(p01.x, p01.y);
+          var s11  = toSVG(p11.x, p11.y);
+          var s10b = toSVG(p10.x, p10.y);
+          var avgZb = (p01.z + p11.z + p10.z) / 3;
+          var polyB = document.createElementNS(NS, 'polygon');
+          polyB.setAttribute('points',
+            s01b.sx.toFixed(3) + ',' + s01b.sy.toFixed(3) + ' ' +
+            s11.sx.toFixed(3)  + ',' + s11.sy.toFixed(3)  + ' ' +
+            s10b.sx.toFixed(3) + ',' + s10b.sy.toFixed(3));
+          polyB.setAttribute('fill', zColor(avgZb));
+          polyB.setAttribute('opacity', '0.72');
+          meshEl.appendChild(polyB);
+        }
+      }
+    }
+  }
+
+  // ── Wireframe grid (lines connecting adjacent sampled points) ────────────────
+  if (showWireframe && grid) {
+    // Horizontal edges (along column axis for each row)
+    for (var wri = 0; wri < rowCount; wri++) {
+      var prev = null;
+      for (var wci = 0; wci < colCount; wci++) {
+        var wp = grid[wri] && grid[wri][wci];
+        if (wp && prev) {
+          var sp = toSVG(prev.x, prev.y);
+          var sc = toSVG(wp.x,   wp.y);
+          var ln = document.createElementNS(NS, 'line');
+          ln.setAttribute('x1', sp.sx.toFixed(3)); ln.setAttribute('y1', sp.sy.toFixed(3));
+          ln.setAttribute('x2', sc.sx.toFixed(3)); ln.setAttribute('y2', sc.sy.toFixed(3));
+          ln.setAttribute('stroke', 'rgba(120,190,255,0.65)');
+          ln.setAttribute('stroke-width', '0.6');
+          meshEl.appendChild(ln);
+        }
+        prev = wp || null;
+      }
+    }
+    // Vertical edges (along row axis for each column)
+    for (var vci = 0; vci < colCount; vci++) {
+      var prev2 = null;
+      for (var vri = 0; vri < rowCount; vri++) {
+        var vp = grid[vri] && grid[vri][vci];
+        if (vp && prev2) {
+          var sp2 = toSVG(prev2.x, prev2.y);
+          var sc2 = toSVG(vp.x,    vp.y);
+          var ln2 = document.createElementNS(NS, 'line');
+          ln2.setAttribute('x1', sp2.sx.toFixed(3)); ln2.setAttribute('y1', sp2.sy.toFixed(3));
+          ln2.setAttribute('x2', sc2.sx.toFixed(3)); ln2.setAttribute('y2', sc2.sy.toFixed(3));
+          ln2.setAttribute('stroke', 'rgba(120,190,255,0.65)');
+          ln2.setAttribute('stroke-width', '0.6');
+          meshEl.appendChild(ln2);
+        }
+        prev2 = vp || null;
+      }
+    }
+  }
+
   meshEl.classList.add('mesh-active');
 }
 
 function smPvizInit(cfg) {
   window._smPvizCfg = cfg;
   window._smPvizContacts = [];
+  // initialise 2D grid storage for mesh connectivity (row × col, filled on contact)
+  window._smPvizGrid = [];
+  for (var _gi = 0; _gi < (cfg.rowCount || 1); _gi++) {
+    var _row = [];
+    for (var _gj = 0; _gj < (cfg.colCount || 1); _gj++) { _row.push(null); }
+    window._smPvizGrid.push(_row);
+  }
   // reset probe sequence recording
   smPvizProbeSequence = [];
   _smPvizSeqLastTime = Date.now();
@@ -2988,6 +3088,18 @@ function smPvizUpdate(state, opts) {
     if (!window._smPvizContacts) window._smPvizContacts = [];
     if (opts.contactZ !== undefined) {
       window._smPvizContacts.push({ x: opts.x, y: opts.y, z: opts.contactZ });
+      // store in 2D grid for triangulated mesh connectivity
+      var _pvCfg = window._smPvizCfg;
+      if (_pvCfg && window._smPvizGrid) {
+        var _gSpanX = (_pvCfg.maxX - _pvCfg.minX) || 1;
+        var _gSpanY = (_pvCfg.maxY - _pvCfg.minY) || 1;
+        var _gci = _pvCfg.colCount > 1 ? Math.round((opts.x - _pvCfg.minX) / _gSpanX * (_pvCfg.colCount - 1)) : 0;
+        var _gri = _pvCfg.rowCount > 1 ? Math.round((opts.y - _pvCfg.minY) / _gSpanY * (_pvCfg.rowCount - 1)) : 0;
+        _gci = Math.max(0, Math.min(_pvCfg.colCount - 1, _gci));
+        _gri = Math.max(0, Math.min(_pvCfg.rowCount - 1, _gri));
+        if (!window._smPvizGrid[_gri]) window._smPvizGrid[_gri] = [];
+        window._smPvizGrid[_gri][_gci] = { x: opts.x, y: opts.y, z: opts.contactZ };
+      }
     }
     var surf = document.getElementById('sm-pviz-surface');
     if (surf) {

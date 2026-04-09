@@ -720,6 +720,7 @@
           </div>
         </div>
         <div style="text-align:center;margin-top:6px;font-size:11px;color:var(--muted)">Z Exaggeration: <input type="range" id="sm-z-exag" aria-label="Z Exaggeration" min="1" max="20" value="5" style="vertical-align:middle;width:90px" oninput="document.getElementById('sm-z-exag-val').textContent=this.value+'&times;';smPvizRenderMesh()"> <span id="sm-z-exag-val">5&times;</span> &nbsp;&#183;&nbsp; <label style="cursor:pointer"><input type="checkbox" id="sm-contour-toggle" aria-label="Toggle contours" onchange="renderThreeUnified3D('sm')"> Contours</label></div>
+        <div style="text-align:center;margin-top:4px;font-size:11px;color:var(--muted)"><label style="cursor:pointer;margin-right:10px"><input type="checkbox" id="sm-pviz-surface-toggle" aria-label="Toggle surface mesh" checked onchange="smPvizUpdatePartialMesh()"> Surface mesh</label><label style="cursor:pointer"><input type="checkbox" id="sm-pviz-wireframe-toggle" aria-label="Toggle wireframe" checked onchange="smPvizUpdatePartialMesh()"> Wireframe</label></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:11px;margin-top:6px;padding:0 2px">
           <div style="color:var(--muted)">Status: <span id="sm-pviz-status" style="color:var(--text);font-weight:600">Ready</span></div>
           <div style="color:var(--muted)">Point: <span id="sm-pviz-point" style="color:var(--accent2);font-weight:600">&#8212; / &#8212;</span></div>
