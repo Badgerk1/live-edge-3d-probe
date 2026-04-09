@@ -661,6 +661,10 @@ async function moveAbs(x, y, z, feed){
   cmd += ' F' + Number(feed).toFixed(0);
   pluginDebug('moveAbs: ' + cmd);
   await sendCommand(cmd);
+  // Brief delay to ensure the controller has started processing the command.
+  // Without this, waitForIdleWithTimeout may return immediately if polled before
+  // the machine transitions from idle to running state.
+  await sleep(50);
   var pos = await waitForIdleWithTimeout();
   pluginDebug('moveAbs DONE: ' + cmd);
   return pos;
@@ -675,6 +679,8 @@ async function probeSafeMove(x, y, z, feed){
   cmd += ' F' + Number(feed).toFixed(0);
   pluginDebug('probeSafeMove: ' + cmd);
   await sendCommand(cmd);
+  // Brief delay to ensure the controller has started processing the command.
+  await sleep(50);
   var pos = await waitForIdleWithTimeout();
   if(!pos) pos = await getWorkPosition();
   pluginDebug('probeSafeMove DONE: ' + cmd + ' probeTriggered=' + pos.probeTriggered);
@@ -687,6 +693,8 @@ async function moveMachineZAbs(z, feed){
   if(feed != null && isFinite(Number(feed))) cmd += ' F' + Number(feed).toFixed(0);
   pluginDebug('moveMachineZAbs: ' + cmd);
   await sendCommand(cmd);
+  // Brief delay to ensure the controller has started processing the command.
+  await sleep(50);
   await waitForIdleWithTimeout();
   pluginDebug('moveMachineZAbs DONE: ' + cmd);
 }
@@ -1025,6 +1033,7 @@ async function smPerformInitialClearanceLift(logMode, liftAmount, feed) {
   var liftCmd = 'G91 G1 Z' + liftAmount.toFixed(3) + ' F' + feed;
   logFn('[PLUGIN DEBUG] smPerformInitialClearanceLift: sending command: ' + liftCmd);
   await sendCommand(liftCmd);
+  await sleep(50); // Brief delay to ensure controller starts processing
   await waitForIdleWithTimeout();
   await sendCommand('G90'); // Return to absolute mode
   await waitForIdleWithTimeout();
@@ -1053,6 +1062,7 @@ async function smEnsureProbeClear(clearanceZ, travelFeed) {
     smLogProbe('[PLUGIN DEBUG] smEnsureProbeClear: sending command: ' + clearCmd);
     pluginDebug('smEnsureProbeClear: sending: ' + clearCmd);
     await sendCommand(clearCmd);
+    await sleep(50); // Brief delay to ensure controller starts processing
     await waitForIdleWithTimeout();
     await smSleep(200); // 200ms settle time for probe input to clear
   }
@@ -1078,6 +1088,7 @@ async function smSafeLateralMove(targetX, targetY, travelFeed, clearanceZ) {
       if (Math.abs(current - target) < 0.1) return;
       var travelDir = (target > current) ? 1 : -1;
       await sendCommand('G90 G38.3 ' + axis + target.toFixed(3) + ' F' + travelFeed);
+      await sleep(50); // Brief delay to ensure controller starts processing
       await waitForIdleWithTimeout();
       var newPos = await getWorkPosition();
       var arrived = (axis === 'X') ? newPos.x : newPos.y;
@@ -1092,8 +1103,10 @@ async function smSafeLateralMove(targetX, targetY, travelFeed, clearanceZ) {
       var liftZ = newPos.z + lift;
       smLogProbe('TRAVEL CONTACT: recovery ' + retries + '/' + maxRetries + ': ' + axis + ' to ' + bounceVal.toFixed(3) + ', lift Z to ' + liftZ.toFixed(3) + '.');
       await sendCommand('G90 G1 ' + axis + bounceVal.toFixed(3) + ' F' + travelFeed);
+      await sleep(50); // Brief delay to ensure controller starts processing
       await waitForIdleWithTimeout();
       await sendCommand('G90 G1 Z' + liftZ.toFixed(3) + ' F' + travelFeed);
+      await sleep(50); // Brief delay to ensure controller starts processing
       await waitForIdleWithTimeout();
       await smSleep(120);
       await attempt();
@@ -1109,6 +1122,7 @@ async function smSafeLateralMove(targetX, targetY, travelFeed, clearanceZ) {
   smLogProbe('[PLUGIN DEBUG] smSafeLateralMove: sending command: ' + liftCmd);
   pluginDebug('smSafeLateralMove: Z-lift cmd: ' + liftCmd);
   await sendCommand(liftCmd);
+  await sleep(50); // Brief delay to ensure controller starts processing
   smLogProbe('[PLUGIN DEBUG] smSafeLateralMove: waiting for idle after Z lift...');
   await waitForIdleWithTimeout();
   smLogProbe('[PLUGIN DEBUG] smSafeLateralMove: idle confirmed after Z lift');
@@ -1137,6 +1151,7 @@ async function smPlungeProbe(maxPlunge, probeFeed) {
   smLogProbe('[PLUGIN DEBUG] smPlungeProbe: sending command: ' + probeCmd);
   pluginDebug('smPlungeProbe: sending: ' + probeCmd);
   await sendCommand(probeCmd);
+  await sleep(50); // Brief delay to ensure controller starts processing
   smLogProbe('[PLUGIN DEBUG] smPlungeProbe: waiting for idle after probe move...');
   await waitForIdleWithTimeout();
   smLogProbe('[PLUGIN DEBUG] smPlungeProbe: idle confirmed after probe move');
@@ -4446,11 +4461,13 @@ async function probeAbsAxis(axis, target, feed, skipClearCheck){
         var probeDir = Number(target) >= curAxisPos ? 1 : -1;
         var backoffPos = curAxisPos - probeDir * 2;
         await sendCommand('G90 G1 ' + axis + backoffPos.toFixed(3) + ' F' + Number(s && (s.faceRetractFeed || s.travelFeedRate) || 1000).toFixed(0));
+        await sleep(50); // Brief delay to ensure controller starts processing
         await waitForIdleWithTimeout();
         await smSleep(80);
       }
     }
     await sendCommand('G90 G38.2 ' + axis + Number(target).toFixed(3) + ' F' + Number(feed).toFixed(0));
+    await sleep(50); // Brief delay to ensure controller starts processing
     var probePos = await waitForIdleWithTimeout();
     return probePos || await getWorkPosition();
   }
