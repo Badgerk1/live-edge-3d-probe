@@ -113,25 +113,75 @@ function _upsampleFaceData(data, targetSpacing) {
   if (!data || data.length < 4) {
     return { pts: data.map(function(p){ return {x:Number(p.x),y:Number(p.y),z:Number(p.z)}; }), vMap: null, rowCount: 0, colCount: 0 };
   }
-  var xSet = {}, zSet = {};
+
+  var hasLayers = data.some(function(p) { return p.layer != null; });
+
+  var xSet = {};
   data.forEach(function(p) {
-    xSet[Number(p.x).toFixed(6)] = Number(p.x);
-    zSet[Number(p.z).toFixed(6)] = Number(p.z);
+    var xv = Number(p.x);
+    if (isFinite(xv)) xSet[xv.toFixed(6)] = xv;
   });
   var xVals = Object.keys(xSet).map(function(k){ return xSet[k]; }).sort(function(a,b){return a-b;});
-  var zVals = Object.keys(zSet).map(function(k){ return zSet[k]; }).sort(function(a,b){return a-b;});
-  var nCols = xVals.length, nRows = zVals.length;
+  var nCols = xVals.length;
+
+  var zVals, nRows, ri2key;
+  if (hasLayers) {
+    var layerSet = {}, layerZSum = {}, layerZCnt = {};
+    data.forEach(function(p) {
+      var lv = Number(p.layer);
+      var zv = Number(p.z);
+      if (!isFinite(lv)) return;
+      layerSet[lv] = true;
+      if (isFinite(zv)) {
+        if (!(lv in layerZSum)) { layerZSum[lv] = 0; layerZCnt[lv] = 0; }
+        layerZSum[lv] += zv; layerZCnt[lv]++;
+      }
+    });
+    var layerNums = Object.keys(layerSet).map(Number).sort(function(a,b){return a-b;});
+    nRows = layerNums.length;
+    zVals = layerNums.map(function(l) {
+      return (layerZCnt[l] > 0) ? layerZSum[l] / layerZCnt[l] : 0;
+    });
+    var li2rowIdx = {};
+    layerNums.forEach(function(l, i) { li2rowIdx[l] = i; });
+    ri2key = function(p) { return li2rowIdx[Number(p.layer)]; };
+  } else {
+    var zSet = {};
+    data.forEach(function(p) {
+      var zv = Number(p.z);
+      if (isFinite(zv)) zSet[zv.toFixed(6)] = zv;
+    });
+    zVals = Object.keys(zSet).map(function(k){ return zSet[k]; }).sort(function(a,b){return a-b;});
+    nRows = zVals.length;
+    var zi2idx = {};
+    zVals.forEach(function(v, i){ zi2idx[v.toFixed(6)] = i; });
+    ri2key = function(p) {
+      var zv = Number(p.z);
+      return isFinite(zv) ? zi2idx[zv.toFixed(6)] : undefined;
+    };
+  }
+
   if (nCols < 2 || nRows < 2) {
     return { pts: data.map(function(p){ return {x:Number(p.x),y:Number(p.y),z:Number(p.z)}; }), vMap: null, rowCount: 0, colCount: 0 };
   }
-  var xi2idx = {}, zi2idx = {};
+  var xi2idx = {};
   xVals.forEach(function(v, i){ xi2idx[v.toFixed(6)] = i; });
-  zVals.forEach(function(v, i){ zi2idx[v.toFixed(6)] = i; });
+  var cellSumY = {}, cellCntY = {};
+  data.forEach(function(p) {
+    var xi = xi2idx[Number(p.x).toFixed(6)];
+    var ri = ri2key(p);
+    if (xi == null || ri == null || !isFinite(Number(p.y))) return;
+    var key = xi + '|' + ri;
+    if (!(key in cellCntY)) { cellSumY[key] = 0; cellCntY[key] = 0; }
+    cellSumY[key] += Number(p.y); cellCntY[key]++;
+  });
   var depthGrid = [];
   for (var ri = 0; ri < nRows; ri++) { depthGrid.push(new Array(nCols).fill(null)); }
-  data.forEach(function(p) {
-    var xi = xi2idx[Number(p.x).toFixed(6)], zi = zi2idx[Number(p.z).toFixed(6)];
-    if (xi != null && zi != null) depthGrid[zi][xi] = Number(p.y);
+  Object.keys(cellCntY).forEach(function(key) {
+    var parts = key.split('|');
+    var xi = parseInt(parts[0], 10), ri = parseInt(parts[1], 10);
+    if (xi >= 0 && xi < nCols && ri >= 0 && ri < nRows)
+      depthGrid[ri][xi] = cellSumY[key] / cellCntY[key];
   });
   var colSpacing = (xVals[nCols - 1] - xVals[0]) / (nCols - 1);
   var rowSpacing = (zVals[nRows - 1] - zVals[0]) / (nRows - 1);
@@ -201,8 +251,8 @@ var SURF_GRID_4X4 = [
 ];
 var SURF_CFG_4X4 = { rowCount: 4, colCount: 4, colSpacing: 10, rowSpacing: 10, minX: 0, minY: 0 };
 
-// 3×4 face probe dataset (3 X-samples × 4 Z-layers).
-// Each point: { x, y (contact depth), z (layer height) }.
+// 3×4 face probe dataset (3 X-samples × 4 Z-layers) with layer numbers.
+// Each point: { x, y (contact depth), z (layer height), layer }.
 var FACE_DATA_3X4 = [];
 (function() {
   var xPos = [0, 10, 20];
@@ -213,7 +263,35 @@ var FACE_DATA_3X4 = [];
       FACE_DATA_3X4.push({
         x: xPos[xi],
         y: -1 - 0.3 * Math.sin(xi * Math.PI / 2) - 0.1 * zi,
-        z: zLayers[zi]
+        z: zLayers[zi],
+        layer: zi + 1
+      });
+    }
+  }
+})();
+
+// Face probe dataset where per-sample Z values differ slightly (realistic layered probe).
+// Each column (X sample) has a slightly different sampleTopZ, causing Z drift.
+// Without the layer-number fix, _upsampleFaceData would see 3×4=12 unique Z values
+// instead of 4 layers, producing a bad 12-row grid with near-zero rowSpacing → no upsampling.
+var FACE_DATA_ZDRIFT = [];
+(function() {
+  var xPos = [0, 10, 20];
+  var sampleTopZ = [0.01, 0.03, -0.02]; // slight surface variation per X sample
+  var maxDepth = 15;
+  var nLayers = 4;
+  for (var xi = 0; xi < xPos.length; xi++) {
+    var topZ = sampleTopZ[xi];
+    var deepestZ = topZ - maxDepth;
+    for (var li = 0; li < nLayers; li++) {
+      // Per-sample layer Z differs between X positions (real-world layered probe)
+      var layerSpacing = (topZ - 0.05 - deepestZ) / (nLayers - 1);
+      var layerZ = parseFloat((deepestZ + li * layerSpacing).toFixed(6));
+      FACE_DATA_ZDRIFT.push({
+        x: xPos[xi],
+        y: -1 - 0.3 * Math.sin(xi * Math.PI / 2) - 0.1 * li,
+        z: layerZ,
+        layer: li + 1
       });
     }
   }
@@ -372,6 +450,25 @@ function testNoSubdivisionWhenSpacingMatchesGrid() {
     'Col count unchanged when targetSpacing >= gridSpacing: got ' + up.colCount);
 }
 
+function testZDriftLayerIdentity() {
+  console.log('\nTest: _upsampleFaceData with Z-drifted layer data uses layer numbers for row identity');
+
+  // FACE_DATA_ZDRIFT: 3 X × 4 layers, but per-sample Z differs between X positions.
+  // Without layer-number fix, there would be up to 12 unique Z values → nRows=12, rowSpacing~0 → no upsampling.
+  // With fix, nRows=4 (one per layer number) and upsampling proceeds correctly.
+  var rawCount = FACE_DATA_ZDRIFT.length; // 12 points
+  var up = _upsampleFaceData(FACE_DATA_ZDRIFT, 0.5);
+
+  assert(up.pts.length > rawCount,
+    'Z-drift data: upsampled count (' + up.pts.length + ') > raw count (' + rawCount + ')');
+  assert(up.vMap !== null,
+    'Z-drift data: vMap present (structured grid produced)');
+  assert(up.rowCount >= 4,
+    'Z-drift data: row count >= 4 (got ' + up.rowCount + '), proving layer-key fix applied');
+  assert(up.colCount >= 3,
+    'Z-drift data: col count >= 3 (got ' + up.colCount + ')');
+}
+
 // ── Run all tests ─────────────────────────────────────────────────────────────
 
 (async function main() {
@@ -384,6 +481,7 @@ function testNoSubdivisionWhenSpacingMatchesGrid() {
     testFaceNormalsMatchVertexCount();
     testNormalContinuityInterior();
     testNoSubdivisionWhenSpacingMatchesGrid();
+    testZDriftLayerIdentity();
   } catch (e) {
     console.error('Unexpected error in test runner:', e);
     failed++;

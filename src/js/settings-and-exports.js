@@ -608,35 +608,99 @@ function _bicubicUpsampleGrid(grid, cfg, targetSpacing) {
 // This helper builds that grid, upsamples it with _bicubicUpsampleGrid, and
 // returns both a flat vertex list and a vMap suitable for structured triangulation.
 //
-// data:          [{x, y, z, ...}, ...]   (raw face probe results)
+// When data points carry a 'layer' field (layered probe mode), layer numbers are
+// used as the row key instead of raw Z values.  Per-sample Z is computed as an
+// average per layer so slight inter-sample Z drift does not create spurious rows.
+//
+// data:          [{x, y, z, layer?, ...}, ...]  (raw face probe results)
 // targetSpacing: desired vertex spacing in mm
 // Returns:  { pts: [{x,y,z},...], vMap: [[idx|null,...], ...], rowCount, colCount }
 function _upsampleFaceData(data, targetSpacing) {
   if (!data || data.length < 4) {
     return { pts: data.map(function(p){ return {x:Number(p.x),y:Number(p.y),z:Number(p.z)}; }), vMap: null, rowCount: 0, colCount: 0 };
   }
-  // Collect unique (X, Z-layer) coordinates using 6-decimal keys.
-  var xSet = {}, zSet = {};
+
+  // Decide row identity strategy: use layer numbers when available so that
+  // per-sample Z drift (each sample has a slightly different sampleTopZ) does
+  // not create many spurious row keys.
+  var hasLayers = data.some(function(p) { return p.layer != null; });
+
+  // Collect unique X positions (column identity).
+  var xSet = {};
   data.forEach(function(p) {
-    xSet[Number(p.x).toFixed(6)] = Number(p.x);
-    zSet[Number(p.z).toFixed(6)] = Number(p.z);
+    var xv = Number(p.x);
+    if (isFinite(xv)) xSet[xv.toFixed(6)] = xv;
   });
   var xVals = Object.keys(xSet).map(function(k){ return xSet[k]; }).sort(function(a,b){return a-b;});
-  var zVals = Object.keys(zSet).map(function(k){ return zSet[k]; }).sort(function(a,b){return a-b;});
-  var nCols = xVals.length, nRows = zVals.length;
+  var nCols = xVals.length;
+
+  // Collect unique row keys and compute canonical Z per row.
+  var zVals, nRows, ri2key;
+  if (hasLayers) {
+    // Layer-keyed: aggregate Z values per layer number to get average Z per layer.
+    var layerSet = {}, layerZSum = {}, layerZCnt = {};
+    data.forEach(function(p) {
+      var lv = Number(p.layer);
+      var zv = Number(p.z);
+      if (!isFinite(lv)) return;
+      layerSet[lv] = true;
+      if (isFinite(zv)) {
+        if (!(lv in layerZSum)) { layerZSum[lv] = 0; layerZCnt[lv] = 0; }
+        layerZSum[lv] += zv; layerZCnt[lv]++;
+      }
+    });
+    var layerNums = Object.keys(layerSet).map(Number).sort(function(a,b){return a-b;});
+    nRows = layerNums.length;
+    // Canonical Z for each row = average Z of all points in that layer.
+    zVals = layerNums.map(function(l) {
+      return (layerZCnt[l] > 0) ? layerZSum[l] / layerZCnt[l] : 0;
+    });
+    // Build a function to map a data point to its row index.
+    var li2rowIdx = {};
+    layerNums.forEach(function(l, i) { li2rowIdx[l] = i; });
+    ri2key = function(p) { return li2rowIdx[Number(p.layer)]; };
+  } else {
+    // No layer info: fall back to Z-value row identity (single-pass face probe).
+    var zSet = {};
+    data.forEach(function(p) {
+      var zv = Number(p.z);
+      if (isFinite(zv)) zSet[zv.toFixed(6)] = zv;
+    });
+    zVals = Object.keys(zSet).map(function(k){ return zSet[k]; }).sort(function(a,b){return a-b;});
+    nRows = zVals.length;
+    var zi2idx = {};
+    zVals.forEach(function(v, i){ zi2idx[v.toFixed(6)] = i; });
+    ri2key = function(p) {
+      var zv = Number(p.z);
+      return isFinite(zv) ? zi2idx[zv.toFixed(6)] : undefined;
+    };
+  }
+
   if (nCols < 2 || nRows < 2) {
     return { pts: data.map(function(p){ return {x:Number(p.x),y:Number(p.y),z:Number(p.z)}; }), vMap: null, rowCount: 0, colCount: 0 };
   }
-  // Build depth grid: depthGrid[zi][xi] = contact Y value.
-  var xi2idx = {}, zi2idx = {};
+
+  // Build depth grid: depthGrid[ri][ci] = contact Y value (average for cell).
+  var xi2idx = {};
   xVals.forEach(function(v, i){ xi2idx[v.toFixed(6)] = i; });
-  zVals.forEach(function(v, i){ zi2idx[v.toFixed(6)] = i; });
+  var cellSumY = {}, cellCntY = {};
+  data.forEach(function(p) {
+    var xi = xi2idx[Number(p.x).toFixed(6)];
+    var ri = ri2key(p);
+    if (xi == null || ri == null || !isFinite(Number(p.y))) return;
+    var key = xi + '|' + ri;
+    if (!(key in cellCntY)) { cellSumY[key] = 0; cellCntY[key] = 0; }
+    cellSumY[key] += Number(p.y); cellCntY[key]++;
+  });
   var depthGrid = [];
   for (var ri = 0; ri < nRows; ri++) { depthGrid.push(new Array(nCols).fill(null)); }
-  data.forEach(function(p) {
-    var xi = xi2idx[Number(p.x).toFixed(6)], zi = zi2idx[Number(p.z).toFixed(6)];
-    if (xi != null && zi != null) depthGrid[zi][xi] = Number(p.y);
+  Object.keys(cellCntY).forEach(function(key) {
+    var parts = key.split('|');
+    var xi = parseInt(parts[0], 10), ri = parseInt(parts[1], 10);
+    if (xi >= 0 && xi < nCols && ri >= 0 && ri < nRows)
+      depthGrid[ri][xi] = cellSumY[key] / cellCntY[key];
   });
+
   // Compute mean spacings (handles slightly non-uniform grids).
   var colSpacing = (xVals[nCols - 1] - xVals[0]) / (nCols - 1);
   var rowSpacing = (zVals[nRows - 1] - zVals[0]) / (nRows - 1);
@@ -779,7 +843,9 @@ function exportFaceDXF() {
 // interpolation and uses structured-grid triangulation for smoother results.
 function exportFaceOBJ() {
   pluginDebug('exportFaceOBJ ENTER');
-  var data = getFaceMeshData();
+  // Use raw (pre-subdivision) probe data so _bicubicUpsampleGrid gets the
+  // original sparse grid and can apply proper Catmull-Rom smoothing.
+  var data = (typeof getFaceRawMeshData === 'function') ? getFaceRawMeshData() : getFaceMeshData();
   if (!data || !data.length) { pluginDebug('exportFaceOBJ: no data'); alert('No face mesh data. Run a face probe first.'); return; }
   var subSpacing = Number((document.getElementById('faceOBJSubdivision') || {}).value);
   if (!isFinite(subSpacing) || subSpacing <= 0) subSpacing = 0.5;
@@ -871,7 +937,8 @@ function exportCombinedDXF() {
 // (driven by combinedOBJSubdivision) before stitching into a watertight solid.
 function exportCombinedOBJWatertight() {
   pluginDebug('exportCombinedOBJWatertight ENTER');
-  var faceData = getFaceMeshData();
+  // Use raw (pre-subdivision) face data for bicubic quality.
+  var faceData = (typeof getFaceRawMeshData === 'function') ? getFaceRawMeshData() : getFaceMeshData();
   if (!smMeshData || !smGridConfig || !faceData || !faceData.length) {
     pluginDebug('exportCombinedOBJWatertight: missing data');
     alert('Both surface mesh and face mesh data are required for a watertight combined export.'); return;

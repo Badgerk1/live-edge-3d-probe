@@ -2361,7 +2361,7 @@ function renderSurfaceReliefMap() {
 }
 
 function renderFaceReliefMap() {
-  var data = getFaceMeshData();
+  var data = getFaceRawMeshData();
   if (!data || data.length < 4) {
     // No data — blank all face relief canvases
     ['face-relief-canvas', 'res-face-relief-canvas', 'surf-face-relief-canvas'].forEach(function(id) {
@@ -2426,7 +2426,9 @@ function renderFaceReliefMap() {
   });
 
   if (points.length < 4) return;
-  pluginDebug('renderFaceReliefMap: mode=face projection=XZ points=' + points.length + ' Y-contact=' + valMin.toFixed(3) + ' to ' + valMax.toFixed(3));
+  pluginDebug('renderFaceReliefMap: RAW=' + data.length + ' CELLS=' + Object.keys(cellSumY).length +
+    ' PLOTTED=' + points.length + ' COLS=' + nCols + ' ROWS=' + nRows +
+    ' Y-contact=' + valMin.toFixed(3) + ' to ' + valMax.toFixed(3));
   var reliefCfg = { xLabel: 'X (coords)', yLabel: 'Z depth (coords)', valueLabel: 'Y contact (coords)', gridCols: nCols, gridRows: nRows };
   // Render to all face relief canvas instances (Probe tab, Results tab, Mesh Data tab).
   // Show the Mesh Data tab face panel when face data is available.
@@ -5987,6 +5989,15 @@ function getFaceMeshData() {
   return null;
 }
 
+// Returns the raw (pre-subdivision) face probe data so OBJ exporters can apply
+// bicubic interpolation on the original sparse grid rather than on already-
+// bilinearly-subdivided data.  Falls back to getFaceMeshData() when no raw
+// data is available (e.g. single-pass probe or old save format).
+function getFaceRawMeshData() {
+  if (layeredFaceResultsRaw && layeredFaceResultsRaw.length) return layeredFaceResultsRaw;
+  return getFaceMeshData();
+}
+
 // ── Face Wall Grid Builder ─────────────────────────────────────────────────────
 // Converts layered face results into a 2D [colIndex][rowIndex] grid suitable
 // for rendering as a perpendicular wall below the front edge of the top surface.
@@ -6204,9 +6215,12 @@ function updateFaceMeshTable() {
 }
 
 function saveFaceMeshData() {
-  var data = getFaceMeshData();
-  if (!data || !data.length) { alert('No face mesh data to save. Run a face probe first.'); return; }
-  var payload = { faceMeshData: data, timestamp: Date.now() };
+  // Always save the raw (pre-subdivision) probe data so the file can be
+  // re-loaded and re-subdivided without losing the original measurements.
+  var rawData = (layeredFaceResultsRaw && layeredFaceResultsRaw.length)
+    ? layeredFaceResultsRaw : getFaceMeshData();
+  if (!rawData || !rawData.length) { alert('No face mesh data to save. Run a face probe first.'); return; }
+  var payload = { faceMeshData: rawData, timestamp: Date.now() };
   var json = JSON.stringify(payload, null, 2);
   try { localStorage.setItem(FACE_MESH_STORAGE_KEY, json); } catch(e) {}
   if (window.showSaveFilePicker) {
@@ -6256,6 +6270,7 @@ function loadFaceMeshData() {
 function clearFaceMeshData() {
   if (!confirm('Clear all face mesh data?')) return;
   layeredFaceResults = [];
+  layeredFaceResultsRaw = [];
   faceResults = [];
   try { localStorage.removeItem(FACE_MESH_STORAGE_KEY); } catch(e) {}
   updateFaceMeshDataUI();
@@ -6264,9 +6279,11 @@ function clearFaceMeshData() {
 }
 
 function exportFaceMeshJSON() {
-  var data = getFaceMeshData();
-  if (!data || !data.length) { alert('No face mesh data to export. Run a face probe first.'); return; }
-  var json = JSON.stringify({ faceMeshData: data, timestamp: Date.now() }, null, 2);
+  // Export the raw probe data so re-importing preserves original measurements.
+  var rawData = (layeredFaceResultsRaw && layeredFaceResultsRaw.length)
+    ? layeredFaceResultsRaw : getFaceMeshData();
+  if (!rawData || !rawData.length) { alert('No face mesh data to export. Run a face probe first.'); return; }
+  var json = JSON.stringify({ faceMeshData: rawData, timestamp: Date.now() }, null, 2);
   var blob = new Blob([json], { type: 'application/json' });
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
