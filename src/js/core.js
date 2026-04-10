@@ -2060,7 +2060,9 @@ function zToColorRelief(t) {
 // cfg: { xLabel, yLabel, valueLabel, contourInterval, gridCols, gridRows }
 //      gridCols/gridRows: number of unique x/y positions (used for bilinear interp)
 // The points array must be on a regular grid sorted by py ascending then px ascending.
-function renderReliefMap(canvasId, tooltipId, points, cfg) {
+// markerPoints (optional): separate point set for the probe contact dot markers;
+//   defaults to the same as points if not provided.
+function renderReliefMap(canvasId, tooltipId, points, cfg, markerPoints) {
   var canvas = document.getElementById(canvasId);
   if (!canvas) return;
 
@@ -2206,11 +2208,12 @@ function renderReliefMap(canvasId, tooltipId, points, cfg) {
   // Clamp marker centres so circles of radius MARK_R stay fully within the plot area
   // rather than being half-obscured by the dark axis padding at domain extremes.
   var MARK_R = 4;
+  var dotPts = (markerPoints && markerPoints.length >= 1) ? markerPoints : points;
   ctx.save();
   ctx.fillStyle = 'rgba(255,255,255,0.9)';
   ctx.strokeStyle = '#000';
   ctx.lineWidth = 1.2;
-  points.forEach(function(p) {
+  dotPts.forEach(function(p) {
     var cp = dataToCanvas(p.px, p.py);
     var cx = Math.max(padL + MARK_R, Math.min(padL + plotW - MARK_R, cp.cx));
     var cy = Math.max(padT + MARK_R, Math.min(padT + plotH - MARK_R, cp.cy));
@@ -2372,6 +2375,7 @@ function renderFaceReliefMap() {
     });
     return;
   }
+  var rawCount = data.length;
 
   // Face probe Z depths (layerZ) are computed per-sample from sampleTopZ, so they
   // differ slightly between X positions for the same layer number.  Using actual Z
@@ -2414,9 +2418,9 @@ function renderFaceReliefMap() {
   var points = [];
   var valMin = Infinity, valMax = -Infinity;
   Object.keys(cellSumY).forEach(function(key) {
-    var parts = key.split('|');
-    var xv = parseFloat(parts[0]);
-    var lv = parseInt(parts[1], 10);
+    var sep = key.lastIndexOf('|');
+    var xv = parseFloat(key.slice(0, sep));
+    var lv = parseInt(key.slice(sep + 1), 10);
     var yv = cellSumY[key] / cellCntY[key];
     var zv = layerToAvgZ[lv];
     if (!isFinite(xv) || !isFinite(yv) || !isFinite(zv)) return;
@@ -2426,7 +2430,44 @@ function renderFaceReliefMap() {
   });
 
   if (points.length < 4) return;
-  pluginDebug('renderFaceReliefMap: mode=face projection=XZ points=' + points.length + ' Y-contact=' + valMin.toFixed(3) + ' to ' + valMax.toFixed(3));
+
+  // When raw (pre-subdivision) data is available, use it for the marker dots so
+  // the user sees only their original probe contact positions (not the many
+  // interpolated subdivision points which would crowd the map).
+  var markerPoints = points;
+  var rawMarkerCount = points.length;
+  if (typeof layeredFaceResultsRaw !== 'undefined' && layeredFaceResultsRaw && layeredFaceResultsRaw.length) {
+    var rawCellSumY = {}, rawCellCntY = {}, rawLayerZSum = {}, rawLayerZCnt = {};
+    layeredFaceResultsRaw.forEach(function(r) {
+      var xv = Number(r.x), yv = Number(r.y), zv = Number(r.z);
+      var lv = r.layer != null ? Number(r.layer) : DEFAULT_LAYER;
+      if (!isFinite(xv) || !isFinite(yv) || !isFinite(zv)) return;
+      if (!(lv in rawLayerZSum)) { rawLayerZSum[lv] = 0; rawLayerZCnt[lv] = 0; }
+      rawLayerZSum[lv] += zv; rawLayerZCnt[lv]++;
+      var key = xv.toFixed(6) + '|' + lv;
+      if (!(key in rawCellSumY)) { rawCellSumY[key] = 0; rawCellCntY[key] = 0; }
+      rawCellSumY[key] += yv; rawCellCntY[key]++;
+    });
+    var rawLayerToAvgZ = {};
+    Object.keys(rawLayerZSum).forEach(function(l) { rawLayerToAvgZ[l] = rawLayerZSum[l] / rawLayerZCnt[l]; });
+    var rawPts = [];
+    Object.keys(rawCellSumY).forEach(function(key) {
+      var sep = key.lastIndexOf('|');
+      var xv = parseFloat(key.slice(0, sep));
+      var lv = parseInt(key.slice(sep + 1), 10);
+      var yv = rawCellSumY[key] / rawCellCntY[key];
+      var zv = rawLayerToAvgZ[lv];
+      if (!isFinite(xv) || !isFinite(yv) || !isFinite(zv)) return;
+      rawPts.push({ px: xv, py: zv, val: yv });
+    });
+    if (rawPts.length >= 4) { markerPoints = rawPts; rawMarkerCount = rawPts.length; }
+  }
+
+  pluginDebug('renderFaceReliefMap: RAW=' + rawCount +
+    ' NORMALIZED=' + points.length +
+    ' GRID_FILLED=' + (nCols * nRows) +
+    ' RENDERED_MARKERS=' + rawMarkerCount +
+    ' Y-contact=' + valMin.toFixed(3) + ' to ' + valMax.toFixed(3));
   var reliefCfg = { xLabel: 'X (coords)', yLabel: 'Z depth (coords)', valueLabel: 'Y contact (coords)', gridCols: nCols, gridRows: nRows };
   // Render to all face relief canvas instances (Probe tab, Results tab, Mesh Data tab).
   // Show the Mesh Data tab face panel when face data is available.
@@ -2436,7 +2477,7 @@ function renderFaceReliefMap() {
   ['face-relief-canvas', 'res-face-relief-canvas', 'surf-face-relief-canvas'].forEach(function(canvasId) {
     if (!document.getElementById(canvasId)) return;
     var tooltipId = canvasId.replace('-canvas', '-tooltip');
-    renderReliefMap(canvasId, tooltipId, points, reliefCfg);
+    renderReliefMap(canvasId, tooltipId, points, reliefCfg, markerPoints);
   });
 }
 
@@ -6204,7 +6245,12 @@ function updateFaceMeshTable() {
 }
 
 function saveFaceMeshData() {
-  var data = getFaceMeshData();
+  // Prefer raw (pre-subdivision) probe data so bicubic export always works on
+  // the coarse original grid after reload.  Fall back to getFaceMeshData() when
+  // raw data is unavailable (e.g. legacy sessions loaded before this fix).
+  var data = (layeredFaceResultsRaw && layeredFaceResultsRaw.length)
+    ? layeredFaceResultsRaw
+    : getFaceMeshData();
   if (!data || !data.length) { alert('No face mesh data to save. Run a face probe first.'); return; }
   var payload = { faceMeshData: data, timestamp: Date.now() };
   var json = JSON.stringify(payload, null, 2);

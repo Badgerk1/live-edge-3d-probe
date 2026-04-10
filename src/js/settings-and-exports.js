@@ -512,7 +512,24 @@ function _computeVertexNormals(verts, tris) {
     var e1x=v1.x-v0.x, e1y=v1.y-v0.y, e1z=v1.z-v0.z;
     var e2x=v2.x-v0.x, e2y=v2.y-v0.y, e2z=v2.z-v0.z;
     var nx=e1y*e2z-e1z*e2y, ny=e1z*e2x-e1x*e2z, nz=e1x*e2y-e1y*e2x;
-    for (var vi = 0; vi < 3; vi++) { norms[t[vi]].x+=nx; norms[t[vi]].y+=ny; norms[t[vi]].z+=nz; }
+    var nl=Math.sqrt(nx*nx+ny*ny+nz*nz);
+    if (nl < 1e-10) continue; // degenerate triangle
+    nx/=nl; ny/=nl; nz/=nl; // unit face normal
+    // Angle-weighted accumulation: weight each vertex contribution by the
+    // interior angle of this triangle at that vertex (better than area-weighted
+    // for elongated triangles such as those in face-probe grids).
+    var vv = [v0, v1, v2];
+    for (var vi = 0; vi < 3; vi++) {
+      var vi1=(vi+1)%3, vi2=(vi+2)%3;
+      var ax=vv[vi1].x-vv[vi].x, ay=vv[vi1].y-vv[vi].y, az=vv[vi1].z-vv[vi].z;
+      var bx=vv[vi2].x-vv[vi].x, by=vv[vi2].y-vv[vi].y, bz=vv[vi2].z-vv[vi].z;
+      var al=Math.sqrt(ax*ax+ay*ay+az*az), bl=Math.sqrt(bx*bx+by*by+bz*bz);
+      if (al<1e-10 || bl<1e-10) continue;
+      var cosA=(ax*bx+ay*by+az*bz)/(al*bl);
+      cosA=Math.max(-1,Math.min(1,cosA));
+      var angle=Math.acos(cosA);
+      norms[t[vi]].x+=nx*angle; norms[t[vi]].y+=ny*angle; norms[t[vi]].z+=nz*angle;
+    }
   }
   for (var i = 0; i < norms.length; i++) {
     var n=norms[i], len=Math.sqrt(n.x*n.x+n.y*n.y+n.z*n.z);
@@ -615,32 +632,90 @@ function _upsampleFaceData(data, targetSpacing) {
   if (!data || data.length < 4) {
     return { pts: data.map(function(p){ return {x:Number(p.x),y:Number(p.y),z:Number(p.z)}; }), vMap: null, rowCount: 0, colCount: 0 };
   }
-  // Collect unique (X, Z-layer) coordinates using 6-decimal keys.
-  var xSet = {}, zSet = {};
-  data.forEach(function(p) {
-    xSet[Number(p.x).toFixed(6)] = Number(p.x);
-    zSet[Number(p.z).toFixed(6)] = Number(p.z);
-  });
+  // Collect unique X positions (used in both grouping modes).
+  var xSet = {};
+  data.forEach(function(p) { xSet[Number(p.x).toFixed(6)] = Number(p.x); });
   var xVals = Object.keys(xSet).map(function(k){ return xSet[k]; }).sort(function(a,b){return a-b;});
-  var zVals = Object.keys(zSet).map(function(k){ return zSet[k]; }).sort(function(a,b){return a-b;});
-  var nCols = xVals.length, nRows = zVals.length;
-  if (nCols < 2 || nRows < 2) {
+  var nCols = xVals.length;
+  if (nCols < 2) {
     return { pts: data.map(function(p){ return {x:Number(p.x),y:Number(p.y),z:Number(p.z)}; }), vMap: null, rowCount: 0, colCount: 0 };
   }
-  // Build depth grid: depthGrid[zi][xi] = contact Y value.
-  var xi2idx = {}, zi2idx = {};
+  var xi2idx = {};
   xVals.forEach(function(v, i){ xi2idx[v.toFixed(6)] = i; });
-  zVals.forEach(function(v, i){ zi2idx[v.toFixed(6)] = i; });
-  var depthGrid = [];
-  for (var ri = 0; ri < nRows; ri++) { depthGrid.push(new Array(nCols).fill(null)); }
-  data.forEach(function(p) {
-    var xi = xi2idx[Number(p.x).toFixed(6)], zi = zi2idx[Number(p.z).toFixed(6)];
-    if (xi != null && zi != null) depthGrid[zi][xi] = Number(p.y);
-  });
+
+  // ── Determine row-grouping strategy ────────────────────────────────────────
+  // When data carries a .layer attribute (raw probe results from layeredFaceResultsRaw
+  // or post-subdivision results with inherited layer numbers) we group by integer
+  // layer number and use the per-layer average-Z as the row's Z coordinate.
+  // This is critical when each X sample has a slightly different per-sample layerZ
+  // (because sampleTopZ differs across X positions): naïve Z-value keying would
+  // produce a grossly over-populated row set with only one filled cell per row,
+  // making the bicubic pass produce garbage.  Layer-based grouping collapses all
+  // per-sample Z variants back into the intended N-layer × M-sample grid so the
+  // bicubic interpolation works on the coarse probe data as intended.
+  var hasLayer = data.some(function(p) { return p.layer != null; });
+
+  var nRows, rowToZ, depthGrid;
+
+  if (hasLayer) {
+    // ── Layer-based row grouping ──────────────────────────────────────────────
+    var layerZSum = {}, layerZCnt = {}, layerSet = {};
+    // Average Y contact per (x, layer) cell — handles duplicates gracefully.
+    var cellSumY = {}, cellCnt = {};
+    data.forEach(function(p) {
+      var lv = Number(p.layer != null ? p.layer : 1);
+      var xv = Number(p.x), yv = Number(p.y), zv = Number(p.z);
+      if (!isFinite(xv) || !isFinite(yv) || !isFinite(zv)) return;
+      layerSet[lv] = true;
+      if (!(lv in layerZSum)) { layerZSum[lv] = 0; layerZCnt[lv] = 0; }
+      layerZSum[lv] += zv; layerZCnt[lv]++;
+      var key = xv.toFixed(6) + '|' + lv;
+      if (!(key in cellCnt)) { cellSumY[key] = 0; cellCnt[key] = 0; }
+      cellSumY[key] += yv; cellCnt[key]++;
+    });
+    var layers = Object.keys(layerSet).map(Number).sort(function(a,b){return a-b;});
+    nRows = layers.length;
+    if (nRows < 2) {
+      return { pts: data.map(function(p){ return {x:Number(p.x),y:Number(p.y),z:Number(p.z)}; }), vMap: null, rowCount: 0, colCount: 0 };
+    }
+    // Average Z per layer — used as the canonical row Z coordinate.
+    rowToZ = layers.map(function(l) { return layerZSum[l] / layerZCnt[l]; });
+    var li2idx = {};
+    layers.forEach(function(l, i){ li2idx[l] = i; });
+    depthGrid = [];
+    for (var ri0 = 0; ri0 < nRows; ri0++) { depthGrid.push(new Array(nCols).fill(null)); }
+    Object.keys(cellCnt).forEach(function(key) {
+      var sep = key.lastIndexOf('|');
+      var xv = parseFloat(key.slice(0, sep));
+      var lv = parseInt(key.slice(sep + 1), 10);
+      var xi = xi2idx[xv.toFixed(6)], li = li2idx[lv];
+      if (xi != null && li != null) depthGrid[li][xi] = cellSumY[key] / cellCnt[key];
+    });
+  } else {
+    // ── Z-value-based row grouping (original behaviour for single-pass data) ──
+    var zSet = {};
+    data.forEach(function(p) { zSet[Number(p.z).toFixed(6)] = Number(p.z); });
+    var zVals = Object.keys(zSet).map(function(k){ return zSet[k]; }).sort(function(a,b){return a-b;});
+    nRows = zVals.length;
+    if (nRows < 2) {
+      return { pts: data.map(function(p){ return {x:Number(p.x),y:Number(p.y),z:Number(p.z)}; }), vMap: null, rowCount: 0, colCount: 0 };
+    }
+    rowToZ = zVals;
+    var zi2idx = {};
+    zVals.forEach(function(v, i){ zi2idx[v.toFixed(6)] = i; });
+    depthGrid = [];
+    for (var ri1 = 0; ri1 < nRows; ri1++) { depthGrid.push(new Array(nCols).fill(null)); }
+    data.forEach(function(p) {
+      var xi = xi2idx[Number(p.x).toFixed(6)], zi = zi2idx[Number(p.z).toFixed(6)];
+      if (xi != null && zi != null) depthGrid[zi][xi] = Number(p.y);
+    });
+  }
+
   // Compute mean spacings (handles slightly non-uniform grids).
   var colSpacing = (xVals[nCols - 1] - xVals[0]) / (nCols - 1);
-  var rowSpacing = (zVals[nRows - 1] - zVals[0]) / (nRows - 1);
-  var cfg = { rowCount: nRows, colCount: nCols, colSpacing: colSpacing, rowSpacing: rowSpacing, minX: xVals[0], minY: zVals[0] };
+  var zSpan = Math.abs(rowToZ[nRows - 1] - rowToZ[0]);
+  var rowSpacing = zSpan / (nRows - 1);
+  var cfg = { rowCount: nRows, colCount: nCols, colSpacing: colSpacing, rowSpacing: rowSpacing, minX: xVals[0], minY: rowToZ[0] };
   var up = _bicubicUpsampleGrid(depthGrid, cfg, targetSpacing);
   // Convert grid to flat vertex list + vMap for structured triangulation.
   var pts = [], vMap = [];
@@ -779,7 +854,15 @@ function exportFaceDXF() {
 // interpolation and uses structured-grid triangulation for smoother results.
 function exportFaceOBJ() {
   pluginDebug('exportFaceOBJ ENTER');
-  var data = getFaceMeshData();
+  // Prefer the raw (pre-subdivision) probe data so the bicubic interpolation
+  // operates on the coarse original probe grid.  If raw data is not available
+  // (e.g. data loaded from a combined mesh file that only stores faceResults),
+  // fall back to getFaceMeshData() which may return the bilinearly-subdivided
+  // layeredFaceResults.  The layer-aware path in _upsampleFaceData ensures
+  // correct grouping in both cases.
+  var data = (typeof layeredFaceResultsRaw !== 'undefined' && layeredFaceResultsRaw && layeredFaceResultsRaw.length)
+    ? layeredFaceResultsRaw
+    : getFaceMeshData();
   if (!data || !data.length) { pluginDebug('exportFaceOBJ: no data'); alert('No face mesh data. Run a face probe first.'); return; }
   var subSpacing = Number((document.getElementById('faceOBJSubdivision') || {}).value);
   if (!isFinite(subSpacing) || subSpacing <= 0) subSpacing = 0.5;
