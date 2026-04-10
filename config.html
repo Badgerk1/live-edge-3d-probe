@@ -109,32 +109,41 @@
     #surface-edge-mesh-root input[type="number"]::-webkit-inner-spin-button,#surface-edge-mesh-root input[type="number"]::-webkit-outer-spin-button{ opacity: 1; }
     #surface-edge-mesh-root input[type="number"]{ -moz-appearance: auto; appearance: auto; }
 
-    /* ── Probe Visualizer 3D ──────────────────────────────────────────────── */
+    /* ── Probe Visualizer (Top-Down default) ─────────────────────────────── */
     #surface-edge-mesh-root #sm-probeViz{display:block;margin-top:10px}
-    #surface-edge-mesh-root #sm-pviz-scene{position:relative;height:250px;background:radial-gradient(ellipse at 50% 0%,#0f1f38 0%,#060a10 70%);border:1px solid var(--line);border-radius:10px;overflow:hidden;perspective:700px;perspective-origin:50% 10%;cursor:grab;user-select:none}
+    #surface-edge-mesh-root #sm-pviz-scene{position:relative;height:250px;background:radial-gradient(ellipse at 50% 0%,#0f1f38 0%,#060a10 70%);border:1px solid var(--line);border-radius:10px;overflow:hidden;cursor:grab;user-select:none}
     #surface-edge-mesh-root #sm-pviz-scene.pviz-dragging{cursor:grabbing}
-    #surface-edge-mesh-root #sm-pviz-3dscene{position:absolute;width:78%;height:58%;left:11%;top:18%;transform-style:preserve-3d;transform:rotateX(60deg) rotateY(0deg) rotateZ(-35deg)}
+    #surface-edge-mesh-root #sm-pviz-3dscene{position:absolute;width:78%;height:58%;left:11%;top:18%}
     #surface-edge-mesh-root #sm-pviz-reset-btn{position:absolute;top:7px;right:9px;z-index:10;padding:3px 9px;border-radius:8px;border:1px solid rgba(58,85,128,0.55);background:rgba(8,17,30,0.72);color:var(--muted);font:10px/1.5 system-ui,-apple-system,sans-serif;cursor:pointer;transition:color .2s,border-color .2s}
     #surface-edge-mesh-root #sm-pviz-reset-btn:hover{color:var(--text);border-color:var(--accent2)}
-    #surface-edge-mesh-root #sm-pviz-surface{position:absolute;inset:0;background-image:repeating-linear-gradient(90deg,rgba(58,85,128,0.45) 0 1px,transparent 1px 100%),repeating-linear-gradient(0deg,rgba(58,85,128,0.45) 0 1px,transparent 1px 100%);background-size:25% 33.33%;background-color:#08111e;border:1px solid rgba(58,85,128,0.65);transform-style:preserve-3d}
-    #surface-edge-mesh-root .sm-pviz-dot{position:absolute;width:9px;height:9px;border-radius:50%;margin:-4.5px 0 0 -4.5px;transform:translateZ(4px);pointer-events:none;transition:opacity .3s}
-    #surface-edge-mesh-root #sm-pviz-mesh-layer{position:absolute;inset:0;transform:translateZ(-2px);pointer-events:none;transform-style:preserve-3d}
+    #surface-edge-mesh-root #sm-pviz-surface{position:absolute;inset:0;background-image:repeating-linear-gradient(90deg,rgba(58,85,128,0.45) 0 1px,transparent 1px 100%),repeating-linear-gradient(0deg,rgba(58,85,128,0.45) 0 1px,transparent 1px 100%);background-size:25% 33.33%;background-color:#08111e;border:1px solid rgba(58,85,128,0.65);z-index:2}
+    #surface-edge-mesh-root .sm-pviz-dot{position:absolute;width:9px;height:9px;border-radius:50%;margin:-4.5px 0 0 -4.5px;pointer-events:none;transition:opacity .3s;z-index:3}
+    #surface-edge-mesh-root #sm-pviz-mesh-layer{position:absolute;inset:0;pointer-events:none;z-index:1}
     #surface-edge-mesh-root #sm-pviz-mesh{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;opacity:0;transition:opacity 0.5s ease}
     #surface-edge-mesh-root #sm-pviz-mesh.mesh-active{opacity:1}
-    #surface-edge-mesh-root #sm-pviz-probe-wrap{position:absolute;transform-style:preserve-3d;transform:translateZ(2px);width:0;height:0;left:50%;top:50%;transition:left 25ms linear,top 25ms linear}
-    #surface-edge-mesh-root #sm-pviz-probe-shadow{position:absolute;width:18px;height:18px;border-radius:50%;margin:-9px 0 0 -9px;background:rgba(149,168,200,.18);transform:translateZ(0)}
-    /* transform layering for probe spindle:
-       #sm-pviz-probe-body  — scene-space position + plunge (translateZ idle, translateY+translateZ on plunge/contact)
-       #sm-pviz-probe-orient — counter-rotates to keep probe vertical (tip pointing down toward surface)
-       .sm-probe-img        — idle wobble/bob delta layered on top; never resets the base rotation */
-    #surface-edge-mesh-root #sm-pviz-probe-body{position:absolute;margin:-138px 0 0 -23px;transform:translateZ(52px);transition:transform 25ms linear;transform-style:preserve-3d;pointer-events:none}
-    #surface-edge-mesh-root #sm-pviz-probe-orient{transform-style:preserve-3d;transform:rotateZ(35deg) rotateX(-60deg)}
+    #surface-edge-mesh-root #sm-pviz-probe-wrap{position:absolute;width:0;height:0;left:50%;top:50%;transition:left 25ms linear,top 25ms linear;z-index:4}
+    #surface-edge-mesh-root #sm-pviz-probe-shadow{position:absolute;width:18px;height:18px;border-radius:50%;margin:-9px 0 0 -9px;background:rgba(149,168,200,.18)}
+    /* Probe body: tip (SVG bottom at y=138) pinned to wrap origin. Fixed 46px width → left:-23px top:-138px */
+    #surface-edge-mesh-root #sm-pviz-probe-body{position:absolute;left:-23px;top:-138px;transition:transform 25ms linear;pointer-events:none}
     #surface-edge-mesh-root .sm-probe-img{width:46px;height:auto;display:block;transform-origin:50% 90%;filter:drop-shadow(0 6px 10px rgba(0,0,0,.45));animation:smProbeWobble 2.4s ease-in-out infinite}
     #surface-edge-mesh-root #sm-pviz-probe-body.probe-plunging .sm-probe-img,#surface-edge-mesh-root #sm-pviz-probe-body.probe-contact .sm-probe-img{animation:none}
     @keyframes smProbeWobble{0%,100%{transform:translateY(0) rotateZ(0deg)}30%{transform:translateY(-3px) rotateZ(1.5deg)}70%{transform:translateY(-1.5px) rotateZ(-1deg)}}
-    #surface-edge-mesh-root #sm-pviz-probe-body.probe-plunging{transform:translateZ(4px)}
-    #surface-edge-mesh-root #sm-pviz-probe-body.probe-contact{transform:translateZ(4px);animation:smPvizBodyGlow .55s ease-in-out 3}
+    /* Top-down plunge/contact: purely 2D translateY so tip stays pinned and never appears below surface */
+    #surface-edge-mesh-root #sm-pviz-probe-body.probe-plunging{transform:translateY(10px)}
+    #surface-edge-mesh-root #sm-pviz-probe-body.probe-contact{transform:translateY(12px);animation:smPvizBodyGlow .55s ease-in-out 3}
     @keyframes smPvizBodyGlow{0%,100%{filter:drop-shadow(0 0 3px rgba(255,106,32,.15))}50%{filter:drop-shadow(0 0 8px rgba(255,106,32,.95)) drop-shadow(0 0 18px rgba(255,106,32,.5))}}
+    /* ── Probe Visualizer: optional 3D tilt mode (.sm-pviz-tilt on #sm-pviz-scene) ── */
+    #surface-edge-mesh-root #sm-pviz-scene.sm-pviz-tilt{perspective:700px;perspective-origin:50% 10%}
+    #surface-edge-mesh-root #sm-pviz-scene.sm-pviz-tilt #sm-pviz-3dscene{transform-style:preserve-3d;transform:rotateX(60deg) rotateY(0deg) rotateZ(-35deg)}
+    #surface-edge-mesh-root #sm-pviz-scene.sm-pviz-tilt #sm-pviz-surface{transform-style:preserve-3d}
+    #surface-edge-mesh-root #sm-pviz-scene.sm-pviz-tilt .sm-pviz-dot{transform:translateZ(4px);z-index:auto}
+    #surface-edge-mesh-root #sm-pviz-scene.sm-pviz-tilt #sm-pviz-mesh-layer{transform:translateZ(-2px);transform-style:preserve-3d;z-index:auto}
+    #surface-edge-mesh-root #sm-pviz-scene.sm-pviz-tilt #sm-pviz-probe-wrap{transform-style:preserve-3d;transform:translateZ(2px);z-index:auto}
+    #surface-edge-mesh-root #sm-pviz-scene.sm-pviz-tilt #sm-pviz-probe-shadow{transform:translateZ(0)}
+    #surface-edge-mesh-root #sm-pviz-scene.sm-pviz-tilt #sm-pviz-probe-body{left:0;top:0;margin:-138px 0 0 -23px;transform:translateZ(52px);transform-style:preserve-3d}
+    #surface-edge-mesh-root #sm-pviz-scene.sm-pviz-tilt #sm-pviz-probe-orient{transform-style:preserve-3d;transform:rotateZ(35deg) rotateX(-60deg)}
+    #surface-edge-mesh-root #sm-pviz-scene.sm-pviz-tilt #sm-pviz-probe-body.probe-plunging{transform:translateZ(4px)}
+    #surface-edge-mesh-root #sm-pviz-scene.sm-pviz-tilt #sm-pviz-probe-body.probe-contact{transform:translateZ(4px);animation:smPvizBodyGlow .55s ease-in-out 3}
     /* ── Results Tab 3D Visualizer ──────────────────────────────────────────── */
     #surface-edge-mesh-root #res-pviz-scene{position:relative;height:250px;background:radial-gradient(ellipse at 50% 0%,#0f1f38 0%,#060a10 70%);border:1px solid var(--line);border-radius:10px;overflow:hidden;perspective:700px;perspective-origin:50% 10%;cursor:grab;user-select:none}
     #surface-edge-mesh-root #res-pviz-scene.pviz-dragging{cursor:grabbing}
@@ -911,6 +920,7 @@
         </div>
         <div style="text-align:center;margin-top:6px;font-size:11px;color:var(--muted)">Z Exaggeration: <input type="range" id="sm-z-exag" aria-label="Z Exaggeration" min="1" max="20" value="5" style="vertical-align:middle;width:90px" oninput="document.getElementById('sm-z-exag-val').textContent=this.value+'&times;';smPvizRenderMesh()"> <span id="sm-z-exag-val">5&times;</span> &nbsp;&#183;&nbsp; <label style="cursor:pointer"><input type="checkbox" id="sm-contour-toggle" aria-label="Toggle contours" onchange="renderThreeUnified3D('sm')"> Contours</label></div>
         <div style="text-align:center;margin-top:4px;font-size:11px;color:var(--muted)"><label style="cursor:pointer;margin-right:10px"><input type="checkbox" id="sm-pviz-surface-toggle" aria-label="Toggle surface mesh" checked onchange="smPvizUpdatePartialMesh()"> Surface mesh</label><label style="cursor:pointer"><input type="checkbox" id="sm-pviz-wireframe-toggle" aria-label="Toggle wireframe" checked onchange="smPvizUpdatePartialMesh()"> Wireframe</label></div>
+        <div style="text-align:center;margin-top:4px;font-size:11px;color:var(--muted)">View: <button id="sm-pviz-view-topdown" class="btn ghost" style="font-size:10px;padding:2px 8px;height:auto;border-color:var(--accent)" aria-pressed="true" onclick="smPvizSetViewMode('top')">&#8999; Top-Down</button> <button id="sm-pviz-view-tilt" class="btn ghost" style="font-size:10px;padding:2px 8px;height:auto" aria-pressed="false" onclick="smPvizSetViewMode('tilt')">&#9700; 3D Tilt</button></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:11px;margin-top:6px;padding:0 2px">
           <div style="color:var(--muted)">Status: <span id="sm-pviz-status" style="color:var(--text);font-weight:600">Ready</span></div>
           <div style="color:var(--muted)">Point: <span id="sm-pviz-point" style="color:var(--accent2);font-weight:600">&#8212; / &#8212;</span></div>
@@ -2807,6 +2817,7 @@ function _smPvizScheduleTrack() {
 }
 
 function _smPvizUpdateProbeHeight(z) {
+  if (_smPvizViewMode !== 'tilt') return; // top-down: CSS class handles visual state; no Z translate needed
   var body = document.getElementById('sm-pviz-probe-body');
   var cfg = window._smPvizCfg;
   if (!body || !cfg || !cfg.clearanceZ) return;
@@ -3014,11 +3025,33 @@ function smPvizSetState(state) {
   var body = document.getElementById('sm-pviz-probe-body');
   if (!body) return;
   body.classList.remove('probe-plunging', 'probe-contact');
-  // Clear dynamic inline Z height so CSS class translateZ takes effect
+  // Clear any inline transform so CSS state class (translateY in top-down, translateZ in tilt) takes effect
   body.style.transform = '';
   void body.offsetWidth; // force reflow so CSS animations restart cleanly
   if (state === 'plunging') body.classList.add('probe-plunging');
   else if (state === 'contact') body.classList.add('probe-contact');
+}
+// ── Probe Visualizer view mode: 'top' (default) or 'tilt' ────────────────────
+var _smPvizViewMode = 'top';
+function smPvizSetViewMode(mode) {
+  _smPvizViewMode = (mode === 'tilt') ? 'tilt' : 'top';
+  var scene = document.getElementById('sm-pviz-scene');
+  if (scene) {
+    if (_smPvizViewMode === 'tilt') scene.classList.add('sm-pviz-tilt');
+    else scene.classList.remove('sm-pviz-tilt');
+  }
+  // Update toggle button visual state
+  var btnTop  = document.getElementById('sm-pviz-view-topdown');
+  var btnTilt = document.getElementById('sm-pviz-view-tilt');
+  if (btnTop)  { btnTop.setAttribute('aria-pressed',  _smPvizViewMode === 'top'  ? 'true' : 'false'); btnTop.style.borderColor  = _smPvizViewMode === 'top'  ? 'var(--accent)' : ''; }
+  if (btnTilt) { btnTilt.setAttribute('aria-pressed', _smPvizViewMode === 'tilt' ? 'true' : 'false'); btnTilt.style.borderColor = _smPvizViewMode === 'tilt' ? 'var(--accent)' : ''; }
+  // In tilt mode, apply current drag rotation; in top-down, clear inline transform on 3dscene
+  if (_smPvizViewMode === 'tilt') {
+    pvizApplyAllRotations();
+  } else {
+    var sc = document.getElementById('sm-pviz-3dscene');
+    if (sc) sc.style.transform = '';
+  }
 }
 function smPvizXYtoPos(x, y) {
   var cfg = window._smPvizCfg;
@@ -3223,6 +3256,8 @@ var _pvizDragActive = false, _pvizDragLastX = 0, _pvizDragLastY = 0;
 function pvizApplyAllRotations() {
   var t = 'rotateX(' + _pvizRotX + 'deg) rotateY(' + _pvizRotY + 'deg) rotateZ(' + _pvizRotZ + 'deg)';
   ['sm-pviz-3dscene', 'res-pviz-3dscene', 'surf-pviz-3dscene'].forEach(function(id) {
+    // Skip sm-pviz-3dscene when in top-down mode (rotation controlled by CSS .sm-pviz-tilt class)
+    if (id === 'sm-pviz-3dscene' && _smPvizViewMode !== 'tilt') return;
     var el = document.getElementById(id); if (el) el.style.transform = t;
   });
 }
@@ -4955,27 +4990,38 @@ function smSaveReplayHtml() {
     + '#replay-controls{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:10px}\n'
     + '#replay-timeline{flex:1 1 200px}\n'
     + '#replay-pct{font-size:10px;color:var(--muted);width:36px;text-align:right}\n'
-    // 3D scene
-    + '#sm-pviz-scene{position:relative;height:250px;background:radial-gradient(ellipse at 50% 0%,#0f1f38 0%,#060a10 70%);border:1px solid var(--line);border-radius:10px;overflow:hidden;perspective:700px;perspective-origin:50% 10%;cursor:grab;user-select:none}\n'
+    // 3D scene (top-down default)
+    + '#sm-pviz-scene{position:relative;height:250px;background:radial-gradient(ellipse at 50% 0%,#0f1f38 0%,#060a10 70%);border:1px solid var(--line);border-radius:10px;overflow:hidden;cursor:grab;user-select:none}\n'
     + '#sm-pviz-scene.pviz-dragging{cursor:grabbing}\n'
-    + '#sm-pviz-3dscene{position:absolute;width:78%;height:58%;left:11%;top:18%;transform-style:preserve-3d;transform:rotateX(60deg) rotateY(0deg) rotateZ(-35deg)}\n'
+    + '#sm-pviz-3dscene{position:absolute;width:78%;height:58%;left:11%;top:18%}\n'
     + '#sm-pviz-reset-btn{position:absolute;top:7px;right:9px;z-index:10;padding:3px 9px;border-radius:8px;border:1px solid rgba(58,85,128,.55);background:rgba(8,17,30,.72);color:var(--muted);font:10px/1.5 system-ui,-apple-system,sans-serif;cursor:pointer;transition:color .2s,border-color .2s}\n'
     + '#sm-pviz-reset-btn:hover{color:var(--text);border-color:var(--accent2)}\n'
-    + '#sm-pviz-surface{position:absolute;inset:0;background-image:repeating-linear-gradient(90deg,rgba(58,85,128,.45) 0 1px,transparent 1px 100%),repeating-linear-gradient(0deg,rgba(58,85,128,.45) 0 1px,transparent 1px 100%);background-size:25% 33.33%;background-color:#08111e;border:1px solid rgba(58,85,128,.65);transform-style:preserve-3d}\n'
-    + '.sm-pviz-dot{position:absolute;width:9px;height:9px;border-radius:50%;margin:-4.5px 0 0 -4.5px;transform:translateZ(4px);pointer-events:none;transition:opacity .3s}\n'
-    + '#sm-pviz-probe-wrap{position:absolute;transform-style:preserve-3d;transform:translateZ(2px);width:0;height:0;left:50%;top:50%;transition:left 25ms linear,top 25ms linear}\n'
-    + '#sm-pviz-probe-shadow{position:absolute;width:18px;height:18px;border-radius:50%;margin:-9px 0 0 -9px;background:rgba(149,168,200,.18);transform:translateZ(0)}\n'
-    + '#sm-pviz-probe-body{position:absolute;margin:-138px 0 0 -23px;transform:translateZ(52px);transition:transform 25ms linear;transform-style:preserve-3d;pointer-events:none}\n'
-    + '#sm-pviz-probe-orient{transform-style:preserve-3d;transform:rotateZ(35deg) rotateX(-60deg)}\n'
+    + '#sm-pviz-surface{position:absolute;inset:0;background-image:repeating-linear-gradient(90deg,rgba(58,85,128,.45) 0 1px,transparent 1px 100%),repeating-linear-gradient(0deg,rgba(58,85,128,.45) 0 1px,transparent 1px 100%);background-size:25% 33.33%;background-color:#08111e;border:1px solid rgba(58,85,128,.65);z-index:2}\n'
+    + '.sm-pviz-dot{position:absolute;width:9px;height:9px;border-radius:50%;margin:-4.5px 0 0 -4.5px;pointer-events:none;transition:opacity .3s;z-index:3}\n'
+    + '#sm-pviz-probe-wrap{position:absolute;width:0;height:0;left:50%;top:50%;transition:left 25ms linear,top 25ms linear;z-index:4}\n'
+    + '#sm-pviz-probe-shadow{position:absolute;width:18px;height:18px;border-radius:50%;margin:-9px 0 0 -9px;background:rgba(149,168,200,.18)}\n'
+    + '#sm-pviz-probe-body{position:absolute;left:-23px;top:-138px;transition:transform 25ms linear;pointer-events:none}\n'
     + '.sm-probe-img{width:46px;height:auto;display:block;transform-origin:50% 90%;filter:drop-shadow(0 6px 10px rgba(0,0,0,.45));animation:smProbeWobble 2.4s ease-in-out infinite}\n'
     + '#sm-pviz-probe-body.probe-plunging .sm-probe-img,#sm-pviz-probe-body.probe-contact .sm-probe-img{animation:none}\n'
     + '@keyframes smProbeWobble{0%,100%{transform:translateY(0) rotateZ(0deg)}30%{transform:translateY(-3px) rotateZ(1.5deg)}70%{transform:translateY(-1.5px) rotateZ(-1deg)}}\n'
-    + '#sm-pviz-probe-body.probe-plunging{transform:translateZ(4px)}\n'
-    + '#sm-pviz-probe-body.probe-contact{transform:translateZ(4px);animation:smPvizBodyGlow .55s ease-in-out 3}\n'
+    + '#sm-pviz-probe-body.probe-plunging{transform:translateY(10px)}\n'
+    + '#sm-pviz-probe-body.probe-contact{transform:translateY(12px);animation:smPvizBodyGlow .55s ease-in-out 3}\n'
     + '@keyframes smPvizBodyGlow{0%,100%{filter:drop-shadow(0 0 3px rgba(255,106,32,.15))}50%{filter:drop-shadow(0 0 8px rgba(255,106,32,.95)) drop-shadow(0 0 18px rgba(255,106,32,.5))}}\n'
-    + '#sm-pviz-mesh-layer{position:absolute;inset:0;transform:translateZ(-2px);pointer-events:none;transform-style:preserve-3d}\n'
+    + '#sm-pviz-mesh-layer{position:absolute;inset:0;pointer-events:none;z-index:1}\n'
     + '#sm-pviz-mesh{position:absolute;inset:0;width:100%;height:100%;opacity:0;transition:opacity 0.5s ease;pointer-events:none;overflow:visible}\n'
     + '#sm-pviz-mesh.mesh-visible,#sm-pviz-mesh.mesh-active{opacity:1}\n'
+    // Tilt mode overrides
+    + '#sm-pviz-scene.sm-pviz-tilt{perspective:700px;perspective-origin:50% 10%}\n'
+    + '#sm-pviz-scene.sm-pviz-tilt #sm-pviz-3dscene{transform-style:preserve-3d;transform:rotateX(60deg) rotateY(0deg) rotateZ(-35deg)}\n'
+    + '#sm-pviz-scene.sm-pviz-tilt #sm-pviz-surface{transform-style:preserve-3d}\n'
+    + '#sm-pviz-scene.sm-pviz-tilt .sm-pviz-dot{transform:translateZ(4px);z-index:auto}\n'
+    + '#sm-pviz-scene.sm-pviz-tilt #sm-pviz-mesh-layer{transform:translateZ(-2px);transform-style:preserve-3d;z-index:auto}\n'
+    + '#sm-pviz-scene.sm-pviz-tilt #sm-pviz-probe-wrap{transform-style:preserve-3d;transform:translateZ(2px);z-index:auto}\n'
+    + '#sm-pviz-scene.sm-pviz-tilt #sm-pviz-probe-shadow{transform:translateZ(0)}\n'
+    + '#sm-pviz-scene.sm-pviz-tilt #sm-pviz-probe-body{left:0;top:0;margin:-138px 0 0 -23px;transform:translateZ(52px);transform-style:preserve-3d}\n'
+    + '#sm-pviz-scene.sm-pviz-tilt #sm-pviz-probe-orient{transform-style:preserve-3d;transform:rotateZ(35deg) rotateX(-60deg)}\n'
+    + '#sm-pviz-scene.sm-pviz-tilt #sm-pviz-probe-body.probe-plunging{transform:translateZ(4px)}\n'
+    + '#sm-pviz-scene.sm-pviz-tilt #sm-pviz-probe-body.probe-contact{transform:translateZ(4px);animation:smPvizBodyGlow .55s ease-in-out 3}\n'
     // info grid
     + '#pviz-info{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:11px;margin-top:6px;padding:0 2px}\n'
     + '#pviz-info .lbl{color:var(--muted)}\n'
@@ -5003,6 +5049,7 @@ function smSaveReplayHtml() {
     +     '<div id="replay-timeline" class="progress-track"><div id="replay-progress-fill" class="progress-fill"></div></div>\n'
     +     '<span id="replay-pct">0%</span>\n'
     +   '</div>\n'
+    +   '<div style="text-align:center;margin-bottom:6px;font-size:11px;color:var(--muted)">View: <button id="btn-view-top" class="btn ghost" style="font-size:10px;padding:2px 8px;height:auto;border-color:var(--accent)" aria-pressed="true" onclick="setViewMode(\'top\')">&#8999; Top-Down</button> <button id="btn-view-tilt" class="btn ghost" style="font-size:10px;padding:2px 8px;height:auto" aria-pressed="false" onclick="setViewMode(\'tilt\')">&#9700; 3D Tilt</button></div>\n'
     +   '<div id="sm-pviz-scene">\n'
     +     '<button id="sm-pviz-reset-btn" title="Reset view \u00b7 double-click also works">\u21bb Reset View</button>\n'
     +     '<div id="sm-pviz-3dscene">\n'
@@ -5028,7 +5075,7 @@ function smSaveReplayHtml() {
     +     '<div style="text-align:right;font-size:10px;color:var(--muted);margin-top:2px"><span id="sm-pviz-pct">0%</span></div>'
     +   '</div>\n'
     +   '<div style="text-align:center;margin-top:6px;font-size:11px;color:var(--muted)">Z Exaggeration: <input type="range" id="replay-z-exag" aria-label="Z Exaggeration" min="1" max="20" value="5" style="vertical-align:middle;width:90px" oninput="document.getElementById(\'replay-z-exag-val\').textContent=this.value+\'\u00d7\';renderMesh()"> <span id="replay-z-exag-val">5\u00d7</span></div>\n'
-    +   '<div class="hint">Drag / touch to rotate \u00b7 Double-click to reset view</div>\n'
+    +   '<div class="hint">Top-Down by default \u00b7 Use View toggle above to switch to 3D Tilt \u00b7 In tilt: drag to rotate, double-click to reset</div>\n'
     + '</div>\n'
     + '</div>\n'
     + '<script>\n'
@@ -5037,15 +5084,36 @@ function smSaveReplayHtml() {
     + 'var gridConfig    = ' + cfgJson + ';\n'
     + 'var meshData      = ' + meshJson + ';\n'
     + '\n'
-    + '// ── Rotation state ────────────────────────────────────────────────────────\n'
+    + '// ── View mode: "top" (default) or "tilt" ─────────────────────────────────\n'
+    + 'var _viewMode = "top";\n'
+    + '\n'
+    + '// ── Rotation state (used only in tilt mode) ────────────────────────────────\n'
     + 'var _rotX = 60, _rotY = 0, _rotZ = -35;\n'
     + 'var _dragActive = false, _dragLastX = 0, _dragLastY = 0;\n'
     + '\n'
     + 'function applyRotation() {\n'
+    + '  if (_viewMode !== "tilt") return;\n'
     + '  var el = document.getElementById("sm-pviz-3dscene");\n'
     + '  if (el) el.style.transform = "rotateX(" + _rotX + "deg) rotateY(" + _rotY + "deg) rotateZ(" + _rotZ + "deg)";\n'
     + '}\n'
-    + 'function resetView() { _rotX = 60; _rotY = 0; _rotZ = -35; applyRotation(); }\n'
+    + 'function resetView() {\n'
+    + '  _rotX = 60; _rotY = 0; _rotZ = -35;\n'
+    + '  if (_viewMode === "tilt") applyRotation();\n'
+    + '}\n'
+    + 'function setViewMode(mode) {\n'
+    + '  _viewMode = (mode === "tilt") ? "tilt" : "top";\n'
+    + '  var scene = document.getElementById("sm-pviz-scene");\n'
+    + '  if (scene) {\n'
+    + '    if (_viewMode === "tilt") scene.classList.add("sm-pviz-tilt");\n'
+    + '    else scene.classList.remove("sm-pviz-tilt");\n'
+    + '  }\n'
+    + '  var btnTop  = document.getElementById("btn-view-top");\n'
+    + '  var btnTilt = document.getElementById("btn-view-tilt");\n'
+    + '  if (btnTop)  { btnTop.setAttribute("aria-pressed",  _viewMode === "top"  ? "true" : "false"); btnTop.style.borderColor  = _viewMode === "top"  ? "var(--accent)" : ""; }\n'
+    + '  if (btnTilt) { btnTilt.setAttribute("aria-pressed", _viewMode === "tilt" ? "true" : "false"); btnTilt.style.borderColor = _viewMode === "tilt" ? "var(--accent)" : ""; }\n'
+    + '  if (_viewMode === "tilt") applyRotation();\n'
+    + '  else { var sc = document.getElementById("sm-pviz-3dscene"); if (sc) sc.style.transform = ""; }\n'
+    + '}\n'
     + '\n'
     + 'function initRotation() {\n'
     + '  var scene = document.getElementById("sm-pviz-scene");\n'
