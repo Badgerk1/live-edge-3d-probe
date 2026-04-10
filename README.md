@@ -76,6 +76,24 @@ The plugin automates the full probing workflow: it physically measures the surfa
 - Per-session probe log for both surface and face probes — timestamped entries, scrollable in-UI, exportable.
 - Optional debug log mode that writes detailed internal events to the browser console and the in-UI log panel.
 - Stop button halts any probe cycle immediately and safely.
+- **Timing instrumentation** — at the end of every surface-probe run (successful, stopped, or errored) a `[TIMING]` summary is emitted to the in-UI probe log. It shows total run time plus per-category breakdowns:
+
+  ```
+  [TIMING] ══════════════════════════════════════════════
+  [TIMING] Surface probe run COMPLETE — 25 pts in 37.8s
+  [TIMING] Per-point    : 25 pts · avg=1127ms  min=710ms  max=1580ms
+  [TIMING] Probe plunges: 25 · avg=381ms  min=160ms  max=1257ms  total=9525ms
+  [TIMING] Z-lift moves : 25 · total=2250ms  avg=90ms
+  [TIMING] Lateral moves: 24 · avg=481ms  min=459ms  max=507ms  total=11544ms
+  [TIMING] waitForIdle  : 198 calls · total=26400ms
+  [TIMING] Pre-trigger  : 1 events · clear time=420ms
+  [TIMING] Travel contact: 0 hits · recovery=0ms
+  [TIMING] Finish motion: 312ms
+  [TIMING] ══════════════════════════════════════════════
+  [TIMING] JSON: {"outcome":"COMPLETE","totalMs":37800,...}
+  ```
+
+  The final JSON line can be copied and parsed for further analysis.
 
 ---
 

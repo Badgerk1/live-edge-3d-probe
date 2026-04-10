@@ -619,6 +619,7 @@ async function getWorkPosition(){
 
 async function waitForIdle(){
   pluginDebug('waitForIdle ENTER');
+  var _wiStart = _smTimingEnabled ? Date.now() : 0;
   var lastStatus = '';
   var pollInterval = 15; // Start with fast polling (was 30ms)
   var pollCount = 0;
@@ -639,6 +640,7 @@ async function waitForIdle(){
     }
     if(status === 'idle'){
       pluginDebug('waitForIdle EXIT: idle confirmed after ' + pollCount + ' polls');
+      if(_smTimingEnabled && smTimingStats){ smTimingStats.waitIdle.totalMs += Date.now() - _wiStart; smTimingStats.waitIdle.calls++; }
       var w = _parsePos(ms.WPos);
       if(w) return {x:w.x, y:w.y, z:w.z, status: status, probeTriggered: !!(ms.Pn && ms.Pn.indexOf('P') !== -1)};
       var m = _parsePos(ms.MPos), wco = _parsePos(ms.WCO);
@@ -939,6 +941,78 @@ var _smSkipFinishMotion = false; // set by combined mode to skip smFinishMotion 
 // ── Probe Sequence Recording ──────────────────────────────────────────────────
 var smPvizProbeSequence = [];
 var _smPvizSeqLastTime = 0;
+// ── Surface Probe Timing Instrumentation ──────────────────────────────────────
+// Accumulates timing/count data during a surface probing run.
+// Reset by runSurfaceProbing(); read at the end to emit a [TIMING] summary.
+var smTimingStats = null;
+var _smTimingEnabled = false; // true only during an active surface probing run
+
+function _smTimingReset(totalPoints) {
+  smTimingStats = {
+    runStart: Date.now(),
+    totalPoints: totalPoints,
+    // Z-lift moves (relative raise before each lateral travel)
+    zLift:      { totalMs: 0, count: 0 },
+    // Lateral X/Y travel moves (G38.3)
+    lateral:    { totalMs: 0, count: 0, minMs: Infinity, maxMs: 0 },
+    // waitForIdle polling totals (all calls during the run)
+    waitIdle:   { totalMs: 0, calls: 0 },
+    // G38.2 probe plunges
+    plunges:    { totalMs: 0, count: 0, minMs: Infinity, maxMs: 0 },
+    // smEnsureProbeClear triggered events (probe pre-triggered before plunge)
+    preTrigger: { events: 0, totalMs: 0 },
+    // smSafeLateralMove travel contact (G38.3 stopped short)
+    travelContact: { events: 0, recoveryTotalMs: 0 },
+    // smFinishMotion duration
+    finishMotion: { totalMs: 0 },
+    // Per-point durations (ms)
+    perPoint: []
+  };
+  _smTimingEnabled = true;
+}
+
+function _smEmitTimingSummary(outcome) {
+  if (!smTimingStats) return;
+  _smTimingEnabled = false;
+  var st = smTimingStats;
+  var totalMs = Date.now() - st.runStart;
+  var pp = st.perPoint;
+  var ppAvg = pp.length ? Math.round(pp.reduce(function(a,b){ return a+b; }, 0) / pp.length) : 0;
+  var ppMin = pp.length ? Math.min.apply(null, pp) : 0;
+  var ppMax = pp.length ? Math.max.apply(null, pp) : 0;
+  var lAvg = st.lateral.count ? Math.round(st.lateral.totalMs / st.lateral.count) : 0;
+  var lMin = st.lateral.count ? st.lateral.minMs : 0;
+  var lMax = st.lateral.count ? st.lateral.maxMs : 0;
+  var pAvg = st.plunges.count ? Math.round(st.plunges.totalMs / st.plunges.count) : 0;
+  var pMin = st.plunges.count ? st.plunges.minMs : 0;
+  var pMax = st.plunges.count ? st.plunges.maxMs : 0;
+  smLogProbe('[TIMING] ══════════════════════════════════════════════');
+  smLogProbe('[TIMING] Surface probe run ' + outcome + ' — ' + st.totalPoints + ' pts in ' + (totalMs / 1000).toFixed(1) + 's');
+  smLogProbe('[TIMING] Per-point    : ' + pp.length + ' pts · avg=' + ppAvg + 'ms  min=' + ppMin + 'ms  max=' + ppMax + 'ms');
+  smLogProbe('[TIMING] Probe plunges: ' + st.plunges.count + ' · avg=' + pAvg + 'ms  min=' + pMin + 'ms  max=' + pMax + 'ms  total=' + st.plunges.totalMs + 'ms');
+  smLogProbe('[TIMING] Z-lift moves : ' + st.zLift.count + ' · total=' + st.zLift.totalMs + 'ms  avg=' + (st.zLift.count ? Math.round(st.zLift.totalMs / st.zLift.count) : 0) + 'ms');
+  smLogProbe('[TIMING] Lateral moves: ' + st.lateral.count + ' · avg=' + lAvg + 'ms  min=' + lMin + 'ms  max=' + lMax + 'ms  total=' + st.lateral.totalMs + 'ms');
+  smLogProbe('[TIMING] waitForIdle  : ' + st.waitIdle.calls + ' calls · total=' + st.waitIdle.totalMs + 'ms');
+  smLogProbe('[TIMING] Pre-trigger  : ' + st.preTrigger.events + ' events · clear time=' + st.preTrigger.totalMs + 'ms');
+  smLogProbe('[TIMING] Travel contact: ' + st.travelContact.events + ' hits · recovery=' + st.travelContact.recoveryTotalMs + 'ms');
+  smLogProbe('[TIMING] Finish motion: ' + st.finishMotion.totalMs + 'ms');
+  smLogProbe('[TIMING] ══════════════════════════════════════════════');
+  var json = JSON.stringify({
+    outcome: outcome,
+    totalMs: totalMs,
+    totalPoints: st.totalPoints,
+    probedPoints: pp.length,
+    perPoint:      { avgMs: ppAvg, minMs: ppMin, maxMs: ppMax },
+    plunges:       { count: st.plunges.count, avgMs: pAvg, minMs: pMin, maxMs: pMax, totalMs: st.plunges.totalMs },
+    zLift:         { count: st.zLift.count, totalMs: st.zLift.totalMs },
+    lateral:       { count: st.lateral.count, avgMs: lAvg, minMs: lMin, maxMs: lMax, totalMs: st.lateral.totalMs },
+    waitIdle:      { calls: st.waitIdle.calls, totalMs: st.waitIdle.totalMs },
+    preTrigger:    { events: st.preTrigger.events, totalMs: st.preTrigger.totalMs },
+    travelContact: { events: st.travelContact.events, recoveryTotalMs: st.travelContact.recoveryTotalMs },
+    finishMotion:  { totalMs: st.finishMotion.totalMs }
+  });
+  smLogProbe('[TIMING] JSON: ' + json);
+}
 
 function buildSurfaceGridConfig() {
   var minX = Number(document.getElementById('sm-minX').value);
@@ -1066,6 +1140,8 @@ async function smEnsureProbeClear(clearanceZ, travelFeed) {
     }
     smLogProbe('Probe triggered before plunge (attempt ' + (attempt + 1) + '/' + maxAttempts + '); raising Z to clear...');
     pluginDebug('smEnsureProbeClear: probe triggered attempt=' + (attempt + 1) + '/' + maxAttempts + ', raising Z');
+    if (_smTimingEnabled && smTimingStats) { smTimingStats.preTrigger.events++; }
+    var _preTriggerStart = _smTimingEnabled ? Date.now() : 0;
     var pos = await getWorkPosition();
     var targetZ = Math.max(pos.z, clearanceZ) + 2; // 2 coords above clearance to ensure probe clears
     var clearCmd = 'G90 G1 Z' + targetZ.toFixed(3) + ' F' + travelFeed;
@@ -1075,6 +1151,7 @@ async function smEnsureProbeClear(clearanceZ, travelFeed) {
     await sleep(50); // Brief delay to ensure controller starts processing
     await waitForIdleWithTimeout();
     await smSleep(200); // 200ms settle time for probe input to clear
+    if (_smTimingEnabled && smTimingStats) { smTimingStats.preTrigger.totalMs += Date.now() - _preTriggerStart; }
   }
 }
 
@@ -1097,20 +1174,32 @@ async function smSafeLateralMove(targetX, targetY, travelFeed, clearanceZ) {
       var current = (axis === 'X') ? pos.x : pos.y;
       if (Math.abs(current - target) < 0.1) return;
       var travelDir = (target > current) ? 1 : -1;
+      var _travelStart = _smTimingEnabled ? Date.now() : 0;
       await sendCommand('G90 G38.3 ' + axis + target.toFixed(3) + ' F' + travelFeed);
       await sleep(50); // Brief delay to ensure controller starts processing
       await waitForIdleWithTimeout();
       var newPos = await getWorkPosition();
       var arrived = (axis === 'X') ? newPos.x : newPos.y;
-      if (Math.abs(arrived - target) <= 0.1) return;
+      if (Math.abs(arrived - target) <= 0.1) {
+        if (_smTimingEnabled && smTimingStats) {
+          var _tMs = Date.now() - _travelStart;
+          smTimingStats.lateral.totalMs += _tMs;
+          smTimingStats.lateral.count++;
+          if (_tMs < smTimingStats.lateral.minMs) smTimingStats.lateral.minMs = _tMs;
+          if (_tMs > smTimingStats.lateral.maxMs) smTimingStats.lateral.maxMs = _tMs;
+        }
+        return;
+      }
       // Stopped short — probe triggered during lateral travel
       smLogProbe('TRAVEL CONTACT (' + axis + '): stopped at ' + arrived.toFixed(3) + ', target ' + target.toFixed(3) + '.');
+      if (_smTimingEnabled && smTimingStats) { smTimingStats.travelContact.events++; }
       if (retries >= maxRetries) {
         throw new Error('Travel path blocked after ' + maxRetries + ' contact recoveries on ' + axis + ' axis.');
       }
       retries++;
       var bounceVal = arrived - travelDir * backoff;
       var liftZ = newPos.z + lift;
+      var _recoveryStart = _smTimingEnabled ? Date.now() : 0;
       smLogProbe('TRAVEL CONTACT: recovery ' + retries + '/' + maxRetries + ': ' + axis + ' to ' + bounceVal.toFixed(3) + ', lift Z to ' + liftZ.toFixed(3) + '.');
       await sendCommand('G90 G1 ' + axis + bounceVal.toFixed(3) + ' F' + travelFeed);
       await sleep(50); // Brief delay to ensure controller starts processing
@@ -1119,6 +1208,7 @@ async function smSafeLateralMove(targetX, targetY, travelFeed, clearanceZ) {
       await sleep(50); // Brief delay to ensure controller starts processing
       await waitForIdleWithTimeout();
       await smSleep(120);
+      if (_smTimingEnabled && smTimingStats) { smTimingStats.travelContact.recoveryTotalMs += Date.now() - _recoveryStart; }
       await attempt();
     }
     await attempt();
@@ -1131,11 +1221,13 @@ async function smSafeLateralMove(targetX, targetY, travelFeed, clearanceZ) {
   var liftCmd = 'G91 G1 Z' + effectiveLift.toFixed(3) + ' F' + travelFeed;
   smLogProbe('[PLUGIN DEBUG] smSafeLateralMove: sending command: ' + liftCmd);
   pluginDebug('smSafeLateralMove: Z-lift cmd: ' + liftCmd);
+  var _zLiftStart = _smTimingEnabled ? Date.now() : 0;
   await sendCommand(liftCmd);
   await sleep(50); // Brief delay to ensure controller starts processing
   smLogProbe('[PLUGIN DEBUG] smSafeLateralMove: waiting for idle after Z lift...');
   await waitForIdleWithTimeout();
   smLogProbe('[PLUGIN DEBUG] smSafeLateralMove: idle confirmed after Z lift');
+  if (_smTimingEnabled && smTimingStats) { smTimingStats.zLift.totalMs += Date.now() - _zLiftStart; smTimingStats.zLift.count++; }
   await sendCommand('G90');
   await waitForIdleWithTimeout();
   await moveAxis('X', targetX);
@@ -1160,11 +1252,19 @@ async function smPlungeProbe(maxPlunge, probeFeed) {
   var probeCmd = 'G91 G38.2 Z-' + maxPlunge.toFixed(3) + ' F' + probeFeed;
   smLogProbe('[PLUGIN DEBUG] smPlungeProbe: sending command: ' + probeCmd);
   pluginDebug('smPlungeProbe: sending: ' + probeCmd);
+  var _plungeStart = _smTimingEnabled ? Date.now() : 0;
   await sendCommand(probeCmd);
   await sleep(50); // Brief delay to ensure controller starts processing
   smLogProbe('[PLUGIN DEBUG] smPlungeProbe: waiting for idle after probe move...');
   await waitForIdleWithTimeout();
   smLogProbe('[PLUGIN DEBUG] smPlungeProbe: idle confirmed after probe move');
+  if (_smTimingEnabled && smTimingStats) {
+    var _pMs = Date.now() - _plungeStart;
+    smTimingStats.plunges.totalMs += _pMs;
+    smTimingStats.plunges.count++;
+    if (_pMs < smTimingStats.plunges.minMs) smTimingStats.plunges.minMs = _pMs;
+    if (_pMs > smTimingStats.plunges.maxMs) smTimingStats.plunges.maxMs = _pMs;
+  }
   var endPos = await getWorkPosition();
   var distanceTraveled = startZ - endPos.z;
   smLogProbe('[PLUGIN DEBUG] smPlungeProbe: startZ=' + startZ.toFixed(3) + ' endZ=' + endPos.z.toFixed(3) + ' traveled=' + distanceTraveled.toFixed(3) + ' coords');
@@ -1271,6 +1371,7 @@ async function raiseFaceTravelSafeZ(label, feed, safeZ) {
 
 async function smFinishMotion(travelFeed) {
   pluginDebug('smFinishMotion ENTER: travelFeed=' + travelFeed);
+  var _fmStart = _smTimingEnabled ? Date.now() : 0;
   var s = getSettingsFromUI();
   var clearanceOffset = Number(s.finishHomeZ);
   var returnXYZero = !!s.returnToXYZero;
@@ -1335,6 +1436,7 @@ async function smFinishMotion(travelFeed) {
   } else {
     smLogProbe('Finish move: X/Y return disabled');
   }
+  if (_smTimingEnabled && smTimingStats) { smTimingStats.finishMotion.totalMs = Date.now() - _fmStart; }
 }
 
 // ── Probe Visualizer helpers ──────────────────────────────────────────────────
@@ -3262,6 +3364,9 @@ function runSurfaceProbing() {
     }
   }
 
+  // Initialise timing accumulator for this run
+  _smTimingReset(totalPoints);
+
   document.getElementById('sm-btn-run-probe').disabled = true;
   document.getElementById('sm-btn-stop-probe').disabled = false;
   smClearLog('sm-probeLog');
@@ -3299,6 +3404,7 @@ function runSurfaceProbing() {
       smLogProbe('Probing point [' + ri + ',' + ci + '] X' + smFmtN(colX) + ' Y' + smFmtN(rowY));
       smCheckStop();
       smPvizUpdate('traveling', { x: colX, y: rowY, point: probed + 1, total: totalPoints, pct: probed / totalPoints * 100 });
+      var _ptStart = _smTimingEnabled ? Date.now() : 0;
       // Skip lateral move for first step of a new row — row transition already positioned the machine here
       var movePromise = (step === 0 && ri > 0)
         ? Promise.resolve()
@@ -3312,6 +3418,7 @@ function runSurfaceProbing() {
         .then(function(pos) {
           result[ri][ci] = pos.z;
           probed++;
+          if (_smTimingEnabled && smTimingStats) { smTimingStats.perPoint.push(Date.now() - _ptStart); }
           smSetProgress(probed / totalPoints * 100);
           smPvizUpdate('contact', { x: colX, y: rowY, point: probed, total: totalPoints, contactZ: pos.z, pct: probed / totalPoints * 100 });
           smLogProbe('  -> Z=' + smFmtN(pos.z));
@@ -3364,6 +3471,7 @@ function runSurfaceProbing() {
     }
     // Defer UI updates until after finish motion completes (non-blocking)
     finishPromise.then(function() {
+      _smEmitTimingSummary('COMPLETE');
       smPvizUpdate('complete', { point: totalPoints, total: totalPoints, pct: 100 });
       smSaveMeshToStorage();
       try { updateSurfaceMeshUI(); } catch(vizErr) { console.warn('Surface probe: updateSurfaceMeshUI error (non-fatal):', vizErr); }
@@ -3380,6 +3488,7 @@ function runSurfaceProbing() {
     smSetProbeStatus('Error: ' + msg, 'err');
     smLogProbe('ERROR in probing: ' + msg);
     pluginDebug('runSurfaceProbing ERROR: ' + msg);
+    _smEmitTimingSummary(msg === 'Stopped by user' ? 'STOPPED' : 'ERROR');
     smPvizUpdate('error', { action: msg === 'Stopped by user' ? 'Stopped' : 'Error' });
     console.error('Surface probe error:', err);
   }).then(function() {
