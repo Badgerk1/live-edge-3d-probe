@@ -319,6 +319,7 @@ function saveProbeResults() {
       topResults: topResults,
       faceResults: faceResults,
       layeredFaceResults: layeredFaceResults,
+      layeredFaceResultsRaw: layeredFaceResultsRaw,
       timestamp: Date.now()
     };
     localStorage.setItem(PROBE_RESULTS_KEY, JSON.stringify(data));
@@ -336,6 +337,7 @@ function loadProbeResults() {
     if (Array.isArray(data.topResults))        topResults        = data.topResults;
     if (Array.isArray(data.faceResults))       faceResults       = data.faceResults;
     if (Array.isArray(data.layeredFaceResults)) layeredFaceResults = data.layeredFaceResults;
+    if (Array.isArray(data.layeredFaceResultsRaw)) layeredFaceResultsRaw = data.layeredFaceResultsRaw;
     updateAllResultsUI();
   } catch(e) { console.warn('loadProbeResults error:', e); }
 }
@@ -370,6 +372,7 @@ function clearAllResults() {
   topResults        = [];
   faceResults       = [];
   layeredFaceResults = [];
+  layeredFaceResultsRaw = [];
   // Also clear surface mesh data so the Probe Data table and relief maps blank out
   smMeshData   = null;
   smGridConfig = null;
@@ -703,8 +706,11 @@ function exportSurfaceOBJ() {
   if (!isFinite(subSpacing) || subSpacing <= 0) subSpacing = 0.5;
   subSpacing = Math.max(0.5, subSpacing);
   // Upsample the probe grid via bicubic Catmull-Rom interpolation.
+  var rawRows = smGridConfig.rowCount, rawCols = smGridConfig.colCount;
+  pluginDebug('[FM] exportSurfaceOBJ: raw grid=' + rawRows + 'x' + rawCols + ', subdivision=' + subSpacing + 'mm');
   var up = _bicubicUpsampleGrid(smMeshData, smGridConfig, subSpacing);
   var cfg = up, grid = up.grid;
+  pluginDebug('[FM] exportSurfaceOBJ: upsampled grid=' + up.rowCount + 'x' + up.colCount);
   var lines = ['# 3D Live Edge Mesh — Surface OBJ', '# Plugin Version: ' + SM_VERSION,
                '# Exported: ' + new Date().toISOString(),
                '# Bicubic Catmull-Rom interpolation, subdivision spacing: ' + subSpacing + 'mm', ''];
@@ -738,6 +744,7 @@ function exportSurfaceOBJ() {
     }
   }
   var norms = _computeVertexNormals(allVerts, allTris);
+  pluginDebug('[FM] exportSurfaceOBJ: vertices=' + allVerts.length + ', normals=' + norms.length + ', triangles=' + allTris.length);
   allVerts.forEach(function(v) { lines.push('v ' + v.x.toFixed(4) + ' ' + v.y.toFixed(4) + ' ' + v.z.toFixed(4)); });
   lines.push('');
   norms.forEach(function(n) { lines.push('vn ' + n.x.toFixed(4) + ' ' + n.y.toFixed(4) + ' ' + n.z.toFixed(4)); });
@@ -777,10 +784,15 @@ function exportFaceDXF() {
 // ── Face OBJ export ───────────────────────────────────────────────────────────
 // Upsamples the face probe grid (X × Z-layer) with bicubic Catmull-Rom
 // interpolation and uses structured-grid triangulation for smoother results.
+// Uses the raw (pre-subdivision) sparse contacts as the upsampling source so that
+// Catmull-Rom can span the full original probe spacing for maximum smoothness.
 function exportFaceOBJ() {
   pluginDebug('exportFaceOBJ ENTER');
-  var data = getFaceMeshData();
+  // Prefer raw (pre-subdivision) contacts so Catmull-Rom interpolates across the
+  // full original probe spacing rather than the already-bilinearly-subdivided data.
+  var data = (typeof getFaceRawData === 'function') ? getFaceRawData() : getFaceMeshData();
   if (!data || !data.length) { pluginDebug('exportFaceOBJ: no data'); alert('No face mesh data. Run a face probe first.'); return; }
+  pluginDebug('[FM] exportFaceOBJ: input raw contacts=' + data.length);
   var subSpacing = Number((document.getElementById('faceOBJSubdivision') || {}).value);
   if (!isFinite(subSpacing) || subSpacing <= 0) subSpacing = 0.5;
   subSpacing = Math.max(0.5, subSpacing);
@@ -789,6 +801,7 @@ function exportFaceOBJ() {
                '# Bicubic Catmull-Rom interpolation, subdivision spacing: ' + subSpacing + 'mm', ''];
   // Upsample the face probe grid via bicubic Catmull-Rom interpolation.
   var up = _upsampleFaceData(data, subSpacing);
+  pluginDebug('[FM] exportFaceOBJ: after Catmull-Rom upsample=' + up.pts.length + ' vertices (' + up.rowCount + 'x' + up.colCount + ')');
   var allVerts = up.pts;
   var allTris;
   if (up.vMap && up.rowCount >= 2 && up.colCount >= 2) {
@@ -821,6 +834,7 @@ function exportFaceOBJ() {
   });
   if (sumNy > 0) allTris = allTris.map(function(t) { return [t[0], t[2], t[1]]; });
   var norms = _computeVertexNormals(allVerts, allTris);
+  pluginDebug('[FM] exportFaceOBJ: normals computed=' + norms.length + ', triangles=' + allTris.length);
   allVerts.forEach(function(v) { lines.push('v ' + v.x.toFixed(4) + ' ' + v.y.toFixed(4) + ' ' + v.z.toFixed(4)); });
   lines.push('');
   norms.forEach(function(n) { lines.push('vn ' + n.x.toFixed(4) + ' ' + n.y.toFixed(4) + ' ' + n.z.toFixed(4)); });
@@ -871,11 +885,13 @@ function exportCombinedDXF() {
 // (driven by combinedOBJSubdivision) before stitching into a watertight solid.
 function exportCombinedOBJWatertight() {
   pluginDebug('exportCombinedOBJWatertight ENTER');
-  var faceData = getFaceMeshData();
+  // Prefer raw (pre-subdivision) face contacts for smoothest Catmull-Rom upsampling.
+  var faceData = (typeof getFaceRawData === 'function') ? getFaceRawData() : getFaceMeshData();
   if (!smMeshData || !smGridConfig || !faceData || !faceData.length) {
     pluginDebug('exportCombinedOBJWatertight: missing data');
     alert('Both surface mesh and face mesh data are required for a watertight combined export.'); return;
   }
+  pluginDebug('[FM] exportCombinedOBJWatertight: surface grid=' + smGridConfig.rowCount + 'x' + smGridConfig.colCount + ', face raw contacts=' + faceData.length);
   var subSpacing = Number((document.getElementById('combinedOBJSubdivision') || {}).value);
   if (!isFinite(subSpacing) || subSpacing <= 0) subSpacing = 0.5;
   subSpacing = Math.max(0.5, subSpacing);
@@ -951,6 +967,7 @@ function exportCombinedOBJWatertight() {
   }
   // ── Compute vertex normals and write OBJ ───────────────────────────────────
   var norms = _computeVertexNormals(allVerts, allTris);
+  pluginDebug('[FM] exportCombinedOBJWatertight: vertices=' + allVerts.length + ', normals=' + norms.length + ', triangles=' + allTris.length);
   allVerts.forEach(function(v) { lines.push('v ' + v.x.toFixed(4) + ' ' + v.y.toFixed(4) + ' ' + v.z.toFixed(4)); });
   lines.push('');
   norms.forEach(function(n) { lines.push('vn ' + n.x.toFixed(4) + ' ' + n.y.toFixed(4) + ' ' + n.z.toFixed(4)); });

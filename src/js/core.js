@@ -2362,6 +2362,7 @@ function renderSurfaceReliefMap() {
 
 function renderFaceReliefMap() {
   var data = getFaceMeshData();
+  pluginDebug('[FM] renderFaceReliefMap: raw contacts=' + (data ? data.length : 0));
   if (!data || data.length < 4) {
     // No data — blank all face relief canvases
     ['face-relief-canvas', 'res-face-relief-canvas', 'surf-face-relief-canvas'].forEach(function(id) {
@@ -2394,6 +2395,7 @@ function renderFaceReliefMap() {
   var xs = Object.values(xKeyToVal).sort(function(a, b) { return a - b; });
   var layers = Object.keys(layerZSum).map(Number).sort(function(a, b) { return a - b; });
   var nCols = xs.length, nRows = layers.length;
+  pluginDebug('[FM] renderFaceReliefMap: normalized grid=' + nCols + ' cols x ' + nRows + ' rows (unique X x layers)');
   if (nCols < 2 || nRows < 2) return;
 
   // Average Z depth per layer — used as the shared py coordinate for all X columns
@@ -2411,6 +2413,8 @@ function renderFaceReliefMap() {
     cellSumY[key] += yv; cellCntY[key]++;
   });
 
+  pluginDebug('[FM] renderFaceReliefMap: unique (X,layer) cells=' + Object.keys(cellSumY).length);
+
   var points = [];
   var valMin = Infinity, valMax = -Infinity;
   Object.keys(cellSumY).forEach(function(key) {
@@ -2426,7 +2430,7 @@ function renderFaceReliefMap() {
   });
 
   if (points.length < 4) return;
-  pluginDebug('renderFaceReliefMap: mode=face projection=XZ points=' + points.length + ' Y-contact=' + valMin.toFixed(3) + ' to ' + valMax.toFixed(3));
+  pluginDebug('[FM] renderFaceReliefMap: plotted points=' + points.length + ' Y-contact=' + valMin.toFixed(3) + ' to ' + valMax.toFixed(3));
   var reliefCfg = { xLabel: 'X (coords)', yLabel: 'Z depth (coords)', valueLabel: 'Y contact (coords)', gridCols: nCols, gridRows: nRows };
   // Render to all face relief canvas instances (Probe tab, Results tab, Mesh Data tab).
   // Show the Mesh Data tab face panel when face data is available.
@@ -2741,6 +2745,38 @@ function subdivideFaceMesh(pts, spacing) {
     };
   });
 
+  // ── Nearest-neighbor fill ─────────────────────────────────────────────────────
+  // Before bilinear subdivision, propagate non-null cells into adjacent null cells
+  // using multi-pass flood-fill (same approach as buildFaceWallGrid).  This ensures
+  // that original probe contacts are never dropped because an adjacent cell is null.
+  var _nnFillChanged = true, _nnFillMax = Math.max(nCols, nRows);
+  for (var _nnP = 0; _nnP < _nnFillMax && _nnFillChanged; _nnP++) {
+    _nnFillChanged = false;
+    for (var _nnXi = 0; _nnXi < nCols; _nnXi++) {
+      for (var _nnLi = 0; _nnLi < nRows; _nnLi++) {
+        if (grid[_nnXi][_nnLi]) continue;
+        var _nnNbrs = [];
+        if (_nnXi > 0 && grid[_nnXi-1][_nnLi]) _nnNbrs.push(grid[_nnXi-1][_nnLi]);
+        if (_nnXi < nCols-1 && grid[_nnXi+1][_nnLi]) _nnNbrs.push(grid[_nnXi+1][_nnLi]);
+        if (_nnLi > 0 && grid[_nnXi][_nnLi-1]) _nnNbrs.push(grid[_nnXi][_nnLi-1]);
+        if (_nnLi < nRows-1 && grid[_nnXi][_nnLi+1]) _nnNbrs.push(grid[_nnXi][_nnLi+1]);
+        if (!_nnNbrs.length) continue;
+        var _nnSY = 0, _nnSMZ = 0, _nnSST = 0;
+        _nnNbrs.forEach(function(nb) { _nnSY += nb.y; _nnSMZ += nb.machineZ; _nnSST += nb.sampleTopZ; });
+        var _nnCnt = _nnNbrs.length;
+        grid[_nnXi][_nnLi] = { y: _nnSY/_nnCnt, machineZ: _nnSMZ/_nnCnt, sampleTopZ: _nnSST/_nnCnt, _interpolated: true };
+        _nnFillChanged = true;
+      }
+    }
+  }
+
+  // Count filled cells for diagnostics
+  var _filledCells = 0;
+  for (var _fxi = 0; _fxi < nCols; _fxi++) {
+    for (var _fli = 0; _fli < nRows; _fli++) { if (grid[_fxi][_fli]) _filledCells++; }
+  }
+  pluginDebug('[FM] subdivideFaceMesh: raw=' + pts.length + ' pts, grid=' + nCols + 'x' + nRows + ', filled=' + _filledCells + '/' + (nCols*nRows) + ' cells, spacing=' + spacing + 'mm');
+
   // Determine subdivisions per cell
   var xSpacings = [];
   for (var i = 0; i < nCols - 1; i++) xSpacings.push(xs[i + 1] - xs[i]);
@@ -2793,6 +2829,7 @@ function subdivideFaceMesh(pts, spacing) {
     }
   }
 
+  pluginDebug('[FM] subdivideFaceMesh: output=' + newPts.length + ' subdivided pts (xSub=' + xSub + ' zSub=' + zSub + ')');
   return newPts.length >= pts.length ? newPts : pts;
 }
 
@@ -3032,6 +3069,7 @@ function _buildThreeFaceWall(faceWall, cfg, zMin, zMax, zExag, si) {
   geo.setAttribute('position', new THREE.Float32BufferAttribute(posArr, 3));
   geo.setAttribute('color',    new THREE.Float32BufferAttribute(colArr, 3));
   geo.setIndex(idx); geo.computeVertexNormals();
+  pluginDebug('[FM] _buildThreeFaceWall: mesh vertices=' + totalVerts + ', triangles=' + (idx.length/3) + ' (grid ' + faceWall.nCols + 'x' + faceWall.nRows + ', SUB=' + SUB + ')');
   return { geo: geo, frontZ: frontZ };
 }
 
@@ -5987,6 +6025,14 @@ function getFaceMeshData() {
   return null;
 }
 
+// Returns the raw (pre-subdivision) face probe contacts if available — these are
+// the original sparse measured points, ideal as input for Catmull-Rom OBJ export.
+// Falls back to getFaceMeshData() when no raw snapshot exists.
+function getFaceRawData() {
+  if (layeredFaceResultsRaw && layeredFaceResultsRaw.length) return layeredFaceResultsRaw;
+  return getFaceMeshData();
+}
+
 // ── Face Wall Grid Builder ─────────────────────────────────────────────────────
 // Converts layered face results into a 2D [colIndex][rowIndex] grid suitable
 // for rendering as a perpendicular wall below the front edge of the top surface.
@@ -5994,6 +6040,7 @@ function getFaceMeshData() {
 // Returns null when data is insufficient for triangulated rendering (<2 cols or rows).
 function buildFaceWallGrid() {
   var data = getFaceMeshData();
+  pluginDebug('[FM] buildFaceWallGrid: input=' + (data ? data.length : 0) + ' pts');
   if (!data || !data.length) return null;
 
   // Collect unique X positions (rounded to 3 dp to merge near-identical floats)
@@ -6012,6 +6059,7 @@ function buildFaceWallGrid() {
   var layers = Object.keys(layerSet).map(Number).sort(function(a, b) { return a - b; });
   // layers[0] = deepest (bottom of wall), layers[N-1] = shallowest (top, shared edge)
 
+  pluginDebug('[FM] buildFaceWallGrid: grid=' + xs.length + ' cols x ' + layers.length + ' rows');
   if (xs.length < 2 || layers.length < 2) return null;
 
   // Pre-build lookup maps for O(1) index resolution during grid fill
@@ -6024,14 +6072,17 @@ function buildFaceWallGrid() {
   var grid = [];
   for (var li = 0; li < layers.length; li++) { grid.push({}); }
 
+  var _rawFilled = 0;
   data.forEach(function(r) {
     var xi = xIndexMap[Number(r.x).toFixed(3)];
     if (xi == null) return;
     var l = r.layer != null ? r.layer : 1;
     var li = layerIndexMap[l];
     if (li == null) return;
-    if (!grid[li][xi]) grid[li][xi] = r;
+    if (!grid[li][xi]) { grid[li][xi] = r; _rawFilled++; }
   });
+
+  pluginDebug('[FM] buildFaceWallGrid: raw-filled=' + _rawFilled + '/' + (xs.length * layers.length) + ' cells before NN fill');
 
   // Nearest-neighbor fill: propagate non-null cells into adjacent null cells so that
   // a single missed probe contact doesn't create holes in the 3D face wall mesh.
@@ -6058,6 +6109,10 @@ function buildFaceWallGrid() {
       }
     }
   }
+
+  var _totalFilled = 0;
+  for (var _cfl = 0; _cfl < layers.length; _cfl++) { for (var _cfx = 0; _cfx < xs.length; _cfx++) { if (grid[_cfl][_cfx]) _totalFilled++; } }
+  pluginDebug('[FM] buildFaceWallGrid: total-filled=' + _totalFilled + '/' + (xs.length * layers.length) + ' cells after NN fill');
 
 
   var zMin = Infinity, zMax = -Infinity;
