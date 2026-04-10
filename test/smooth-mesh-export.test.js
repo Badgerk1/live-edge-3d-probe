@@ -29,6 +29,9 @@ function assert(condition, message) {
   }
 }
 
+// Stub for pluginDebug (used by _upsampleFaceData diagnostics)
+function pluginDebug() {}
+
 // ── Inline Catmull-Rom helper (mirrors src/js/core.js _catmullRom) ────────────
 function _catmullRom(p0, p1, p2, p3, t) {
   var t2 = t * t, t3 = t2 * t;
@@ -113,38 +116,76 @@ function _upsampleFaceData(data, targetSpacing) {
   if (!data || data.length < 4) {
     return { pts: data.map(function(p){ return {x:Number(p.x),y:Number(p.y),z:Number(p.z)}; }), vMap: null, rowCount: 0, colCount: 0 };
   }
-  var xSet = {}, zSet = {};
-  data.forEach(function(p) {
-    xSet[Number(p.x).toFixed(6)] = Number(p.x);
-    zSet[Number(p.z).toFixed(6)] = Number(p.z);
-  });
+  var xSet = {};
+  data.forEach(function(p) { xSet[Number(p.x).toFixed(6)] = Number(p.x); });
   var xVals = Object.keys(xSet).map(function(k){ return xSet[k]; }).sort(function(a,b){return a-b;});
-  var zVals = Object.keys(zSet).map(function(k){ return zSet[k]; }).sort(function(a,b){return a-b;});
-  var nCols = xVals.length, nRows = zVals.length;
-  if (nCols < 2 || nRows < 2) {
+  var nCols = xVals.length;
+  if (nCols < 2) {
     return { pts: data.map(function(p){ return {x:Number(p.x),y:Number(p.y),z:Number(p.z)}; }), vMap: null, rowCount: 0, colCount: 0 };
   }
-  var xi2idx = {}, zi2idx = {};
+  var xi2idx = {};
   xVals.forEach(function(v, i){ xi2idx[v.toFixed(6)] = i; });
-  zVals.forEach(function(v, i){ zi2idx[v.toFixed(6)] = i; });
-  var depthGrid = [];
-  for (var ri = 0; ri < nRows; ri++) { depthGrid.push(new Array(nCols).fill(null)); }
-  data.forEach(function(p) {
-    var xi = xi2idx[Number(p.x).toFixed(6)], zi = zi2idx[Number(p.z).toFixed(6)];
-    if (xi != null && zi != null) depthGrid[zi][xi] = Number(p.y);
-  });
+
+  var hasLayers = data.some(function(p) { return p.layer != null; });
+  var zVals, depthGrid, nRows;
+
+  if (hasLayers) {
+    var layerZSum = {}, layerZCnt = {};
+    data.forEach(function(p) {
+      var lv = Number(p.layer), zv = Number(p.z);
+      if (!isFinite(zv)) return;
+      if (!(lv in layerZSum)) { layerZSum[lv] = 0; layerZCnt[lv] = 0; }
+      layerZSum[lv] += zv; layerZCnt[lv]++;
+    });
+    var layers = Object.keys(layerZSum).map(Number).sort(function(a,b){return a-b;});
+    nRows = layers.length;
+    if (nRows < 2) {
+      return { pts: data.map(function(p){ return {x:Number(p.x),y:Number(p.y),z:Number(p.z)}; }), vMap: null, rowCount: 0, colCount: 0 };
+    }
+    var layerAvgZ = {};
+    layers.forEach(function(l) { layerAvgZ[l] = layerZSum[l] / layerZCnt[l]; });
+    zVals = layers.map(function(l) { return layerAvgZ[l]; });
+    var li2idx = {};
+    layers.forEach(function(l, i){ li2idx[l] = i; });
+    depthGrid = [];
+    for (var ri = 0; ri < nRows; ri++) { depthGrid.push(new Array(nCols).fill(null)); }
+    data.forEach(function(p) {
+      var xi = xi2idx[Number(p.x).toFixed(6)];
+      var li = li2idx[Number(p.layer)];
+      if (xi != null && li != null) depthGrid[li][xi] = Number(p.y);
+    });
+    pluginDebug('_upsampleFaceData (layer mode): raw grid ' + nRows + ' rows × ' + nCols + ' cols (' + layers.length + ' layers)');
+  } else {
+    var zSet = {};
+    data.forEach(function(p) { zSet[Number(p.z).toFixed(6)] = Number(p.z); });
+    zVals = Object.keys(zSet).map(function(k){ return zSet[k]; }).sort(function(a,b){return a-b;});
+    nRows = zVals.length;
+    if (nRows < 2) {
+      return { pts: data.map(function(p){ return {x:Number(p.x),y:Number(p.y),z:Number(p.z)}; }), vMap: null, rowCount: 0, colCount: 0 };
+    }
+    var zi2idx = {};
+    zVals.forEach(function(v, i){ zi2idx[v.toFixed(6)] = i; });
+    depthGrid = [];
+    for (var ri2 = 0; ri2 < nRows; ri2++) { depthGrid.push(new Array(nCols).fill(null)); }
+    data.forEach(function(p) {
+      var xi2 = xi2idx[Number(p.x).toFixed(6)], zi = zi2idx[Number(p.z).toFixed(6)];
+      if (xi2 != null && zi != null) depthGrid[zi][xi2] = Number(p.y);
+    });
+    pluginDebug('_upsampleFaceData (Z mode): raw grid ' + nRows + ' rows × ' + nCols + ' cols');
+  }
+
   var colSpacing = (xVals[nCols - 1] - xVals[0]) / (nCols - 1);
   var rowSpacing = (zVals[nRows - 1] - zVals[0]) / (nRows - 1);
   var cfg = { rowCount: nRows, colCount: nCols, colSpacing: colSpacing, rowSpacing: rowSpacing, minX: xVals[0], minY: zVals[0] };
   var up = _bicubicUpsampleGrid(depthGrid, cfg, targetSpacing);
   var pts = [], vMap = [];
-  for (var ri2 = 0; ri2 < up.rowCount; ri2++) {
+  for (var ri3 = 0; ri3 < up.rowCount; ri3++) {
     var vmRow = [];
     for (var ci2 = 0; ci2 < up.colCount; ci2++) {
-      var depth = up.grid[ri2][ci2];
+      var depth = up.grid[ri3][ci2];
       if (depth !== null) {
         vmRow.push(pts.length);
-        pts.push({ x: up.minX + ci2 * up.colSpacing, y: depth, z: up.minY + ri2 * up.rowSpacing });
+        pts.push({ x: up.minX + ci2 * up.colSpacing, y: depth, z: up.minY + ri3 * up.rowSpacing });
       } else {
         vmRow.push(null);
       }
@@ -203,6 +244,7 @@ var SURF_CFG_4X4 = { rowCount: 4, colCount: 4, colSpacing: 10, rowSpacing: 10, m
 
 // 3×4 face probe dataset (3 X-samples × 4 Z-layers).
 // Each point: { x, y (contact depth), z (layer height) }.
+// No 'layer' field — tests the Z-grouping fallback path.
 var FACE_DATA_3X4 = [];
 (function() {
   var xPos = [0, 10, 20];
@@ -218,6 +260,36 @@ var FACE_DATA_3X4 = [];
     }
   }
 })();
+
+// 3×4 face probe dataset with layer numbers AND non-uniform per-sample Z values.
+// This simulates a layered face probe over a non-flat top surface: each X sample
+// has its own sampleTopZ, so the layerZ differs slightly per column.
+// Old code (group by raw Z) would create 12 rows instead of 4 → sparse grid →
+// bicubic returns null for almost every cell → degenerate mesh.
+// New code (group by layer number) must produce a proper 4-row × 3-col grid.
+var FACE_DATA_3X4_NONUNIFORM_Z = [];
+(function() {
+  var xPos = [0, 10, 20];
+  // Simulated sampleTopZ for each X sample (non-flat surface).
+  var topZ = [0.0, 0.3, 0.7];
+  var nLayers = 4;
+  var maxDepth = 5.0;
+  for (var xi = 0; xi < xPos.length; xi++) {
+    var effectiveTopZ = topZ[xi] - 0.05;
+    var deepestZ = topZ[xi] - maxDepth;
+    var layerSpacing = (effectiveTopZ - deepestZ) / (nLayers - 1);
+    for (var li = 0; li < nLayers; li++) {
+      var layerZ = parseFloat((deepestZ + li * layerSpacing).toFixed(6));
+      FACE_DATA_3X4_NONUNIFORM_Z.push({
+        x: xPos[xi],
+        y: -1 - 0.3 * Math.sin(xi * Math.PI / 2) - 0.1 * li,
+        z: layerZ,
+        layer: li + 1  // 1-indexed layer number
+      });
+    }
+  }
+})();
+
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -372,6 +444,33 @@ function testNoSubdivisionWhenSpacingMatchesGrid() {
     'Col count unchanged when targetSpacing >= gridSpacing: got ' + up.colCount);
 }
 
+function testFaceNonUniformLayerZ() {
+  console.log('\nTest: face upsampling with non-uniform per-sample layerZ (layer-number grouping)');
+
+  // Old code (group by raw Z): would create 12 unique rows (3 samples × 4 layers) with
+  // only 1 non-null cell per row → bicubic returns null for almost everything.
+  // New code (group by layer number): must produce exactly 4 rows and upsampled vertices.
+  var up = _upsampleFaceData(FACE_DATA_3X4_NONUNIFORM_Z, 0.5);
+
+  assert(up.rowCount >= 4,
+    'rowCount is at least 4 (got ' + up.rowCount + '); old code would produce 12 sparse rows');
+  assert(up.colCount > 3,
+    'colCount is > 3 (upsampled; got ' + up.colCount + ')');
+  assert(up.vMap !== null, 'vMap is present (structured grid used, not fallback)');
+  assert(up.pts.length > FACE_DATA_3X4_NONUNIFORM_Z.length,
+    'Upsampled vertex count (' + up.pts.length + ') > raw point count (' + FACE_DATA_3X4_NONUNIFORM_Z.length + ')');
+
+  // The old sparse-grid path produced so few non-null cells that pts.length < 3
+  // and fell back to raw data.  The new path must produce far more vertices.
+  var minExpectedVerts = FACE_DATA_3X4_NONUNIFORM_Z.length * 2;
+  assert(up.pts.length > minExpectedVerts,
+    'Upsampled vertex count (' + up.pts.length + ') well above raw (' + FACE_DATA_3X4_NONUNIFORM_Z.length + '); no sparse-grid fallback');
+
+  // All output vertices must have finite coordinates.
+  var allFinite = up.pts.every(function(v) { return isFinite(v.x) && isFinite(v.y) && isFinite(v.z); });
+  assert(allFinite, 'All upsampled vertices have finite coordinates');
+}
+
 // ── Run all tests ─────────────────────────────────────────────────────────────
 
 (async function main() {
@@ -384,6 +483,7 @@ function testNoSubdivisionWhenSpacingMatchesGrid() {
     testFaceNormalsMatchVertexCount();
     testNormalContinuityInterior();
     testNoSubdivisionWhenSpacingMatchesGrid();
+    testFaceNonUniformLayerZ();
   } catch (e) {
     console.error('Unexpected error in test runner:', e);
     failed++;
