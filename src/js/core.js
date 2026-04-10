@@ -40,7 +40,7 @@ function pluginDebug(msg) {
   if (!el) el = document.getElementById('face-log');
   if (!el) el = document.getElementById('top-log');
   if (el) {
-    var ts = new Date().toLocaleTimeString('en', { hour12: false });
+    var ts = tsMs();
     var div = document.createElement('div');
     div.className = 'log-entry';
     div.style.color = 'var(--muted)';
@@ -52,6 +52,14 @@ function pluginDebug(msg) {
 
 // ── Utility helpers ───────────────────────────────────────────────────────────
 function sleep(ms){ return new Promise(function(resolve){ setTimeout(resolve, ms); }); }
+function tsMs(){
+  var d = new Date();
+  var hh = String(d.getHours()).padStart(2,'0');
+  var mm = String(d.getMinutes()).padStart(2,'0');
+  var ss = String(d.getSeconds()).padStart(2,'0');
+  var ms = String(d.getMilliseconds()).padStart(3,'0');
+  return hh + ':' + mm + ':' + ss + '.' + ms;
+}
 function escHtml(v){ return String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 function checkStop(){ if(_stopRequested) throw new Error('User stop requested'); }
@@ -151,7 +159,7 @@ function renderLog(tab){
 function logLine(tab, msg){
   var el = document.getElementById(tab + '-log');
   if(!el) return;
-  var ts = new Date().toLocaleTimeString('en',{hour12:false});
+  var ts = tsMs();
   var line = '[' + ts + '] ' + msg;
   var lines = tab === 'face' ? faceLogLines : topLogLines;
   lines.push(line);
@@ -246,6 +254,7 @@ function stopAll(){
 // ── ncSender API bridge (fetch-based) ─────────────────────────────────────────
 async function sendCommand(gcode, timeoutMs){
   pluginDebug('sendCommand ENTER: cmd="' + gcode + '" timeout=' + ((timeoutMs !== null && timeoutMs !== undefined) ? timeoutMs : 15000) + 'ms');
+  console.log('[' + tsMs() + '] SEND: ' + gcode);
   var controller = new AbortController();
   var ms = (timeoutMs !== null && timeoutMs !== undefined) ? timeoutMs : 15000;
   var timer = setTimeout(function(){ controller.abort(); }, ms);
@@ -263,6 +272,7 @@ async function sendCommand(gcode, timeoutMs){
       pluginDebug('sendCommand ERROR: cmd="' + gcode + '" error="' + errMsg + '"');
       throw new Error(errMsg);
     }
+    console.log('[' + tsMs() + '] DONE: ' + gcode);
     pluginDebug('sendCommand OK: cmd="' + gcode + '"');
     return js;
   } catch(e) {
@@ -976,7 +986,7 @@ function smLogApply(msg) { smAppendLog('sm-applyLog', msg); }
 function smAppendLog(id, msg) {
   var el = document.getElementById(id);
   if (!el) return;
-  var ts = new Date().toTimeString().slice(0, 8);
+  var ts = tsMs();
   var text = '[' + ts + '] ' + msg;
   var line = document.createElement('div');
   line.textContent = text;
@@ -4348,7 +4358,7 @@ function applyLogSurface(msg) {
   var el = document.getElementById('apply-surface-log');
   if (!el) return;
   el.style.display = 'block';
-  var ts = new Date().toTimeString().slice(0, 8);
+  var ts = tsMs();
   var line = document.createElement('div');
   line.textContent = '[' + ts + '] ' + msg;
   el.appendChild(line);
@@ -4359,7 +4369,7 @@ function applyLogFace(msg) {
   var el = document.getElementById('apply-face-log');
   if (!el) return;
   el.style.display = 'block';
-  var ts = new Date().toTimeString().slice(0, 8);
+  var ts = tsMs();
   var line = document.createElement('div');
   line.textContent = '[' + ts + '] ' + msg;
   el.appendChild(line);
