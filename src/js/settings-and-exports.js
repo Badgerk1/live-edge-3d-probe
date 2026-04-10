@@ -520,6 +520,149 @@ function _computeVertexNormals(verts, tris) {
   }
   return norms;
 }
+// ── Bicubic Catmull-Rom grid upsampling for OBJ export ───────────────────────
+// Resamples a structured Z grid to a finer resolution using C1-continuous
+// Catmull-Rom interpolation.  The same algorithm powers the 3-D visualizer
+// (_buildThreeSurface in core.js) so exported geometry now matches what the
+// user sees on screen.
+//
+// grid[ri][ci]  = Z value (number | null for missing contacts)
+// cfg           = { rowCount, colCount, colSpacing, rowSpacing, minX, minY }
+// targetSpacing = desired output vertex spacing in mm (e.g. 0.5)
+// Returns an object with the same shape as cfg plus the upsampled grid.
+function _bicubicUpsampleGrid(grid, cfg, targetSpacing) {
+  var nR = cfg.rowCount, nC = cfg.colCount;
+  if (nR < 2 || nC < 2) {
+    return { grid: grid, rowCount: nR, colCount: nC,
+             colSpacing: cfg.colSpacing, rowSpacing: cfg.rowSpacing,
+             minX: cfg.minX, minY: cfg.minY };
+  }
+  var sp = Math.max(targetSpacing, 0.5);
+  var subC = Math.max(1, Math.round(cfg.colSpacing / sp));
+  var subR = Math.max(1, Math.round(cfg.rowSpacing / sp));
+  // Safety cap: keep output under ~200 k vertices to avoid browser hangs.
+  var nCX = nC - 1, nCY = nR - 1;
+  var maxSub = Math.max(1, Math.floor(Math.sqrt(200000 / Math.max(nCX * nCY, 1))));
+  subC = Math.min(subC, maxSub);
+  subR = Math.min(subR, maxSub);
+  if (subC <= 1 && subR <= 1) {
+    return { grid: grid, rowCount: nR, colCount: nC,
+             colSpacing: cfg.colSpacing, rowSpacing: cfg.rowSpacing,
+             minX: cfg.minX, minY: cfg.minY };
+  }
+  // Clamp-and-get helper: boundary clamping; null / non-finite → null.
+  function gZ(r, c) {
+    var rr = Math.max(0, Math.min(nR - 1, r));
+    var cc = Math.max(0, Math.min(nC - 1, c));
+    var v = grid[rr][cc];
+    return (v != null && isFinite(v)) ? v : null;
+  }
+  // 1-D Catmull-Rom along row r at fractional param tx (between col cx and cx+1).
+  function rowInterp(r, cx, tx) {
+    var p1 = gZ(r, cx), p2 = gZ(r, cx + 1);
+    if (p1 === null || p2 === null) return null;
+    var p0 = gZ(r, cx - 1); if (p0 === null) p0 = p1;
+    var p3 = gZ(r, cx + 2); if (p3 === null) p3 = p2;
+    return _catmullRom(p0, p1, p2, p3, tx);
+  }
+  // Bicubic (separable Catmull-Rom) interpolation inside cell (cy, cx) at (tx, ty).
+  // Falls back to bilinear if outer neighbours are unavailable (boundary / missing).
+  function biZ(cy, cx, tx, ty) {
+    var z00 = gZ(cy, cx), z10 = gZ(cy, cx + 1), z01 = gZ(cy + 1, cx), z11 = gZ(cy + 1, cx + 1);
+    if (z00 === null || z10 === null || z01 === null || z11 === null) return null;
+    var r0 = rowInterp(cy - 1, cx, tx);
+    var r1 = rowInterp(cy,     cx, tx);
+    var r2 = rowInterp(cy + 1, cx, tx);
+    var r3 = rowInterp(cy + 2, cx, tx);
+    if (r1 === null || r2 === null) {
+      // Bilinear fallback when any primary row is missing.
+      return z00 * (1 - tx) * (1 - ty) + z10 * tx * (1 - ty) + z01 * (1 - tx) * ty + z11 * tx * ty;
+    }
+    if (r0 === null) r0 = r1; // clamp at top boundary
+    if (r3 === null) r3 = r2; // clamp at bottom boundary
+    return _catmullRom(r0, r1, r2, r3, ty);
+  }
+  var totalCols = nCX * subC + 1, totalRows = nCY * subR + 1;
+  var newGrid = [];
+  for (var gy = 0; gy < totalRows; gy++) {
+    var cy = Math.min(Math.floor(gy / subR), nCY - 1);
+    var ty = (gy - cy * subR) / subR;
+    var row = [];
+    for (var gx = 0; gx < totalCols; gx++) {
+      var cx = Math.min(Math.floor(gx / subC), nCX - 1);
+      var tx = (gx - cx * subC) / subC;
+      row.push(biZ(cy, cx, tx, ty));
+    }
+    newGrid.push(row);
+  }
+  return {
+    grid: newGrid,
+    rowCount: totalRows, colCount: totalCols,
+    colSpacing: cfg.colSpacing / subC, rowSpacing: cfg.rowSpacing / subR,
+    minX: cfg.minX, minY: cfg.minY
+  };
+}
+// ── Face probe structured-grid upsampling ────────────────────────────────────
+// Face probe data is a structured grid: nLayers × nSamples, where each point
+// has (x = sample X, z = layer Z height, y = contact depth).
+// This helper builds that grid, upsamples it with _bicubicUpsampleGrid, and
+// returns both a flat vertex list and a vMap suitable for structured triangulation.
+//
+// data:          [{x, y, z, ...}, ...]   (raw face probe results)
+// targetSpacing: desired vertex spacing in mm
+// Returns:  { pts: [{x,y,z},...], vMap: [[idx|null,...], ...], rowCount, colCount }
+function _upsampleFaceData(data, targetSpacing) {
+  if (!data || data.length < 4) {
+    return { pts: data.map(function(p){ return {x:Number(p.x),y:Number(p.y),z:Number(p.z)}; }), vMap: null, rowCount: 0, colCount: 0 };
+  }
+  // Collect unique (X, Z-layer) coordinates using 6-decimal keys.
+  var xSet = {}, zSet = {};
+  data.forEach(function(p) {
+    xSet[Number(p.x).toFixed(6)] = Number(p.x);
+    zSet[Number(p.z).toFixed(6)] = Number(p.z);
+  });
+  var xVals = Object.keys(xSet).map(function(k){ return xSet[k]; }).sort(function(a,b){return a-b;});
+  var zVals = Object.keys(zSet).map(function(k){ return zSet[k]; }).sort(function(a,b){return a-b;});
+  var nCols = xVals.length, nRows = zVals.length;
+  if (nCols < 2 || nRows < 2) {
+    return { pts: data.map(function(p){ return {x:Number(p.x),y:Number(p.y),z:Number(p.z)}; }), vMap: null, rowCount: 0, colCount: 0 };
+  }
+  // Build depth grid: depthGrid[zi][xi] = contact Y value.
+  var xi2idx = {}, zi2idx = {};
+  xVals.forEach(function(v, i){ xi2idx[v.toFixed(6)] = i; });
+  zVals.forEach(function(v, i){ zi2idx[v.toFixed(6)] = i; });
+  var depthGrid = [];
+  for (var ri = 0; ri < nRows; ri++) { depthGrid.push(new Array(nCols).fill(null)); }
+  data.forEach(function(p) {
+    var xi = xi2idx[Number(p.x).toFixed(6)], zi = zi2idx[Number(p.z).toFixed(6)];
+    if (xi != null && zi != null) depthGrid[zi][xi] = Number(p.y);
+  });
+  // Compute mean spacings (handles slightly non-uniform grids).
+  var colSpacing = (xVals[nCols - 1] - xVals[0]) / (nCols - 1);
+  var rowSpacing = (zVals[nRows - 1] - zVals[0]) / (nRows - 1);
+  var cfg = { rowCount: nRows, colCount: nCols, colSpacing: colSpacing, rowSpacing: rowSpacing, minX: xVals[0], minY: zVals[0] };
+  var up = _bicubicUpsampleGrid(depthGrid, cfg, targetSpacing);
+  // Convert grid to flat vertex list + vMap for structured triangulation.
+  var pts = [], vMap = [];
+  for (var ri2 = 0; ri2 < up.rowCount; ri2++) {
+    var vmRow = [];
+    for (var ci2 = 0; ci2 < up.colCount; ci2++) {
+      var depth = up.grid[ri2][ci2];
+      if (depth !== null) {
+        vmRow.push(pts.length);
+        pts.push({ x: up.minX + ci2 * up.colSpacing, y: depth, z: up.minY + ri2 * up.rowSpacing });
+      } else {
+        vmRow.push(null);
+      }
+    }
+    vMap.push(vmRow);
+  }
+  if (pts.length < 3) {
+    // Fall back to raw data if upsampling produced too few points.
+    return { pts: data.map(function(p){ return {x:Number(p.x),y:Number(p.y),z:Number(p.z)}; }), vMap: null, rowCount: 0, colCount: 0 };
+  }
+  return { pts: pts, vMap: vMap, rowCount: up.rowCount, colCount: up.colCount };
+}
 // ── Surface DXF export ────────────────────────────────────────────────────────
 function exportSurfaceDXF() {
   pluginDebug('exportSurfaceDXF ENTER');
@@ -551,14 +694,23 @@ function exportSurfaceDXF() {
   setFooterStatus('Exported surface mesh to DXF.', 'good');
 }
 // ── Surface OBJ export ────────────────────────────────────────────────────────
+// Upsamples the raw probe grid with bicubic Catmull-Rom interpolation before
+// triangulation so the exported mesh has smooth geometry between probe points.
 function exportSurfaceOBJ() {
   pluginDebug('exportSurfaceOBJ ENTER');
   if (!smMeshData || !smGridConfig) { pluginDebug('exportSurfaceOBJ: no data'); alert('No surface mesh data. Run a surface probe first.'); return; }
-  var cfg = smGridConfig, grid = smMeshData;
-  var lines = ['# 3D Live Edge Mesh — Surface OBJ', '# Plugin Version: ' + SM_VERSION, '# Exported: ' + new Date().toISOString(), ''];
+  var subSpacing = Number((document.getElementById('surfOBJSubdivision') || {}).value);
+  if (!isFinite(subSpacing) || subSpacing <= 0) subSpacing = 0.5;
+  subSpacing = Math.max(0.5, subSpacing);
+  // Upsample the probe grid via bicubic Catmull-Rom interpolation.
+  var up = _bicubicUpsampleGrid(smMeshData, smGridConfig, subSpacing);
+  var cfg = up, grid = up.grid;
+  var lines = ['# 3D Live Edge Mesh — Surface OBJ', '# Plugin Version: ' + SM_VERSION,
+               '# Exported: ' + new Date().toISOString(),
+               '# Bicubic Catmull-Rom interpolation, subdivision spacing: ' + subSpacing + 'mm', ''];
   var allVerts = [];
   var allTris = [];
-  // Map grid positions to vertex indices (0-based)
+  // Map grid positions to vertex indices (0-based).
   var vMap = [];
   for (var ri = 0; ri < cfg.rowCount; ri++) {
     vMap.push([]);
@@ -572,7 +724,7 @@ function exportSurfaceOBJ() {
       }
     }
   }
-  // Split each valid grid quad into two CCW triangles (normal points up +Z)
+  // Split each valid grid quad into two CCW triangles (normal points up +Z).
   for (var fr = 0; fr < cfg.rowCount - 1; fr++) {
     for (var fc = 0; fc < cfg.colCount - 1; fc++) {
       var a=vMap[fr][fc], b=vMap[fr][fc+1], c=vMap[fr+1][fc+1], d=vMap[fr+1][fc];
@@ -596,8 +748,8 @@ function exportSurfaceOBJ() {
     lines.push('f ' + i0 + '//' + i0 + ' ' + i1 + '//' + i1 + ' ' + i2 + '//' + i2);
   });
   _objDownload(lines.join('\n'), 'surface_mesh_' + Date.now() + '.obj');
-  pluginDebug('exportSurfaceOBJ: exported ' + allVerts.length + ' vertices, ' + allTris.length + ' triangles');
-  setFooterStatus('Exported surface mesh to OBJ (' + allVerts.length + ' vertices).', 'good');
+  pluginDebug('exportSurfaceOBJ: exported ' + allVerts.length + ' vertices, ' + allTris.length + ' triangles (subdivision ' + subSpacing + 'mm)');
+  setFooterStatus('Exported surface mesh to OBJ (' + allVerts.length + ' vertices, bicubic subdivision ' + subSpacing + 'mm).', 'good');
 }
 // ── Face DXF export ───────────────────────────────────────────────────────────
 function exportFaceDXF() {
@@ -623,18 +775,44 @@ function exportFaceDXF() {
   setFooterStatus('Exported face mesh to DXF.', 'good');
 }
 // ── Face OBJ export ───────────────────────────────────────────────────────────
+// Upsamples the face probe grid (X × Z-layer) with bicubic Catmull-Rom
+// interpolation and uses structured-grid triangulation for smoother results.
 function exportFaceOBJ() {
   pluginDebug('exportFaceOBJ ENTER');
   var data = getFaceMeshData();
   if (!data || !data.length) { pluginDebug('exportFaceOBJ: no data'); alert('No face mesh data. Run a face probe first.'); return; }
-  var lines = ['# 3D Live Edge Mesh — Face OBJ', '# Plugin Version: ' + SM_VERSION, '# Exported: ' + new Date().toISOString(), ''];
-  // Build 3D vertex list from all probe contacts
-  var allVerts = data.map(function(p) { return {x: Number(p.x), y: Number(p.y), z: Number(p.z)}; });
-  // Project to 2D (X, Z plane) for Delaunay — face points scatter across X and depth-Z
-  var pts2d = allVerts.map(function(v) { return {x: v.x, y: v.z}; });
-  var allTris = _delaunayTriangulate(pts2d);
+  var subSpacing = Number((document.getElementById('faceOBJSubdivision') || {}).value);
+  if (!isFinite(subSpacing) || subSpacing <= 0) subSpacing = 0.5;
+  subSpacing = Math.max(0.5, subSpacing);
+  var lines = ['# 3D Live Edge Mesh — Face OBJ', '# Plugin Version: ' + SM_VERSION,
+               '# Exported: ' + new Date().toISOString(),
+               '# Bicubic Catmull-Rom interpolation, subdivision spacing: ' + subSpacing + 'mm', ''];
+  // Upsample the face probe grid via bicubic Catmull-Rom interpolation.
+  var up = _upsampleFaceData(data, subSpacing);
+  var allVerts = up.pts;
+  var allTris;
+  if (up.vMap && up.rowCount >= 2 && up.colCount >= 2) {
+    // Structured-grid triangulation: smoother and avoids Delaunay artefacts.
+    allTris = [];
+    for (var ri = 0; ri < up.rowCount - 1; ri++) {
+      for (var ci = 0; ci < up.colCount - 1; ci++) {
+        var a=up.vMap[ri][ci], b=up.vMap[ri][ci+1], c=up.vMap[ri+1][ci+1], d=up.vMap[ri+1][ci];
+        if (a!=null && b!=null && c!=null && d!=null) {
+          allTris.push([a, b, c]);
+          allTris.push([a, c, d]);
+        } else if (a!=null && b!=null && c!=null) { allTris.push([a, b, c]);
+        } else if (a!=null && c!=null && d!=null) { allTris.push([a, c, d]);
+        } else if (b!=null && c!=null && d!=null) { allTris.push([b, c, d]);
+        } else if (a!=null && b!=null && d!=null) { allTris.push([a, b, d]); }
+      }
+    }
+  } else {
+    // Fallback to Delaunay for scattered / insufficiently structured data.
+    var pts2d = allVerts.map(function(v) { return {x: v.x, y: v.z}; });
+    allTris = _delaunayTriangulate(pts2d);
+  }
   if (!allTris.length) { pluginDebug('exportFaceOBJ: triangulation failed'); alert('Triangulation failed — need at least 3 face probe points.'); return; }
-  // Ensure face normals point in -Y direction (outward from workpiece toward probe approach)
+  // Ensure face normals point in -Y direction (outward from workpiece toward probe approach).
   var sumNy = 0;
   allTris.forEach(function(t) {
     var v0=allVerts[t[0]], v1=allVerts[t[1]], v2=allVerts[t[2]];
@@ -653,8 +831,8 @@ function exportFaceOBJ() {
     lines.push('f ' + i0 + '//' + i0 + ' ' + i1 + '//' + i1 + ' ' + i2 + '//' + i2);
   });
   _objDownload(lines.join('\n'), 'face_mesh_' + Date.now() + '.obj');
-  pluginDebug('exportFaceOBJ: exported ' + allVerts.length + ' vertices, ' + allTris.length + ' triangles');
-  setFooterStatus('Exported face mesh to OBJ (' + allVerts.length + ' vertices).', 'good');
+  pluginDebug('exportFaceOBJ: exported ' + allVerts.length + ' vertices, ' + allTris.length + ' triangles (subdivision ' + subSpacing + 'mm)');
+  setFooterStatus('Exported face mesh to OBJ (' + allVerts.length + ' vertices, bicubic subdivision ' + subSpacing + 'mm).', 'good');
 }
 // ── Combined DXF export ───────────────────────────────────────────────────────
 function exportCombinedDXF() {
@@ -689,6 +867,8 @@ function exportCombinedDXF() {
   setFooterStatus('Exported combined mesh to DXF.', 'good');
 }
 // ── Combined OBJ watertight export ────────────────────────────────────────────
+// Upsamples both surface and face meshes with bicubic Catmull-Rom interpolation
+// (driven by combinedOBJSubdivision) before stitching into a watertight solid.
 function exportCombinedOBJWatertight() {
   pluginDebug('exportCombinedOBJWatertight ENTER');
   var faceData = getFaceMeshData();
@@ -696,13 +876,19 @@ function exportCombinedOBJWatertight() {
     pluginDebug('exportCombinedOBJWatertight: missing data');
     alert('Both surface mesh and face mesh data are required for a watertight combined export.'); return;
   }
+  var subSpacing = Number((document.getElementById('combinedOBJSubdivision') || {}).value);
+  if (!isFinite(subSpacing) || subSpacing <= 0) subSpacing = 0.5;
+  subSpacing = Math.max(0.5, subSpacing);
   var bottomZ = Number((document.getElementById('combinedBottomZ') || {}).value);
   if (!isFinite(bottomZ)) bottomZ = -20;
-  var cfg = smGridConfig, grid = smMeshData;
-  var lines = ['# 3D Live Edge Mesh — Combined Watertight OBJ', '# Plugin Version: ' + SM_VERSION, ''];
+  // Upsample surface mesh via bicubic Catmull-Rom.
+  var surfUp = _bicubicUpsampleGrid(smMeshData, smGridConfig, subSpacing);
+  var cfg = surfUp, grid = surfUp.grid;
+  var lines = ['# 3D Live Edge Mesh — Combined Watertight OBJ', '# Plugin Version: ' + SM_VERSION,
+               '# Bicubic Catmull-Rom interpolation, subdivision spacing: ' + subSpacing + 'mm', ''];
   var allVerts = [];
   var allTris = [];
-  // ── Surface mesh (grid triangulation, CCW for +Z normal) ───────────────────
+  // ── Surface mesh (upsampled grid, CCW for +Z normal) ───────────────────────
   var surfV = [];
   for (var ri = 0; ri < cfg.rowCount; ri++) {
     surfV.push([]);
@@ -719,13 +905,31 @@ function exportCombinedOBJWatertight() {
       allTris.push([a, c, d]);
     }
   }
-  // ── Face mesh (Delaunay on X-Z projection, CCW for -Y normal) ─────────────
+  // ── Face mesh (upsampled via bicubic, structured triangulation for -Y normal)
+  var faceUp = _upsampleFaceData(faceData, subSpacing);
   var faceVStart = allVerts.length;
-  var faceVerts3d = faceData.map(function(p) { return {x: Number(p.x), y: Number(p.y), z: Number(p.z)}; });
-  faceVerts3d.forEach(function(v) { allVerts.push(v); });
-  var faceTris = _delaunayTriangulate(faceVerts3d.map(function(v) { return {x: v.x, y: v.z}; }));
-  faceTris = faceTris.map(function(t) { return [t[0]+faceVStart, t[1]+faceVStart, t[2]+faceVStart]; });
-  // Ensure face normals point in -Y direction
+  faceUp.pts.forEach(function(v) { allVerts.push(v); });
+  var faceTris;
+  if (faceUp.vMap && faceUp.rowCount >= 2 && faceUp.colCount >= 2) {
+    faceTris = [];
+    for (var fri = 0; fri < faceUp.rowCount - 1; fri++) {
+      for (var fci = 0; fci < faceUp.colCount - 1; fci++) {
+        var fa=faceUp.vMap[fri][fci], fb=faceUp.vMap[fri][fci+1], fc2=faceUp.vMap[fri+1][fci+1], fd=faceUp.vMap[fri+1][fci];
+        if (fa!=null&&fb!=null&&fc2!=null&&fd!=null) {
+          faceTris.push([fa+faceVStart, fb+faceVStart, fc2+faceVStart]);
+          faceTris.push([fa+faceVStart, fc2+faceVStart, fd+faceVStart]);
+        } else if (fa!=null&&fb!=null&&fc2!=null) { faceTris.push([fa+faceVStart, fb+faceVStart, fc2+faceVStart]);
+        } else if (fa!=null&&fc2!=null&&fd!=null) { faceTris.push([fa+faceVStart, fc2+faceVStart, fd+faceVStart]);
+        } else if (fb!=null&&fc2!=null&&fd!=null) { faceTris.push([fb+faceVStart, fc2+faceVStart, fd+faceVStart]);
+        } else if (fa!=null&&fb!=null&&fd!=null)  { faceTris.push([fa+faceVStart, fb+faceVStart, fd+faceVStart]); }
+      }
+    }
+  } else {
+    var faceVerts3d = faceUp.pts;
+    faceTris = _delaunayTriangulate(faceVerts3d.map(function(v) { return {x: v.x, y: v.z}; }));
+    faceTris = faceTris.map(function(t) { return [t[0]+faceVStart, t[1]+faceVStart, t[2]+faceVStart]; });
+  }
+  // Ensure face normals point in -Y direction.
   var sumNy = 0;
   faceTris.forEach(function(t) {
     var v0=allVerts[t[0]], v1=allVerts[t[1]], v2=allVerts[t[2]];
@@ -757,8 +961,8 @@ function exportCombinedOBJWatertight() {
     lines.push('f ' + i0 + '//' + i0 + ' ' + i1 + '//' + i1 + ' ' + i2 + '//' + i2);
   });
   _objDownload(lines.join('\n'), 'combined_watertight_' + Date.now() + '.obj');
-  pluginDebug('exportCombinedOBJWatertight: exported ' + allVerts.length + ' vertices, ' + allTris.length + ' triangles');
-  setFooterStatus('Exported combined watertight OBJ (' + allVerts.length + ' vertices).', 'good');
+  pluginDebug('exportCombinedOBJWatertight: exported ' + allVerts.length + ' vertices, ' + allTris.length + ' triangles (subdivision ' + subSpacing + 'mm)');
+  setFooterStatus('Exported combined watertight OBJ (' + allVerts.length + ' vertices, bicubic subdivision ' + subSpacing + 'mm).', 'good');
 }
 // ── Workflow stubs (UI buttons not yet present in HTML) ────────────────────────
 var _WORKFLOW_STORAGE_KEY = '3dmesh.combined.workflows';
