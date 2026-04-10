@@ -3848,17 +3848,64 @@ function renderFaceReliefMap() {
 
   var points = [];
   var valMin = Infinity, valMax = -Infinity;
+
+  // Build a 2-D grid [xIdx][layerIdx] = yContactVal so we can gap-fill missing
+  // cells (MISS probes) before creating the points array for renderReliefMap.
+  var xIdxMap = {}, layerIdxMap = {};
+  xs.forEach(function(v, i) { xIdxMap[v.toFixed(6)] = i; });
+  layers.forEach(function(l, i) { layerIdxMap[l] = i; });
+  var nCols2 = xs.length, nRows2 = layers.length;
+  var rlGrid = [];
+  for (var ci = 0; ci < nCols2; ci++) { rlGrid.push(new Array(nRows2).fill(null)); }
   Object.keys(cellSumY).forEach(function(key) {
     var parts = key.split('|');
     var xv = parseFloat(parts[0]);
     var lv = parseInt(parts[1], 10);
     var yv = cellSumY[key] / cellCntY[key];
-    var zv = layerToAvgZ[lv];
-    if (!isFinite(xv) || !isFinite(yv) || !isFinite(zv)) return;
-    points.push({ px: xv, py: zv, val: yv });
-    if (yv < valMin) valMin = yv;
-    if (yv > valMax) valMax = yv;
+    if (!isFinite(xv) || !isFinite(yv)) return;
+    var ci = xIdxMap[xv.toFixed(6)], ri = layerIdxMap[lv];
+    if (ci != null && ri != null) rlGrid[ci][ri] = yv;
   });
+  // Gap-fill pass 1: interpolate along X within each layer
+  for (var pli = 0; pli < nRows2; pli++) {
+    for (var pxi = 0; pxi < nCols2; pxi++) {
+      if (rlGrid[pxi][pli] !== null) continue;
+      var lx = -1, rx = -1;
+      for (var k = pxi - 1; k >= 0; k--) { if (rlGrid[k][pli] !== null) { lx = k; break; } }
+      for (var k = pxi + 1; k < nCols2; k++) { if (rlGrid[k][pli] !== null) { rx = k; break; } }
+      if (lx >= 0 && rx >= 0) {
+        var t = (pxi - lx) / (rx - lx);
+        rlGrid[pxi][pli] = rlGrid[lx][pli] * (1 - t) + rlGrid[rx][pli] * t;
+      } else if (lx >= 0) { rlGrid[pxi][pli] = rlGrid[lx][pli]; }
+        else if (rx >= 0) { rlGrid[pxi][pli] = rlGrid[rx][pli]; }
+    }
+  }
+  // Gap-fill pass 2: interpolate along layer (Z) for any still-missing cells
+  for (var pxi2 = 0; pxi2 < nCols2; pxi2++) {
+    for (var pli2 = 0; pli2 < nRows2; pli2++) {
+      if (rlGrid[pxi2][pli2] !== null) continue;
+      var ll = -1, rl2 = -1;
+      for (var k = pli2 - 1; k >= 0; k--) { if (rlGrid[pxi2][k] !== null) { ll = k; break; } }
+      for (var k = pli2 + 1; k < nRows2; k++) { if (rlGrid[pxi2][k] !== null) { rl2 = k; break; } }
+      if (ll >= 0 && rl2 >= 0) {
+        var t2 = (pli2 - ll) / (rl2 - ll);
+        rlGrid[pxi2][pli2] = rlGrid[pxi2][ll] * (1 - t2) + rlGrid[pxi2][rl2] * t2;
+      } else if (ll >= 0) { rlGrid[pxi2][pli2] = rlGrid[pxi2][ll]; }
+        else if (rl2 >= 0) { rlGrid[pxi2][pli2] = rlGrid[pxi2][rl2]; }
+    }
+  }
+  // Build points array from filled grid
+  for (var ci2 = 0; ci2 < nCols2; ci2++) {
+    for (var ri2 = 0; ri2 < nRows2; ri2++) {
+      var yv2 = rlGrid[ci2][ri2];
+      if (yv2 === null || !isFinite(yv2)) continue;
+      var xv2 = xs[ci2], zv2 = layerToAvgZ[layers[ri2]];
+      if (!isFinite(xv2) || !isFinite(zv2)) continue;
+      points.push({ px: xv2, py: zv2, val: yv2 });
+      if (yv2 < valMin) valMin = yv2;
+      if (yv2 > valMax) valMax = yv2;
+    }
+  }
 
   if (points.length < 4) return;
   pluginDebug('renderFaceReliefMap: mode=face projection=XZ points=' + points.length + ' Y-contact=' + valMin.toFixed(3) + ' to ' + valMax.toFixed(3));
@@ -4352,7 +4399,9 @@ function _buildThreeFaceWall(faceWall, cfg, zMin, zMax, zExag, si) {
           var layerFrac = (li + ty) / nRowsM1;
           var worldX = (mx-xCenter)/maxSpan*100;
           var worldY = (mz-zMid)*zExag*zScale;
-          var worldZ = frontZ + (mc - cMid) * zExag * zScale + layerFrac * lateralSlant;
+          // Negate (mc - cMid): shallow contact (small mc = face protrudes toward camera)
+          // must map to larger worldZ (closer to camera at Z=+200), not smaller.
+          var worldZ = frontZ - (mc - cMid) * zExag * zScale + layerFrac * lateralSlant;
           posArr[vIdx*3]=worldX; posArr[vIdx*3+1]=worldY; posArr[vIdx*3+2]=worldZ;
           var c=_threeZCol(mc, cMin, cMax);
           colArr[vIdx*3]=c[0]; colArr[vIdx*3+1]=c[1]; colArr[vIdx*3+2]=c[2];
@@ -4431,7 +4480,7 @@ function _buildThreeBridge(grid, cfg, faceWall, zMin, zMax, zExag, si) {
     var wx0=(sx0-xCenter)/maxSpan*100, wx1=(sx1-xCenter)/maxSpan*100;
     var wy_s0=(sz0-zMid)*zExag*zScale, wy_s1=(sz1-zMid)*zExag*zScale;
     var wy_f0=(fz0-zMid)*zExag*zScale, wy_f1=(fz1-zMid)*zExag*zScale;
-    var wz_f0=frontZ+(fc0-cMid)*zExag*zScale+lateralSlant, wz_f1=frontZ+(fc1-cMid)*zExag*zScale+lateralSlant; // matches face wall top (layerFrac=1, full slant at top)
+    var wz_f0=frontZ-(fc0-cMid)*zExag*zScale+lateralSlant, wz_f1=frontZ-(fc1-cMid)*zExag*zScale+lateralSlant; // matches face wall top (layerFrac=1, full slant at top)
     var base=vtx;
     // Quad: surface front edge (at frontZ) → face top edge (at frontZ + contact-Y displacement + full slant at top)
     pos.push(wx0,wy_s0,frontZ, wx1,wy_s1,frontZ, wx1,wy_f1,wz_f1, wx0,wy_f0,wz_f0);
@@ -4527,13 +4576,13 @@ function _buildThreeFaceContours(faceWall, cfg, zMin, zMax, zExag, si) {
         var cy00=Number(r00.y),cy10=Number(r10.y),cy01=Number(r01.y),cy11=Number(r11.y);
         var x00=faceWall.xs[xi], x10=faceWall.xs[xi+1];
         var lf00=li/nRowsM1, lf01=(li+1)/nRowsM1;
-        // 3-D positions matching _buildThreeFaceWall (outward slant + contact displacement)
+        // 3-D positions matching _buildThreeFaceWall (outward slant + contact displacement, negated for correct depth)
         var px00=(x00-xCenter)/maxSpan*100, px10=(x10-xCenter)/maxSpan*100;
         var px01=(x00-xCenter)/maxSpan*100, px11=(x10-xCenter)/maxSpan*100;
         var py00=(z00-zMid)*zExag*zScale, py10=(z10-zMid)*zExag*zScale;
         var py01=(z01-zMid)*zExag*zScale, py11=(z11-zMid)*zExag*zScale;
-        var pz00=frontZ+(cy00-cMid)*zExag*zScale+lf00*lateralSlant, pz10=frontZ+(cy10-cMid)*zExag*zScale+lf00*lateralSlant;
-        var pz01=frontZ+(cy01-cMid)*zExag*zScale+lf01*lateralSlant, pz11=frontZ+(cy11-cMid)*zExag*zScale+lf01*lateralSlant;
+        var pz00=frontZ-(cy00-cMid)*zExag*zScale+lf00*lateralSlant, pz10=frontZ-(cy10-cMid)*zExag*zScale+lf00*lateralSlant;
+        var pz01=frontZ-(cy01-cMid)*zExag*zScale+lf01*lateralSlant, pz11=frontZ-(cy11-cMid)*zExag*zScale+lf01*lateralSlant;
         // Triangle pair marching: each entry = [px,py,pz, contactY] × 3 vertices
         var tris = [
           [px00,py00,pz00,cy00, px10,py10,pz10,cy10, px00,py01,pz01,cy01],
@@ -7388,6 +7437,59 @@ function buildFaceWallGrid() {
     if (li == null) return;
     if (!grid[li][xi]) grid[li][xi] = r;
   });
+
+  // Gap-fill: interpolate missing cells so MISS probes don't create holes in the mesh.
+  // Pass 1: fill along X within each layer using neighbours on the same layer.
+  // Pass 2: fill along Z (layer axis) for any cells still missing after Pass 1.
+  // Pass 3: nearest-neighbour fallback for isolated gaps.
+  var nL = layers.length, nX = xs.length;
+  function _fwGapFillInterp(liA, xiA, liB, xiB, tFrac) {
+    var rA = grid[liA][xiA], rB = grid[liB][xiB];
+    if (!rA || !rB) return null;
+    var t = tFrac, s = 1 - t;
+    return {
+      x: s * Number(rA.x) + t * Number(rB.x),
+      y: s * Number(rA.y) + t * Number(rB.y),
+      z: s * Number(rA.z) + t * Number(rB.z),
+      machineZ: (rA.machineZ != null && rB.machineZ != null) ? s * Number(rA.machineZ) + t * Number(rB.machineZ) : null,
+      sampleTopZ: (rA.sampleTopZ != null && rB.sampleTopZ != null) ? s * Number(rA.sampleTopZ) + t * Number(rB.sampleTopZ) : null,
+      layer: rA.layer,
+      _interpolated: true
+    };
+  }
+  // Pass 1: X-direction fill
+  for (var pli = 0; pli < nL; pli++) {
+    for (var pxi = 0; pxi < nX; pxi++) {
+      if (grid[pli][pxi]) continue;
+      // find nearest filled neighbours to the left and right in same layer
+      var lx = -1, rx = -1;
+      for (var k = pxi - 1; k >= 0; k--) { if (grid[pli][k]) { lx = k; break; } }
+      for (var k = pxi + 1; k < nX; k++) { if (grid[pli][k]) { rx = k; break; } }
+      if (lx >= 0 && rx >= 0) {
+        grid[pli][pxi] = _fwGapFillInterp(pli, lx, pli, rx, (pxi - lx) / (rx - lx));
+      } else if (lx >= 0) {
+        grid[pli][pxi] = _fwGapFillInterp(pli, lx, pli, lx, 0);
+      } else if (rx >= 0) {
+        grid[pli][pxi] = _fwGapFillInterp(pli, rx, pli, rx, 0);
+      }
+    }
+  }
+  // Pass 2: Z-direction fill for any still-missing cells
+  for (var pxi2 = 0; pxi2 < nX; pxi2++) {
+    for (var pli2 = 0; pli2 < nL; pli2++) {
+      if (grid[pli2][pxi2]) continue;
+      var ll = -1, rl = -1;
+      for (var k = pli2 - 1; k >= 0; k--) { if (grid[k][pxi2]) { ll = k; break; } }
+      for (var k = pli2 + 1; k < nL; k++) { if (grid[k][pxi2]) { rl = k; break; } }
+      if (ll >= 0 && rl >= 0) {
+        grid[pli2][pxi2] = _fwGapFillInterp(ll, pxi2, rl, pxi2, (pli2 - ll) / (rl - ll));
+      } else if (ll >= 0) {
+        grid[pli2][pxi2] = _fwGapFillInterp(ll, pxi2, ll, pxi2, 0);
+      } else if (rl >= 0) {
+        grid[pli2][pxi2] = _fwGapFillInterp(rl, pxi2, rl, pxi2, 0);
+      }
+    }
+  }
 
   // Compute Z range (layer heights) and Y range (contact coordinate) across all face data
   var zMin = Infinity, zMax = -Infinity;
