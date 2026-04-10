@@ -1963,10 +1963,18 @@ function pvizApplyAllRotations() {
 function pvizResetView() {
   _pvizRotX = 60; _pvizRotY = 0; _pvizRotZ = -35;
   pvizApplyAllRotations();
-  // Reset Three.js cameras for unified visualizers
-  ['sm', 'res', 'surf', 'face', 'relief', 'comb'].forEach(function(p) {
+  // Reset Three.js cameras for unified visualizers.
+  // Face-only views use a frontal camera; all others use the isometric default.
+  var _faceOnlySet = { 'face': true, 'resface': true, 'relief': true };
+  ['sm', 'res', 'surf', 'face', 'resface', 'relief', 'comb'].forEach(function(p) {
     var s = _threeState[p];
-    if (s && s.controls) { s.camera.position.set(120, 80, 120); s.camera.lookAt(0, 0, 0); s.controls.reset(); }
+    if (!s || !s.controls) return;
+    if (_faceOnlySet[p]) {
+      s.camera.position.set(0, 30, 200);
+    } else {
+      s.camera.position.set(120, 80, 120);
+    }
+    s.camera.lookAt(0, 0, 0); s.controls.reset();
   });
 }
 
@@ -2007,7 +2015,8 @@ function initResFaceVizRotation() { initPvizRotation('resface-pviz-scene'); }
 
 function resFaceVizResetView() {
   var s = _threeState['resface'];
-  if (s && s.controls) { s.camera.position.set(120, 80, 120); s.camera.lookAt(0, 0, 0); s.controls.reset(); }
+  // Frontal camera: Machine-X horizontal, Machine-Z vertical — matches XZ face relief map
+  if (s && s.controls) { s.camera.position.set(0, 30, 200); s.camera.lookAt(0, 0, 0); s.controls.reset(); }
 }
 
 function renderResFaceVizMesh() {
@@ -2182,15 +2191,20 @@ function renderReliefMap(canvasId, tooltipId, points, cfg) {
     ctx.restore();
   }
 
-  // Probe point markers — batch style state outside loop
+  // Probe point markers — batch style state outside loop.
+  // Clamp marker centres so circles of radius MARK_R stay fully within the plot area
+  // rather than being half-obscured by the dark axis padding at domain extremes.
+  var MARK_R = 4;
   ctx.save();
   ctx.fillStyle = 'rgba(255,255,255,0.9)';
   ctx.strokeStyle = '#000';
   ctx.lineWidth = 1.2;
   points.forEach(function(p) {
     var cp = dataToCanvas(p.px, p.py);
+    var cx = Math.max(padL + MARK_R, Math.min(padL + plotW - MARK_R, cp.cx));
+    var cy = Math.max(padT + MARK_R, Math.min(padT + plotH - MARK_R, cp.cy));
     ctx.beginPath();
-    ctx.arc(cp.cx, cp.cy, 4, 0, Math.PI * 2);
+    ctx.arc(cx, cy, MARK_R, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
   });
@@ -2429,9 +2443,9 @@ function reliefApplyRotation() {
 function reliefResetView() {
   _reliefRotX = 60; _reliefRotY = 0; _reliefRotZ = -35;
   reliefApplyRotation();
-  // Also reset Three.js camera for relief scene
+  // Also reset Three.js camera for relief scene — frontal view matching XZ face relief map
   var s = _threeState['relief'];
-  if (s && s.controls) { s.camera.position.set(120, 80, 120); s.camera.lookAt(0, 0, 0); s.controls.reset(); }
+  if (s && s.controls) { s.camera.position.set(0, 30, 200); s.camera.lookAt(0, 0, 0); s.controls.reset(); }
 }
 
 function renderRelief3D() {
@@ -2461,7 +2475,15 @@ function _threeGetOrInit(prefix) {
   var scene = new THREE.Scene();
   scene.background = new THREE.Color(0x060a10);
   var camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 5000);
-  camera.position.set(120, 80, 120);
+  // Face-only views (face wall is roughly in the worldX-worldY plane): use a frontal
+  // view so Machine-X appears horizontal and Machine-Z (height) appears vertical,
+  // matching the XZ-projection semantics of the face relief map.
+  var _faceOnlyPrefix = (prefix === 'face' || prefix === 'resface' || prefix === 'relief');
+  if (_faceOnlyPrefix) {
+    camera.position.set(0, 30, 200);
+  } else {
+    camera.position.set(120, 80, 120);
+  }
   camera.lookAt(0, 0, 0);
   var renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   renderer.setSize(w, h);
@@ -2474,10 +2496,15 @@ function _threeGetOrInit(prefix) {
     controls.dampingFactor = 0.05;
     controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
   } else {
-    // Fallback built-in orbit/zoom controls when OrbitControls CDN fails to load
-    // Initial values matched to camera.position.set(120, 80, 120) / lookAt(0,0,0)
-    var _fbDist = 188, _fbPhi = 1.13, _fbTheta = 0.785;
-    var _fbPanX = 0, _fbPanY = 0;
+    // Fallback built-in orbit/zoom controls when OrbitControls CDN fails to load.
+    // Initial values depend on the camera mode: face-only views use a frontal position
+    // (spherical: phi≈PI/2 = equator, theta=0 = front), isometric views use the
+    // original (phi=1.13≈64.7°, theta=0.785≈45°).
+    var _fbFaceOnly = _faceOnlyPrefix;
+    var _fbDist = _fbFaceOnly ? 202 : 188; // dist matching camera.position length
+    var _fbPhi  = _fbFaceOnly ? Math.PI / 2 : 1.13;  // polar angle from Y-up axis
+    var _fbTheta= _fbFaceOnly ? 0            : 0.785; // azimuth around Y axis (0=+Z front)
+    var _fbPanX = 0, _fbPanY = _fbFaceOnly ? 30 : 0;
     var _fbDrag = false, _fbBtn = 0, _fbPX = 0, _fbPY = 0;
     var _fbCamUpdate = function() {
       var sinP = Math.sin(_fbPhi), cosP = Math.cos(_fbPhi);
@@ -2516,9 +2543,11 @@ function _threeGetOrInit(prefix) {
       _fbCamUpdate();
     }, { passive: false });
     _fbEl.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+    var _fbResetDist  = _fbDist, _fbResetPhi = _fbPhi, _fbResetTheta = _fbTheta;
+    var _fbResetPanY  = _fbPanY;
     controls = {
       update: function() {},
-      reset: function() { _fbDist = 188; _fbPhi = 1.13; _fbTheta = 0.785; _fbPanX = 0; _fbPanY = 0; _fbCamUpdate(); },
+      reset: function() { _fbDist = _fbResetDist; _fbPhi = _fbResetPhi; _fbTheta = _fbResetTheta; _fbPanX = 0; _fbPanY = _fbResetPanY; _fbCamUpdate(); },
       enableDamping: false, mouseButtons: {}
     };
     console.warn('THREE.OrbitControls not available — using built-in fallback controls');
@@ -6182,7 +6211,8 @@ function facePVizResetView() {
   _facePvizRotX = 20; _facePvizRotY = -25; _facePvizRotZ = 0;
   facePVizApplyRotation();
   var s = _threeState['face'];
-  if (s && s.controls) { s.camera.position.set(120, 80, 120); s.camera.lookAt(0, 0, 0); s.controls.reset(); }
+  // Frontal camera: Machine-X horizontal, Machine-Z vertical — matches XZ face relief map
+  if (s && s.controls) { s.camera.position.set(0, 30, 200); s.camera.lookAt(0, 0, 0); s.controls.reset(); }
 }
 
 function initFacePVizRotation() {
