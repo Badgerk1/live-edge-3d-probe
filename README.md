@@ -187,6 +187,8 @@ ncSender (host application)
 | `src/js/visualization.js` | Three.js 3D mesh renderer and heat-map colouring |
 | `src/js/ui-helpers.js` | Tab switching, form helpers, log rendering |
 | `src/js/finish-motion.js` | Post-probe motion sequencing |
+| `src/js/settings-and-exports.js` | Settings save/load/reset, CSV/DXF/OBJ export, workflow management |
+| `src/js/diagnostics.js` | Non-destructive UI field and function audit |
 | `src/config-footer.html` | Closing `</script>`, `</body>`, `</html>` |
 
 ### Probe image asset (`probe.png`)
