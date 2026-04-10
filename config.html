@@ -3819,6 +3819,8 @@ function renderFaceReliefMap() {
     return;
   }
 
+  pluginDebug('renderFaceReliefMap: raw data count=' + data.length);
+
   // Face probe Z depths (layerZ) are computed per-sample from sampleTopZ, so they
   // differ slightly between X positions for the same layer number.  Using actual Z
   // values as the grid row key produces a sparse grid where bilinear interpolation
@@ -3840,39 +3842,78 @@ function renderFaceReliefMap() {
   var xs = Object.values(xKeyToVal).sort(function(a, b) { return a - b; });
   var layers = Object.keys(layerZSum).map(Number).sort(function(a, b) { return a - b; });
   var nCols = xs.length, nRows = layers.length;
-  if (nCols < 2 || nRows < 2) return;
-
-  // Average Z depth per layer — used as the shared py coordinate for all X columns
-  var layerToAvgZ = {};
-  layers.forEach(function(l) { layerToAvgZ[l] = layerZSum[l] / layerZCnt[l]; });
-
-  // Build per-(x, layer) average Y contact value to handle any duplicates
-  var cellSumY = {}, cellCntY = {};
-  data.forEach(function(r) {
-    var xv = Number(r.x), yv = Number(r.y);
-    var lv = r.layer != null ? Number(r.layer) : DEFAULT_LAYER;
-    if (!isFinite(xv) || !isFinite(yv)) return;
-    var key = xv.toFixed(6) + '|' + lv;
-    if (!(key in cellSumY)) { cellSumY[key] = 0; cellCntY[key] = 0; }
-    cellSumY[key] += yv; cellCntY[key]++;
-  });
+  if (nCols < 2) return;
 
   var points = [];
   var valMin = Infinity, valMax = -Infinity;
-  Object.keys(cellSumY).forEach(function(key) {
-    var parts = key.split('|');
-    var xv = parseFloat(parts[0]);
-    var lv = parseInt(parts[1], 10);
-    var yv = cellSumY[key] / cellCntY[key];
-    var zv = layerToAvgZ[lv];
-    if (!isFinite(xv) || !isFinite(yv) || !isFinite(zv)) return;
-    points.push({ px: xv, py: zv, val: yv });
-    if (yv < valMin) valMin = yv;
-    if (yv > valMax) valMax = yv;
-  });
+
+  if (nRows >= 2) {
+    // Layered probe path: use average Z per layer as the canonical row py coordinate.
+    // Average Z depth per layer — used as the shared py coordinate for all X columns
+    var layerToAvgZ = {};
+    layers.forEach(function(l) { layerToAvgZ[l] = layerZSum[l] / layerZCnt[l]; });
+
+    // Build per-(x, layer) average Y contact value to handle any duplicates
+    var cellSumY = {}, cellCntY = {};
+    data.forEach(function(r) {
+      var xv = Number(r.x), yv = Number(r.y);
+      var lv = r.layer != null ? Number(r.layer) : DEFAULT_LAYER;
+      if (!isFinite(xv) || !isFinite(yv)) return;
+      var key = xv.toFixed(6) + '|' + lv;
+      if (!(key in cellSumY)) { cellSumY[key] = 0; cellCntY[key] = 0; }
+      cellSumY[key] += yv; cellCntY[key]++;
+    });
+    pluginDebug('renderFaceReliefMap: layer-mode cells=' + Object.keys(cellSumY).length + ' xs=' + xs.length + ' layers=' + layers.length);
+
+    Object.keys(cellSumY).forEach(function(key) {
+      var parts = key.split('|');
+      var xv = parseFloat(parts[0]);
+      var lv = parseInt(parts[1], 10);
+      var yv = cellSumY[key] / cellCntY[key];
+      var zv = layerToAvgZ[lv];
+      if (!isFinite(xv) || !isFinite(yv) || !isFinite(zv)) return;
+      points.push({ px: xv, py: zv, val: yv });
+      if (yv < valMin) valMin = yv;
+      if (yv > valMax) valMax = yv;
+    });
+  } else {
+    // Single-layer or no-layer data (e.g. single-pass face probe where r.layer is unset):
+    // fall back to grouping by actual Z value so the map still renders.
+    var zKeyToVal = {};
+    data.forEach(function(r) {
+      var zv = Number(r.z);
+      if (!isFinite(zv)) return;
+      var zKey = zv.toFixed(3);
+      if (!(zKey in zKeyToVal)) zKeyToVal[zKey] = zv;
+    });
+    var zVals = Object.values(zKeyToVal).sort(function(a, b) { return a - b; });
+    if (zVals.length < 2) return; // still only one row — nothing useful to render
+    nRows = zVals.length;
+
+    var cellSumYz = {}, cellCntYz = {};
+    data.forEach(function(r) {
+      var xv = Number(r.x), yv = Number(r.y), zv = Number(r.z);
+      if (!isFinite(xv) || !isFinite(yv) || !isFinite(zv)) return;
+      var key = xv.toFixed(6) + '|' + zv.toFixed(3);
+      if (!(key in cellSumYz)) { cellSumYz[key] = 0; cellCntYz[key] = 0; }
+      cellSumYz[key] += yv; cellCntYz[key]++;
+    });
+    pluginDebug('renderFaceReliefMap: z-fallback-mode cells=' + Object.keys(cellSumYz).length + ' xs=' + xs.length + ' zRows=' + zVals.length);
+
+    Object.keys(cellSumYz).forEach(function(key) {
+      var parts = key.split('|');
+      var xv = parseFloat(parts[0]);
+      var zv = parseFloat(parts[1]);
+      var yv = cellSumYz[key] / cellCntYz[key];
+      if (!isFinite(xv) || !isFinite(yv) || !isFinite(zv)) return;
+      points.push({ px: xv, py: zv, val: yv });
+      if (yv < valMin) valMin = yv;
+      if (yv > valMax) valMax = yv;
+    });
+  }
 
   if (points.length < 4) return;
-  pluginDebug('renderFaceReliefMap: mode=face projection=XZ points=' + points.length + ' Y-contact=' + valMin.toFixed(3) + ' to ' + valMax.toFixed(3));
+  pluginDebug('renderFaceReliefMap: mode=face projection=XZ points=' + points.length + ' nCols=' + nCols + ' nRows=' + nRows + ' Y-contact=' + valMin.toFixed(3) + ' to ' + valMax.toFixed(3));
   var reliefCfg = { xLabel: 'X (coords)', yLabel: 'Z depth (coords)', valueLabel: 'Y contact (coords)', gridCols: nCols, gridRows: nRows };
   // Render to all face relief canvas instances (Probe tab, Results tab, Mesh Data tab).
   // Show the Mesh Data tab face panel when face data is available.
@@ -6929,14 +6970,9 @@ async function runFaceProbe(axis, _calledFromCombined){
               logLine('face', 'INTER-SAMPLE TRAVEL CONTACT: probe triggered during inter-sample retract at X=' + Number(_isrPos.x).toFixed(3) + ' Y=' + Number(_isrPos.y).toFixed(3) + ' Z=' + Number(_isrPos.z).toFixed(3));
               var _isrRec = makeFaceContactRecord(faceResults.length + 1, _isrPos, axis, 'EARLY_CONTACT_INTER_SAMPLE_RETRACT_' + axis, targetCoord, lineCoord);
               faceResults.push(_isrRec);
-              layeredFaceResults.push({
-                x: Number(_isrPos.x),
-                y: Number(_isrPos.y),
-                z: layerZ,
-                machineZ: _isrPos.machineZ != null ? Number(_isrPos.machineZ) : null,
-                layer: layerNum,
-                sampleTopZ: sampleTopZ
-              });
+              // Do NOT push to layeredFaceResults — this contact occurred at a non-nominal
+              // X/Y position during travel/retract; including it would add spurious off-grid
+              // columns that distort the relief map, 3D wall, and OBJ mesh.
               saveProbeResultsThrottled();
               var _isrRecovery = {recoveries: 0, totalLift: 0};
               var _isrUnitX = axis === 'X' ? Math.sign(startCoord - targetCoord) : 0;
@@ -6962,14 +6998,8 @@ async function runFaceProbe(axis, _calledFromCombined){
               logLine('face', 'INTER-SAMPLE TRAVEL CONTACT: probe triggered during layer-transition retract at X=' + Number(_ltrPos.x).toFixed(3) + ' Y=' + Number(_ltrPos.y).toFixed(3) + ' Z=' + Number(_ltrPos.z).toFixed(3));
               var _ltrRec = makeFaceContactRecord(faceResults.length + 1, _ltrPos, axis, 'EARLY_CONTACT_INTER_SAMPLE_RETRACT_' + axis, targetCoord, lineCoord);
               faceResults.push(_ltrRec);
-              layeredFaceResults.push({
-                x: Number(_ltrPos.x),
-                y: Number(_ltrPos.y),
-                z: Number(_ltrPos.z),
-                machineZ: _ltrPos.machineZ != null ? Number(_ltrPos.machineZ) : null,
-                layer: layerNum,
-                sampleTopZ: sampleTopZ
-              });
+              // Do NOT push to layeredFaceResults — same reason as inter-sample retract above:
+              // non-nominal position during travel would add an off-grid column.
               saveProbeResultsThrottled();
               var _ltrRecovery = {recoveries: 0, totalLift: 0};
               var _ltrUnitX = axis === 'X' ? Math.sign(startCoord - targetCoord) : 0;
@@ -9830,7 +9860,8 @@ function exportSurfaceOBJ() {
   var cfg = up, grid = up.grid;
   var lines = ['# 3D Live Edge Mesh — Surface OBJ', '# Plugin Version: ' + SM_VERSION,
                '# Exported: ' + new Date().toISOString(),
-               '# Bicubic Catmull-Rom interpolation, subdivision spacing: ' + subSpacing + 'mm', ''];
+               '# Bicubic Catmull-Rom interpolation, subdivision spacing: ' + subSpacing + 'mm', '',
+               'o surface_mesh', ''];
   var allVerts = [];
   var allTris = [];
   // Map grid positions to vertex indices (0-based).
@@ -9909,7 +9940,8 @@ function exportFaceOBJ() {
   subSpacing = Math.max(0.5, subSpacing);
   var lines = ['# 3D Live Edge Mesh — Face OBJ', '# Plugin Version: ' + SM_VERSION,
                '# Exported: ' + new Date().toISOString(),
-               '# Bicubic Catmull-Rom interpolation, subdivision spacing: ' + subSpacing + 'mm', ''];
+               '# Bicubic Catmull-Rom interpolation, subdivision spacing: ' + subSpacing + 'mm', '',
+               'o face_mesh', ''];
   // Upsample the face probe grid via bicubic Catmull-Rom interpolation.
   var up = _upsampleFaceData(data, subSpacing);
   var allVerts = up.pts;
@@ -10008,7 +10040,8 @@ function exportCombinedOBJWatertight() {
   var surfUp = _bicubicUpsampleGrid(smMeshData, smGridConfig, subSpacing);
   var cfg = surfUp, grid = surfUp.grid;
   var lines = ['# 3D Live Edge Mesh — Combined Watertight OBJ', '# Plugin Version: ' + SM_VERSION,
-               '# Bicubic Catmull-Rom interpolation, subdivision spacing: ' + subSpacing + 'mm', ''];
+               '# Bicubic Catmull-Rom interpolation, subdivision spacing: ' + subSpacing + 'mm', '',
+               'o combined_mesh', ''];
   var allVerts = [];
   var allTris = [];
   // ── Surface mesh (upsampled grid, CCW for +Z normal) ───────────────────────

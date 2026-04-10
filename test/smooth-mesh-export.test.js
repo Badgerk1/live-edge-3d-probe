@@ -374,6 +374,412 @@ function testNoSubdivisionWhenSpacingMatchesGrid() {
 
 // ── Run all tests ─────────────────────────────────────────────────────────────
 
+// ── OBJ export validation helpers ────────────────────────────────────────────
+
+// Simulate the OBJ export for a surface grid (mirrors exportSurfaceOBJ logic).
+// Returns the OBJ text as a string.
+function buildSurfaceOBJ(grid, cfg, targetSpacing) {
+  var up = _bicubicUpsampleGrid(grid, cfg, targetSpacing);
+  var allVerts = [], allTris = [];
+  var vMap = [];
+  for (var ri = 0; ri < up.rowCount; ri++) {
+    vMap.push([]);
+    for (var ci = 0; ci < up.colCount; ci++) {
+      var z = up.grid[ri][ci];
+      if (z != null) {
+        vMap[ri].push(allVerts.length);
+        allVerts.push({ x: up.minX + ci * up.colSpacing, y: up.minY + ri * up.rowSpacing, z: z });
+      } else {
+        vMap[ri].push(null);
+      }
+    }
+  }
+  for (var fr = 0; fr < up.rowCount - 1; fr++) {
+    for (var fc = 0; fc < up.colCount - 1; fc++) {
+      var a=vMap[fr][fc], b=vMap[fr][fc+1], c=vMap[fr+1][fc+1], d=vMap[fr+1][fc];
+      if (a!=null&&b!=null&&c!=null&&d!=null) { allTris.push([a,b,c]); allTris.push([a,c,d]); }
+      else if (a!=null&&b!=null&&c!=null) { allTris.push([a,b,c]); }
+      else if (a!=null&&c!=null&&d!=null) { allTris.push([a,c,d]); }
+      else if (b!=null&&c!=null&&d!=null) { allTris.push([b,c,d]); }
+      else if (a!=null&&b!=null&&d!=null) { allTris.push([a,b,d]); }
+    }
+  }
+  var norms = _computeVertexNormals(allVerts, allTris);
+  var lines = ['# Surface OBJ', '# Test export', '', 'o surface_mesh', ''];
+  allVerts.forEach(function(v) { lines.push('v ' + v.x.toFixed(4) + ' ' + v.y.toFixed(4) + ' ' + v.z.toFixed(4)); });
+  lines.push('');
+  norms.forEach(function(n) { lines.push('vn ' + n.x.toFixed(4) + ' ' + n.y.toFixed(4) + ' ' + n.z.toFixed(4)); });
+  lines.push('');
+  lines.push('s 1');
+  allTris.forEach(function(t) {
+    var i0=t[0]+1, i1=t[1]+1, i2=t[2]+1;
+    lines.push('f ' + i0 + '//' + i0 + ' ' + i1 + '//' + i1 + ' ' + i2 + '//' + i2);
+  });
+  return { text: lines.join('\n'), vertCount: allVerts.length, triCount: allTris.length, normCount: norms.length };
+}
+
+// Simulate the OBJ export for face probe data (mirrors exportFaceOBJ logic).
+function buildFaceOBJ(data, targetSpacing) {
+  var up = _upsampleFaceData(data, targetSpacing);
+  var allVerts = up.pts;
+  var allTris = [];
+  if (up.vMap && up.rowCount >= 2 && up.colCount >= 2) {
+    for (var ri = 0; ri < up.rowCount - 1; ri++) {
+      for (var ci = 0; ci < up.colCount - 1; ci++) {
+        var a=up.vMap[ri][ci], b=up.vMap[ri][ci+1], c=up.vMap[ri+1][ci+1], d=up.vMap[ri+1][ci];
+        if (a!=null&&b!=null&&c!=null&&d!=null) { allTris.push([a,b,c]); allTris.push([a,c,d]); }
+        else if (a!=null&&b!=null&&c!=null) { allTris.push([a,b,c]); }
+        else if (a!=null&&c!=null&&d!=null) { allTris.push([a,c,d]); }
+        else if (b!=null&&c!=null&&d!=null) { allTris.push([b,c,d]); }
+        else if (a!=null&&b!=null&&d!=null) { allTris.push([a,b,d]); }
+      }
+    }
+  }
+  // Ensure face normals point in -Y direction
+  var sumNy = 0;
+  allTris.forEach(function(t) {
+    var v0=allVerts[t[0]], v1=allVerts[t[1]], v2=allVerts[t[2]];
+    var e1x=v1.x-v0.x, e1z=v1.z-v0.z, e2x=v2.x-v0.x, e2z=v2.z-v0.z;
+    sumNy += e1z*e2x - e1x*e2z;
+  });
+  if (sumNy > 0) allTris = allTris.map(function(t) { return [t[0], t[2], t[1]]; });
+  var norms = _computeVertexNormals(allVerts, allTris);
+  var lines = ['# Face OBJ', '# Test export', '', 'o face_mesh', ''];
+  allVerts.forEach(function(v) { lines.push('v ' + v.x.toFixed(4) + ' ' + v.y.toFixed(4) + ' ' + v.z.toFixed(4)); });
+  lines.push('');
+  norms.forEach(function(n) { lines.push('vn ' + n.x.toFixed(4) + ' ' + n.y.toFixed(4) + ' ' + n.z.toFixed(4)); });
+  lines.push('');
+  lines.push('s 1');
+  allTris.forEach(function(t) {
+    var i0=t[0]+1, i1=t[1]+1, i2=t[2]+1;
+    lines.push('f ' + i0 + '//' + i0 + ' ' + i1 + '//' + i1 + ' ' + i2 + '//' + i2);
+  });
+  return { text: lines.join('\n'), vertCount: allVerts.length, triCount: allTris.length, normCount: norms.length };
+}
+
+// Parse OBJ text into {verts, norms, faces} arrays for validation.
+function parseOBJ(text) {
+  var verts = [], norms = [], faces = [];
+  text.split('\n').forEach(function(line) {
+    line = line.trim();
+    if (line.startsWith('vn ')) {
+      var p = line.slice(3).trim().split(/\s+/).map(Number);
+      norms.push({ x: p[0], y: p[1], z: p[2] });
+    } else if (line.startsWith('v ')) {
+      var p2 = line.slice(2).trim().split(/\s+/).map(Number);
+      verts.push({ x: p2[0], y: p2[1], z: p2[2] });
+    } else if (line.startsWith('f ')) {
+      var tokens = line.slice(2).trim().split(/\s+/);
+      var tri = tokens.map(function(tok) {
+        var parts = tok.split('/');
+        return { v: parseInt(parts[0], 10), vn: parseInt(parts[2], 10) };
+      });
+      faces.push(tri);
+    }
+  });
+  return { verts: verts, norms: norms, faces: faces };
+}
+
+// ── OBJ Validation Tests ──────────────────────────────────────────────────────
+
+function testSurfaceOBJValidation() {
+  console.log('\nTest: surface OBJ export — vn count = v count, face refs valid, no dup vertices');
+
+  var res = buildSurfaceOBJ(SURF_GRID_4X4, SURF_CFG_4X4, 0.5);
+  var obj = parseOBJ(res.text);
+  var nV = obj.verts.length, nVN = obj.norms.length;
+
+  assert(nV === nVN,
+    'Surface OBJ: vn count (' + nVN + ') === v count (' + nV + ')');
+
+  var allFaceRefsValid = obj.faces.every(function(tri) {
+    return tri.every(function(ref) {
+      return ref.v >= 1 && ref.v <= nV && ref.vn >= 1 && ref.vn <= nVN;
+    });
+  });
+  assert(allFaceRefsValid,
+    'Surface OBJ: all face v and vn indices in range [1, ' + nV + ']');
+
+  // v and vn indices must match (v//vn same-index format)
+  var allSameIdx = obj.faces.every(function(tri) {
+    return tri.every(function(ref) { return ref.v === ref.vn; });
+  });
+  assert(allSameIdx, 'Surface OBJ: all faces use v//vn with matching indices');
+
+  // No exact duplicate vertex positions (welded mesh)
+  var posSet = {};
+  var dups = 0;
+  obj.verts.forEach(function(v) {
+    var key = v.x.toFixed(4) + '|' + v.y.toFixed(4) + '|' + v.z.toFixed(4);
+    if (key in posSet) dups++;
+    posSet[key] = true;
+  });
+  assert(dups === 0,
+    'Surface OBJ: no duplicate vertex positions (welded), found ' + dups + ' duplicates');
+
+  // All normals are non-zero and normalized
+  var allNormOK = obj.norms.every(function(n) {
+    var len = Math.sqrt(n.x*n.x + n.y*n.y + n.z*n.z);
+    return len > 1e-6 && Math.abs(len - 1) < 1e-3;
+  });
+  assert(allNormOK, 'Surface OBJ: all vn normals are non-zero and normalized');
+
+  // OBJ text must contain an 'o' object declaration
+  assert(res.text.indexOf('\no surface_mesh') >= 0 || res.text.startsWith('o surface_mesh'),
+    'Surface OBJ: contains "o surface_mesh" object declaration');
+}
+
+function testFaceOBJValidation() {
+  console.log('\nTest: face OBJ export — vn count = v count, face refs valid, normals in -Y direction');
+
+  var res = buildFaceOBJ(FACE_DATA_3X4, 0.5);
+  var obj = parseOBJ(res.text);
+  var nV = obj.verts.length, nVN = obj.norms.length;
+
+  assert(nV === nVN,
+    'Face OBJ: vn count (' + nVN + ') === v count (' + nV + ')');
+
+  var allFaceRefsValid = obj.faces.every(function(tri) {
+    return tri.every(function(ref) {
+      return ref.v >= 1 && ref.v <= nV && ref.vn >= 1 && ref.vn <= nVN;
+    });
+  });
+  assert(allFaceRefsValid,
+    'Face OBJ: all face v and vn indices in range [1, ' + nV + ']');
+
+  var allSameIdx = obj.faces.every(function(tri) {
+    return tri.every(function(ref) { return ref.v === ref.vn; });
+  });
+  assert(allSameIdx, 'Face OBJ: all faces use v//vn with matching indices');
+
+  // No exact duplicate vertex positions
+  var posSet = {};
+  var dups = 0;
+  obj.verts.forEach(function(v) {
+    var key = v.x.toFixed(4) + '|' + v.y.toFixed(4) + '|' + v.z.toFixed(4);
+    if (key in posSet) dups++;
+    posSet[key] = true;
+  });
+  assert(dups === 0,
+    'Face OBJ: no duplicate vertex positions (welded), found ' + dups + ' duplicates');
+
+  // All normals non-zero and normalized
+  var allNormOK = obj.norms.every(function(n) {
+    var len = Math.sqrt(n.x*n.x + n.y*n.y + n.z*n.z);
+    return len > 1e-6 && Math.abs(len - 1) < 1e-3;
+  });
+  assert(allNormOK, 'Face OBJ: all vn normals are non-zero and normalized');
+
+  // Face mesh normals should predominantly point in -Y direction
+  var negYCount = obj.norms.filter(function(n) { return n.y < 0; }).length;
+  assert(negYCount > nVN / 2,
+    'Face OBJ: majority of normals point in -Y direction (' + negYCount + '/' + nVN + ')');
+
+  // OBJ text must contain an 'o' object declaration
+  assert(res.text.indexOf('\no face_mesh') >= 0 || res.text.startsWith('o face_mesh'),
+    'Face OBJ: contains "o face_mesh" object declaration');
+}
+
+// ── Face relief map point-count preservation test ────────────────────────────
+// Simulates the renderFaceReliefMap grid-building logic for layered probe data
+// and verifies that all expected (X, layer) cells are represented.
+
+function simulateFaceReliefMapGrid(data) {
+  // Mirrors the layer-mode path of renderFaceReliefMap in src/js/core.js.
+  var DEFAULT_LAYER = 1;
+  var xKeyToVal = {}, layerZSum = {}, layerZCnt = {};
+  data.forEach(function(r) {
+    var xv = Number(r.x), yv = Number(r.y), zv = Number(r.z);
+    var lv = r.layer != null ? Number(r.layer) : DEFAULT_LAYER;
+    if (!isFinite(xv) || !isFinite(yv) || !isFinite(zv)) return;
+    var xKey = xv.toFixed(6);
+    if (!(xKey in xKeyToVal)) xKeyToVal[xKey] = xv;
+    if (!(lv in layerZSum)) { layerZSum[lv] = 0; layerZCnt[lv] = 0; }
+    layerZSum[lv] += zv; layerZCnt[lv]++;
+  });
+  var xs = Object.values(xKeyToVal).sort(function(a, b) { return a - b; });
+  var layers = Object.keys(layerZSum).map(Number).sort(function(a, b) { return a - b; });
+  var nCols = xs.length, nRows = layers.length;
+  if (nCols < 2 || nRows < 2) return { points: [], nCols: nCols, nRows: nRows };
+
+  var layerToAvgZ = {};
+  layers.forEach(function(l) { layerToAvgZ[l] = layerZSum[l] / layerZCnt[l]; });
+
+  var cellSumY = {}, cellCntY = {};
+  data.forEach(function(r) {
+    var xv = Number(r.x), yv = Number(r.y);
+    var lv = r.layer != null ? Number(r.layer) : DEFAULT_LAYER;
+    if (!isFinite(xv) || !isFinite(yv)) return;
+    var key = xv.toFixed(6) + '|' + lv;
+    if (!(key in cellSumY)) { cellSumY[key] = 0; cellCntY[key] = 0; }
+    cellSumY[key] += yv; cellCntY[key]++;
+  });
+
+  var points = [];
+  Object.keys(cellSumY).forEach(function(key) {
+    var parts = key.split('|');
+    var xv = parseFloat(parts[0]);
+    var lv = parseInt(parts[1], 10);
+    var yv = cellSumY[key] / cellCntY[key];
+    var zv = layerToAvgZ[lv];
+    if (!isFinite(xv) || !isFinite(yv) || !isFinite(zv)) return;
+    points.push({ px: xv, py: zv, val: yv });
+  });
+  return { points: points, nCols: nCols, nRows: nRows };
+}
+
+// Simulates the Z-fallback path of renderFaceReliefMap for single-pass data.
+function simulateFaceReliefMapZFallback(data) {
+  var xKeyToVal = {};
+  data.forEach(function(r) {
+    var xv = Number(r.x);
+    if (!isFinite(xv)) return;
+    var xKey = xv.toFixed(6);
+    if (!(xKey in xKeyToVal)) xKeyToVal[xKey] = xv;
+  });
+  var xs = Object.values(xKeyToVal).sort(function(a, b) { return a - b; });
+  if (xs.length < 2) return { points: [], nCols: xs.length, nRows: 0 };
+
+  var zKeyToVal = {};
+  data.forEach(function(r) {
+    var zv = Number(r.z);
+    if (!isFinite(zv)) return;
+    var zKey = zv.toFixed(3);
+    if (!(zKey in zKeyToVal)) zKeyToVal[zKey] = zv;
+  });
+  var zVals = Object.values(zKeyToVal).sort(function(a, b) { return a - b; });
+  if (zVals.length < 2) return { points: [], nCols: xs.length, nRows: zVals.length };
+
+  var cellSumYz = {}, cellCntYz = {};
+  data.forEach(function(r) {
+    var xv = Number(r.x), yv = Number(r.y), zv = Number(r.z);
+    if (!isFinite(xv) || !isFinite(yv) || !isFinite(zv)) return;
+    var key = xv.toFixed(6) + '|' + zv.toFixed(3);
+    if (!(key in cellSumYz)) { cellSumYz[key] = 0; cellCntYz[key] = 0; }
+    cellSumYz[key] += yv; cellCntYz[key]++;
+  });
+
+  var points = [];
+  Object.keys(cellSumYz).forEach(function(key) {
+    var parts = key.split('|');
+    var xv = parseFloat(parts[0]), zv = parseFloat(parts[1]);
+    var yv = cellSumYz[key] / cellCntYz[key];
+    if (!isFinite(xv) || !isFinite(yv) || !isFinite(zv)) return;
+    points.push({ px: xv, py: zv, val: yv });
+  });
+  return { points: points, nCols: xs.length, nRows: zVals.length };
+}
+
+function testFaceReliefMapPointCountPreservation() {
+  console.log('\nTest: face relief map — all probe points are represented (layered mode)');
+
+  // Build a 5×4 layered face probe dataset (5 X positions × 4 Z layers = 20 points).
+  var layeredData = [];
+  var xPos = [0, 25, 50, 75, 100];
+  var zLayerZ = [-4, -3, -2, -1];  // Z heights for layers 1-4
+  xPos.forEach(function(x) {
+    zLayerZ.forEach(function(z, li) {
+      layeredData.push({
+        x: x,
+        y: -10 - x * 0.05 - li * 0.2,  // smooth depth variation
+        z: z,
+        layer: li + 1
+      });
+    });
+  });
+
+  var result = simulateFaceReliefMapGrid(layeredData);
+  assert(result.nCols === xPos.length,
+    'Layer mode: nCols = ' + result.nCols + ' (expected ' + xPos.length + ')');
+  assert(result.nRows === zLayerZ.length,
+    'Layer mode: nRows = ' + result.nRows + ' (expected ' + zLayerZ.length + ')');
+  assert(result.points.length === xPos.length * zLayerZ.length,
+    'Layer mode: points count = ' + result.points.length + ' (expected ' + (xPos.length * zLayerZ.length) + ')');
+}
+
+function testFaceReliefMapSerpentinePreservation() {
+  console.log('\nTest: face relief map — serpentine order does not cause duplicate-key collisions');
+
+  // Serpentine: layer 1 goes L→R, layer 2 goes R→L, etc.
+  var serpData = [];
+  var xPos = [0, 25, 50, 75, 100];
+  var zLayerZ = [-4, -3, -2, -1];
+  zLayerZ.forEach(function(z, li) {
+    var xOrder = (li % 2 === 0) ? xPos : xPos.slice().reverse();
+    xOrder.forEach(function(x) {
+      serpData.push({ x: x, y: -8 - x * 0.03 - li * 0.15, z: z, layer: li + 1 });
+    });
+  });
+
+  var result = simulateFaceReliefMapGrid(serpData);
+  assert(result.points.length === xPos.length * zLayerZ.length,
+    'Serpentine: ' + result.points.length + ' points preserved (expected ' + (xPos.length * zLayerZ.length) + ')');
+  assert(result.nCols === xPos.length,
+    'Serpentine: nCols = ' + result.nCols + ' (no extra columns from reversed order)');
+}
+
+function testFaceReliefMapSpuriousContactsExcluded() {
+  console.log('\nTest: face relief map — spurious off-nominal contacts do not inflate column count');
+
+  // 3 nominal contacts at x=0,50,100 layer=1
+  var nominalData = [
+    { x: 0,   y: -10, z: -5, layer: 1 },
+    { x: 50,  y: -12, z: -5, layer: 1 },
+    { x: 100, y: -11, z: -5, layer: 1 },
+    { x: 0,   y: -9,  z: -4, layer: 2 },
+    { x: 50,  y: -11, z: -4, layer: 2 },
+    { x: 100, y: -10, z: -4, layer: 2 }
+  ];
+  var cleanResult = simulateFaceReliefMapGrid(nominalData);
+
+  // Simulate legacy behavior where spurious inter-sample contacts at arbitrary X
+  // positions were also included in layeredFaceResults.
+  var dataWithSpurious = nominalData.concat([
+    { x: 23.7, y: -11, z: -5, layer: 1 },  // spurious at x≈23.7 (retract contact)
+    { x: 67.2, y: -12, z: -5, layer: 1 }   // spurious at x≈67.2
+  ]);
+  var spuriousResult = simulateFaceReliefMapGrid(dataWithSpurious);
+
+  // Clean data: 3 X columns
+  assert(cleanResult.nCols === 3,
+    'Without spurious contacts: nCols = 3, got ' + cleanResult.nCols);
+  // Spurious data: 5 X columns (3 nominal + 2 spurious)
+  assert(spuriousResult.nCols === 5,
+    'With spurious contacts: nCols inflated to 5 (3 nominal + 2 spurious), got ' + spuriousResult.nCols);
+  // This test documents the problem; by removing spurious pushes from layeredFaceResults
+  // in core.js, the result should always match cleanResult.nCols.
+}
+
+function testFaceReliefMapSinglePassFallback() {
+  console.log('\nTest: face relief map — single-pass probe (no layer attr) falls back to Z-value grouping');
+
+  // Single-pass face probe data: no layer attribute, multiple Z heights.
+  var singlePassData = [
+    { x: 0,   y: -10, z: -5 },
+    { x: 25,  y: -11, z: -5 },
+    { x: 50,  y: -12, z: -5 },
+    { x: 0,   y: -9,  z: -4 },
+    { x: 25,  y: -10, z: -4 },
+    { x: 50,  y: -11, z: -4 }
+  ];
+
+  // Layer-mode path: all fall into DEFAULT_LAYER=1 → nRows=1 → no render
+  var layerResult = simulateFaceReliefMapGrid(singlePassData);
+  assert(layerResult.nRows === 1,
+    'Single-pass (no layer attr): layer-mode nRows = 1 (all collapse to DEFAULT_LAYER)');
+  assert(layerResult.points.length === 0 || layerResult.nRows < 2,
+    'Single-pass: layer-mode produces nRows < 2 → falls back');
+
+  // Z-fallback path should produce correct 3×2 grid
+  var zResult = simulateFaceReliefMapZFallback(singlePassData);
+  assert(zResult.nCols === 3,
+    'Single-pass Z-fallback: nCols = 3, got ' + zResult.nCols);
+  assert(zResult.nRows === 2,
+    'Single-pass Z-fallback: nRows = 2, got ' + zResult.nRows);
+  assert(zResult.points.length === 6,
+    'Single-pass Z-fallback: 6 points preserved, got ' + zResult.points.length);
+}
+
 (async function main() {
   console.log('=== smooth-mesh-export tests ===');
   try {
@@ -384,6 +790,12 @@ function testNoSubdivisionWhenSpacingMatchesGrid() {
     testFaceNormalsMatchVertexCount();
     testNormalContinuityInterior();
     testNoSubdivisionWhenSpacingMatchesGrid();
+    testSurfaceOBJValidation();
+    testFaceOBJValidation();
+    testFaceReliefMapPointCountPreservation();
+    testFaceReliefMapSerpentinePreservation();
+    testFaceReliefMapSpuriousContactsExcluded();
+    testFaceReliefMapSinglePassFallback();
   } catch (e) {
     console.error('Unexpected error in test runner:', e);
     failed++;

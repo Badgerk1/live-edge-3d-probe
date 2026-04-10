@@ -707,7 +707,8 @@ function exportSurfaceOBJ() {
   var cfg = up, grid = up.grid;
   var lines = ['# 3D Live Edge Mesh — Surface OBJ', '# Plugin Version: ' + SM_VERSION,
                '# Exported: ' + new Date().toISOString(),
-               '# Bicubic Catmull-Rom interpolation, subdivision spacing: ' + subSpacing + 'mm', ''];
+               '# Bicubic Catmull-Rom interpolation, subdivision spacing: ' + subSpacing + 'mm', '',
+               'o surface_mesh', ''];
   var allVerts = [];
   var allTris = [];
   // Map grid positions to vertex indices (0-based).
@@ -786,7 +787,8 @@ function exportFaceOBJ() {
   subSpacing = Math.max(0.5, subSpacing);
   var lines = ['# 3D Live Edge Mesh — Face OBJ', '# Plugin Version: ' + SM_VERSION,
                '# Exported: ' + new Date().toISOString(),
-               '# Bicubic Catmull-Rom interpolation, subdivision spacing: ' + subSpacing + 'mm', ''];
+               '# Bicubic Catmull-Rom interpolation, subdivision spacing: ' + subSpacing + 'mm', '',
+               'o face_mesh', ''];
   // Upsample the face probe grid via bicubic Catmull-Rom interpolation.
   var up = _upsampleFaceData(data, subSpacing);
   var allVerts = up.pts;
@@ -885,7 +887,8 @@ function exportCombinedOBJWatertight() {
   var surfUp = _bicubicUpsampleGrid(smMeshData, smGridConfig, subSpacing);
   var cfg = surfUp, grid = surfUp.grid;
   var lines = ['# 3D Live Edge Mesh — Combined Watertight OBJ', '# Plugin Version: ' + SM_VERSION,
-               '# Bicubic Catmull-Rom interpolation, subdivision spacing: ' + subSpacing + 'mm', ''];
+               '# Bicubic Catmull-Rom interpolation, subdivision spacing: ' + subSpacing + 'mm', '',
+               'o combined_mesh', ''];
   var allVerts = [];
   var allTris = [];
   // ── Surface mesh (upsampled grid, CCW for +Z normal) ───────────────────────
