@@ -1268,7 +1268,7 @@ async function smFinishMotion(travelFeed) {
 
   // Guard: clearance offset must be a positive number.
   if (!isFinite(clearanceOffset) || clearanceOffset <= 0) {
-    smLogProbe('Finish move: WARNING — finishHomeZ clearance is ' + clearanceOffset + ' (invalid or non-positive); using safe fallback of 10.0mm clearance.');
+    smLogProbe('Finish move: WARNING — finishHomeZ clearance is ' + clearanceOffset + ' (invalid or non-positive; check the "Finish Home Z" field in the Setup tab); using safe fallback of 10.0mm clearance.');
     clearanceOffset = 10.0;
   }
 
@@ -3531,7 +3531,7 @@ function smSaveReplayHtml() {
     + '#sm-pviz-reset-btn:hover{color:var(--text);border-color:var(--accent2)}\n'
     + '#sm-pviz-surface{position:absolute;inset:0;background-image:repeating-linear-gradient(90deg,rgba(58,85,128,.45) 0 1px,transparent 1px 100%),repeating-linear-gradient(0deg,rgba(58,85,128,.45) 0 1px,transparent 1px 100%);background-size:25% 33.33%;background-color:#08111e;border:1px solid rgba(58,85,128,.65);transform-style:preserve-3d}\n'
     + '.sm-pviz-dot{position:absolute;width:9px;height:9px;border-radius:50%;margin:-4.5px 0 0 -4.5px;transform:translateZ(4px);pointer-events:none;transition:opacity .3s}\n'
-    + '#sm-pviz-probe-wrap{position:absolute;transform-style:preserve-3d;width:0;height:0;left:50%;top:50%;transition:left 25ms linear,top 25ms linear}\n'
+    + '#sm-pviz-probe-wrap{position:absolute;transform:translateZ(10px);transform-style:preserve-3d;width:0;height:0;left:50%;top:50%;transition:left 25ms linear,top 25ms linear}\n'
     + '#sm-pviz-probe-shadow{position:absolute;width:18px;height:18px;border-radius:50%;margin:-9px 0 0 -9px;background:rgba(149,168,200,.18);transform:translateZ(0)}\n'
     + '#sm-pviz-probe-body{position:absolute;margin:-138px 0 0 -23px;transform:translateZ(52px);transition:transform 25ms linear;transform-style:preserve-3d;pointer-events:none}\n'
     + '#sm-pviz-probe-orient{transform-style:preserve-3d;transform:rotateZ(35deg) rotateX(-60deg)}\n'
@@ -3541,7 +3541,8 @@ function smSaveReplayHtml() {
     + '#sm-pviz-probe-body.probe-plunging{transform:translateZ(4px)}\n'
     + '#sm-pviz-probe-body.probe-contact{transform:translateZ(4px);animation:smPvizBodyGlow .55s ease-in-out 3}\n'
     + '@keyframes smPvizBodyGlow{0%,100%{filter:drop-shadow(0 0 3px rgba(255,106,32,.15))}50%{filter:drop-shadow(0 0 8px rgba(255,106,32,.95)) drop-shadow(0 0 18px rgba(255,106,32,.5))}}\n'
-    + '#sm-pviz-mesh{position:absolute;inset:0;width:100%;height:100%;opacity:0;transition:opacity 0.5s ease;pointer-events:none;transform:translateZ(2px);overflow:visible}\n'
+    + '#sm-pviz-mesh-layer{position:absolute;inset:0;transform:translateZ(2px);pointer-events:none;overflow:visible}\n'
+    + '#sm-pviz-mesh{position:absolute;inset:0;width:100%;height:100%;opacity:0;transition:opacity 0.5s ease;pointer-events:none;overflow:visible}\n'
     + '#sm-pviz-mesh.mesh-visible,#sm-pviz-mesh.mesh-active{opacity:1}\n'
     // info grid
     + '#pviz-info{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:11px;margin-top:6px;padding:0 2px}\n'
@@ -3574,6 +3575,8 @@ function smSaveReplayHtml() {
     +     '<button id="sm-pviz-reset-btn" title="Reset view \u00b7 double-click also works">\u21bb Reset View</button>\n'
     +     '<div id="sm-pviz-3dscene">\n'
     +       '<div id="sm-pviz-surface">\n'
+    +       '</div>\n'
+    +       '<div id="sm-pviz-mesh-layer">\n'
     +         '<svg id="sm-pviz-mesh" viewBox="0 0 100 100" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"></svg>\n'
     +       '</div>\n'
     +       '<div id="sm-pviz-probe-wrap">\n'
@@ -6631,9 +6634,20 @@ function onProbeTypeChange() {
   if (type === 'combined') _autoFillCombinedBottomZ();
 }
 
+function _smGetLogText(id) {
+  var el = document.getElementById(id);
+  if (!el) return '';
+  var lines = [];
+  var children = el.children;
+  for (var i = 0; i < children.length; i++) {
+    lines.push(children[i].textContent);
+  }
+  return lines.join('\n');
+}
+
 function saveUnifiedProbeLog() {
-  var surfLog = (document.getElementById('sm-probeLog') || {}).textContent || '';
-  var faceLog = (document.getElementById('face-log') || {}).textContent || '';
+  var surfLog = _smGetLogText('sm-probeLog');
+  var faceLog = _smGetLogText('face-log');
   var type = (document.getElementById('probe-type-select') || {}).value || '2d-surface';
   var combined = '';
   if (type === '2d-surface' || type === 'combined') combined += '=== Surface Probe Log ===\n' + surfLog + '\n';
