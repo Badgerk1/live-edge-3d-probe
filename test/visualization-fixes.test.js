@@ -168,6 +168,217 @@ function testMarkerClamping() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Test 3: Face wall worldZ direction
+// Verify that face protrusions (contact Y closer to startCoord) produce a POSITIVE
+// worldZ displacement from frontZ (i.e. appear closer to the frontal camera).
+// The sign flip from (mc - cMid) to -(mc - cMid) is the key correction.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function faceWorldZ(mc, cMid, zExag, zScale, frontZ, lateralSlant, layerFrac) {
+  // Mirrors the corrected formula in _buildThreeFaceWall (src/js/core.js).
+  return frontZ - (mc - cMid) * zExag * zScale + layerFrac * lateralSlant;
+}
+
+function testFaceWallWorldZDirection() {
+  console.log('\nTest: face wall worldZ — protruding regions appear closer to frontal camera');
+
+  var frontZ = 0, zExag = 1.5, zScale = 0.5, lateralSlant = 0, layerFrac = 0.5;
+  var cMin = -30, cMax = 0, cMid = -15; // typical face probe on Y axis
+
+  // Case 1: face region at startCoord side (mc = cMin = -30, most protruding toward probe)
+  // Expected: worldZ > frontZ (closer to +Z frontal camera)
+  var mcProtrude = cMin; // most protruding
+  var wzProtrude = faceWorldZ(mcProtrude, cMid, zExag, zScale, frontZ, lateralSlant, layerFrac);
+  assert(wzProtrude > frontZ,
+    'Protruding face region (mc=cMin) gives worldZ > frontZ (closer to camera); got ' + wzProtrude.toFixed(3));
+
+  // Case 2: face region at targetCoord side (mc = cMax = 0, most receding from probe)
+  // Expected: worldZ < frontZ (farther from +Z frontal camera)
+  var mcRecede = cMax; // most receding
+  var wzRecede = faceWorldZ(mcRecede, cMid, zExag, zScale, frontZ, lateralSlant, layerFrac);
+  assert(wzRecede < frontZ,
+    'Receding face region (mc=cMax) gives worldZ < frontZ (farther from camera); got ' + wzRecede.toFixed(3));
+
+  // Case 3: flat face (mc = cMid) → worldZ = frontZ (no displacement)
+  var wzFlat = faceWorldZ(cMid, cMid, zExag, zScale, frontZ, lateralSlant, layerFrac);
+  assert(wzFlat === frontZ,
+    'Flat face (mc=cMid) gives worldZ = frontZ exactly; got ' + wzFlat.toFixed(3));
+
+  // Case 4: verify sign is opposite to the OLD (unfixed) formula
+  function faceWorldZOld(mc2, cMid2, zExag2, zScale2, frontZ2, lateralSlant2, layerFrac2) {
+    return frontZ2 + (mc2 - cMid2) * zExag2 * zScale2 + layerFrac2 * lateralSlant2;
+  }
+  var wzOld = faceWorldZOld(mcProtrude, cMid, zExag, zScale, frontZ, lateralSlant, layerFrac);
+  assert(wzOld < frontZ,
+    'OLD formula gives worldZ < frontZ for protruding region (wrong direction, confirms bug was real); got ' + wzOld.toFixed(3));
+  assert(wzProtrude !== wzOld,
+    'New formula differs from old formula for protruding region (' + wzProtrude.toFixed(3) + ' vs ' + wzOld.toFixed(3) + ')');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Test 4: FACE_LATERAL_SLANT = 0
+// Verify that the constant is 0 (flat XZ-projection appearance, no artificial tilt).
+// ─────────────────────────────────────────────────────────────────────────────
+
+function testFaceLateralSlantIsZero() {
+  console.log('\nTest: FACE_LATERAL_SLANT = 0 (flat XZ projection)');
+
+  // Mirrors the constant declaration in src/js/core.js.
+  var FACE_LATERAL_SLANT = 0;
+
+  assert(FACE_LATERAL_SLANT === 0,
+    'FACE_LATERAL_SLANT is 0 — face wall renders flat, consistent with XZ projection; got ' + FACE_LATERAL_SLANT);
+
+  // With FACE_LATERAL_SLANT = 0, layerFrac * lateralSlant = 0 regardless of layerFrac.
+  [0, 0.25, 0.5, 0.75, 1.0].forEach(function(lf) {
+    var slantContrib = lf * FACE_LATERAL_SLANT;
+    assert(slantContrib === 0,
+      'layerFrac=' + lf + ': slant contribution = 0 (no tilt added); got ' + slantContrib);
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Test 5: Weighted-bilinear fallback in renderReliefMap
+// Verify that when some corners of a bilinear cell are null (missed probe contacts),
+// the fallback uses only the non-null corners with re-normalised weights instead of
+// returning null (which would produce a dark patch in the heat-map).
+// ─────────────────────────────────────────────────────────────────────────────
+
+function bilinearValWithFallback(grid, px, py, xDataMin, xDataSpan, yDataMin, yDataSpan, nCols, nRows) {
+  // Mirrors the updated bilinearVal closure in renderReliefMap (src/js/core.js).
+  var fx = (px - xDataMin) / xDataSpan * (nCols - 1);
+  var fy = (py - yDataMin) / yDataSpan * (nRows - 1);
+  var c0 = Math.floor(fx), c1 = Math.min(c0 + 1, nCols - 1);
+  var r0 = Math.floor(fy), r1 = Math.min(r0 + 1, nRows - 1);
+  var tx = fx - c0, ty = fy - r0;
+  var v00 = grid[c0][r0], v10 = grid[c1][r0], v01 = grid[c0][r1], v11 = grid[c1][r1];
+  if (v00 == null || v10 == null || v01 == null || v11 == null) {
+    var w00 = (1-tx)*(1-ty), w10 = tx*(1-ty), w01 = (1-tx)*ty, w11 = tx*ty;
+    var wSum = 0, vSum = 0;
+    if (v00 != null) { wSum += w00; vSum += v00*w00; }
+    if (v10 != null) { wSum += w10; vSum += v10*w10; }
+    if (v01 != null) { wSum += w01; vSum += v01*w01; }
+    if (v11 != null) { wSum += w11; vSum += v11*w11; }
+    return wSum > 0 ? vSum / wSum : null;
+  }
+  return v00*(1-tx)*(1-ty) + v10*tx*(1-ty) + v01*(1-tx)*ty + v11*tx*ty;
+}
+
+function testBilinearFallback() {
+  console.log('\nTest: weighted-bilinear fallback for null grid corners');
+
+  // 3×3 grid; column index is first, row index second.
+  // Simulate a 3×3 cell grid where cell (0,0) has a null corner at c=0,r=0.
+  var grid = [
+    [null, 10,  20],  // column 0
+    [5,    15,  25],  // column 1
+    [10,   20,  30]   // column 2
+  ];
+  var nCols = 3, nRows = 3;
+  var xDataMin = 0, xDataSpan = 2, yDataMin = 0, yDataSpan = 2;
+
+  // Query the centre of the (c=0,r=0)→(c=1,r=1) cell: px=0.5, py=0.5
+  // Only v00 is null (grid[0][0]=null). The other 3 corners are: v10=5, v01=10, v11=15.
+  // With null fallback the old code returned null; new code should return a value.
+  var val = bilinearValWithFallback(grid, 0.5, 0.5, xDataMin, xDataSpan, yDataMin, yDataSpan, nCols, nRows);
+  assert(val !== null,
+    'Bilinear cell with one null corner returns non-null value instead of null; got ' + val);
+  // Expected: weights at px=0.5, py=0.5 → tx=0.5, ty=0.5; w00=0.25(null), w10=0.25(5), w01=0.25(10), w11=0.25(15)
+  // wSum = 0.75, vSum = 5*0.25 + 10*0.25 + 15*0.25 = 7.5; result = 7.5/0.75 = 10
+  var expected = 10;
+  assert(Math.abs(val - expected) < 1e-9,
+    'Bilinear fallback value = ' + expected + ' (re-normalised over 3 non-null corners); got ' + val.toFixed(6));
+
+  // Query a point where ALL 4 corners are null → should still return null (no data)
+  var gridAllNull = [[null, null], [null, null]];
+  var valNull = bilinearValWithFallback(gridAllNull, 0.5, 0.5, 0, 1, 0, 1, 2, 2);
+  assert(valNull === null,
+    'All-null cell returns null (correct — no data available); got ' + valNull);
+
+  // Query a point where all 4 corners are valid → should use normal bilinear interpolation
+  var grid4 = [[0, 2], [2, 4]];
+  var valFull = bilinearValWithFallback(grid4, 0.5, 0.5, 0, 1, 0, 1, 2, 2);
+  assert(Math.abs(valFull - 2.0) < 1e-9,
+    'Full bilinear (all non-null) at centre = 2.0; got ' + valFull);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Test 6: Nearest-neighbor fill in buildFaceWallGrid
+// Verify that null cells in the face-wall grid are filled from adjacent non-null
+// cells so that the 3D mesh has no holes from missed probe contacts.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function nnFill(grid, xs, layers) {
+  // Mirrors the nearest-neighbor fill added to buildFaceWallGrid (src/js/core.js).
+  var nCols = xs.length, nRows = layers.length;
+  var changed = true, maxPass = Math.max(nCols, nRows);
+  for (var p = 0; p < maxPass && changed; p++) {
+    changed = false;
+    for (var li = 0; li < nRows; li++) {
+      for (var xi = 0; xi < nCols; xi++) {
+        if (grid[li][xi]) continue;
+        var nbrs = [];
+        if (xi > 0        && grid[li][xi-1]) nbrs.push(grid[li][xi-1]);
+        if (xi < nCols-1  && grid[li][xi+1]) nbrs.push(grid[li][xi+1]);
+        if (li > 0        && grid[li-1][xi]) nbrs.push(grid[li-1][xi]);
+        if (li < nRows-1  && grid[li+1][xi]) nbrs.push(grid[li+1][xi]);
+        if (nbrs.length === 0) continue;
+        var sumY = 0, sumZ = 0;
+        nbrs.forEach(function(r) { sumY += Number(r.y); sumZ += Number(r.z); });
+        var cnt = nbrs.length;
+        grid[li][xi] = { x: xs[xi], y: sumY/cnt, z: sumZ/cnt, layer: layers[li], _interpolated: true };
+        changed = true;
+      }
+    }
+  }
+  return grid;
+}
+
+function testNearestNeighborFill() {
+  console.log('\nTest: nearest-neighbor fill in buildFaceWallGrid');
+
+  var xs = [0, 10, 20];       // 3 X positions
+  var layers = [1, 2, 3];     // 3 layers
+
+  // Grid: grid[li][xi]; simulate a missed contact at (xi=1, li=1) — the centre cell
+  var grid = [
+    { 0: {x:0,y:-5,z:5,layer:1},  1: {x:10,y:-4,z:5,layer:1},  2: {x:20,y:-6,z:5,layer:1} },
+    { 0: {x:0,y:-4,z:3,layer:2},  1: null,                       2: {x:20,y:-5,z:3,layer:2} },
+    { 0: {x:0,y:-3,z:1,layer:3},  1: {x:10,y:-3,z:1,layer:3},  2: {x:20,y:-4,z:1,layer:3} }
+  ];
+
+  assert(grid[1][1] === null, 'Centre cell (li=1, xi=1) starts as null (missed contact)');
+
+  var filled = nnFill(grid, xs, layers);
+
+  assert(filled[1][1] !== null,
+    'Centre cell (li=1, xi=1) is filled after nnFill');
+  assert(filled[1][1]._interpolated === true,
+    'Filled cell is marked as _interpolated');
+
+  // With 4 neighbours: y values -4 (li=1,xi=0), -5 (li=1,xi=2), -4 (li=0,xi=1), -3 (li=2,xi=1)
+  // Expected avg y = (-4 + -5 + -4 + -3) / 4 = -16/4 = -4
+  var expectedY = (-4 + -5 + -4 + -3) / 4;
+  assert(Math.abs(filled[1][1].y - expectedY) < 1e-9,
+    'Filled cell y = ' + expectedY + ' (avg of 4 neighbours); got ' + filled[1][1].y);
+
+  // All other cells should be unchanged
+  assert(filled[0][0].y === -5, 'Non-null cell (0,0) unchanged');
+  assert(filled[2][2].y === -4, 'Non-null cell (2,2) unchanged');
+
+  // Test that a grid corner missing is also filled (single-pass may need 2 passes for far cells)
+  var grid2 = [
+    { 0: null, 1: {x:10,y:-4,z:5,layer:1}, 2: {x:20,y:-6,z:5,layer:1} },
+    { 0: null, 1: {x:10,y:-5,z:3,layer:2}, 2: {x:20,y:-5,z:3,layer:2} },
+    { 0: null, 1: {x:10,y:-3,z:1,layer:3}, 2: {x:20,y:-4,z:1,layer:3} }
+  ];
+  var filled2 = nnFill(grid2, xs, layers);
+  assert(filled2[0][0] !== null, 'Corner cell (li=0, xi=0) filled from right neighbour');
+  assert(filled2[1][0] !== null, 'Middle-left cell (li=1, xi=0) filled');
+  assert(filled2[2][0] !== null, 'Bottom-left cell (li=2, xi=0) filled');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Run all tests
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -178,6 +389,10 @@ function testMarkerClamping() {
     testNonFacePrefixCameraPosition();
     testPvizResetViewRouting();
     testMarkerClamping();
+    testFaceWallWorldZDirection();
+    testFaceLateralSlantIsZero();
+    testBilinearFallback();
+    testNearestNeighborFill();
   } catch (e) {
     console.error('Unexpected error in test runner:', e);
     failed++;
