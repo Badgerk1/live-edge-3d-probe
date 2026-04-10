@@ -83,8 +83,10 @@ async function finishRunMotion(mode) {
     logLine(mode, 'Finish: current work Z ' + currentZ.toFixed(3) + ' is already at or above target work Z ' + finishZ.toFixed(3) + '; no Z retract needed');
     zRetractOk = true;
   } else {
-    await moveAbs(null, null, finishZ, feed);
-    var retractPos = await getWorkPosition();
+    // moveAbs already calls waitForIdleWithTimeout() and returns the position —
+    // reuse that instead of issuing a redundant getWorkPosition() HTTP call.
+    var retractPos = await moveAbs(null, null, finishZ, feed);
+    if (!retractPos) retractPos = await getWorkPosition();
     logLine(mode, 'Finish: after retract X=' + retractPos.x.toFixed(3) + ' Y=' + retractPos.y.toFixed(3) + ' Z=' + retractPos.z.toFixed(3));
     if (Number(retractPos.z) >= finishZ - 0.5) {
       zRetractOk = true;
@@ -98,8 +100,10 @@ async function finishRunMotion(mode) {
       logLine(mode, 'Finish: skipping X/Y return — Z retract did not succeed');
     } else {
       logLine(mode, 'Finish: returning to X0.000 Y0.000');
-      await moveAbs(0, 0, null, feed);
-      var returnPos = await getWorkPosition();
+      // moveAbs already calls waitForIdleWithTimeout() and returns the position —
+      // reuse that instead of issuing a redundant getWorkPosition() HTTP call.
+      var returnPos = await moveAbs(0, 0, null, feed);
+      if (!returnPos) returnPos = await getWorkPosition();
       logLine(mode, 'Finish: after return X=' + returnPos.x.toFixed(3) + ' Y=' + returnPos.y.toFixed(3) + ' Z=' + returnPos.z.toFixed(3));
     }
   } else {

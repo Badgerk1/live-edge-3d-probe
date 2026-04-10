@@ -1414,8 +1414,10 @@ async function smFinishMotion(travelFeed) {
   } else {
     smLogProbe('Finish move: retracting to work Z ' + finishZ.toFixed(3));
     smLogProbe('Finish move: sending G90 G1 Z' + finishZ.toFixed(3) + ' F' + feed);
-    await moveAbs(null, null, finishZ, feed);
-    var retractPos = await getWorkPosition();
+    // moveAbs already calls waitForIdleWithTimeout() and returns the position —
+    // reuse that instead of issuing a redundant getWorkPosition() HTTP call.
+    var retractPos = await moveAbs(null, null, finishZ, feed);
+    if (!retractPos) retractPos = await getWorkPosition();
     smLogProbe('Finish move: after retract X=' + retractPos.x.toFixed(3) + ' Y=' + retractPos.y.toFixed(3) + ' Z=' + retractPos.z.toFixed(3));
     if (Number(retractPos.z) >= finishZ - 0.5) {
       zRetractOk = true;
@@ -1429,8 +1431,10 @@ async function smFinishMotion(travelFeed) {
       smLogProbe('Finish move: skipping X/Y return — Z retract did not succeed');
     } else {
       smLogProbe('Finish move: returning to work X0.000 Y0.000');
-      await moveAbs(0, 0, null, feed);
-      var returnPos = await getWorkPosition();
+      // moveAbs already calls waitForIdleWithTimeout() and returns the position —
+      // reuse that instead of issuing a redundant getWorkPosition() HTTP call.
+      var returnPos = await moveAbs(0, 0, null, feed);
+      if (!returnPos) returnPos = await getWorkPosition();
       smLogProbe('Finish move: after return X=' + returnPos.x.toFixed(3) + ' Y=' + returnPos.y.toFixed(3) + ' Z=' + returnPos.z.toFixed(3));
     }
   } else {
@@ -5419,9 +5423,8 @@ async function runFaceProbe(axis, _calledFromCombined){
       saveProbeResults();
       logLine('face', 'Layered face probe complete: ' + totalLayers + ' layers x ' + faceSamples.length + ' samples = ' + layeredFaceResults.length + ' total contacts');
       pluginDebug('runFaceProbe layered: faceResults=' + faceResults.length + ' layeredFaceResults=' + layeredFaceResults.length);
-      logLine('face', 'Waiting for controller idle before finish motion...');
-      await waitForIdle();
-      await sleep(50); // Reduced from 200ms - just enough for controller stability
+      // No extra waitForIdle here: the last moveAbs in the layer loop already
+      // calls waitForIdleWithTimeout(), so the controller is already idle.
       await finishRunMotion('face');
       if (!_calledFromCombined) switchTab('results');
       setFooterStatus('Layered face probe ' + axis + ' complete: ' + totalLayers + ' layers x ' + faceSamples.length + ' samples = ' + layeredFaceResults.length + ' contacts', 'good');
@@ -5525,9 +5528,8 @@ async function runFaceProbe(axis, _calledFromCombined){
       }
     }
 
-    logLine('face', 'Waiting for controller idle before finish motion...');
-    await waitForIdle();
-    await sleep(50); // Reduced from 200ms - just enough for controller stability
+    // No extra waitForIdle here: the last moveAbs in the sample loop already
+    // calls waitForIdleWithTimeout(), so the controller is already idle.
     await finishRunMotion('face');
     if (!_calledFromCombined) switchTab('results');
     pluginDebug('runFaceProbe COMPLETE: axis=' + axis + ' samples=' + faceSamples.length);
