@@ -1330,6 +1330,7 @@ async function smFinishMotion(travelFeed) {
 // ── Probe Visualizer helpers ──────────────────────────────────────────────────
 var _smPvizTrackActive = false;
 var _smPvizTrackTimer = null;
+var _smPvizLiveLogLastPos = null; // last position that was logged to the live movement log
 
 function smPvizStartLiveTracking() {
   _smPvizTrackActive = true;
@@ -1367,6 +1368,27 @@ function _smPvizScheduleTrack() {
         var body = document.getElementById('sm-pviz-probe-body');
         if (body && probeTriggered && !body.classList.contains('probe-contact')) {
           body.classList.add('probe-contact');
+        }
+        // Live Movement Log: log when XY distance >= 0.2mm OR |ΔZ| >= 0.5mm
+        var liveLogEnabled = (document.getElementById('sm-pviz-live-log-enable') || {}).checked;
+        if (liveLogEnabled) {
+          var llp = _smPvizLiveLogLastPos;
+          var shouldLog = !llp;
+          if (llp) {
+            var dXY = Math.sqrt(Math.pow(pos.x - llp.x, 2) + Math.pow(pos.y - llp.y, 2));
+            var dZ  = Math.abs(pos.z - llp.z);
+            if (dXY >= 0.2 || dZ >= 0.5) shouldLog = true;
+          }
+          if (shouldLog) {
+            var dxStr = llp ? (pos.x - llp.x).toFixed(3) : '—';
+            var dyStr = llp ? (pos.y - llp.y).toFixed(3) : '—';
+            var dzStr = llp ? (pos.z - llp.z).toFixed(3) : '—';
+            var dxyStr = llp ? Math.sqrt(Math.pow(pos.x - llp.x, 2) + Math.pow(pos.y - llp.y, 2)).toFixed(3) : '—';
+            var logLine = '[PVIZ LIVE] X=' + pos.x.toFixed(3) + ' Y=' + pos.y.toFixed(3) + ' Z=' + pos.z.toFixed(3)
+              + ' dXY=' + dxyStr + ' dx=' + dxStr + ' dy=' + dyStr + ' dz=' + dzStr;
+            smAppendLog('sm-pviz-live-log', logLine);
+            _smPvizLiveLogLastPos = { x: pos.x, y: pos.y, z: pos.z };
+          }
         }
       }
       _smPvizScheduleTrack();
@@ -1548,6 +1570,8 @@ function smPvizInit(cfg) {
   // reset probe sequence recording
   smPvizProbeSequence = [];
   _smPvizSeqLastTime = Date.now();
+  // Reset live movement log position tracker
+  _smPvizLiveLogLastPos = null;
   // Stop any previous live tracking
   smPvizStopLiveTracking();
   // Hide Three.js canvas so probe animation is visible during probing
@@ -1670,8 +1694,8 @@ function smPvizUpdate(state, opts) {
   if (barEl && pct !== undefined) barEl.style.width = pct + '%';
   var pctEl = document.getElementById('sm-pviz-pct');
   if (pctEl && pct !== undefined) pctEl.textContent = Math.round(pct) + '%';
-  // move probe in 3D X/Y
-  if (opts.x !== undefined && opts.y !== undefined) {
+  // move probe in 3D X/Y — skip when live tracking is active (live tracking owns probe motion)
+  if (opts.x !== undefined && opts.y !== undefined && !_smPvizTrackActive) {
     var pos = smPvizXYtoPos(opts.x, opts.y);
     var wrap = document.getElementById('sm-pviz-probe-wrap');
     if (wrap) { wrap.style.left = pos.left + '%'; wrap.style.top = pos.top + '%'; }
@@ -6671,6 +6695,8 @@ function onProbeTypeChange() {
   if (surfLogWrap) surfLogWrap.style.display = showSurface ? '' : 'none';
   var faceLogWrap = document.getElementById('unified-log-face-wrap');
   if (faceLogWrap) faceLogWrap.style.display = showFace ? '' : 'none';
+  var liveLogWrap = document.getElementById('unified-log-live-wrap');
+  if (liveLogWrap) liveLogWrap.style.display = showSurface ? '' : 'none';
 
   // Run button label
   var runBtn = document.getElementById('sm-btn-run-probe');
@@ -6704,10 +6730,12 @@ function saveUnifiedProbeLog() {
   }
   var surfLog = getElementLogText('sm-probeLog');
   var faceLog = getElementLogText('face-log');
+  var liveLog = getElementLogText('sm-pviz-live-log');
   var type = (document.getElementById('probe-type-select') || {}).value || '2d-surface';
   var combined = '';
   if (type === '2d-surface' || type === 'combined') combined += '=== Surface Probe Log ===\n' + surfLog + '\n';
   if (type === 'face' || type === 'combined') combined += '=== Face Probe Log ===\n' + faceLog + '\n';
+  if (liveLog) combined += '=== Live Movement Log ===\n' + liveLog + '\n';
   var blob = new Blob([combined], { type: 'text/plain' });
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -6720,6 +6748,9 @@ function clearUnifiedProbeLog() {
   if (surfLog) surfLog.textContent = '';
   var faceLog = document.getElementById('face-log');
   if (faceLog) faceLog.textContent = '';
+  var liveLog = document.getElementById('sm-pviz-live-log');
+  if (liveLog) liveLog.textContent = '';
+  _smPvizLiveLogLastPos = null;
 }
 
 function startProbeByType() {
