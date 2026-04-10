@@ -4242,7 +4242,23 @@ function subdivideFaceMesh(pts, spacing) {
   return newPts.length >= pts.length ? newPts : pts;
 }
 
-// Smooth subdivided surface mesh with bilinear interpolation between probe points
+// ── Catmull-Rom 1D cubic interpolation ───────────────────────────────────────
+// Interpolates between p1 and p2 using p0 and p3 as tangent guides (t ∈ [0,1]).
+// Gives C1-continuous joints: slopes match at grid point boundaries.
+function _catmullRom(p0, p1, p2, p3, t) {
+  var t2 = t * t, t3 = t2 * t;
+  return 0.5 * (
+    2 * p1 +
+    (-p0 + p2) * t +
+    (2*p0 - 5*p1 + 4*p2 - p3) * t2 +
+    (-p0 + 3*p1 - 3*p2 + p3) * t3
+  );
+}
+
+// Smooth subdivided surface mesh with bicubic Catmull-Rom interpolation between probe points.
+// Catmull-Rom gives C1-continuous joints (matching slopes across grid-cell boundaries),
+// which eliminates the sharp crease / "blocky terrain" artefact that bilinear produces
+// when only a sparse set of probe points is available.
 function _buildThreeSurface(grid, cfg, zMin, zMax, zExag) {
   var SUB = 8;
   var spanX = (cfg.maxX - cfg.minX) || 1, spanY = (cfg.maxY - cfg.minY) || 1;
@@ -4250,6 +4266,7 @@ function _buildThreeSurface(grid, cfg, zMin, zMax, zExag) {
   var xCenter = (cfg.minX + cfg.maxX) / 2, yCenter = (cfg.minY + cfg.maxY) / 2;
   var zMid = (zMin + zMax) / 2, zScale = 30 / maxSpan;
   var nCX = cfg.colCount - 1, nCY = cfg.rowCount - 1;
+  var nR = cfg.rowCount, nC = cfg.colCount;
   // Unified vertex grid: shared vertices at cell boundaries allow
   // computeVertexNormals() to average normals across the entire mesh.
   var totalCols = nCX * SUB + 1, totalRows = nCY * SUB + 1;
@@ -4257,11 +4274,36 @@ function _buildThreeSurface(grid, cfg, zMin, zMax, zExag) {
   var pos = new Array(totalVerts * 3);
   var col = new Array(totalVerts * 3);
   var idx = [];
+  // Helper: get grid Z with boundary clamping; null/non-finite returns null.
+  function gZ(r, c) {
+    var rr = Math.max(0, Math.min(nR-1, r)), cc = Math.max(0, Math.min(nC-1, c));
+    var v = grid[rr][cc];
+    return (v != null && isFinite(v)) ? v : null;
+  }
+  // Bicubic Catmull-Rom interpolation for cell (cy,cx) at fractional (tx,ty).
+  // Falls back to bilinear if any of the 4 required corner values are null.
   function biZ(cy, cx, tx, ty) {
-    var z00=grid[cy][cx],z10=grid[cy][cx+1],z01=grid[cy+1][cx],z11=grid[cy+1][cx+1];
-    if (z00==null||z10==null||z01==null||z11==null) return null;
-    if (!isFinite(z00)||!isFinite(z10)||!isFinite(z01)||!isFinite(z11)) return null;
-    return z00*(1-tx)*(1-ty)+z10*tx*(1-ty)+z01*(1-tx)*ty+z11*tx*ty;
+    // Require 4 primary corners to be valid (same null-check as bilinear)
+    var z00=gZ(cy,cx), z10=gZ(cy,cx+1), z01=gZ(cy+1,cx), z11=gZ(cy+1,cx+1);
+    if (z00===null||z10===null||z01===null||z11===null) return null;
+    // 1-D Catmull-Rom along a row at parameter t=tx; falls back to linear if either
+    // outer neighbour is null (boundary or missing probe contact).
+    function rowInterp(r, t) {
+      var p1=gZ(r,cx), p2=gZ(r,cx+1);
+      if (p1===null||p2===null) return null;
+      var p0=gZ(r,cx-1); if (p0===null) p0=p1; // clamp at left boundary
+      var p3=gZ(r,cx+2); if (p3===null) p3=p2; // clamp at right boundary
+      return _catmullRom(p0, p1, p2, p3, t);
+    }
+    var r0=rowInterp(cy-1,tx), r1=rowInterp(cy,tx);
+    var r2=rowInterp(cy+1,tx), r3=rowInterp(cy+2,tx);
+    if (r1===null||r2===null) {
+      // Bilinear fallback
+      return z00*(1-tx)*(1-ty)+z10*tx*(1-ty)+z01*(1-tx)*ty+z11*tx*ty;
+    }
+    if (r0===null) r0=r1; // clamp at top boundary
+    if (r3===null) r3=r2; // clamp at bottom boundary
+    return _catmullRom(r0, r1, r2, r3, ty);
   }
   // gy ranges [0, nCY*SUB] so cy clamps to nCY-1 and ty stays in [0,1].
   for (var gy=0; gy<totalRows; gy++) {
@@ -4301,6 +4343,8 @@ function _buildThreeSurface(grid, cfg, zMin, zMax, zExag) {
 //       Negated contact-Y so face protrusions (toward probe start) appear CLOSER to the
 //       frontal camera (+Z) — consistent with the "front view (XZ projection)" description.
 // Color: mapped to contact Y (r.y) so variations in face flatness appear as rainbow terrain.
+// Both Z (layer height) and contact-Y (face depth) are interpolated with bicubic
+// Catmull-Rom to give C1-continuous smooth curvature across layer/sample boundaries.
 var FACE_LATERAL_SLANT = 0; // scene units; set to 0 for flat XZ-projection appearance
 function _buildThreeFaceWall(faceWall, cfg, zMin, zMax, zExag, si) {
   if (!faceWall) return null;
@@ -4321,6 +4365,37 @@ function _buildThreeFaceWall(faceWall, cfg, zMin, zMax, zExag, si) {
   var SUB = 8; // subdivision for smooth shading (matches surface mesh)
   var nCX = faceWall.nCols - 1, nCY = faceWall.nRows - 1;
   if (nCX < 1 || nCY < 1) return null;
+  var nR = faceWall.nRows, nC = faceWall.nCols;
+  // Helper: get grid point with boundary clamping; returns null if missing/invalid
+  function gR(li, xi) {
+    var lli = Math.max(0, Math.min(nR-1, li));
+    var lxi = Math.max(0, Math.min(nC-1, xi));
+    var r = faceWall.grid[lli] && faceWall.grid[lli][lxi];
+    return (r && isFinite(Number(r.z)) && isFinite(Number(r.y))) ? r : null;
+  }
+  // 1-D Catmull-Rom along a row (layer li) for X-index xi and fractional t, extracting scalar fn(r).
+  // Falls back to linear if either outer neighbour is null.
+  function rowInterpFn(li, xi, t, fn) {
+    var p1 = gR(li, xi); var p2 = gR(li, xi+1);
+    if (!p1 || !p2) return null;
+    var p0 = gR(li, xi-1); if (!p0) p0 = p1;
+    var p3 = gR(li, xi+2); if (!p3) p3 = p2;
+    return _catmullRom(fn(p0), fn(p1), fn(p2), fn(p3), t);
+  }
+  // Bicubic Catmull-Rom for cell (li, xi) at params (tx, ty) extracting field fn.
+  // Falls back to bilinear if any primary corner is null.
+  function faceInterpFn(li, xi, tx, ty, fn) {
+    var r00=gR(li,xi), r10=gR(li,xi+1), r01=gR(li+1,xi), r11=gR(li+1,xi+1);
+    if (!r00||!r10||!r01||!r11) return null;
+    var ri0=rowInterpFn(li-1, xi, tx, fn), ri1=rowInterpFn(li, xi, tx, fn);
+    var ri2=rowInterpFn(li+1, xi, tx, fn), ri3=rowInterpFn(li+2, xi, tx, fn);
+    if (ri1===null||ri2===null) {
+      return fn(r00)*(1-tx)*(1-ty)+fn(r10)*tx*(1-ty)+fn(r01)*(1-tx)*ty+fn(r11)*tx*ty;
+    }
+    if (ri0===null) ri0=ri1;
+    if (ri3===null) ri3=ri2;
+    return _catmullRom(ri0, ri1, ri2, ri3, ty);
+  }
   // Unified vertex grid: shared vertices at cell boundaries allow
   // computeVertexNormals() to average normals across all cells — eliminates
   // the sharp crease / wrong-angle artifacts caused by per-cell duplicate vertices.
@@ -4347,9 +4422,6 @@ function _buildThreeFaceWall(faceWall, cfg, zMin, zMax, zExag, si) {
     for (var li=0; li<nCY; li++) {
       if (!validCell[xi][li]) continue;
       var r00=faceWall.grid[li][xi], r10=faceWall.grid[li][xi+1];
-      var r01=faceWall.grid[li+1][xi], r11=faceWall.grid[li+1][xi+1];
-      var z00=Number(r00.z),z10=Number(r10.z),z01=Number(r01.z),z11=Number(r11.z);
-      var cy00=Number(r00.y),cy10=Number(r10.y),cy01=Number(r01.y),cy11=Number(r11.y);
       var x00=Number(r00.x), x10=Number(r10.x);
       var baseGy = li * SUB;
       for (var sy=0; sy<=SUB; sy++) {
@@ -4360,8 +4432,11 @@ function _buildThreeFaceWall(faceWall, cfg, zMin, zMax, zExag, si) {
           if (filled[vIdx]) continue; // skip if already filled by a previously processed cell
           var tx=sx/SUB, ty=sy/SUB;
           var mx=x00+tx*(x10-x00);
-          var mz=z00*(1-tx)*(1-ty)+z10*tx*(1-ty)+z01*(1-tx)*ty+z11*tx*ty;
-          var mc=cy00*(1-tx)*(1-ty)+cy10*tx*(1-ty)+cy01*(1-tx)*ty+cy11*tx*ty;
+          // Bicubic Catmull-Rom for both Z (layer height) and contact-Y (face depth)
+          var mz = faceInterpFn(li, xi, tx, ty, function(r){ return Number(r.z); });
+          var mc = faceInterpFn(li, xi, tx, ty, function(r){ return Number(r.y); });
+          if (mz===null) { var r01=faceWall.grid[li+1][xi], r11=faceWall.grid[li+1][xi+1]; mz=Number(r00.z)*(1-tx)*(1-ty)+Number(r10.z)*tx*(1-ty)+Number(r01.z)*(1-tx)*ty+Number(r11.z)*tx*ty; }
+          if (mc===null) { var r01b=faceWall.grid[li+1][xi], r11b=faceWall.grid[li+1][xi+1]; mc=Number(r00.y)*(1-tx)*(1-ty)+Number(r10.y)*tx*(1-ty)+Number(r01b.y)*(1-tx)*ty+Number(r11b.y)*tx*ty; }
           var layerFrac = (li + ty) / nRowsM1;
           var worldX = (mx-xCenter)/maxSpan*100;
           var worldY = (mz-zMid)*zExag*zScale;

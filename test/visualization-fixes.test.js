@@ -4,6 +4,8 @@
  *      use a frontal camera position (0, 30, 200) instead of the isometric (120, 80, 120).
  *   2. Relief-map probe marker clamping — markers at domain extremes are clamped so
  *      the full circle stays within the plot area (no half-circle at the heatmap edge).
+ *   3. Catmull-Rom bicubic interpolation — C1-continuous smooth surface rendering;
+ *      verifies endpoint values, C0/C1 continuity at joints, and accuracy vs bilinear.
  *
  * Run with:  node test/visualization-fixes.test.js
  */
@@ -379,6 +381,110 @@ function testNearestNeighborFill() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Test: Catmull-Rom interpolation (smooth mesh)
+// Verifies that _catmullRom produces C1-continuous results (no crease at joints)
+// and that bicubic interpolation on a uniform grid matches expected values.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Inline the Catmull-Rom 1D helper (mirrors src/js/core.js _catmullRom)
+function catmullRom(p0, p1, p2, p3, t) {
+  var t2 = t * t, t3 = t2 * t;
+  return 0.5 * (
+    2 * p1 +
+    (-p0 + p2) * t +
+    (2*p0 - 5*p1 + 4*p2 - p3) * t2 +
+    (-p0 + 3*p1 - 3*p2 + p3) * t3
+  );
+}
+
+function testCatmullRomBasic() {
+  console.log('\nTest: Catmull-Rom 1D basic properties');
+
+  // At t=0, result must equal p1
+  assert(Math.abs(catmullRom(0, 1, 2, 3, 0) - 1) < 1e-9,
+    'catmullRom at t=0 returns p1');
+
+  // At t=1, result must equal p2
+  assert(Math.abs(catmullRom(0, 1, 2, 3, 1) - 2) < 1e-9,
+    'catmullRom at t=1 returns p2');
+
+  // For a linear sequence p0..p3, result at midpoint t=0.5 must be linear midpoint
+  assert(Math.abs(catmullRom(0, 1, 2, 3, 0.5) - 1.5) < 1e-9,
+    'catmullRom on linear sequence: t=0.5 → linear midpoint 1.5');
+
+  // For a flat uniform sequence, result must be constant (no overshoot)
+  assert(Math.abs(catmullRom(5, 5, 5, 5, 0.5) - 5) < 1e-9,
+    'catmullRom on flat sequence: result = 5 (no overshoot)');
+
+  // C1 continuity: left tangent at t=0 = (p2-p0)/2, right tangent at t=1 = (p3-p1)/2
+  // Numerical derivative at t=0 (forward difference, small eps)
+  var eps = 1e-6;
+  var p0=0, p1=1, p2=4, p3=6;
+  var derivAtT0 = (catmullRom(p0,p1,p2,p3,eps) - catmullRom(p0,p1,p2,p3,0)) / eps;
+  var expectedDeriv = (p2 - p0) / 2; // = (4-0)/2 = 2
+  assert(Math.abs(derivAtT0 - expectedDeriv) < 1e-4,
+    'catmullRom t=0 derivative = (p2-p0)/2=' + expectedDeriv + ', got ' + derivAtT0.toFixed(4));
+
+  // Derivative at t=1 (backward difference)
+  var derivAtT1 = (catmullRom(p0,p1,p2,p3,1) - catmullRom(p0,p1,p2,p3,1-eps)) / eps;
+  var expectedDeriv1 = (p3 - p1) / 2; // = (6-1)/2 = 2.5
+  assert(Math.abs(derivAtT1 - expectedDeriv1) < 1e-4,
+    'catmullRom t=1 derivative = (p3-p1)/2=' + expectedDeriv1 + ', got ' + derivAtT1.toFixed(4));
+}
+
+function testCatmullRomC1Continuity() {
+  console.log('\nTest: Catmull-Rom C1 continuity at grid-point boundary');
+
+  // Two consecutive segments sharing the boundary at t=1 of first / t=0 of second.
+  // First segment: p0=0, p1=1, p2=3, p3=6  (covers x=1→3)
+  // Second segment: p0=1, p1=3, p2=6, p3=10 (covers x=3→6)
+  // The derivative at the boundary must be equal for both segments.
+  var eps = 1e-5;
+  var deriv_left  = (catmullRom(0,1,3,6, 1) - catmullRom(0,1,3,6, 1-eps)) / eps;
+  var deriv_right = (catmullRom(1,3,6,10, eps) - catmullRom(1,3,6,10, 0)) / eps;
+  assert(Math.abs(deriv_left - deriv_right) < 1e-3,
+    'C1 continuity: left deriv ' + deriv_left.toFixed(4) + ' ≈ right deriv ' + deriv_right.toFixed(4));
+
+  // Value continuity: both segments must return the same value at the boundary
+  var val_left  = catmullRom(0, 1, 3, 6, 1);
+  var val_right = catmullRom(1, 3, 6, 10, 0);
+  assert(Math.abs(val_left - val_right) < 1e-9,
+    'C0 continuity at boundary: left=' + val_left + ' right=' + val_right);
+}
+
+function testCatmullRomBoundaryClamp() {
+  console.log('\nTest: Catmull-Rom boundary clamping (p0=p1 or p3=p2)');
+
+  // When p0 is clamped to p1 (left boundary), tangent at t=0 = (p2-p0)/2 = (p2-p1)/2
+  var p0=2, p1=2, p2=5, p3=8;
+  var eps = 1e-6;
+  var deriv = (catmullRom(p0,p1,p2,p3,eps) - catmullRom(p0,p1,p2,p3,0)) / eps;
+  var expected = (p2 - p0) / 2;
+  assert(Math.abs(deriv - expected) < 1e-4,
+    'Clamped left boundary: tangent at t=0 = (p2-p1)/2=' + expected + ', got ' + deriv.toFixed(4));
+
+  // Value at t=0 must still equal p1
+  assert(Math.abs(catmullRom(p0,p1,p2,p3,0) - p1) < 1e-9,
+    'Clamped left boundary: t=0 = p1=' + p1);
+}
+
+function testCatmullRomVsBilinear() {
+  console.log('\nTest: Catmull-Rom vs bilinear on a non-linear surface');
+
+  // On a quadratic surface z = x^2, the correct midpoint is 0.25 (analytic).
+  // Points: z(0)=0, z(1)=1, z(2)=4, z(3)=9
+  var cr_mid = catmullRom(0, 1, 4, 9, 0.5);  // should be ~2.25 = (1.5)^2
+  var bl_mid = (1 + 4) / 2;                   // bilinear = 2.5 (over-estimates)
+  assert(Math.abs(cr_mid - 2.25) < 0.05,
+    'Catmull-Rom on x^2 surface: midpoint ≈ 2.25, got ' + cr_mid.toFixed(4));
+  assert(Math.abs(bl_mid - 2.5) < 1e-9,
+    'Bilinear on x^2 surface: midpoint = 2.5 (baseline)');
+  // CR should be closer to the analytic result than bilinear
+  assert(Math.abs(cr_mid - 2.25) < Math.abs(bl_mid - 2.25),
+    'Catmull-Rom is closer to analytic midpoint than bilinear');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Run all tests
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -393,6 +499,10 @@ function testNearestNeighborFill() {
     testFaceLateralSlantIsZero();
     testBilinearFallback();
     testNearestNeighborFill();
+    testCatmullRomBasic();
+    testCatmullRomC1Continuity();
+    testCatmullRomBoundaryClamp();
+    testCatmullRomVsBilinear();
   } catch (e) {
     console.error('Unexpected error in test runner:', e);
     failed++;
