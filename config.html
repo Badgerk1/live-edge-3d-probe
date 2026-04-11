@@ -7535,10 +7535,27 @@ async function probeAbsAxis(axis, target, feed, skipClearCheck){
         await smSleep(80);
       }
     }
+    // Record starting axis position to detect contact via position change
+    // (reliable fallback when Pn:P clears before idle status is polled — same
+    // technique used by smPlungeProbe for the Z-axis top probe).
+    var _startPos = await getWorkPosition();
+    var _startAxisPos = axis === 'X' ? Number(_startPos.x) : Number(_startPos.y);
     await sendCommand('G90 G38.2 ' + axis + Number(target).toFixed(3) + ' F' + Number(feed).toFixed(0));
     await sleep(50); // Brief delay to ensure controller starts processing
     var probePos = await waitForIdleWithTimeout();
-    return probePos || await getWorkPosition();
+    if (!probePos) probePos = await getWorkPosition();
+    // Position-based contact detection: if the machine stopped short of the target
+    // by more than the tolerance, the probe triggered even if Pn:P has already cleared.
+    var _endAxisPos = axis === 'X' ? Number(probePos.x) : Number(probePos.y);
+    var _totalDistance = Math.abs(target - _startAxisPos);
+    var _distanceTraveled = Math.abs(_endAxisPos - _startAxisPos);
+    var _probeContactTolerance = 0.5; // coords; must stop this far short of target to count as contact
+    var _stoppedShort = _totalDistance > _probeContactTolerance && _distanceTraveled < (_totalDistance - _probeContactTolerance);
+    if (!probePos.probeTriggered && _stoppedShort) {
+      logLine('face', 'Face probe ' + axis + ': contact detected by position (pin cleared before poll) — stopped at ' + _endAxisPos.toFixed(3) + ' (traveled ' + _distanceTraveled.toFixed(3) + ' of ' + _totalDistance.toFixed(3) + ' coords).');
+      probePos = Object.assign({}, probePos, { probeTriggered: true });
+    }
+    return probePos;
   }
 
 async function _clearTriggeredProbeByBackingOffGeneric(tab, currentPos, unitX, unitY, s, state){
