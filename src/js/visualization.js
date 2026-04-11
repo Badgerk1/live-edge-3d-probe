@@ -1514,6 +1514,30 @@ function _buildThreeFaceWall(faceWall, cfg, zMin, zMax, zExag, si) {
   var colArr = new Array(totalVerts * 3);
   // 1 byte per vertex: 0=unfilled, 1=filled (avoids recomputing shared boundary verts)
   var filled = new Uint8Array(totalVerts);
+  // Pre-smooth contact-Y (depth) values to reduce visible fold lines between layers.
+  // Uses a 2-D neighbourhood average; does not mutate faceWall.grid.
+  var smFactor = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmooth') || {}).value) || 0));
+  var smC = null; // smC[li][xi] = smoothed contact-Y, or null if missing
+  if (smFactor > 0) {
+    var rawC = [];
+    for (var _li = 0; _li < nR; _li++) {
+      rawC.push([]);
+      for (var _xi = 0; _xi < nC; _xi++) { var _r = gR(_li, _xi); rawC[_li][_xi] = _r ? Number(_r.y) : null; }
+    }
+    smC = [];
+    for (var _li2 = 0; _li2 < nR; _li2++) {
+      smC.push([]);
+      for (var _xi2 = 0; _xi2 < nC; _xi2++) {
+        var _orig = rawC[_li2][_xi2]; if (_orig == null) { smC[_li2][_xi2] = null; continue; }
+        var _sum = _orig, _cnt = 1;
+        if (_li2 > 0 && rawC[_li2-1][_xi2] != null) { _sum += rawC[_li2-1][_xi2]; _cnt++; }
+        if (_li2 < nR-1 && rawC[_li2+1][_xi2] != null) { _sum += rawC[_li2+1][_xi2]; _cnt++; }
+        if (_xi2 > 0 && rawC[_li2][_xi2-1] != null) { _sum += rawC[_li2][_xi2-1]; _cnt++; }
+        if (_xi2 < nC-1 && rawC[_li2][_xi2+1] != null) { _sum += rawC[_li2][_xi2+1]; _cnt++; }
+        smC[_li2][_xi2] = _orig * (1 - smFactor) + (_sum / _cnt) * smFactor;
+      }
+    }
+  }
   // Pre-check cell validity (all 4 corners present with finite Z)
   var validCell = [];
   for (var xi=0; xi<nCX; xi++) { validCell[xi] = [];
@@ -1543,7 +1567,16 @@ function _buildThreeFaceWall(faceWall, cfg, zMin, zMax, zExag, si) {
           var mx=x00+tx*(x10-x00);
           // Bicubic Catmull-Rom for both Z (layer height) and contact-Y (face depth)
           var mz = faceInterpFn(li, xi, tx, ty, function(r){ return Number(r.z); });
-          var mc = faceInterpFn(li, xi, tx, ty, function(r){ return Number(r.y); });
+          var mc;
+          if (smC) {
+            // Bilinear interpolation of pre-smoothed contact-Y values.
+            var c00=smC[li][xi], c10=smC[li][xi+1], c01=smC[li+1][xi], c11=smC[li+1][xi+1];
+            if (c00!=null&&c10!=null&&c01!=null&&c11!=null) {
+              mc = c00*(1-tx)*(1-ty) + c10*tx*(1-ty) + c01*(1-tx)*ty + c11*tx*ty;
+            } else { mc = null; }
+          } else {
+            mc = faceInterpFn(li, xi, tx, ty, function(r){ return Number(r.y); });
+          }
           if (mz===null) { var r01=faceWall.grid[li+1][xi], r11=faceWall.grid[li+1][xi+1]; mz=Number(r00.z)*(1-tx)*(1-ty)+Number(r10.z)*tx*(1-ty)+Number(r01.z)*(1-tx)*ty+Number(r11.z)*tx*ty; }
           if (mc===null) { var r01b=faceWall.grid[li+1][xi], r11b=faceWall.grid[li+1][xi+1]; mc=Number(r00.y)*(1-tx)*(1-ty)+Number(r10.y)*tx*(1-ty)+Number(r01b.y)*(1-tx)*ty+Number(r11b.y)*tx*ty; }
           var layerFrac = (li + ty) / nRowsM1;
