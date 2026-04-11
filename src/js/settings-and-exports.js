@@ -1162,6 +1162,9 @@ function exportCombinedOBJWatertight() {
   if (!isFinite(bottomZ)) bottomZ = -20;
   // Upsample surface mesh via C2 natural cubic spline.
   var surfUp = _cubicSplineUpsampleGrid(smMeshData, smGridConfig, subSpacing);
+  // Auto seam-edge smoothing: blend surface front-edge row toward interior neighbours.
+  var combinedSurfBlend = Math.min(1, Math.max(0, Number((document.getElementById('surfSeamSmooth') || {}).value) || 0));
+  if (combinedSurfBlend > 0) _smoothSeamEdgeRow(surfUp.grid, surfUp.rowCount, surfUp.colCount, 0, combinedSurfBlend);
   var cfg = surfUp, grid = surfUp.grid;
   var lines = ['# 3D Live Edge Mesh — Combined Watertight OBJ', '# Plugin Version: ' + SM_VERSION,
                '# C2 natural cubic spline interpolation, subdivision spacing: ' + subSpacing + 'mm', ''];
@@ -1186,6 +1189,9 @@ function exportCombinedOBJWatertight() {
   }
   // ── Face mesh (upsampled via C2 spline, structured triangulation for -Y normal)
   var faceUp = _upsampleFaceData(faceData, subSpacing);
+  // Auto seam-edge smoothing: blend face wall top-edge row toward interior neighbours.
+  var combinedFaceBlend = Math.min(1, Math.max(0, Number((document.getElementById('faceSeamSmooth') || {}).value) || 0));
+  if (combinedFaceBlend > 0) _smoothFaceSeamRow(faceUp, combinedFaceBlend);
   var faceVStart = allVerts.length;
   faceUp.pts.forEach(function(v) { allVerts.push(v); });
   var faceTris;
@@ -1285,6 +1291,9 @@ function exportCombinedSTLWatertight() {
   var bottomZ = Number((document.getElementById('combinedBottomZ') || {}).value);
   if (!isFinite(bottomZ)) bottomZ = -20;
   var surfUp = _cubicSplineUpsampleGrid(smMeshData, smGridConfig, subSpacing);
+  // Auto seam-edge smoothing: blend surface front-edge row toward interior neighbours.
+  var combinedSurfBlendS = Math.min(1, Math.max(0, Number((document.getElementById('surfSeamSmooth') || {}).value) || 0));
+  if (combinedSurfBlendS > 0) _smoothSeamEdgeRow(surfUp.grid, surfUp.rowCount, surfUp.colCount, 0, combinedSurfBlendS);
   var cfg = surfUp, grid = surfUp.grid;
   var allVerts = [], allTris = [];
   // Surface mesh
@@ -1305,6 +1314,9 @@ function exportCombinedSTLWatertight() {
   }
   // Face mesh
   var faceUp = _upsampleFaceData(faceData, subSpacing);
+  // Auto seam-edge smoothing: blend face wall top-edge row toward interior neighbours.
+  var combinedFaceBlendS = Math.min(1, Math.max(0, Number((document.getElementById('faceSeamSmooth') || {}).value) || 0));
+  if (combinedFaceBlendS > 0) _smoothFaceSeamRow(faceUp, combinedFaceBlendS);
   var faceVStart = allVerts.length;
   faceUp.pts.forEach(function(v) { allVerts.push(v); });
   var faceTris;
