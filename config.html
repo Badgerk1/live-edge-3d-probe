@@ -10269,6 +10269,9 @@ function exportFaceOBJ() {
   if (faceWallBlend > 0) _smoothFaceWallRows(up, faceWallBlend);
   var allVerts = up.pts;
   var allTris;
+  if (up.vMap && up.rowCount >= 2 && up.colCount >= 2) {
+    // Structured-grid triangulation: smoother and avoids Delaunay artefacts.
+    allTris = [];
     for (var ri = 0; ri < up.rowCount - 1; ri++) {
       for (var ci = 0; ci < up.colCount - 1; ci++) {
         var a=up.vMap[ri][ci], b=up.vMap[ri][ci+1], c=up.vMap[ri+1][ci+1], d=up.vMap[ri+1][ci];
