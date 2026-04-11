@@ -1765,9 +1765,16 @@ function _buildThreeFaceContours(faceWall, cfg, zMin, zMax, zExag, si) {
 // ── Main unified Three.js renderer ───────────────────────────────────────────
 function renderThreeUnified3D(prefix) {
   if (typeof THREE === 'undefined') { return; } // Three.js not loaded yet
-  var grid = smMeshData, cfg = smGridConfig;
+  // Use the raw (pre-subdivision) probe grid so that _buildThreeSurface's bicubic
+  // Catmull-Rom interpolates directly from actual probe contact points.  Bilinear
+  // pre-subdivision bakes in slope discontinuities that cause the blocky appearance
+  // even after the bicubic pass; raw data lets the bicubic produce smooth C1 curves.
+  var grid = smMeshDataRaw || smMeshData;
+  var cfg  = (smMeshDataRaw ? smGridConfigRaw : null) || smGridConfig;
   var hasSurface = grid && cfg && cfg.rowCount >= 2 && cfg.colCount >= 2;
-  var faceWall   = buildFaceWallGrid();
+  // Pass raw face contacts to buildFaceWallGrid for the same reason.
+  var _rawFace = (typeof layeredFaceResultsRaw !== 'undefined' && layeredFaceResultsRaw && layeredFaceResultsRaw.length) ? layeredFaceResultsRaw : null;
+  var faceWall   = buildFaceWallGrid(_rawFace);
   var hasFace    = faceWall !== null;
 
   // Filter by visualization mode: face view shows face-only, surface views show surface-only.

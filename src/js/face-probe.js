@@ -1025,8 +1025,8 @@ function getFaceMeshData() {
 // for rendering as a perpendicular wall below the front edge of the top surface.
 // Rows are sorted ascending by layer (layer 1 = deepest = bottom, layer N = top).
 // Returns null when data is insufficient for triangulated rendering (<2 cols or rows).
-function buildFaceWallGrid() {
-  var data = getFaceMeshData();
+function buildFaceWallGrid(dataOverride) {
+  var data = dataOverride || getFaceMeshData();
   if (!data || !data.length) return null;
 
   // Collect unique X positions (rounded to 3 dp to merge near-identical floats)
