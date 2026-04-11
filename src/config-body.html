@@ -749,6 +749,12 @@
         </label>
         <div class="mini" style="margin-top:4px">Interpolates additional vertices using C2 cubic splines for a smooth mesh. 0.5mm default; increase for smaller files.</div>
       </div>
+      <div class="field" style="max-width:320px;margin-bottom:10px">
+        <label><span class="tooltip">Seam Edge Smoothing (0–1)<span class="tip-icon">?</span><span class="tip">Blends the front seam-edge row of the surface mesh toward its interior neighbours. 0 = off (default). 0.5 = gentle smooth. 1 = full blend. Automatically corrects both peaks (+) and valleys (−) along the edge — no manual ± needed.</span></span>
+          <input type="number" id="surfSeamSmooth" value="0" min="0" max="1" step="0.1" style="width:80px">
+        </label>
+        <div class="mini" style="margin-top:4px">Auto-smooths peaks and valleys along the surface seam edge. Applied to OBJ and STL exports only.</div>
+      </div>
       <div class="btn-row">
         <button class="btn ghost" id="btn-export-surf-csv" title="Export surface mesh as CSV">&#128196; Export CSV</button>
         <button class="btn ghost" id="btn-export-surf-dxf" title="Export surface mesh as DXF">&#128208; Export DXF</button>
@@ -877,6 +883,12 @@
           <input type="number" id="faceOBJSubdivision" value="0.5" min="0.5" max="25" step="0.5" style="width:80px">
         </label>
         <div class="mini" style="margin-top:4px">Interpolates additional vertices using C2 cubic splines for a smooth mesh. 0.5mm default; increase for smaller files.</div>
+      </div>
+      <div class="field" style="max-width:320px;margin-bottom:10px">
+        <label><span class="tooltip">Seam Edge Smoothing (0–1)<span class="tip-icon">?</span><span class="tip">Blends the top seam-edge row of the face wall mesh toward its interior neighbours. 0 = off (default). 0.5 = gentle smooth. 1 = full blend. Automatically corrects both peaks (+) and valleys (−) along the edge — no manual ± needed.</span></span>
+          <input type="number" id="faceSeamSmooth" value="0" min="0" max="1" step="0.1" style="width:80px">
+        </label>
+        <div class="mini" style="margin-top:4px">Auto-smooths peaks and valleys along the face wall seam edge. Applied to OBJ and STL exports only.</div>
       </div>
       <div class="btn-row">
         <button class="btn ghost" id="btn-export-face-csv" title="Export face mesh as CSV">&#128196; Export CSV</button>

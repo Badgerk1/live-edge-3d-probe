@@ -946,6 +946,12 @@
         </label>
         <div class="mini" style="margin-top:4px">Interpolates additional vertices using C2 cubic splines for a smooth mesh. 0.5mm default; increase for smaller files.</div>
       </div>
+      <div class="field" style="max-width:320px;margin-bottom:10px">
+        <label><span class="tooltip">Seam Edge Smoothing (0–1)<span class="tip-icon">?</span><span class="tip">Blends the front seam-edge row of the surface mesh toward its interior neighbours. 0 = off (default). 0.5 = gentle smooth. 1 = full blend. Automatically corrects both peaks (+) and valleys (−) along the edge — no manual ± needed.</span></span>
+          <input type="number" id="surfSeamSmooth" value="0" min="0" max="1" step="0.1" style="width:80px">
+        </label>
+        <div class="mini" style="margin-top:4px">Auto-smooths peaks and valleys along the surface seam edge. Applied to OBJ and STL exports only.</div>
+      </div>
       <div class="btn-row">
         <button class="btn ghost" id="btn-export-surf-csv" title="Export surface mesh as CSV">&#128196; Export CSV</button>
         <button class="btn ghost" id="btn-export-surf-dxf" title="Export surface mesh as DXF">&#128208; Export DXF</button>
@@ -1074,6 +1080,12 @@
           <input type="number" id="faceOBJSubdivision" value="0.5" min="0.5" max="25" step="0.5" style="width:80px">
         </label>
         <div class="mini" style="margin-top:4px">Interpolates additional vertices using C2 cubic splines for a smooth mesh. 0.5mm default; increase for smaller files.</div>
+      </div>
+      <div class="field" style="max-width:320px;margin-bottom:10px">
+        <label><span class="tooltip">Seam Edge Smoothing (0–1)<span class="tip-icon">?</span><span class="tip">Blends the top seam-edge row of the face wall mesh toward its interior neighbours. 0 = off (default). 0.5 = gentle smooth. 1 = full blend. Automatically corrects both peaks (+) and valleys (−) along the edge — no manual ± needed.</span></span>
+          <input type="number" id="faceSeamSmooth" value="0" min="0" max="1" step="0.1" style="width:80px">
+        </label>
+        <div class="mini" style="margin-top:4px">Auto-smooths peaks and valleys along the face wall seam edge. Applied to OBJ and STL exports only.</div>
       </div>
       <div class="btn-row">
         <button class="btn ghost" id="btn-export-face-csv" title="Export face mesh as CSV">&#128196; Export CSV</button>
@@ -9202,6 +9214,9 @@ function getSettingsFromUI() {
     fpZStepSize:                 n('fp-zStepSize'),
     // Combined mode
     combinedPhasePause:          n('combined-phase-pause'),
+    // Seam edge smoothing
+    surfSeamSmooth:              n('surfSeamSmooth'),
+    faceSeamSmooth:              n('faceSeamSmooth'),
     // Probe dimensions
     probeShankDiameter:          n('probeShankDiameter'),
     probeBodyDiameter:           n('probeBodyDiameter'),
@@ -9289,6 +9304,9 @@ function loadSettings() {
   sv('fp-zStepSize',               data.fpZStepSize);
   // Combined mode
   sv('combined-phase-pause',       data.combinedPhasePause);
+  // Seam edge smoothing
+  sv('surfSeamSmooth',             data.surfSeamSmooth);
+  sv('faceSeamSmooth',             data.faceSeamSmooth);
   // Probe dimensions
   sv('probeShankDiameter',         data.probeShankDiameter);
   sv('probeBodyDiameter',          data.probeBodyDiameter);
@@ -9320,6 +9338,7 @@ function resetSettings() {
     faceFeed: 150, faceRetractFeed: 1000, faceDepthBelowSurface: 2, faceProbeDistance: 20, faceLayerCount: 3,
     fpZStepCount: 3, fpZStepSize: 1,
     combinedPhasePause: 2000,
+    surfSeamSmooth: 0, faceSeamSmooth: 0,
     probeShankDiameter: 6, probeBodyDiameter: 33, probeUpperHeight: 20, probeUpperLength: 20,
     probeMainBodyHeight: 21, probeLowerLength: 21,
     probeStylusLength: 26, probeStylusCalloutLength: 14.75, probeBallTipDiameter: 0, probeTipBallDiameter: 0, probeTotalLength: 67
@@ -9375,6 +9394,8 @@ function resetSettings() {
   sv('probeBallTipDiameter',       defaults.probeBallTipDiameter);
   sv('probeTipBallDiameter',       defaults.probeTipBallDiameter);
   sv('probeTotalLength',           defaults.probeTotalLength);
+  sv('surfSeamSmooth',             defaults.surfSeamSmooth);
+  sv('faceSeamSmooth',             defaults.faceSeamSmooth);
   try { refreshFinishBehaviorPreview(); } catch(e) {}
   try { refreshTravelRecoveryPreview(); } catch(e) {}
   try { calcProbeAutoTotalLength(); } catch(e) {}
@@ -9734,6 +9755,53 @@ function _weldSeamEdge(allVerts, trisToRemap, edgeA, edgeB) {
     ];
   });
 }
+// ── Seam-edge row smoothing ───────────────────────────────────────────────────
+// Blends the Z values of one edge row of an upsampled surface grid toward the
+// local neighborhood average (inward row + left/right lateral neighbours).
+// This automatically corrects both peaks and valleys at the seam edge — no
+// manual +/− needed.
+//
+// grid[ri][ci]  = Z value (number|null)
+// seamRowIdx    = 0 (front seam) or rowCount-1 (back seam)
+// blendFactor   = 0 (no change) … 1 (full replacement with neighbour average)
+function _smoothSeamEdgeRow(grid, rowCount, colCount, seamRowIdx, blendFactor) {
+  if (!blendFactor || blendFactor <= 0 || rowCount < 2 || colCount < 1) return;
+  var bf = Math.min(1, Math.max(0, blendFactor));
+  var inwardRow = seamRowIdx === 0 ? 1 : rowCount - 2;
+  for (var ci = 0; ci < colCount; ci++) {
+    var cur = grid[seamRowIdx][ci];
+    if (cur == null || !isFinite(cur)) continue;
+    var inner = grid[inwardRow][ci];
+    if (inner == null || !isFinite(inner)) continue;
+    var sum = inner, cnt = 1;
+    var lv = ci > 0 ? grid[seamRowIdx][ci - 1] : null;
+    var rv = ci < colCount - 1 ? grid[seamRowIdx][ci + 1] : null;
+    if (lv != null && isFinite(lv)) { sum += lv; cnt++; }
+    if (rv != null && isFinite(rv)) { sum += rv; cnt++; }
+    grid[seamRowIdx][ci] = cur * (1 - bf) + (sum / cnt) * bf;
+  }
+}
+// Blends the Y (contact-depth) values of the top row of an upsampled face wall
+// toward the local neighbourhood average.  Works on the result object returned
+// by _upsampleFaceData; the top row (rowCount-1) is the seam edge.
+function _smoothFaceSeamRow(up, blendFactor) {
+  if (!blendFactor || blendFactor <= 0 || !up.vMap || up.rowCount < 2) return;
+  var bf = Math.min(1, Math.max(0, blendFactor));
+  var topRow = up.rowCount - 1;
+  var innerRow = topRow - 1;
+  for (var ci = 0; ci < up.colCount; ci++) {
+    var idx = up.vMap[topRow][ci];
+    if (idx == null) continue;
+    var innerIdx = up.vMap[innerRow][ci];
+    if (innerIdx == null) continue;
+    var sum = up.pts[innerIdx].y, cnt = 1;
+    var li = ci > 0 ? up.vMap[topRow][ci - 1] : null;
+    var ri = ci < up.colCount - 1 ? up.vMap[topRow][ci + 1] : null;
+    if (li != null) { sum += up.pts[li].y; cnt++; }
+    if (ri != null) { sum += up.pts[ri].y; cnt++; }
+    up.pts[idx].y = up.pts[idx].y * (1 - bf) + (sum / cnt) * bf;
+  }
+}
 // ── Smooth per-vertex normals ─────────────────────────────────────────────────
 // verts: [{x,y,z}, ...], tris: [[i0,i1,i2], ...] — returns [{x,y,z}, ...] normalised
 function _computeVertexNormals(verts, tris) {
@@ -9993,6 +10061,9 @@ function exportSurfaceOBJ() {
   subSpacing = Math.max(0.5, subSpacing);
   // Upsample the probe grid via C2 natural cubic spline interpolation.
   var up = _cubicSplineUpsampleGrid(smMeshData, smGridConfig, subSpacing);
+  // Auto seam-edge smoothing: blend front-edge row toward interior neighbours.
+  var surfSeamBlend = Math.min(1, Math.max(0, Number((document.getElementById('surfSeamSmooth') || {}).value) || 0));
+  if (surfSeamBlend > 0) _smoothSeamEdgeRow(up.grid, up.rowCount, up.colCount, 0, surfSeamBlend);
   var cfg = up, grid = up.grid;
   var lines = ['# 3D Live Edge Mesh — Surface OBJ', '# Plugin Version: ' + SM_VERSION,
                '# Exported: ' + new Date().toISOString(),
@@ -10050,6 +10121,9 @@ function exportSurfaceSTL() {
   if (!isFinite(subSpacing) || subSpacing <= 0) subSpacing = 0.5;
   subSpacing = Math.max(0.5, subSpacing);
   var up = _cubicSplineUpsampleGrid(smMeshData, smGridConfig, subSpacing);
+  // Auto seam-edge smoothing: blend front-edge row toward interior neighbours.
+  var surfSeamBlend = Math.min(1, Math.max(0, Number((document.getElementById('surfSeamSmooth') || {}).value) || 0));
+  if (surfSeamBlend > 0) _smoothSeamEdgeRow(up.grid, up.rowCount, up.colCount, 0, surfSeamBlend);
   var cfg = up, grid = up.grid;
   var allVerts = [], allTris = [];
   var vMap = [];
@@ -10113,6 +10187,9 @@ function exportFaceOBJ() {
                '# C2 natural cubic spline interpolation, subdivision spacing: ' + subSpacing + 'mm', ''];
   // Upsample the face probe grid via C2 natural cubic spline interpolation.
   var up = _upsampleFaceData(data, subSpacing);
+  // Auto seam-edge smoothing: blend top edge row toward interior neighbours.
+  var faceSeamBlend = Math.min(1, Math.max(0, Number((document.getElementById('faceSeamSmooth') || {}).value) || 0));
+  if (faceSeamBlend > 0) _smoothFaceSeamRow(up, faceSeamBlend);
   var allVerts = up.pts;
   var allTris;
   if (up.vMap && up.rowCount >= 2 && up.colCount >= 2) {
@@ -10168,6 +10245,9 @@ function exportFaceSTL() {
   if (!isFinite(subSpacing) || subSpacing <= 0) subSpacing = 0.5;
   subSpacing = Math.max(0.5, subSpacing);
   var up = _upsampleFaceData(data, subSpacing);
+  // Auto seam-edge smoothing: blend top edge row toward interior neighbours.
+  var faceSeamBlend = Math.min(1, Math.max(0, Number((document.getElementById('faceSeamSmooth') || {}).value) || 0));
+  if (faceSeamBlend > 0) _smoothFaceSeamRow(up, faceSeamBlend);
   var allVerts = up.pts;
   var allTris;
   if (up.vMap && up.rowCount >= 2 && up.colCount >= 2) {
@@ -10248,6 +10328,9 @@ function exportCombinedOBJWatertight() {
   if (!isFinite(bottomZ)) bottomZ = -20;
   // Upsample surface mesh via C2 natural cubic spline.
   var surfUp = _cubicSplineUpsampleGrid(smMeshData, smGridConfig, subSpacing);
+  // Auto seam-edge smoothing: blend surface front-edge row toward interior neighbours.
+  var combinedSurfBlend = Math.min(1, Math.max(0, Number((document.getElementById('surfSeamSmooth') || {}).value) || 0));
+  if (combinedSurfBlend > 0) _smoothSeamEdgeRow(surfUp.grid, surfUp.rowCount, surfUp.colCount, 0, combinedSurfBlend);
   var cfg = surfUp, grid = surfUp.grid;
   var lines = ['# 3D Live Edge Mesh — Combined Watertight OBJ', '# Plugin Version: ' + SM_VERSION,
                '# C2 natural cubic spline interpolation, subdivision spacing: ' + subSpacing + 'mm', ''];
@@ -10272,6 +10355,9 @@ function exportCombinedOBJWatertight() {
   }
   // ── Face mesh (upsampled via C2 spline, structured triangulation for -Y normal)
   var faceUp = _upsampleFaceData(faceData, subSpacing);
+  // Auto seam-edge smoothing: blend face wall top-edge row toward interior neighbours.
+  var combinedFaceBlend = Math.min(1, Math.max(0, Number((document.getElementById('faceSeamSmooth') || {}).value) || 0));
+  if (combinedFaceBlend > 0) _smoothFaceSeamRow(faceUp, combinedFaceBlend);
   var faceVStart = allVerts.length;
   faceUp.pts.forEach(function(v) { allVerts.push(v); });
   var faceTris;
@@ -10371,6 +10457,9 @@ function exportCombinedSTLWatertight() {
   var bottomZ = Number((document.getElementById('combinedBottomZ') || {}).value);
   if (!isFinite(bottomZ)) bottomZ = -20;
   var surfUp = _cubicSplineUpsampleGrid(smMeshData, smGridConfig, subSpacing);
+  // Auto seam-edge smoothing: blend surface front-edge row toward interior neighbours.
+  var combinedSurfBlendS = Math.min(1, Math.max(0, Number((document.getElementById('surfSeamSmooth') || {}).value) || 0));
+  if (combinedSurfBlendS > 0) _smoothSeamEdgeRow(surfUp.grid, surfUp.rowCount, surfUp.colCount, 0, combinedSurfBlendS);
   var cfg = surfUp, grid = surfUp.grid;
   var allVerts = [], allTris = [];
   // Surface mesh
@@ -10391,6 +10480,9 @@ function exportCombinedSTLWatertight() {
   }
   // Face mesh
   var faceUp = _upsampleFaceData(faceData, subSpacing);
+  // Auto seam-edge smoothing: blend face wall top-edge row toward interior neighbours.
+  var combinedFaceBlendS = Math.min(1, Math.max(0, Number((document.getElementById('faceSeamSmooth') || {}).value) || 0));
+  if (combinedFaceBlendS > 0) _smoothFaceSeamRow(faceUp, combinedFaceBlendS);
   var faceVStart = allVerts.length;
   faceUp.pts.forEach(function(v) { allVerts.push(v); });
   var faceTris;
