@@ -541,6 +541,45 @@ function _delaunayTriangulate(pts2d) {
   }
   return tris.filter(function(t) { return t[0] < n && t[1] < n && t[2] < n; });
 }
+// ── Seam-edge vertex welding ──────────────────────────────────────────────────
+// Merges vertices in `edgeB` (array of global vertex indices, may contain nulls)
+// into the nearest vertex of `edgeA` (same format) matched by closest X value.
+// For each matched pair the vertex position in `allVerts` is averaged so the
+// seam sits at the best-estimate of the true physical edge.  All references to
+// the edgeB vertex inside `trisToRemap` are replaced with the edgeA vertex index.
+// Returns the remapped copy of `trisToRemap`; `allVerts` is mutated in place.
+function _weldSeamEdge(allVerts, trisToRemap, edgeA, edgeB) {
+  var remap = {};
+  for (var bi = 0; bi < edgeB.length; bi++) {
+    var bIdx = edgeB[bi];
+    if (bIdx == null) continue;
+    var bv = allVerts[bIdx];
+    var bestAIdx = -1, bestDX = Infinity;
+    for (var ai = 0; ai < edgeA.length; ai++) {
+      var aIdx = edgeA[ai];
+      if (aIdx == null) continue;
+      var dx = Math.abs(allVerts[aIdx].x - bv.x);
+      if (dx < bestDX) { bestDX = dx; bestAIdx = aIdx; }
+    }
+    if (bestAIdx === -1) continue;
+    // Average position so neither probe's measurement dominates.
+    var av = allVerts[bestAIdx];
+    allVerts[bestAIdx] = {
+      x: (av.x + bv.x) * 0.5,
+      y: (av.y + bv.y) * 0.5,
+      z: (av.z + bv.z) * 0.5
+    };
+    remap[bIdx] = bestAIdx;
+  }
+  if (Object.keys(remap).length === 0) return trisToRemap;
+  return trisToRemap.map(function(t) {
+    return [
+      remap[t[0]] !== undefined ? remap[t[0]] : t[0],
+      remap[t[1]] !== undefined ? remap[t[1]] : t[1],
+      remap[t[2]] !== undefined ? remap[t[2]] : t[2]
+    ];
+  });
+}
 // ── Smooth per-vertex normals ─────────────────────────────────────────────────
 // verts: [{x,y,z}, ...], tris: [[i0,i1,i2], ...] — returns [{x,y,z}, ...] normalised
 function _computeVertexNormals(verts, tris) {
@@ -1109,6 +1148,17 @@ function exportCombinedOBJWatertight() {
     sumNy += e1z*e2x - e1x*e2z;
   });
   if (sumNy > 0) faceTris = faceTris.map(function(t) { return [t[0], t[2], t[1]]; });
+  // ── Top seam weld: stitch face top edge → surface front edge ───────────────
+  // The face probe's topmost Z row and the surface probe's front Y row represent
+  // the same physical edge.  Welding them into shared vertices lets vertex normals
+  // average across both surfaces, eliminating the hard crease artefact.
+  if (faceUp.vMap && faceUp.rowCount >= 2) {
+    var surfFrontEdge = surfV[0].slice();
+    var faceTopEdge = faceUp.vMap[faceUp.rowCount - 1].map(function(li) {
+      return li != null ? faceVStart + li : null;
+    });
+    faceTris = _weldSeamEdge(allVerts, faceTris, surfFrontEdge, faceTopEdge);
+  }
   allTris = allTris.concat(faceTris);
   // ── Bottom cap (front edge of surface to bottomZ, -Y normal) ───────────────
   var bottomVStart = allVerts.length;
@@ -1120,6 +1170,22 @@ function exportCombinedOBJWatertight() {
     var f0=frontRow[bc2], f1=frontRow[bc2+1], b0=bottomVStart+bc2, b1=bottomVStart+bc2+1;
     allTris.push([f0, b0, b1]);
     allTris.push([f0, b1, f1]);
+  }
+  // ── Bottom seam weld: stitch face bottom edge → bottom cap row ─────────────
+  // Welding the face wall's lowest Z row to the bottom cap row removes the crease
+  // at the base of the face wall.
+  if (faceUp.vMap && faceUp.rowCount >= 2) {
+    var bottomCapEdge = [];
+    for (var bce = 0; bce < cfg.colCount; bce++) bottomCapEdge.push(bottomVStart + bce);
+    var faceBottomEdge = faceUp.vMap[0].map(function(li) {
+      return li != null ? faceVStart + li : null;
+    });
+    // Remap bottom-cap triangles to pull face-bottom vertices into the cap edge.
+    // We extract only the bottom-cap tris (last 2*(colCount-1) pushed) for remapping.
+    var capTrisStart = allTris.length - 2 * (cfg.colCount - 1);
+    var capTrisOnly = allTris.splice(capTrisStart);
+    capTrisOnly = _weldSeamEdge(allVerts, capTrisOnly, bottomCapEdge, faceBottomEdge);
+    allTris = allTris.concat(capTrisOnly);
   }
   // ── Compute vertex normals and write OBJ ───────────────────────────────────
   var norms = _computeVertexNormals(allVerts, allTris);
@@ -1199,6 +1265,14 @@ function exportCombinedSTLWatertight() {
     sumNy += e1z*e2x - e1x*e2z;
   });
   if (sumNy > 0) faceTris = faceTris.map(function(t) { return [t[0], t[2], t[1]]; });
+  // Top seam weld: stitch face top edge → surface front edge.
+  if (faceUp.vMap && faceUp.rowCount >= 2) {
+    var surfFrontEdgeS = surfV[0].slice();
+    var faceTopEdgeS = faceUp.vMap[faceUp.rowCount - 1].map(function(li) {
+      return li != null ? faceVStart + li : null;
+    });
+    faceTris = _weldSeamEdge(allVerts, faceTris, surfFrontEdgeS, faceTopEdgeS);
+  }
   allTris = allTris.concat(faceTris);
   // Bottom cap
   var bottomVStart = allVerts.length;
@@ -1209,6 +1283,18 @@ function exportCombinedSTLWatertight() {
   for (var bc2 = 0; bc2 < cfg.colCount - 1; bc2++) {
     var f0=frontRow[bc2], f1=frontRow[bc2+1], b0=bottomVStart+bc2, b1=bottomVStart+bc2+1;
     allTris.push([f0, b0, b1]); allTris.push([f0, b1, f1]);
+  }
+  // Bottom seam weld: stitch face bottom edge → bottom cap row.
+  if (faceUp.vMap && faceUp.rowCount >= 2) {
+    var bottomCapEdgeS = [];
+    for (var bceS = 0; bceS < cfg.colCount; bceS++) bottomCapEdgeS.push(bottomVStart + bceS);
+    var faceBottomEdgeS = faceUp.vMap[0].map(function(li) {
+      return li != null ? faceVStart + li : null;
+    });
+    var capTrisStartS = allTris.length - 2 * (cfg.colCount - 1);
+    var capTrisOnlyS = allTris.splice(capTrisStartS);
+    capTrisOnlyS = _weldSeamEdge(allVerts, capTrisOnlyS, bottomCapEdgeS, faceBottomEdgeS);
+    allTris = allTris.concat(capTrisOnlyS);
   }
   _stlDownload(allVerts, allTris, 'combined_watertight_' + Date.now() + '.stl');
   pluginDebug('exportCombinedSTLWatertight: exported ' + allVerts.length + ' vertices, ' + allTris.length + ' triangles');
