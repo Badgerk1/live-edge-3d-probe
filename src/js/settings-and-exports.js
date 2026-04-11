@@ -48,6 +48,7 @@ function getSettingsFromUI() {
     fpZStepSize:                 n('fp-zStepSize'),
     // Combined mode
     combinedPhasePause:          n('combined-phase-pause'),
+    combinedSeamBlend:           n('combinedSeamBlend'),
     // Probe dimensions
     probeShankDiameter:          n('probeShankDiameter'),
     probeBodyDiameter:           n('probeBodyDiameter'),
@@ -135,6 +136,7 @@ function loadSettings() {
   sv('fp-zStepSize',               data.fpZStepSize);
   // Combined mode
   sv('combined-phase-pause',       data.combinedPhasePause);
+  sv('combinedSeamBlend',          data.combinedSeamBlend);
   // Probe dimensions
   sv('probeShankDiameter',         data.probeShankDiameter);
   sv('probeBodyDiameter',          data.probeBodyDiameter);
@@ -166,6 +168,7 @@ function resetSettings() {
     faceFeed: 150, faceRetractFeed: 1000, faceDepthBelowSurface: 2, faceProbeDistance: 20, faceLayerCount: 3,
     fpZStepCount: 3, fpZStepSize: 1,
     combinedPhasePause: 2000,
+    combinedSeamBlend: 0,
     probeShankDiameter: 6, probeBodyDiameter: 33, probeUpperHeight: 20, probeUpperLength: 20,
     probeMainBodyHeight: 21, probeLowerLength: 21,
     probeStylusLength: 26, probeStylusCalloutLength: 14.75, probeBallTipDiameter: 0, probeTipBallDiameter: 0, probeTotalLength: 67
@@ -210,6 +213,7 @@ function resetSettings() {
   sv('fp-zStepCount',              defaults.fpZStepCount);
   sv('fp-zStepSize',               defaults.fpZStepSize);
   sv('combined-phase-pause',       defaults.combinedPhasePause);
+  sv('combinedSeamBlend',          defaults.combinedSeamBlend);
   sv('probeShankDiameter',         defaults.probeShankDiameter);
   sv('probeBodyDiameter',          defaults.probeBodyDiameter);
   sv('probeUpperHeight',           defaults.probeUpperHeight);
@@ -579,6 +583,67 @@ function _weldSeamEdge(allVerts, trisToRemap, edgeA, edgeB) {
       remap[t[2]] !== undefined ? remap[t[2]] : t[2]
     ];
   });
+}
+// ── Seam-edge blend / fillet ──────────────────────────────────────────────────
+// After the top seam has been welded, this helper offsets each seam vertex along
+// the angle-bisector of the surface tangent and the face tangent at that column.
+//
+// blendMm > 0  →  push outward from the corner (round a convex peak / hollow in)
+// blendMm < 0  →  push inward  into the corner  (sharpen a concave hollow / fill)
+// blendMm = 0  →  no-op (skip entirely)
+//
+// seamIndices : array of global vertex indices along the weld edge (one per column,
+//               nulls allowed — same format as _weldSeamEdge edgeA).
+// surfV       : 2-D array [row][col] of global vertex indices for the surface mesh
+//               (row 0 = front/seam row, row 1 = one row behind it).
+// faceVMap    : 2-D array [row][col] of *local* face vertex indices (0-based inside
+//               faceUp.pts); faceVStart is added internally.
+// faceVStart  : offset added to faceVMap indices to reach allVerts.
+// faceRowCount: number of rows in faceVMap.
+// allVerts is mutated in place.
+function _applySeamBlend(allVerts, seamIndices, blendMm, surfV, faceVMap, faceVStart, faceRowCount) {
+  if (!blendMm || !isFinite(blendMm)) return;
+  var surfRows = surfV.length;
+  for (var ci = 0; ci < seamIndices.length; ci++) {
+    var sIdx = seamIndices[ci];
+    if (sIdx == null) continue;
+    var sv = allVerts[sIdx];
+
+    // ── Surface tangent: direction from seam vertex toward the row behind it ──
+    // surfV[0] is the seam row; surfV[1] is one step back (+Y direction).
+    var surfTx = 0, surfTy = 0, surfTz = 0;
+    if (surfRows >= 2) {
+      var backIdx = surfV[1][ci];
+      if (backIdx != null) {
+        var bv = allVerts[backIdx];
+        surfTx = bv.x - sv.x; surfTy = bv.y - sv.y; surfTz = bv.z - sv.z;
+        var surfLen = Math.sqrt(surfTx*surfTx + surfTy*surfTy + surfTz*surfTz);
+        if (surfLen > 1e-10) { surfTx /= surfLen; surfTy /= surfLen; surfTz /= surfLen; }
+      }
+    }
+
+    // ── Face tangent: direction from seam vertex toward one row down the face wall ──
+    // faceVMap[faceRowCount-1] is the top (seam) row; [faceRowCount-2] is one step down.
+    var faceTx = 0, faceTy = 0, faceTz = 0;
+    if (faceRowCount >= 2) {
+      var downRowIdx = faceVMap[faceRowCount - 2][ci];
+      if (downRowIdx != null) {
+        var dv = allVerts[faceVStart + downRowIdx];
+        faceTx = dv.x - sv.x; faceTy = dv.y - sv.y; faceTz = dv.z - sv.z;
+        var faceLen = Math.sqrt(faceTx*faceTx + faceTy*faceTy + faceTz*faceTz);
+        if (faceLen > 1e-10) { faceTx /= faceLen; faceTy /= faceLen; faceTz /= faceLen; }
+      }
+    }
+
+    // ── Angle bisector — average of the two unit tangents, then normalise ─────
+    var bx = surfTx + faceTx, by = surfTy + faceTy, bz = surfTz + faceTz;
+    var bLen = Math.sqrt(bx*bx + by*by + bz*bz);
+    if (bLen < 1e-10) continue; // tangents cancel (180° = flat — no correction needed)
+    bx /= bLen; by /= bLen; bz /= bLen;
+
+    // Displace the seam vertex along the bisector.
+    allVerts[sIdx] = { x: sv.x + bx * blendMm, y: sv.y + by * blendMm, z: sv.z + bz * blendMm };
+  }
 }
 // ── Smooth per-vertex normals ─────────────────────────────────────────────────
 // verts: [{x,y,z}, ...], tris: [[i0,i1,i2], ...] — returns [{x,y,z}, ...] normalised
@@ -1092,6 +1157,8 @@ function exportCombinedOBJWatertight() {
   subSpacing = Math.max(0.5, subSpacing);
   var bottomZ = Number((document.getElementById('combinedBottomZ') || {}).value);
   if (!isFinite(bottomZ)) bottomZ = -20;
+  var seamBlend = Number((document.getElementById('combinedSeamBlend') || {}).value);
+  if (!isFinite(seamBlend)) seamBlend = 0;
   // Upsample surface mesh via C2 natural cubic spline.
   var surfUp = _cubicSplineUpsampleGrid(smMeshData, smGridConfig, subSpacing);
   var cfg = surfUp, grid = surfUp.grid;
@@ -1158,6 +1225,8 @@ function exportCombinedOBJWatertight() {
       return li != null ? faceVStart + li : null;
     });
     faceTris = _weldSeamEdge(allVerts, faceTris, surfFrontEdge, faceTopEdge);
+    // Apply seam blend fillet — displaces weld vertices along the corner bisector.
+    if (seamBlend !== 0) _applySeamBlend(allVerts, surfFrontEdge, seamBlend, surfV, faceUp.vMap, faceVStart, faceUp.rowCount);
   }
   allTris = allTris.concat(faceTris);
   // ── Bottom cap (front edge of surface to bottomZ, -Y normal) ───────────────
@@ -1216,6 +1285,8 @@ function exportCombinedSTLWatertight() {
   subSpacing = Math.max(0.5, subSpacing);
   var bottomZ = Number((document.getElementById('combinedBottomZ') || {}).value);
   if (!isFinite(bottomZ)) bottomZ = -20;
+  var seamBlendS = Number((document.getElementById('combinedSeamBlend') || {}).value);
+  if (!isFinite(seamBlendS)) seamBlendS = 0;
   var surfUp = _cubicSplineUpsampleGrid(smMeshData, smGridConfig, subSpacing);
   var cfg = surfUp, grid = surfUp.grid;
   var allVerts = [], allTris = [];
@@ -1272,6 +1343,7 @@ function exportCombinedSTLWatertight() {
       return li != null ? faceVStart + li : null;
     });
     faceTris = _weldSeamEdge(allVerts, faceTris, surfFrontEdgeS, faceTopEdgeS);
+    if (seamBlendS !== 0) _applySeamBlend(allVerts, surfFrontEdgeS, seamBlendS, surfV, faceUp.vMap, faceVStart, faceUp.rowCount);
   }
   allTris = allTris.concat(faceTris);
   // Bottom cap

@@ -783,6 +783,12 @@
         </label>
         <div class="mini" style="margin-top:4px">Face wall subdivision resolution for the combined export. 0.5mm recommended.</div>
       </div>
+      <div class="field" style="max-width:320px;margin-bottom:10px">
+        <label><span class="tooltip">Seam Blend / Edge Fillet (mm)<span class="tip-icon">?</span><span class="tip">Offsets each vertex along the top seam by this amount along the angle-bisector of the surface and face tangents. Positive values round convex peaks (push outward). Negative values smooth concave hollows (push inward). 0 = disabled (default).</span></span>
+          <input type="number" id="combinedSeamBlend" value="0" step="0.1" style="width:80px">
+        </label>
+        <div class="mini" style="margin-top:4px">+ rounds convex peaks &middot; &minus; smooths concave hollows &middot; 0 = off. Saved with Settings.</div>
+      </div>
       <div class="btn-row">
         <button class="btn ghost" id="btn-export-combined-obj" title="Export single watertight OBJ (surface + face stitched)">&#129518; Export Combined OBJ (Watertight)</button>
         <button class="btn ghost" id="btn-export-combined-stl" title="Export single watertight STL (surface + face stitched) — recommended for Aspire v12">&#128230; Export Combined STL (Watertight)</button>
