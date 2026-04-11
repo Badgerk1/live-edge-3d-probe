@@ -742,17 +742,18 @@
     <!-- Surface Mesh Export -->
     <div class="panel">
       <div class="box-title">Surface Mesh Export</div>
-      <div class="callout mini" style="margin-bottom:10px">Export the surface probe mesh as CSV, DXF polylines, or OBJ 3D mesh. Uses the current surface mesh data.</div>
+      <div class="callout mini" style="margin-bottom:10px">Export the surface probe mesh as CSV, DXF polylines, OBJ 3D mesh, or STL 3D mesh. Uses the current surface mesh data.</div>
       <div class="field" style="max-width:320px;margin-bottom:10px">
-        <label><span class="tooltip">OBJ Subdivision Resolution (mm)<span class="tip-icon">?</span><span class="tip">Target vertex spacing for the OBJ mesh. Smaller values produce smoother curved surfaces but generate larger files. Minimum 0.5mm; 0.5mm default for fine detail.</span></span>
+        <label><span class="tooltip">OBJ / STL Subdivision Resolution (mm)<span class="tip-icon">?</span><span class="tip">Target vertex spacing for the OBJ/STL mesh. Uses C2 natural cubic spline interpolation for smooth geometry. Smaller values produce smoother surfaces but generate larger files. Minimum 0.5mm; 0.5mm default for fine detail.</span></span>
           <input type="number" id="surfOBJSubdivision" value="0.5" min="0.5" max="25" step="0.5" style="width:80px">
         </label>
-        <div class="mini" style="margin-top:4px">Interpolates additional vertices for a smooth mesh. 0.5mm default; increase for smaller files.</div>
+        <div class="mini" style="margin-top:4px">Interpolates additional vertices using C2 cubic splines for a smooth mesh. 0.5mm default; increase for smaller files.</div>
       </div>
       <div class="btn-row">
         <button class="btn ghost" id="btn-export-surf-csv" title="Export surface mesh as CSV">&#128196; Export CSV</button>
         <button class="btn ghost" id="btn-export-surf-dxf" title="Export surface mesh as DXF">&#128208; Export DXF</button>
         <button class="btn ghost" id="btn-export-surf-obj" title="Export surface mesh as OBJ">&#129518; Export OBJ</button>
+        <button class="btn ghost" id="btn-export-surf-stl" title="Export surface mesh as binary STL (recommended for Aspire v12)">&#128230; Export STL</button>
       </div>
     </div>
     <!-- Combined Mode Settings — shown only in Combined mode -->
@@ -768,7 +769,7 @@
     <!-- Combined Mesh Export (Watertight) — shown only in Combined mode -->
     <div id="combined-export-panel" class="panel" style="display:none">
       <div class="box-title">Combined Mesh Export (Watertight)</div>
-      <div class="callout mini" style="margin-bottom:10px">Stitches the <strong>Surface MinY edge (Row 1)</strong> to the <strong>Face top edge</strong> and closes the model down to a user-defined Bottom Z to produce a single watertight OBJ. DXF exports both datasets as polylines (not watertight).</div>
+      <div class="callout mini" style="margin-bottom:10px">Stitches the <strong>Surface MinY edge (Row 1)</strong> to the <strong>Face top edge</strong> and closes the model down to a user-defined Bottom Z to produce a single watertight OBJ or STL. DXF exports both datasets as polylines (not watertight).</div>
       <div class="field" style="max-width:320px;margin-bottom:10px">
         <label><span class="tooltip">Combined Bottom Z (coords)<span class="tip-icon">?</span><span class="tip">Z coordinate of the flat bottom cap that closes the watertight solid. Must be below all surface and face mesh Z values.</span></span>
           <input type="number" id="combinedBottomZ" value="-20" step="0.1" style="width:80px" data-is-default="1">
@@ -777,13 +778,14 @@
         <div id="combinedBottomZ-hint" class="mini" style="margin-top:2px;color:#888;display:none"></div>
       </div>
       <div class="field" style="max-width:320px;margin-bottom:10px">
-        <label><span class="tooltip">OBJ Subdivision Resolution (mm)<span class="tip-icon">?</span><span class="tip">Target vertex spacing used when resampling the face wall mesh. Smaller values give a smoother combined mesh but produce larger files. Minimum 0.5mm.</span></span>
+        <label><span class="tooltip">OBJ / STL Subdivision Resolution (mm)<span class="tip-icon">?</span><span class="tip">Target vertex spacing used when resampling the face wall mesh. Uses C2 natural cubic spline interpolation. Smaller values give a smoother combined mesh but produce larger files. Minimum 0.5mm.</span></span>
           <input type="number" id="combinedOBJSubdivision" value="0.5" min="0.5" max="25" step="0.5" style="width:80px">
         </label>
         <div class="mini" style="margin-top:4px">Face wall subdivision resolution for the combined export. 0.5mm recommended.</div>
       </div>
       <div class="btn-row">
         <button class="btn ghost" id="btn-export-combined-obj" title="Export single watertight OBJ (surface + face stitched)">&#129518; Export Combined OBJ (Watertight)</button>
+        <button class="btn ghost" id="btn-export-combined-stl" title="Export single watertight STL (surface + face stitched) — recommended for Aspire v12">&#128230; Export Combined STL (Watertight)</button>
         <button class="btn ghost" id="btn-export-combined-dxf" title="Export combined DXF polylines (surface rows + face layers)">&#128208; Export Combined DXF (Polylines)</button>
       </div>
     </div>
@@ -859,10 +861,10 @@
     </div>
     <!-- Face Mesh Export -->
     <div class="panel">
-      <div class="box-title">Face Mesh Export (DXF / OBJ)</div>
-      <div class="callout mini" style="margin-bottom:10px">Export face probe results as CSV, DXF, or OBJ. In layered mode these include all layers. In single-pass mode the results are exported as layer 1.</div>
+      <div class="box-title">Face Mesh Export (DXF / OBJ / STL)</div>
+      <div class="callout mini" style="margin-bottom:10px">Export face probe results as CSV, DXF, OBJ, or STL. In layered mode these include all layers. In single-pass mode the results are exported as layer 1.</div>
       <div class="field" style="max-width:320px;margin-bottom:10px">
-        <label><span class="tooltip">Top Surface Mode<span class="tip-icon">?</span><span class="tip">Controls how the top edge is represented in DXF/OBJ exports. "Flat Plane" uses the shallowest measured Z for a flat straight edge. "Probed Profile" follows each sample's actual measured top Z.</span></span>
+        <label><span class="tooltip">Top Surface Mode<span class="tip-icon">?</span><span class="tip">Controls how the top edge is represented in DXF/OBJ/STL exports. "Flat Plane" uses the shallowest measured Z for a flat straight edge. "Probed Profile" follows each sample's actual measured top Z.</span></span>
           <select id="faceTopSurfaceMode">
             <option value="flat">Flat Plane</option>
             <option value="probed">Probed Profile</option>
@@ -871,15 +873,16 @@
         <div class="mini" style="margin-top:4px">Flat Plane: top layer uses the shallowest top profile Z (flat straight edge for CNC carving). Probed Profile: top layer uses each sample's actual measured surface Z.</div>
       </div>
       <div class="field" style="max-width:320px;margin-bottom:10px">
-        <label><span class="tooltip">OBJ Subdivision Resolution (mm)<span class="tip-icon">?</span><span class="tip">Target vertex spacing for the OBJ mesh. Smaller values produce smoother curved surfaces but generate larger files. Minimum 0.5mm; 0.5mm default for fine detail.</span></span>
+        <label><span class="tooltip">OBJ / STL Subdivision Resolution (mm)<span class="tip-icon">?</span><span class="tip">Target vertex spacing for the OBJ/STL mesh. Uses C2 natural cubic spline interpolation for smooth geometry. Smaller values produce smoother surfaces but generate larger files. Minimum 0.5mm; 0.5mm default for fine detail.</span></span>
           <input type="number" id="faceOBJSubdivision" value="0.5" min="0.5" max="25" step="0.5" style="width:80px">
         </label>
-        <div class="mini" style="margin-top:4px">Interpolates additional vertices for a smooth mesh. 0.5mm default; increase for smaller files.</div>
+        <div class="mini" style="margin-top:4px">Interpolates additional vertices using C2 cubic splines for a smooth mesh. 0.5mm default; increase for smaller files.</div>
       </div>
       <div class="btn-row">
         <button class="btn ghost" id="btn-export-face-csv" title="Export face mesh as CSV">&#128196; Export CSV</button>
         <button class="btn ghost" id="btn-export-face-dxf" title="Export face mesh as DXF">&#128208; Export DXF</button>
         <button class="btn ghost" id="btn-export-face-obj" title="Export face mesh as OBJ">&#129518; Export OBJ</button>
+        <button class="btn ghost" id="btn-export-face-stl" title="Export face mesh as binary STL (recommended for Aspire v12)">&#128230; Export STL</button>
       </div>
     </div>
   </div><!-- /face-mesh-section -->
