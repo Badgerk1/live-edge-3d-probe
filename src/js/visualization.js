@@ -1515,10 +1515,12 @@ function _buildThreeFaceWall(faceWall, cfg, zMin, zMax, zExag, si) {
   // 1 byte per vertex: 0=unfilled, 1=filled (avoids recomputing shared boundary verts)
   var filled = new Uint8Array(totalVerts);
   // Pre-smooth contact-Y (depth) values to reduce visible fold lines between layers.
-  // Uses a 2-D neighbourhood average; does not mutate faceWall.grid.
-  var smFactor = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmooth') || {}).value) || 0));
+  // Uses a 2-D neighbourhood average with separate blend factors for peaks (protrusions)
+  // and valleys (recessions); does not mutate faceWall.grid.
+  var smPeak    = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmoothPeak')   || {}).value) || 0));
+  var smValley  = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmoothValley') || {}).value) || 0));
   var smC = null; // smC[li][xi] = smoothed contact-Y, or null if missing
-  if (smFactor > 0) {
+  if (smPeak > 0 || smValley > 0) {
     var rawC = [];
     for (var _li = 0; _li < nR; _li++) {
       rawC.push([]);
@@ -1534,7 +1536,10 @@ function _buildThreeFaceWall(faceWall, cfg, zMin, zMax, zExag, si) {
         if (_li2 < nR-1 && rawC[_li2+1][_xi2] != null) { _sum += rawC[_li2+1][_xi2]; _cnt++; }
         if (_xi2 > 0 && rawC[_li2][_xi2-1] != null) { _sum += rawC[_li2][_xi2-1]; _cnt++; }
         if (_xi2 < nC-1 && rawC[_li2][_xi2+1] != null) { _sum += rawC[_li2][_xi2+1]; _cnt++; }
-        smC[_li2][_xi2] = _orig * (1 - smFactor) + (_sum / _cnt) * smFactor;
+        var _avg = _sum / _cnt;
+        // Peak: Y below average (probe contacted sooner = protrusion); Valley: Y above average.
+        var _bf = _orig < _avg ? smPeak : (_orig > _avg ? smValley : 0);
+        smC[_li2][_xi2] = _bf > 0 ? _orig * (1 - _bf) + _avg * _bf : _orig;
       }
     }
   }

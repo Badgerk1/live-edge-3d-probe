@@ -51,7 +51,8 @@ function getSettingsFromUI() {
     // Seam edge smoothing
     surfSeamSmooth:              n('surfSeamSmooth'),
     faceSeamSmooth:              n('faceSeamSmooth'),
-    faceWallSmooth:              n('faceWallSmooth'),
+    faceWallSmoothPeak:          n('faceWallSmoothPeak'),
+    faceWallSmoothValley:        n('faceWallSmoothValley'),
     // Probe dimensions
     probeShankDiameter:          n('probeShankDiameter'),
     probeBodyDiameter:           n('probeBodyDiameter'),
@@ -142,7 +143,8 @@ function loadSettings() {
   // Seam edge smoothing
   sv('surfSeamSmooth',             data.surfSeamSmooth);
   sv('faceSeamSmooth',             data.faceSeamSmooth);
-  sv('faceWallSmooth',             data.faceWallSmooth);
+  sv('faceWallSmoothPeak',         data.faceWallSmoothPeak);
+  sv('faceWallSmoothValley',       data.faceWallSmoothValley);
   // Probe dimensions
   sv('probeShankDiameter',         data.probeShankDiameter);
   sv('probeBodyDiameter',          data.probeBodyDiameter);
@@ -174,7 +176,7 @@ function resetSettings() {
     faceFeed: 150, faceRetractFeed: 1000, faceDepthBelowSurface: 2, faceProbeDistance: 20, faceLayerCount: 3,
     fpZStepCount: 3, fpZStepSize: 1,
     combinedPhasePause: 2000,
-    surfSeamSmooth: 0, faceSeamSmooth: 0, faceWallSmooth: 0,
+    surfSeamSmooth: 0, faceSeamSmooth: 0, faceWallSmoothPeak: 0, faceWallSmoothValley: 0,
     probeShankDiameter: 6, probeBodyDiameter: 33, probeUpperHeight: 20, probeUpperLength: 20,
     probeMainBodyHeight: 21, probeLowerLength: 21,
     probeStylusLength: 26, probeStylusCalloutLength: 14.75, probeBallTipDiameter: 0, probeTipBallDiameter: 0, probeTotalLength: 67
@@ -232,7 +234,8 @@ function resetSettings() {
   sv('probeTotalLength',           defaults.probeTotalLength);
   sv('surfSeamSmooth',             defaults.surfSeamSmooth);
   sv('faceSeamSmooth',             defaults.faceSeamSmooth);
-  sv('faceWallSmooth',             defaults.faceWallSmooth);
+  sv('faceWallSmoothPeak',         defaults.faceWallSmoothPeak);
+  sv('faceWallSmoothValley',       defaults.faceWallSmoothValley);
   try { refreshFinishBehaviorPreview(); } catch(e) {}
   try { refreshTravelRecoveryPreview(); } catch(e) {}
   try { calcProbeAutoTotalLength(); } catch(e) {}
@@ -641,12 +644,15 @@ function _smoothFaceSeamRow(up, blendFactor) {
 }
 // Blends the Y (contact-depth) values of EVERY row of an upsampled face wall
 // toward the local 2-D neighbourhood average (above/below + left/right).
-// This reduces visible fold-line artefacts caused by depth variation between
-// probe layers throughout the full height of the face wall.
+// peakFactor   applies when the original Y is BELOW the average (protrusion / peak).
+// valleyFactor applies when the original Y is ABOVE the average (recession / valley).
+// Using separate factors lets you independently soften peaks vs valleys.
 // Works on the result object returned by _upsampleFaceData.
-function _smoothFaceWallRows(up, blendFactor) {
-  if (!blendFactor || blendFactor <= 0 || !up.vMap || up.rowCount < 2) return;
-  var bf = Math.min(1, Math.max(0, blendFactor));
+function _smoothFaceWallRows(up, peakFactor, valleyFactor) {
+  var pfClamp = Math.min(1, Math.max(0, peakFactor || 0));
+  var vfClamp = Math.min(1, Math.max(0, valleyFactor || 0));
+  if (pfClamp === 0 && vfClamp === 0) return;
+  if (!up.vMap || up.rowCount < 2) return;
   // Snapshot all original Y values before any modification.
   var origY = [];
   for (var ri = 0; ri < up.rowCount; ri++) {
@@ -657,7 +663,7 @@ function _smoothFaceWallRows(up, blendFactor) {
     }
     origY.push(row);
   }
-  // Apply neighbourhood blend using only original values.
+  // Apply neighbourhood blend using only original values, with separate peak/valley factor.
   for (var ri2 = 0; ri2 < up.rowCount; ri2++) {
     for (var ci2 = 0; ci2 < up.colCount; ci2++) {
       var idx2 = up.vMap[ri2][ci2];
@@ -667,7 +673,11 @@ function _smoothFaceWallRows(up, blendFactor) {
       if (ri2 < up.rowCount-1 && origY[ri2+1][ci2] != null) { sum += origY[ri2+1][ci2]; cnt++; }
       if (ci2 > 0 && origY[ri2][ci2-1] != null) { sum += origY[ri2][ci2-1]; cnt++; }
       if (ci2 < up.colCount-1 && origY[ri2][ci2+1] != null) { sum += origY[ri2][ci2+1]; cnt++; }
-      up.pts[idx2].y = origY[ri2][ci2] * (1 - bf) + (sum / cnt) * bf;
+      var avg = sum / cnt;
+      var orig = origY[ri2][ci2];
+      // Peak: Y below average (probe contacted sooner = protrusion); Valley: Y above average.
+      var bf = orig < avg ? pfClamp : (orig > avg ? vfClamp : 0);
+      if (bf > 0) up.pts[idx2].y = orig * (1 - bf) + avg * bf;
     }
   }
 }
@@ -1060,8 +1070,9 @@ function exportFaceOBJ() {
   var faceSeamBlend = Math.min(1, Math.max(0, Number((document.getElementById('faceSeamSmooth') || {}).value) || 0));
   if (faceSeamBlend > 0) _smoothFaceSeamRow(up, faceSeamBlend);
   // Face wall surface smoothing: reduce fold lines between probe layers across full wall height.
-  var faceWallBlend = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmooth') || {}).value) || 0));
-  if (faceWallBlend > 0) _smoothFaceWallRows(up, faceWallBlend);
+  var faceWallPeak = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmoothPeak') || {}).value) || 0));
+  var faceWallValley = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmoothValley') || {}).value) || 0));
+  if (faceWallPeak > 0 || faceWallValley > 0) _smoothFaceWallRows(up, faceWallPeak, faceWallValley);
   var allVerts = up.pts;
   var allTris;
   if (up.vMap && up.rowCount >= 2 && up.colCount >= 2) {
@@ -1121,8 +1132,9 @@ function exportFaceSTL() {
   var faceSeamBlend = Math.min(1, Math.max(0, Number((document.getElementById('faceSeamSmooth') || {}).value) || 0));
   if (faceSeamBlend > 0) _smoothFaceSeamRow(up, faceSeamBlend);
   // Face wall surface smoothing: reduce fold lines between probe layers across full wall height.
-  var faceWallBlend = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmooth') || {}).value) || 0));
-  if (faceWallBlend > 0) _smoothFaceWallRows(up, faceWallBlend);
+  var faceWallPeakB = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmoothPeak') || {}).value) || 0));
+  var faceWallValleyB = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmoothValley') || {}).value) || 0));
+  if (faceWallPeakB > 0 || faceWallValleyB > 0) _smoothFaceWallRows(up, faceWallPeakB, faceWallValleyB);
   var allVerts = up.pts;
   var allTris;
   if (up.vMap && up.rowCount >= 2 && up.colCount >= 2) {
@@ -1234,8 +1246,9 @@ function exportCombinedOBJWatertight() {
   var combinedFaceBlend = Math.min(1, Math.max(0, Number((document.getElementById('faceSeamSmooth') || {}).value) || 0));
   if (combinedFaceBlend > 0) _smoothFaceSeamRow(faceUp, combinedFaceBlend);
   // Face wall surface smoothing: reduce fold lines between probe layers across full wall height.
-  var combinedFaceWallBlend = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmooth') || {}).value) || 0));
-  if (combinedFaceWallBlend > 0) _smoothFaceWallRows(faceUp, combinedFaceWallBlend);
+  var combinedFaceWallPeak = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmoothPeak') || {}).value) || 0));
+  var combinedFaceWallValley = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmoothValley') || {}).value) || 0));
+  if (combinedFaceWallPeak > 0 || combinedFaceWallValley > 0) _smoothFaceWallRows(faceUp, combinedFaceWallPeak, combinedFaceWallValley);
   var faceVStart = allVerts.length;
   faceUp.pts.forEach(function(v) { allVerts.push(v); });
   var faceTris;
@@ -1362,8 +1375,9 @@ function exportCombinedSTLWatertight() {
   var combinedFaceBlendS = Math.min(1, Math.max(0, Number((document.getElementById('faceSeamSmooth') || {}).value) || 0));
   if (combinedFaceBlendS > 0) _smoothFaceSeamRow(faceUp, combinedFaceBlendS);
   // Face wall surface smoothing: reduce fold lines between probe layers across full wall height.
-  var combinedFaceWallBlendS = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmooth') || {}).value) || 0));
-  if (combinedFaceWallBlendS > 0) _smoothFaceWallRows(faceUp, combinedFaceWallBlendS);
+  var combinedFaceWallPeakS = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmoothPeak') || {}).value) || 0));
+  var combinedFaceWallValleyS = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmoothValley') || {}).value) || 0));
+  if (combinedFaceWallPeakS > 0 || combinedFaceWallValleyS > 0) _smoothFaceWallRows(faceUp, combinedFaceWallPeakS, combinedFaceWallValleyS);
   var faceVStart = allVerts.length;
   faceUp.pts.forEach(function(v) { allVerts.push(v); });
   var faceTris;
