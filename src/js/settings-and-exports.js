@@ -51,6 +51,7 @@ function getSettingsFromUI() {
     // Seam edge smoothing
     surfSeamSmooth:              n('surfSeamSmooth'),
     faceSeamSmooth:              n('faceSeamSmooth'),
+    faceWallSmooth:              n('faceWallSmooth'),
     // Probe dimensions
     probeShankDiameter:          n('probeShankDiameter'),
     probeBodyDiameter:           n('probeBodyDiameter'),
@@ -141,6 +142,7 @@ function loadSettings() {
   // Seam edge smoothing
   sv('surfSeamSmooth',             data.surfSeamSmooth);
   sv('faceSeamSmooth',             data.faceSeamSmooth);
+  sv('faceWallSmooth',             data.faceWallSmooth);
   // Probe dimensions
   sv('probeShankDiameter',         data.probeShankDiameter);
   sv('probeBodyDiameter',          data.probeBodyDiameter);
@@ -172,7 +174,7 @@ function resetSettings() {
     faceFeed: 150, faceRetractFeed: 1000, faceDepthBelowSurface: 2, faceProbeDistance: 20, faceLayerCount: 3,
     fpZStepCount: 3, fpZStepSize: 1,
     combinedPhasePause: 2000,
-    surfSeamSmooth: 0, faceSeamSmooth: 0,
+    surfSeamSmooth: 0, faceSeamSmooth: 0, faceWallSmooth: 0,
     probeShankDiameter: 6, probeBodyDiameter: 33, probeUpperHeight: 20, probeUpperLength: 20,
     probeMainBodyHeight: 21, probeLowerLength: 21,
     probeStylusLength: 26, probeStylusCalloutLength: 14.75, probeBallTipDiameter: 0, probeTipBallDiameter: 0, probeTotalLength: 67
@@ -230,6 +232,7 @@ function resetSettings() {
   sv('probeTotalLength',           defaults.probeTotalLength);
   sv('surfSeamSmooth',             defaults.surfSeamSmooth);
   sv('faceSeamSmooth',             defaults.faceSeamSmooth);
+  sv('faceWallSmooth',             defaults.faceWallSmooth);
   try { refreshFinishBehaviorPreview(); } catch(e) {}
   try { refreshTravelRecoveryPreview(); } catch(e) {}
   try { calcProbeAutoTotalLength(); } catch(e) {}
@@ -636,6 +639,38 @@ function _smoothFaceSeamRow(up, blendFactor) {
     up.pts[idx].y = up.pts[idx].y * (1 - bf) + (sum / cnt) * bf;
   }
 }
+// Blends the Y (contact-depth) values of EVERY row of an upsampled face wall
+// toward the local 2-D neighbourhood average (above/below + left/right).
+// This reduces visible fold-line artefacts caused by depth variation between
+// probe layers throughout the full height of the face wall.
+// Works on the result object returned by _upsampleFaceData.
+function _smoothFaceWallRows(up, blendFactor) {
+  if (!blendFactor || blendFactor <= 0 || !up.vMap || up.rowCount < 2) return;
+  var bf = Math.min(1, Math.max(0, blendFactor));
+  // Snapshot all original Y values before any modification.
+  var origY = [];
+  for (var ri = 0; ri < up.rowCount; ri++) {
+    var row = [];
+    for (var ci = 0; ci < up.colCount; ci++) {
+      var idx = up.vMap[ri][ci];
+      row.push(idx != null ? up.pts[idx].y : null);
+    }
+    origY.push(row);
+  }
+  // Apply neighbourhood blend using only original values.
+  for (var ri2 = 0; ri2 < up.rowCount; ri2++) {
+    for (var ci2 = 0; ci2 < up.colCount; ci2++) {
+      var idx2 = up.vMap[ri2][ci2];
+      if (idx2 == null || origY[ri2][ci2] == null) continue;
+      var sum = origY[ri2][ci2], cnt = 1;
+      if (ri2 > 0 && origY[ri2-1][ci2] != null) { sum += origY[ri2-1][ci2]; cnt++; }
+      if (ri2 < up.rowCount-1 && origY[ri2+1][ci2] != null) { sum += origY[ri2+1][ci2]; cnt++; }
+      if (ci2 > 0 && origY[ri2][ci2-1] != null) { sum += origY[ri2][ci2-1]; cnt++; }
+      if (ci2 < up.colCount-1 && origY[ri2][ci2+1] != null) { sum += origY[ri2][ci2+1]; cnt++; }
+      up.pts[idx2].y = origY[ri2][ci2] * (1 - bf) + (sum / cnt) * bf;
+    }
+  }
+}
 // ── Smooth per-vertex normals ─────────────────────────────────────────────────
 // verts: [{x,y,z}, ...], tris: [[i0,i1,i2], ...] — returns [{x,y,z}, ...] normalised
 function _computeVertexNormals(verts, tris) {
@@ -1024,11 +1059,11 @@ function exportFaceOBJ() {
   // Auto seam-edge smoothing: blend top edge row toward interior neighbours.
   var faceSeamBlend = Math.min(1, Math.max(0, Number((document.getElementById('faceSeamSmooth') || {}).value) || 0));
   if (faceSeamBlend > 0) _smoothFaceSeamRow(up, faceSeamBlend);
+  // Face wall surface smoothing: reduce fold lines between probe layers across full wall height.
+  var faceWallBlend = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmooth') || {}).value) || 0));
+  if (faceWallBlend > 0) _smoothFaceWallRows(up, faceWallBlend);
   var allVerts = up.pts;
   var allTris;
-  if (up.vMap && up.rowCount >= 2 && up.colCount >= 2) {
-    // Structured-grid triangulation: smoother and avoids Delaunay artefacts.
-    allTris = [];
     for (var ri = 0; ri < up.rowCount - 1; ri++) {
       for (var ci = 0; ci < up.colCount - 1; ci++) {
         var a=up.vMap[ri][ci], b=up.vMap[ri][ci+1], c=up.vMap[ri+1][ci+1], d=up.vMap[ri+1][ci];
@@ -1082,6 +1117,9 @@ function exportFaceSTL() {
   // Auto seam-edge smoothing: blend top edge row toward interior neighbours.
   var faceSeamBlend = Math.min(1, Math.max(0, Number((document.getElementById('faceSeamSmooth') || {}).value) || 0));
   if (faceSeamBlend > 0) _smoothFaceSeamRow(up, faceSeamBlend);
+  // Face wall surface smoothing: reduce fold lines between probe layers across full wall height.
+  var faceWallBlend = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmooth') || {}).value) || 0));
+  if (faceWallBlend > 0) _smoothFaceWallRows(up, faceWallBlend);
   var allVerts = up.pts;
   var allTris;
   if (up.vMap && up.rowCount >= 2 && up.colCount >= 2) {
@@ -1192,6 +1230,9 @@ function exportCombinedOBJWatertight() {
   // Auto seam-edge smoothing: blend face wall top-edge row toward interior neighbours.
   var combinedFaceBlend = Math.min(1, Math.max(0, Number((document.getElementById('faceSeamSmooth') || {}).value) || 0));
   if (combinedFaceBlend > 0) _smoothFaceSeamRow(faceUp, combinedFaceBlend);
+  // Face wall surface smoothing: reduce fold lines between probe layers across full wall height.
+  var combinedFaceWallBlend = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmooth') || {}).value) || 0));
+  if (combinedFaceWallBlend > 0) _smoothFaceWallRows(faceUp, combinedFaceWallBlend);
   var faceVStart = allVerts.length;
   faceUp.pts.forEach(function(v) { allVerts.push(v); });
   var faceTris;
@@ -1317,6 +1358,9 @@ function exportCombinedSTLWatertight() {
   // Auto seam-edge smoothing: blend face wall top-edge row toward interior neighbours.
   var combinedFaceBlendS = Math.min(1, Math.max(0, Number((document.getElementById('faceSeamSmooth') || {}).value) || 0));
   if (combinedFaceBlendS > 0) _smoothFaceSeamRow(faceUp, combinedFaceBlendS);
+  // Face wall surface smoothing: reduce fold lines between probe layers across full wall height.
+  var combinedFaceWallBlendS = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmooth') || {}).value) || 0));
+  if (combinedFaceWallBlendS > 0) _smoothFaceWallRows(faceUp, combinedFaceWallBlendS);
   var faceVStart = allVerts.length;
   faceUp.pts.forEach(function(v) { allVerts.push(v); });
   var faceTris;
