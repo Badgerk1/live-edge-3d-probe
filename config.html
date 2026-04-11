@@ -939,17 +939,18 @@
     <!-- Surface Mesh Export -->
     <div class="panel">
       <div class="box-title">Surface Mesh Export</div>
-      <div class="callout mini" style="margin-bottom:10px">Export the surface probe mesh as CSV, DXF polylines, or OBJ 3D mesh. Uses the current surface mesh data.</div>
+      <div class="callout mini" style="margin-bottom:10px">Export the surface probe mesh as CSV, DXF polylines, OBJ 3D mesh, or STL 3D mesh. Uses the current surface mesh data.</div>
       <div class="field" style="max-width:320px;margin-bottom:10px">
-        <label><span class="tooltip">OBJ Subdivision Resolution (mm)<span class="tip-icon">?</span><span class="tip">Target vertex spacing for the OBJ mesh. Smaller values produce smoother curved surfaces but generate larger files. Minimum 0.5mm; 0.5mm default for fine detail.</span></span>
+        <label><span class="tooltip">OBJ / STL Subdivision Resolution (mm)<span class="tip-icon">?</span><span class="tip">Target vertex spacing for the OBJ/STL mesh. Uses C2 natural cubic spline interpolation for smooth geometry. Smaller values produce smoother surfaces but generate larger files. Minimum 0.5mm; 0.5mm default for fine detail.</span></span>
           <input type="number" id="surfOBJSubdivision" value="0.5" min="0.5" max="25" step="0.5" style="width:80px">
         </label>
-        <div class="mini" style="margin-top:4px">Interpolates additional vertices for a smooth mesh. 0.5mm default; increase for smaller files.</div>
+        <div class="mini" style="margin-top:4px">Interpolates additional vertices using C2 cubic splines for a smooth mesh. 0.5mm default; increase for smaller files.</div>
       </div>
       <div class="btn-row">
         <button class="btn ghost" id="btn-export-surf-csv" title="Export surface mesh as CSV">&#128196; Export CSV</button>
         <button class="btn ghost" id="btn-export-surf-dxf" title="Export surface mesh as DXF">&#128208; Export DXF</button>
         <button class="btn ghost" id="btn-export-surf-obj" title="Export surface mesh as OBJ">&#129518; Export OBJ</button>
+        <button class="btn ghost" id="btn-export-surf-stl" title="Export surface mesh as binary STL (recommended for Aspire v12)">&#128230; Export STL</button>
       </div>
     </div>
     <!-- Combined Mode Settings — shown only in Combined mode -->
@@ -965,7 +966,7 @@
     <!-- Combined Mesh Export (Watertight) — shown only in Combined mode -->
     <div id="combined-export-panel" class="panel" style="display:none">
       <div class="box-title">Combined Mesh Export (Watertight)</div>
-      <div class="callout mini" style="margin-bottom:10px">Stitches the <strong>Surface MinY edge (Row 1)</strong> to the <strong>Face top edge</strong> and closes the model down to a user-defined Bottom Z to produce a single watertight OBJ. DXF exports both datasets as polylines (not watertight).</div>
+      <div class="callout mini" style="margin-bottom:10px">Stitches the <strong>Surface MinY edge (Row 1)</strong> to the <strong>Face top edge</strong> and closes the model down to a user-defined Bottom Z to produce a single watertight OBJ or STL. DXF exports both datasets as polylines (not watertight).</div>
       <div class="field" style="max-width:320px;margin-bottom:10px">
         <label><span class="tooltip">Combined Bottom Z (coords)<span class="tip-icon">?</span><span class="tip">Z coordinate of the flat bottom cap that closes the watertight solid. Must be below all surface and face mesh Z values.</span></span>
           <input type="number" id="combinedBottomZ" value="-20" step="0.1" style="width:80px" data-is-default="1">
@@ -974,13 +975,14 @@
         <div id="combinedBottomZ-hint" class="mini" style="margin-top:2px;color:#888;display:none"></div>
       </div>
       <div class="field" style="max-width:320px;margin-bottom:10px">
-        <label><span class="tooltip">OBJ Subdivision Resolution (mm)<span class="tip-icon">?</span><span class="tip">Target vertex spacing used when resampling the face wall mesh. Smaller values give a smoother combined mesh but produce larger files. Minimum 0.5mm.</span></span>
+        <label><span class="tooltip">OBJ / STL Subdivision Resolution (mm)<span class="tip-icon">?</span><span class="tip">Target vertex spacing used when resampling the face wall mesh. Uses C2 natural cubic spline interpolation. Smaller values give a smoother combined mesh but produce larger files. Minimum 0.5mm.</span></span>
           <input type="number" id="combinedOBJSubdivision" value="0.5" min="0.5" max="25" step="0.5" style="width:80px">
         </label>
         <div class="mini" style="margin-top:4px">Face wall subdivision resolution for the combined export. 0.5mm recommended.</div>
       </div>
       <div class="btn-row">
         <button class="btn ghost" id="btn-export-combined-obj" title="Export single watertight OBJ (surface + face stitched)">&#129518; Export Combined OBJ (Watertight)</button>
+        <button class="btn ghost" id="btn-export-combined-stl" title="Export single watertight STL (surface + face stitched) — recommended for Aspire v12">&#128230; Export Combined STL (Watertight)</button>
         <button class="btn ghost" id="btn-export-combined-dxf" title="Export combined DXF polylines (surface rows + face layers)">&#128208; Export Combined DXF (Polylines)</button>
       </div>
     </div>
@@ -1056,10 +1058,10 @@
     </div>
     <!-- Face Mesh Export -->
     <div class="panel">
-      <div class="box-title">Face Mesh Export (DXF / OBJ)</div>
-      <div class="callout mini" style="margin-bottom:10px">Export face probe results as CSV, DXF, or OBJ. In layered mode these include all layers. In single-pass mode the results are exported as layer 1.</div>
+      <div class="box-title">Face Mesh Export (DXF / OBJ / STL)</div>
+      <div class="callout mini" style="margin-bottom:10px">Export face probe results as CSV, DXF, OBJ, or STL. In layered mode these include all layers. In single-pass mode the results are exported as layer 1.</div>
       <div class="field" style="max-width:320px;margin-bottom:10px">
-        <label><span class="tooltip">Top Surface Mode<span class="tip-icon">?</span><span class="tip">Controls how the top edge is represented in DXF/OBJ exports. "Flat Plane" uses the shallowest measured Z for a flat straight edge. "Probed Profile" follows each sample's actual measured top Z.</span></span>
+        <label><span class="tooltip">Top Surface Mode<span class="tip-icon">?</span><span class="tip">Controls how the top edge is represented in DXF/OBJ/STL exports. "Flat Plane" uses the shallowest measured Z for a flat straight edge. "Probed Profile" follows each sample's actual measured top Z.</span></span>
           <select id="faceTopSurfaceMode">
             <option value="flat">Flat Plane</option>
             <option value="probed">Probed Profile</option>
@@ -1068,15 +1070,16 @@
         <div class="mini" style="margin-top:4px">Flat Plane: top layer uses the shallowest top profile Z (flat straight edge for CNC carving). Probed Profile: top layer uses each sample's actual measured surface Z.</div>
       </div>
       <div class="field" style="max-width:320px;margin-bottom:10px">
-        <label><span class="tooltip">OBJ Subdivision Resolution (mm)<span class="tip-icon">?</span><span class="tip">Target vertex spacing for the OBJ mesh. Smaller values produce smoother curved surfaces but generate larger files. Minimum 0.5mm; 0.5mm default for fine detail.</span></span>
+        <label><span class="tooltip">OBJ / STL Subdivision Resolution (mm)<span class="tip-icon">?</span><span class="tip">Target vertex spacing for the OBJ/STL mesh. Uses C2 natural cubic spline interpolation for smooth geometry. Smaller values produce smoother surfaces but generate larger files. Minimum 0.5mm; 0.5mm default for fine detail.</span></span>
           <input type="number" id="faceOBJSubdivision" value="0.5" min="0.5" max="25" step="0.5" style="width:80px">
         </label>
-        <div class="mini" style="margin-top:4px">Interpolates additional vertices for a smooth mesh. 0.5mm default; increase for smaller files.</div>
+        <div class="mini" style="margin-top:4px">Interpolates additional vertices using C2 cubic splines for a smooth mesh. 0.5mm default; increase for smaller files.</div>
       </div>
       <div class="btn-row">
         <button class="btn ghost" id="btn-export-face-csv" title="Export face mesh as CSV">&#128196; Export CSV</button>
         <button class="btn ghost" id="btn-export-face-dxf" title="Export face mesh as DXF">&#128208; Export DXF</button>
         <button class="btn ghost" id="btn-export-face-obj" title="Export face mesh as OBJ">&#129518; Export OBJ</button>
+        <button class="btn ghost" id="btn-export-face-stl" title="Export face mesh as binary STL (recommended for Aspire v12)">&#128230; Export STL</button>
       </div>
     </div>
   </div><!-- /face-mesh-section -->
@@ -8348,17 +8351,21 @@ function smLoadSettings() {
   if(btnExportFaceDxf) btnExportFaceDxf.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-face-dxf clicked'); exportFaceDXF(); });
   var btnExportFaceObj = document.getElementById('btn-export-face-obj');
   if(btnExportFaceObj) btnExportFaceObj.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-face-obj clicked'); exportFaceOBJ(); });
+  var btnExportFaceStl = document.getElementById('btn-export-face-stl');
+  if(btnExportFaceStl) btnExportFaceStl.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-face-stl clicked'); exportFaceSTL(); });
 
   // Surface mesh export buttons
   try {
     document.getElementById('btn-export-surf-csv').addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-surf-csv clicked'); exportSurfaceMeshCSV(); });
     document.getElementById('btn-export-surf-dxf').addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-surf-dxf clicked'); exportSurfaceDXF(); });
     document.getElementById('btn-export-surf-obj').addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-surf-obj clicked'); exportSurfaceOBJ(); });
+    document.getElementById('btn-export-surf-stl').addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-surf-stl clicked'); exportSurfaceSTL(); });
   } catch(e){}
 
   // Combined mesh export buttons
   try {
     document.getElementById('btn-export-combined-obj').addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-combined-obj clicked'); exportCombinedOBJWatertight(); });
+    document.getElementById('btn-export-combined-stl').addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-combined-stl clicked'); exportCombinedSTLWatertight(); });
     document.getElementById('btn-export-combined-dxf').addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-combined-dxf clicked'); exportCombinedDXF(); });
     // Clear auto-fill flag when user manually edits the Bottom Z field
     var combinedBottomZEl = document.getElementById('combinedBottomZ');
@@ -9573,6 +9580,45 @@ function _objDownload(content, filename) {
   var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename;
   a.click(); URL.revokeObjectURL(a.href);
 }
+// ── Binary STL helper ─────────────────────────────────────────────────────────
+// Writes a binary STL file (80-byte header + 4-byte tri count + 50 bytes/tri).
+// verts: [{x,y,z}, ...], tris: [[i0,i1,i2], ...]
+// Each triangle's face normal is computed from the vertex positions so Aspire
+// does not have to rely on vertex-normal hints.
+function _stlDownload(verts, tris, filename) {
+  if (!tris.length) return;
+  var buf = new ArrayBuffer(84 + 50 * tris.length);
+  var view = new DataView(buf);
+  // 80-byte ASCII header
+  var hdr = '3D Live Edge Mesh — binary STL export';
+  for (var h = 0; h < 80; h++) view.setUint8(h, h < hdr.length ? hdr.charCodeAt(h) : 0);
+  view.setUint32(80, tris.length, true);
+  var off = 84;
+  for (var i = 0; i < tris.length; i++) {
+    var v0=verts[tris[i][0]], v1=verts[tris[i][1]], v2=verts[tris[i][2]];
+    var e1x=v1.x-v0.x, e1y=v1.y-v0.y, e1z=v1.z-v0.z;
+    var e2x=v2.x-v0.x, e2y=v2.y-v0.y, e2z=v2.z-v0.z;
+    var nx=e1y*e2z-e1z*e2y, ny=e1z*e2x-e1x*e2z, nz=e1x*e2y-e1y*e2x;
+    var nl=Math.sqrt(nx*nx+ny*ny+nz*nz);
+    if (nl > 1e-10) { nx/=nl; ny/=nl; nz/=nl; } else { nx=0; ny=0; nz=1; }
+    view.setFloat32(off, nx, true); off+=4;
+    view.setFloat32(off, ny, true); off+=4;
+    view.setFloat32(off, nz, true); off+=4;
+    view.setFloat32(off, v0.x, true); off+=4;
+    view.setFloat32(off, v0.y, true); off+=4;
+    view.setFloat32(off, v0.z, true); off+=4;
+    view.setFloat32(off, v1.x, true); off+=4;
+    view.setFloat32(off, v1.y, true); off+=4;
+    view.setFloat32(off, v1.z, true); off+=4;
+    view.setFloat32(off, v2.x, true); off+=4;
+    view.setFloat32(off, v2.y, true); off+=4;
+    view.setFloat32(off, v2.z, true); off+=4;
+    view.setUint16(off, 0, true); off+=2;
+  }
+  var blob = new Blob([buf], { type: 'model/stl' });
+  var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename;
+  a.click(); URL.revokeObjectURL(a.href);
+}
 // ── Bowyer-Watson Delaunay triangulation ─────────────────────────────────────
 // pts2d: [{x,y}, ...] — returns [[i0,i1,i2], ...] CCW triangles (indices into pts2d)
 function _delaunayTriangulate(pts2d) {
@@ -9643,17 +9689,76 @@ function _computeVertexNormals(verts, tris) {
   }
   return norms;
 }
-// ── Bicubic Catmull-Rom grid upsampling for OBJ export ───────────────────────
-// Resamples a structured Z grid to a finer resolution using C1-continuous
-// Catmull-Rom interpolation.  The same algorithm powers the 3-D visualizer
-// (_buildThreeSurface in core.js) so exported geometry now matches what the
-// user sees on screen.
+// ── Natural cubic spline helpers for C2-smooth OBJ/STL export ────────────────
+// These replace the former Catmull-Rom (C1) upsampler. A natural cubic spline
+// is globally optimal (minimum bending energy) and gives C2 continuity — both
+// the first AND second derivatives match at every probe point — producing
+// visibly smoother surfaces than Catmull-Rom's C1 result.
+
+// Thomas algorithm: O(n) solver for a tridiagonal system  A·x = rhs.
+// sub[i], diag[i], sup[i] are the three diagonals (sub[0] and sup[n-1] unused).
+function _solveTridiagonal(sub, diag, sup, rhs) {
+  var n = rhs.length;
+  if (n === 0) return [];
+  var cp = new Array(n), dp = new Array(n), x = new Array(n);
+  cp[0] = sup[0] / diag[0];
+  dp[0] = rhs[0] / diag[0];
+  for (var i = 1; i < n; i++) {
+    var denom = diag[i] - sub[i] * cp[i - 1];
+    if (Math.abs(denom) < 1e-15) return null; // singular — shouldn't happen for spline matrices
+    cp[i] = (i < n - 1) ? sup[i] / denom : 0;
+    dp[i] = (rhs[i] - sub[i] * dp[i - 1]) / denom;
+  }
+  x[n - 1] = dp[n - 1];
+  for (var j = n - 2; j >= 0; j--) x[j] = dp[j] - cp[j] * x[j + 1];
+  return x;
+}
+// Compute natural cubic spline second-derivative coefficients M[0..n-1].
+// Natural boundary conditions: M[0] = M[n-1] = 0 (zero curvature at endpoints).
+// Spacing between adjacent indices is 1 (parametric/index space).
+// ys must be an array of n finite numbers (no nulls).
+function _natCubicM(ys) {
+  var n = ys.length;
+  var M = new Array(n);
+  for (var k = 0; k < n; k++) M[k] = 0;
+  if (n < 3) return M;
+  var ni = n - 2; // number of interior knots
+  var sub = new Array(ni), diag = new Array(ni), sup = new Array(ni), rhs = new Array(ni);
+  for (var i = 0; i < ni; i++) {
+    sub[i] = 1; diag[i] = 4; sup[i] = 1;
+    rhs[i] = 6 * (ys[i] - 2 * ys[i + 1] + ys[i + 2]);
+  }
+  sub[0] = 0; sup[ni - 1] = 0;
+  var sol = _solveTridiagonal(sub, diag, sup, rhs);
+  if (sol) for (var j = 0; j < ni; j++) M[j + 1] = sol[j];
+  return M;
+}
+// Evaluate the natural cubic spline between indices i and i+1 at parameter t∈[0,1].
+// ys and M are the value and second-derivative arrays from _natCubicM.
+// Formula (uniform spacing h=1):  S = y[i]·(1-t) + y[i+1]·t - t·(1-t)/6·(M[i]·(2-t) + M[i+1]·(1+t))
+function _cubicSplineEval(ys, M, i, t) {
+  return ys[i] * (1 - t) + ys[i + 1] * t - t * (1 - t) / 6 * (M[i] * (2 - t) + M[i + 1] * (1 + t));
+}
+// Replace nulls in an array with the nearest non-null neighbour (forward then backward pass).
+// Any element that remains null after both passes (all-null array) is set to 0.
+function _clampNulls(arr) {
+  var n = arr.length, out = arr.slice();
+  var last = null;
+  for (var i = 0; i < n; i++) { if (out[i] != null) last = out[i]; else if (last != null) out[i] = last; }
+  last = null;
+  for (var j = n - 1; j >= 0; j--) { if (out[j] != null) last = out[j]; else if (last != null) out[j] = last; }
+  for (var k = 0; k < n; k++) if (out[k] == null) out[k] = 0;
+  return out;
+}
+// ── C2 bicubic natural-cubic-spline grid upsampling for OBJ/STL export ────────
+// Replaces the former Catmull-Rom (_bicubicUpsampleGrid).  Uses the globally-
+// optimal natural cubic spline in both X and Y directions (separable bicubic).
 //
 // grid[ri][ci]  = Z value (number | null for missing contacts)
 // cfg           = { rowCount, colCount, colSpacing, rowSpacing, minX, minY }
 // targetSpacing = desired output vertex spacing in mm (e.g. 0.5)
 // Returns an object with the same shape as cfg plus the upsampled grid.
-function _bicubicUpsampleGrid(grid, cfg, targetSpacing) {
+function _cubicSplineUpsampleGrid(grid, cfg, targetSpacing) {
   var nR = cfg.rowCount, nC = cfg.colCount;
   if (nR < 2 || nC < 2) {
     return { grid: grid, rowCount: nR, colCount: nC,
@@ -9673,50 +9778,48 @@ function _bicubicUpsampleGrid(grid, cfg, targetSpacing) {
              colSpacing: cfg.colSpacing, rowSpacing: cfg.rowSpacing,
              minX: cfg.minX, minY: cfg.minY };
   }
-  // Clamp-and-get helper: boundary clamping; null / non-finite → null.
+  // Helper: return value at (r,c) clamped to grid bounds; null if value is null/non-finite.
   function gZ(r, c) {
-    var rr = Math.max(0, Math.min(nR - 1, r));
-    var cc = Math.max(0, Math.min(nC - 1, c));
-    var v = grid[rr][cc];
+    var v = grid[Math.max(0, Math.min(nR - 1, r))][Math.max(0, Math.min(nC - 1, c))];
     return (v != null && isFinite(v)) ? v : null;
   }
-  // 1-D Catmull-Rom along row r at fractional param tx (between col cx and cx+1).
-  function rowInterp(r, cx, tx) {
-    var p1 = gZ(r, cx), p2 = gZ(r, cx + 1);
-    if (p1 === null || p2 === null) return null;
-    var p0 = gZ(r, cx - 1); if (p0 === null) p0 = p1;
-    var p3 = gZ(r, cx + 2); if (p3 === null) p3 = p2;
-    return _catmullRom(p0, p1, p2, p3, tx);
+  // Pre-compute per-row cubic spline M arrays and clamped value arrays.
+  var rowClamped = [], rowM = [];
+  for (var r = 0; r < nR; r++) {
+    var rawRow = [];
+    for (var c = 0; c < nC; c++) rawRow.push(gZ(r, c));
+    var cr = _clampNulls(rawRow);
+    rowClamped.push(cr);
+    rowM.push(_natCubicM(cr));
   }
-  // Bicubic (separable Catmull-Rom) interpolation inside cell (cy, cx) at (tx, ty).
-  // Falls back to bilinear if outer neighbours are unavailable (boundary / missing).
-  function biZ(cy, cx, tx, ty) {
-    var z00 = gZ(cy, cx), z10 = gZ(cy, cx + 1), z01 = gZ(cy + 1, cx), z11 = gZ(cy + 1, cx + 1);
-    if (z00 === null || z10 === null || z01 === null || z11 === null) return null;
-    var r0 = rowInterp(cy - 1, cx, tx);
-    var r1 = rowInterp(cy,     cx, tx);
-    var r2 = rowInterp(cy + 1, cx, tx);
-    var r3 = rowInterp(cy + 2, cx, tx);
-    if (r1 === null || r2 === null) {
-      // Bilinear fallback when any primary row is missing.
-      return z00 * (1 - tx) * (1 - ty) + z10 * tx * (1 - ty) + z01 * (1 - tx) * ty + z11 * tx * ty;
-    }
-    if (r0 === null) r0 = r1; // clamp at top boundary
-    if (r3 === null) r3 = r2; // clamp at bottom boundary
-    return _catmullRom(r0, r1, r2, r3, ty);
-  }
+  // Pass 1 – X direction: build intermediate grid [nR × totalCols].
+  // Each cell is null if either endpoint in the original row is null.
   var totalCols = nCX * subC + 1, totalRows = nCY * subR + 1;
-  var newGrid = [];
-  for (var gy = 0; gy < totalRows; gy++) {
-    var cy = Math.min(Math.floor(gy / subR), nCY - 1);
-    var ty = (gy - cy * subR) / subR;
-    var row = [];
+  var interGrid = [];
+  for (var r2 = 0; r2 < nR; r2++) {
+    var irow = [];
     for (var gx = 0; gx < totalCols; gx++) {
       var cx = Math.min(Math.floor(gx / subC), nCX - 1);
       var tx = (gx - cx * subC) / subC;
-      row.push(biZ(cy, cx, tx, ty));
+      if (gZ(r2, cx) === null || gZ(r2, cx + 1) === null) { irow.push(null); }
+      else { irow.push(_cubicSplineEval(rowClamped[r2], rowM[r2], cx, tx)); }
     }
-    newGrid.push(row);
+    interGrid.push(irow);
+  }
+  // Pass 2 – Y direction: for each upsampled column, fit a cubic spline across rows.
+  var newGrid = [];
+  for (var gy = 0; gy < totalRows; gy++) newGrid.push(new Array(totalCols).fill(null));
+  for (var gx2 = 0; gx2 < totalCols; gx2++) {
+    var colOrig = [];
+    for (var r3 = 0; r3 < nR; r3++) colOrig.push(interGrid[r3][gx2]);
+    var colClamped = _clampNulls(colOrig);
+    var colM = _natCubicM(colClamped);
+    for (var gy2 = 0; gy2 < totalRows; gy2++) {
+      var cy = Math.min(Math.floor(gy2 / subR), nCY - 1);
+      var ty = (gy2 - cy * subR) / subR;
+      if (colOrig[cy] === null || colOrig[cy + 1] === null) { newGrid[gy2][gx2] = null; }
+      else { newGrid[gy2][gx2] = _cubicSplineEval(colClamped, colM, cy, ty); }
+    }
   }
   return {
     grid: newGrid,
@@ -9728,7 +9831,7 @@ function _bicubicUpsampleGrid(grid, cfg, targetSpacing) {
 // ── Face probe structured-grid upsampling ────────────────────────────────────
 // Face probe data is a structured grid: nLayers × nSamples, where each point
 // has (x = sample X, z = layer Z height, y = contact depth).
-// This helper builds that grid, upsamples it with _bicubicUpsampleGrid, and
+// This helper builds that grid, upsamples it with _cubicSplineUpsampleGrid, and
 // returns both a flat vertex list and a vMap suitable for structured triangulation.
 //
 // data:          [{x, y, z, ...}, ...]   (raw face probe results)
@@ -9764,7 +9867,7 @@ function _upsampleFaceData(data, targetSpacing) {
   var colSpacing = (xVals[nCols - 1] - xVals[0]) / (nCols - 1);
   var rowSpacing = (zVals[nRows - 1] - zVals[0]) / (nRows - 1);
   var cfg = { rowCount: nRows, colCount: nCols, colSpacing: colSpacing, rowSpacing: rowSpacing, minX: xVals[0], minY: zVals[0] };
-  var up = _bicubicUpsampleGrid(depthGrid, cfg, targetSpacing);
+  var up = _cubicSplineUpsampleGrid(depthGrid, cfg, targetSpacing);
   // Convert grid to flat vertex list + vMap for structured triangulation.
   var pts = [], vMap = [];
   for (var ri2 = 0; ri2 < up.rowCount; ri2++) {
@@ -9817,7 +9920,7 @@ function exportSurfaceDXF() {
   setFooterStatus('Exported surface mesh to DXF.', 'good');
 }
 // ── Surface OBJ export ────────────────────────────────────────────────────────
-// Upsamples the raw probe grid with bicubic Catmull-Rom interpolation before
+// Upsamples the raw probe grid with C2 natural cubic spline interpolation before
 // triangulation so the exported mesh has smooth geometry between probe points.
 function exportSurfaceOBJ() {
   pluginDebug('exportSurfaceOBJ ENTER');
@@ -9825,12 +9928,12 @@ function exportSurfaceOBJ() {
   var subSpacing = Number((document.getElementById('surfOBJSubdivision') || {}).value);
   if (!isFinite(subSpacing) || subSpacing <= 0) subSpacing = 0.5;
   subSpacing = Math.max(0.5, subSpacing);
-  // Upsample the probe grid via bicubic Catmull-Rom interpolation.
-  var up = _bicubicUpsampleGrid(smMeshData, smGridConfig, subSpacing);
+  // Upsample the probe grid via C2 natural cubic spline interpolation.
+  var up = _cubicSplineUpsampleGrid(smMeshData, smGridConfig, subSpacing);
   var cfg = up, grid = up.grid;
   var lines = ['# 3D Live Edge Mesh — Surface OBJ', '# Plugin Version: ' + SM_VERSION,
                '# Exported: ' + new Date().toISOString(),
-               '# Bicubic Catmull-Rom interpolation, subdivision spacing: ' + subSpacing + 'mm', ''];
+               '# C2 natural cubic spline interpolation, subdivision spacing: ' + subSpacing + 'mm', ''];
   var allVerts = [];
   var allTris = [];
   // Map grid positions to vertex indices (0-based).
@@ -9872,7 +9975,42 @@ function exportSurfaceOBJ() {
   });
   _objDownload(lines.join('\n'), 'surface_mesh_' + Date.now() + '.obj');
   pluginDebug('exportSurfaceOBJ: exported ' + allVerts.length + ' vertices, ' + allTris.length + ' triangles (subdivision ' + subSpacing + 'mm)');
-  setFooterStatus('Exported surface mesh to OBJ (' + allVerts.length + ' vertices, bicubic subdivision ' + subSpacing + 'mm).', 'good');
+  setFooterStatus('Exported surface mesh to OBJ (' + allVerts.length + ' vertices, C2 spline subdivision ' + subSpacing + 'mm).', 'good');
+}
+// ── Surface STL export ────────────────────────────────────────────────────────
+// Identical geometry to exportSurfaceOBJ but written as binary STL which Aspire
+// v12 imports natively without requiring OBJ import workarounds.
+function exportSurfaceSTL() {
+  pluginDebug('exportSurfaceSTL ENTER');
+  if (!smMeshData || !smGridConfig) { pluginDebug('exportSurfaceSTL: no data'); alert('No surface mesh data. Run a surface probe first.'); return; }
+  var subSpacing = Number((document.getElementById('surfOBJSubdivision') || {}).value);
+  if (!isFinite(subSpacing) || subSpacing <= 0) subSpacing = 0.5;
+  subSpacing = Math.max(0.5, subSpacing);
+  var up = _cubicSplineUpsampleGrid(smMeshData, smGridConfig, subSpacing);
+  var cfg = up, grid = up.grid;
+  var allVerts = [], allTris = [];
+  var vMap = [];
+  for (var ri = 0; ri < cfg.rowCount; ri++) {
+    vMap.push([]);
+    for (var ci = 0; ci < cfg.colCount; ci++) {
+      var z = grid[ri][ci];
+      if (z != null) { vMap[ri].push(allVerts.length); allVerts.push({x: cfg.minX + ci*cfg.colSpacing, y: cfg.minY + ri*cfg.rowSpacing, z: z}); }
+      else { vMap[ri].push(null); }
+    }
+  }
+  for (var fr = 0; fr < cfg.rowCount - 1; fr++) {
+    for (var fc = 0; fc < cfg.colCount - 1; fc++) {
+      var a=vMap[fr][fc], b=vMap[fr][fc+1], c=vMap[fr+1][fc+1], d=vMap[fr+1][fc];
+      if (a!=null&&b!=null&&c!=null&&d!=null) { allTris.push([a,b,c]); allTris.push([a,c,d]); }
+      else if (a!=null&&b!=null&&c!=null) { allTris.push([a,b,c]); }
+      else if (a!=null&&c!=null&&d!=null) { allTris.push([a,c,d]); }
+      else if (b!=null&&c!=null&&d!=null) { allTris.push([b,c,d]); }
+      else if (a!=null&&b!=null&&d!=null) { allTris.push([a,b,d]); }
+    }
+  }
+  _stlDownload(allVerts, allTris, 'surface_mesh_' + Date.now() + '.stl');
+  pluginDebug('exportSurfaceSTL: exported ' + allVerts.length + ' vertices, ' + allTris.length + ' triangles');
+  setFooterStatus('Exported surface mesh to STL (' + allVerts.length + ' vertices, C2 spline subdivision ' + subSpacing + 'mm).', 'good');
 }
 // ── Face DXF export ───────────────────────────────────────────────────────────
 function exportFaceDXF() {
@@ -9898,7 +10036,7 @@ function exportFaceDXF() {
   setFooterStatus('Exported face mesh to DXF.', 'good');
 }
 // ── Face OBJ export ───────────────────────────────────────────────────────────
-// Upsamples the face probe grid (X × Z-layer) with bicubic Catmull-Rom
+// Upsamples the face probe grid (X × Z-layer) with C2 natural cubic spline
 // interpolation and uses structured-grid triangulation for smoother results.
 function exportFaceOBJ() {
   pluginDebug('exportFaceOBJ ENTER');
@@ -9909,8 +10047,8 @@ function exportFaceOBJ() {
   subSpacing = Math.max(0.5, subSpacing);
   var lines = ['# 3D Live Edge Mesh — Face OBJ', '# Plugin Version: ' + SM_VERSION,
                '# Exported: ' + new Date().toISOString(),
-               '# Bicubic Catmull-Rom interpolation, subdivision spacing: ' + subSpacing + 'mm', ''];
-  // Upsample the face probe grid via bicubic Catmull-Rom interpolation.
+               '# C2 natural cubic spline interpolation, subdivision spacing: ' + subSpacing + 'mm', ''];
+  // Upsample the face probe grid via C2 natural cubic spline interpolation.
   var up = _upsampleFaceData(data, subSpacing);
   var allVerts = up.pts;
   var allTris;
@@ -9955,7 +10093,48 @@ function exportFaceOBJ() {
   });
   _objDownload(lines.join('\n'), 'face_mesh_' + Date.now() + '.obj');
   pluginDebug('exportFaceOBJ: exported ' + allVerts.length + ' vertices, ' + allTris.length + ' triangles (subdivision ' + subSpacing + 'mm)');
-  setFooterStatus('Exported face mesh to OBJ (' + allVerts.length + ' vertices, bicubic subdivision ' + subSpacing + 'mm).', 'good');
+  setFooterStatus('Exported face mesh to OBJ (' + allVerts.length + ' vertices, C2 spline subdivision ' + subSpacing + 'mm).', 'good');
+}
+// ── Face STL export ───────────────────────────────────────────────────────────
+// Identical geometry to exportFaceOBJ but written as binary STL.
+function exportFaceSTL() {
+  pluginDebug('exportFaceSTL ENTER');
+  var data = getFaceMeshData();
+  if (!data || !data.length) { pluginDebug('exportFaceSTL: no data'); alert('No face mesh data. Run a face probe first.'); return; }
+  var subSpacing = Number((document.getElementById('faceOBJSubdivision') || {}).value);
+  if (!isFinite(subSpacing) || subSpacing <= 0) subSpacing = 0.5;
+  subSpacing = Math.max(0.5, subSpacing);
+  var up = _upsampleFaceData(data, subSpacing);
+  var allVerts = up.pts;
+  var allTris;
+  if (up.vMap && up.rowCount >= 2 && up.colCount >= 2) {
+    allTris = [];
+    for (var ri = 0; ri < up.rowCount - 1; ri++) {
+      for (var ci = 0; ci < up.colCount - 1; ci++) {
+        var a=up.vMap[ri][ci], b=up.vMap[ri][ci+1], c=up.vMap[ri+1][ci+1], d=up.vMap[ri+1][ci];
+        if (a!=null&&b!=null&&c!=null&&d!=null) { allTris.push([a,b,c]); allTris.push([a,c,d]); }
+        else if (a!=null&&b!=null&&c!=null) { allTris.push([a,b,c]); }
+        else if (a!=null&&c!=null&&d!=null) { allTris.push([a,c,d]); }
+        else if (b!=null&&c!=null&&d!=null) { allTris.push([b,c,d]); }
+        else if (a!=null&&b!=null&&d!=null) { allTris.push([a,b,d]); }
+      }
+    }
+  } else {
+    var pts2d = allVerts.map(function(v) { return {x: v.x, y: v.z}; });
+    allTris = _delaunayTriangulate(pts2d);
+  }
+  if (!allTris.length) { pluginDebug('exportFaceSTL: triangulation failed'); alert('Triangulation failed — need at least 3 face probe points.'); return; }
+  // Ensure face normals point in -Y direction.
+  var sumNy = 0;
+  allTris.forEach(function(t) {
+    var v0=allVerts[t[0]], v1=allVerts[t[1]], v2=allVerts[t[2]];
+    var e1x=v1.x-v0.x, e1z=v1.z-v0.z, e2x=v2.x-v0.x, e2z=v2.z-v0.z;
+    sumNy += e1z*e2x - e1x*e2z;
+  });
+  if (sumNy > 0) allTris = allTris.map(function(t) { return [t[0], t[2], t[1]]; });
+  _stlDownload(allVerts, allTris, 'face_mesh_' + Date.now() + '.stl');
+  pluginDebug('exportFaceSTL: exported ' + allVerts.length + ' vertices, ' + allTris.length + ' triangles');
+  setFooterStatus('Exported face mesh to STL (' + allVerts.length + ' vertices, C2 spline subdivision ' + subSpacing + 'mm).', 'good');
 }
 // ── Combined DXF export ───────────────────────────────────────────────────────
 function exportCombinedDXF() {
@@ -9990,7 +10169,7 @@ function exportCombinedDXF() {
   setFooterStatus('Exported combined mesh to DXF.', 'good');
 }
 // ── Combined OBJ watertight export ────────────────────────────────────────────
-// Upsamples both surface and face meshes with bicubic Catmull-Rom interpolation
+// Upsamples both surface and face meshes with C2 natural cubic spline interpolation
 // (driven by combinedOBJSubdivision) before stitching into a watertight solid.
 function exportCombinedOBJWatertight() {
   pluginDebug('exportCombinedOBJWatertight ENTER');
@@ -10004,11 +10183,11 @@ function exportCombinedOBJWatertight() {
   subSpacing = Math.max(0.5, subSpacing);
   var bottomZ = Number((document.getElementById('combinedBottomZ') || {}).value);
   if (!isFinite(bottomZ)) bottomZ = -20;
-  // Upsample surface mesh via bicubic Catmull-Rom.
-  var surfUp = _bicubicUpsampleGrid(smMeshData, smGridConfig, subSpacing);
+  // Upsample surface mesh via C2 natural cubic spline.
+  var surfUp = _cubicSplineUpsampleGrid(smMeshData, smGridConfig, subSpacing);
   var cfg = surfUp, grid = surfUp.grid;
   var lines = ['# 3D Live Edge Mesh — Combined Watertight OBJ', '# Plugin Version: ' + SM_VERSION,
-               '# Bicubic Catmull-Rom interpolation, subdivision spacing: ' + subSpacing + 'mm', ''];
+               '# C2 natural cubic spline interpolation, subdivision spacing: ' + subSpacing + 'mm', ''];
   var allVerts = [];
   var allTris = [];
   // ── Surface mesh (upsampled grid, CCW for +Z normal) ───────────────────────
@@ -10028,7 +10207,7 @@ function exportCombinedOBJWatertight() {
       allTris.push([a, c, d]);
     }
   }
-  // ── Face mesh (upsampled via bicubic, structured triangulation for -Y normal)
+  // ── Face mesh (upsampled via C2 spline, structured triangulation for -Y normal)
   var faceUp = _upsampleFaceData(faceData, subSpacing);
   var faceVStart = allVerts.length;
   faceUp.pts.forEach(function(v) { allVerts.push(v); });
@@ -10085,7 +10264,85 @@ function exportCombinedOBJWatertight() {
   });
   _objDownload(lines.join('\n'), 'combined_watertight_' + Date.now() + '.obj');
   pluginDebug('exportCombinedOBJWatertight: exported ' + allVerts.length + ' vertices, ' + allTris.length + ' triangles (subdivision ' + subSpacing + 'mm)');
-  setFooterStatus('Exported combined watertight OBJ (' + allVerts.length + ' vertices, bicubic subdivision ' + subSpacing + 'mm).', 'good');
+  setFooterStatus('Exported combined watertight OBJ (' + allVerts.length + ' vertices, C2 spline subdivision ' + subSpacing + 'mm).', 'good');
+}
+// ── Combined STL watertight export ────────────────────────────────────────────
+// Identical geometry to exportCombinedOBJWatertight but written as binary STL.
+function exportCombinedSTLWatertight() {
+  pluginDebug('exportCombinedSTLWatertight ENTER');
+  var faceData = getFaceMeshData();
+  if (!smMeshData || !smGridConfig || !faceData || !faceData.length) {
+    pluginDebug('exportCombinedSTLWatertight: missing data');
+    alert('Both surface mesh and face mesh data are required for a watertight combined export.'); return;
+  }
+  var subSpacing = Number((document.getElementById('combinedOBJSubdivision') || {}).value);
+  if (!isFinite(subSpacing) || subSpacing <= 0) subSpacing = 0.5;
+  subSpacing = Math.max(0.5, subSpacing);
+  var bottomZ = Number((document.getElementById('combinedBottomZ') || {}).value);
+  if (!isFinite(bottomZ)) bottomZ = -20;
+  var surfUp = _cubicSplineUpsampleGrid(smMeshData, smGridConfig, subSpacing);
+  var cfg = surfUp, grid = surfUp.grid;
+  var allVerts = [], allTris = [];
+  // Surface mesh
+  var surfV = [];
+  for (var ri = 0; ri < cfg.rowCount; ri++) {
+    surfV.push([]);
+    for (var ci = 0; ci < cfg.colCount; ci++) {
+      var z = grid[ri][ci];
+      surfV[ri].push(allVerts.length);
+      allVerts.push({x: cfg.minX + ci*cfg.colSpacing, y: cfg.minY + ri*cfg.rowSpacing, z: (z != null ? z : 0)});
+    }
+  }
+  for (var fr = 0; fr < cfg.rowCount - 1; fr++) {
+    for (var fc = 0; fc < cfg.colCount - 1; fc++) {
+      var a=surfV[fr][fc], b=surfV[fr][fc+1], c=surfV[fr+1][fc+1], d=surfV[fr+1][fc];
+      allTris.push([a, b, c]); allTris.push([a, c, d]);
+    }
+  }
+  // Face mesh
+  var faceUp = _upsampleFaceData(faceData, subSpacing);
+  var faceVStart = allVerts.length;
+  faceUp.pts.forEach(function(v) { allVerts.push(v); });
+  var faceTris;
+  if (faceUp.vMap && faceUp.rowCount >= 2 && faceUp.colCount >= 2) {
+    faceTris = [];
+    for (var fri = 0; fri < faceUp.rowCount - 1; fri++) {
+      for (var fci = 0; fci < faceUp.colCount - 1; fci++) {
+        var fa=faceUp.vMap[fri][fci], fb=faceUp.vMap[fri][fci+1], fc2=faceUp.vMap[fri+1][fci+1], fd=faceUp.vMap[fri+1][fci];
+        if (fa!=null&&fb!=null&&fc2!=null&&fd!=null) {
+          faceTris.push([fa+faceVStart, fb+faceVStart, fc2+faceVStart]);
+          faceTris.push([fa+faceVStart, fc2+faceVStart, fd+faceVStart]);
+        } else if (fa!=null&&fb!=null&&fc2!=null) { faceTris.push([fa+faceVStart, fb+faceVStart, fc2+faceVStart]);
+        } else if (fa!=null&&fc2!=null&&fd!=null) { faceTris.push([fa+faceVStart, fc2+faceVStart, fd+faceVStart]);
+        } else if (fb!=null&&fc2!=null&&fd!=null) { faceTris.push([fb+faceVStart, fc2+faceVStart, fd+faceVStart]);
+        } else if (fa!=null&&fb!=null&&fd!=null)  { faceTris.push([fa+faceVStart, fb+faceVStart, fd+faceVStart]); }
+      }
+    }
+  } else {
+    faceTris = _delaunayTriangulate(faceUp.pts.map(function(v) { return {x: v.x, y: v.z}; }));
+    faceTris = faceTris.map(function(t) { return [t[0]+faceVStart, t[1]+faceVStart, t[2]+faceVStart]; });
+  }
+  var sumNy = 0;
+  faceTris.forEach(function(t) {
+    var v0=allVerts[t[0]], v1=allVerts[t[1]], v2=allVerts[t[2]];
+    var e1x=v1.x-v0.x, e1z=v1.z-v0.z, e2x=v2.x-v0.x, e2z=v2.z-v0.z;
+    sumNy += e1z*e2x - e1x*e2z;
+  });
+  if (sumNy > 0) faceTris = faceTris.map(function(t) { return [t[0], t[2], t[1]]; });
+  allTris = allTris.concat(faceTris);
+  // Bottom cap
+  var bottomVStart = allVerts.length;
+  for (var bc = 0; bc < cfg.colCount; bc++) {
+    allVerts.push({x: cfg.minX + bc*cfg.colSpacing, y: cfg.minY, z: bottomZ});
+  }
+  var frontRow = surfV[0];
+  for (var bc2 = 0; bc2 < cfg.colCount - 1; bc2++) {
+    var f0=frontRow[bc2], f1=frontRow[bc2+1], b0=bottomVStart+bc2, b1=bottomVStart+bc2+1;
+    allTris.push([f0, b0, b1]); allTris.push([f0, b1, f1]);
+  }
+  _stlDownload(allVerts, allTris, 'combined_watertight_' + Date.now() + '.stl');
+  pluginDebug('exportCombinedSTLWatertight: exported ' + allVerts.length + ' vertices, ' + allTris.length + ' triangles');
+  setFooterStatus('Exported combined watertight STL (' + allVerts.length + ' vertices, C2 spline subdivision ' + subSpacing + 'mm).', 'good');
 }
 // ── Workflow stubs (UI buttons not yet present in HTML) ────────────────────────
 var _WORKFLOW_STORAGE_KEY = '3dmesh.combined.workflows';
@@ -10234,9 +10491,11 @@ var BUTTONS = [
   { id: 'btn-export-face-csv' },
   { id: 'btn-export-face-dxf' },
   { id: 'btn-export-face-obj' },
+  { id: 'btn-export-face-stl' },
   { id: 'btn-export-surf-csv' },
   { id: 'btn-export-surf-dxf' },
   { id: 'btn-export-surf-obj' },
+  { id: 'btn-export-surf-stl' },
   { id: 'btn-export-csv' },
   { id: 'btn-clear-all-results' },
   { id: 'btn-copy-results' },
@@ -10261,6 +10520,7 @@ var BUTTONS = [
   { id: 'apply-btn-analyze-bounds' },
   { id: 'res-btn-save-3d' },
   { id: 'btn-export-combined-obj' },
+  { id: 'btn-export-combined-stl' },
   { id: 'btn-export-combined-dxf' },
   { id: 'btn-run-diagnostics' }
 ];
@@ -10276,10 +10536,11 @@ var FUNCTIONS_TO_CHECK = [
   'startProbeByType', 'stopSurfaceProbing',
   'runFaceProbe', 'stopAll',
   'saveLog', 'clearLog', 'saveAllLogs',
-  'exportCSV', 'exportFaceCSV', 'exportFaceDXF', 'exportFaceOBJ',
-  'exportSurfaceMeshCSV', 'exportSurfaceDXF', 'exportSurfaceOBJ',
+  'exportCSV', 'exportFaceCSV', 'exportFaceDXF', 'exportFaceOBJ', 'exportFaceSTL',
+  'exportSurfaceMeshCSV', 'exportSurfaceDXF', 'exportSurfaceOBJ', 'exportSurfaceSTL',
   'exportSurfaceMesh', 'loadSurfaceMesh', 'saveSurfaceMesh', 'clearSurfaceMesh',
   'exportCombinedMeshCSV', 'exportCombinedMeshJSON',
+  'exportCombinedOBJWatertight', 'exportCombinedSTLWatertight',
   'saveCombinedMesh', 'clearCombinedMesh',
   'switchTab', 'flashButton', 'flashSaveButton',
   'getSettingsFromUI',

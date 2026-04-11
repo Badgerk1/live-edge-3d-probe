@@ -867,17 +867,21 @@ function smLoadSettings() {
   if(btnExportFaceDxf) btnExportFaceDxf.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-face-dxf clicked'); exportFaceDXF(); });
   var btnExportFaceObj = document.getElementById('btn-export-face-obj');
   if(btnExportFaceObj) btnExportFaceObj.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-face-obj clicked'); exportFaceOBJ(); });
+  var btnExportFaceStl = document.getElementById('btn-export-face-stl');
+  if(btnExportFaceStl) btnExportFaceStl.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-face-stl clicked'); exportFaceSTL(); });
 
   // Surface mesh export buttons
   try {
     document.getElementById('btn-export-surf-csv').addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-surf-csv clicked'); exportSurfaceMeshCSV(); });
     document.getElementById('btn-export-surf-dxf').addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-surf-dxf clicked'); exportSurfaceDXF(); });
     document.getElementById('btn-export-surf-obj').addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-surf-obj clicked'); exportSurfaceOBJ(); });
+    document.getElementById('btn-export-surf-stl').addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-surf-stl clicked'); exportSurfaceSTL(); });
   } catch(e){}
 
   // Combined mesh export buttons
   try {
     document.getElementById('btn-export-combined-obj').addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-combined-obj clicked'); exportCombinedOBJWatertight(); });
+    document.getElementById('btn-export-combined-stl').addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-combined-stl clicked'); exportCombinedSTLWatertight(); });
     document.getElementById('btn-export-combined-dxf').addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-combined-dxf clicked'); exportCombinedDXF(); });
     // Clear auto-fill flag when user manually edits the Bottom Z field
     var combinedBottomZEl = document.getElementById('combinedBottomZ');
