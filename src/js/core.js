@@ -1066,8 +1066,10 @@ function pluginCleanupOnClose() {
     if (rsp) rsp.style.display = 'none';
     var rfp = document.getElementById('res-face-panel');
     if (rfp) rfp.style.display = 'none';
-    var rrelief = document.getElementById('res-relief-maps-panel');
-    if (rrelief) rrelief.style.display = 'none';
+    var rSurfRelief = document.getElementById('res-surface-relief-panel');
+    if (rSurfRelief) rSurfRelief.style.display = 'none';
+    var rFaceRelief = document.getElementById('res-face-relief-panel');
+    if (rFaceRelief) rFaceRelief.style.display = 'none';
     // Reset Mesh Data tab — surface mesh table
     var smTbody = document.getElementById('sm-meshTableBody');
     if (smTbody) smTbody.innerHTML = '<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:16px;">No data yet</td></tr>';
