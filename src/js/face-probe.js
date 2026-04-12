@@ -231,6 +231,7 @@ async function runFaceProbe(axis, _calledFromCombined){
   document.getElementById('btn-face-x').disabled = true;
   document.getElementById('btn-face-y').disabled = true;
   setFooterStatus('Running face probe ' + axis + '…', 'warn');
+  smSetProgress(0);
   logLine('face', '=== 3D Live Edge Mesh Plugin ' + SM_VERSION + ' ===');
   logLine('face', 'Starting face probe on axis ' + axis);
 
@@ -283,7 +284,7 @@ async function runFaceProbe(axis, _calledFromCombined){
           smCheckStop();
           var _p0xPos = _p0xStart + _p0i * _p0Step;
           logLine('face', 'AUTO TOP-Z: Probing point ' + (_p0i + 1) + '/' + _p0xPts + ' at X=' + Number(_p0xPos).toFixed(3) + ' Y=' + Number(_p0FaceY).toFixed(3));
-          smSetProgress(_p0i / _p0xPts * 30);
+          smSetProgress((_p0i + 1) / _p0xPts * 30);
           await smSafeLateralMove(_p0xPos, _p0FaceY, _p0Travel, _p0ClearZ);
           await smEnsureProbeClear(_p0ClearZ, _p0Travel);
           var _p0Contact = await smPlungeProbe(_p0Depth, _p0Feed);
@@ -399,6 +400,10 @@ async function runFaceProbe(axis, _calledFromCombined){
       var localSafeZ = isFinite(preScanHighestZ) ? (preScanHighestZ + preScanRetractClearance) : null;
 
       var didOptimizedRetract = false;
+      var _fpBase = _p0Ran ? 30 : 0;
+      var _fpRange = 100 - _fpBase;
+      var _fpTotal = totalLayers * faceSamples.length;
+      var _fpDone = 0;
       for(var li = 0; li < totalLayers; li++){
         checkStop();
         var layerNum = li + 1;
@@ -488,6 +493,8 @@ async function runFaceProbe(axis, _calledFromCombined){
             faceResults.push(lMiss);
           }
           saveProbeResultsThrottled();
+          _fpDone++;
+          smSetProgress(_fpBase + _fpDone / _fpTotal * _fpRange);
 
           var isLastSampleInLayer = (si === sampleOrder.length - 1);
           var isLastLayer = (li === totalLayers - 1);
@@ -573,6 +580,7 @@ async function runFaceProbe(axis, _calledFromCombined){
       pluginDebug('runFaceProbe layered: faceResults=' + faceResults.length + ' layeredFaceResults=' + layeredFaceResults.length);
       // No extra waitForIdle here: the last moveAbs in the layer loop already
       // calls waitForIdleWithTimeout(), so the controller is already idle.
+      smSetProgress(100);
       await finishRunMotion('face');
       if (!_calledFromCombined) switchTab('results');
       setFooterStatus('Layered face probe ' + axis + ' complete: ' + totalLayers + ' layers x ' + faceSamples.length + ' samples = ' + layeredFaceResults.length + ' contacts', 'good');
@@ -642,6 +650,7 @@ async function runFaceProbe(axis, _calledFromCombined){
         faceResults.push(miss);
       }
       saveProbeResultsThrottled();
+      smSetProgress((_p0Ran ? 30 : 0) + (i + 1) / faceSamples.length * (_p0Ran ? 70 : 100));
 
       if(i < faceSamples.length - 1){
         var nextLineCoord = Number(faceSamples[i + 1].sampleCoord);
@@ -678,6 +687,7 @@ async function runFaceProbe(axis, _calledFromCombined){
 
     // No extra waitForIdle here: the last moveAbs in the sample loop already
     // calls waitForIdleWithTimeout(), so the controller is already idle.
+    smSetProgress(100);
     await finishRunMotion('face');
     if (!_calledFromCombined) switchTab('results');
     pluginDebug('runFaceProbe COMPLETE: axis=' + axis + ' samples=' + faceSamples.length);
@@ -1525,6 +1535,7 @@ async function runCombinedProbeMode(axis) {
       console.warn('COMBINED: visualization error (non-fatal):', vizErr);
     }
     setFooterStatus('Combined probe complete: surface + face ' + axis + ' merged.', 'good');
+    smSetProgress(100);
     smLogProbe('COMBINED: All phases complete. ' + (combinedMeshPoints ? combinedMeshPoints.length : 0) + ' total points in combined dataset.');
     pluginDebug('runCombinedProbeMode COMPLETE: axis=' + axis + ' total=' + (combinedMeshPoints ? combinedMeshPoints.length : 0) + ' points');
     saveProbeResults();
