@@ -612,7 +612,7 @@
     <div class="tab-panel" id="pane-top">
 
   <!-- ── Jog Controls (teleported here from Setup tab when Probe tab is active) ── -->
-  <div id="probe-jog-placeholder"></div>
+  <div class="panel" id="probe-jog-panel" data-panel-key="top-jog-controls"></div>
 
   <!-- ── Probe Type Selector ─────────────────────────────────────────── -->
   <div class="panel" data-panel-key="top-probe-mode">
@@ -2620,7 +2620,7 @@ function switchTab(id){
 
   // Teleport jog controls between Setup tab and Probe tab
   var jogCard = document.getElementById('jog-controls-card');
-  var probeHolder = document.getElementById('probe-jog-placeholder');
+  var probeHolder = document.getElementById('probe-jog-panel');
   var setupAnchor = document.getElementById('jog-original-anchor');
   if (jogCard && probeHolder && setupAnchor) {
     if (id === 'top') {
