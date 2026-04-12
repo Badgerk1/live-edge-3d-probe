@@ -566,6 +566,10 @@ function onProbeTypeChange() {
   var faceMesh = document.getElementById('face-mesh-section');
   if (faceMesh) faceMesh.style.display = showFace ? '' : 'none';
 
+  // Face probe direct controls section
+  var faceDirectControls = document.getElementById('face-direct-controls-section');
+  if (faceDirectControls) faceDirectControls.style.display = showFace ? '' : 'none';
+
   // Unified log sections
   var surfLogWrap = document.getElementById('unified-log-surface-wrap');
   if (surfLogWrap) surfLogWrap.style.display = showSurface ? '' : 'none';
