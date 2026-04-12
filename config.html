@@ -194,6 +194,23 @@
     #surface-edge-mesh-root .three-canvas-wrap.three-active{display:block}
     #surface-edge-mesh-root .three-canvas-wrap canvas{display:block!important;width:100%!important}
 
+    /* ── Layout Editor ──────────────────────────────────────────────────────── */
+    /* Toggle button in the tabs bar */
+    #surface-edge-mesh-root .layout-edit-btn{border:1px solid var(--line);background:#182031;color:var(--muted);border-radius:8px;padding:6px 10px;cursor:pointer;font:inherit;font-size:11px;margin-left:auto;white-space:nowrap;transition:background .2s,color .2s,border-color .2s}
+    #surface-edge-mesh-root .layout-reset-btn{margin-left:4px}
+    #surface-edge-mesh-root .layout-edit-btn:hover{background:#1d2739;color:var(--text)}
+    #surface-edge-mesh-root .layout-edit-btn.active{background:linear-gradient(180deg,#2a4a1e,#1e3614);border-color:#5fdb8d;color:#a8f0c0}
+    /* Drag handle injected into each panel */
+    #surface-edge-mesh-root .le3dp-drag-handle{font-size:11px;color:var(--accent);opacity:.75;cursor:grab;user-select:none;margin-bottom:6px;display:flex;align-items:center;gap:6px;border-bottom:1px dashed rgba(110,168,255,.25);padding-bottom:5px}
+    #surface-edge-mesh-root .le3dp-drag-handle::before{content:'\2807\2807';font-size:14px;letter-spacing:2px;color:var(--accent);opacity:.8}
+    /* Make draggable children position:relative so the handle sits correctly */
+    #surface-edge-mesh-root.layout-edit-active .tab-panel > [data-panel-key]{position:relative;cursor:grab;transition:box-shadow .15s,opacity .15s}
+    /* Being dragged */
+    #surface-edge-mesh-root .layout-dragging{opacity:.45!important;box-shadow:0 0 0 2px var(--accent) inset}
+    /* Drop target indicators */
+    #surface-edge-mesh-root .layout-drag-over-before{box-shadow:0 -3px 0 0 var(--accent),0 0 0 1px rgba(110,168,255,.18)}
+    #surface-edge-mesh-root .layout-drag-over-after{box-shadow:0 3px 0 0 var(--accent),0 0 0 1px rgba(110,168,255,.18)}
+
   </style>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -220,6 +237,8 @@
     <button class="tab" data-tab="results" onclick="switchTab('results')">&#9783; Results</button>
     <button class="tab" data-tab="meshdata" onclick="switchTab('meshdata')">&#128202; Mesh Data</button>
     <button class="tab" data-tab="apply" onclick="switchTab('apply')">&#9889; Apply</button>
+    <button id="layout-edit-toggle" class="layout-edit-btn" onclick="toggleLayoutEdit()" title="Toggle Layout Edit mode — when active, panels show a drag handle and can be reordered within the current tab. Changes are saved automatically per tab.">&#9998;&#xFE0F; Edit Layout</button>
+    <button id="layout-reset-btn" class="layout-edit-btn layout-reset-btn" onclick="resetCurrentTabLayout()" title="Reset the current tab&#39;s panel order to its default" style="display:none">&#8635; Reset</button>
   </div>
 
   <!-- ── CONTENT ────────────────────────────────────────────────────────── -->
@@ -228,7 +247,7 @@
     <!-- ── SETUP TAB ──────────────────────────────────────────────────── -->
     <div class="tab-panel active" id="pane-setup">
 
-      <div class="panel">
+      <div class="panel" data-panel-key="setup-probe-dims">
         <div class="box-title">3D Probe Dimensions</div>
         <div class="probe-chip">Editable geometry preset for your 3D probe</div>
         <div class="probe-dim-wrap">
@@ -333,7 +352,7 @@
       </div>
 
 
-      <div class="panel">
+      <div class="panel" data-panel-key="setup-travel-recovery">
         <div class="box-title">Travel &amp; Recovery Settings</div>
         <div class="grid three">
           <div class="field">
@@ -392,7 +411,7 @@
       </div>
 
 
-      <div class="panel">
+      <div class="panel" data-panel-key="setup-machine-helpers">
         <div class="box-title">Machine Helpers</div>
         <div class="setup-helpers">
           <div class="stack">
@@ -546,7 +565,7 @@
           </div>
         </div>
       </div>
-      <div class="panel">
+      <div class="panel" data-panel-key="setup-mesh-subdiv">
         <div class="box-title">Mesh Subdivision</div>
         <div class="grid three">
           <div class="field">
@@ -576,7 +595,7 @@
     <div class="tab-panel" id="pane-top">
 
   <!-- ── Probe Type Selector ─────────────────────────────────────────── -->
-  <div class="panel">
+  <div class="panel" data-panel-key="top-probe-mode">
     <div class="box-title">Probe Mode</div>
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <label style="font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap">Mode:</label>
@@ -596,7 +615,7 @@
   </div>
 
   <!-- ── Top Profile Settings (always visible — used by both Surface and Face probe modes) ── -->
-  <div class="panel">
+  <div class="panel" data-panel-key="top-top-profile">
     <div class="box-title">Top Profile Settings</div>
     <div class="grid three">
       <div class="field">
@@ -666,7 +685,7 @@
   </div>
 
   <!-- ── Surface Configuration Section ─────────────────────────────── -->
-  <div id="surface-config-section">
+  <div id="surface-config-section" data-panel-key="top-surf-config">
     <div class="panel">
       <div class="box-title">2D Grid Configuration</div>
       <div class="grid three">
@@ -696,7 +715,7 @@
   </div><!-- /surface-config-section -->
 
   <!-- ── Face Configuration Section ────────────────────────────────── -->
-  <div id="face-config-section" style="display:none">
+  <div id="face-config-section" data-panel-key="top-face-config" style="display:none">
     <div class="panel">
       <div class="box-title">Face Probe Configuration</div>
       <div class="grid three">
@@ -827,7 +846,7 @@
   </div><!-- /face-config-section -->
 
   <!-- ── Probing Control ────────────────────────────────────────────── -->
-  <div class="panel">
+  <div class="panel" data-panel-key="top-probing-ctrl">
     <div class="box-title">Probing Control</div>
     <div class="btn-row">
       <button class="btn" id="sm-btn-run-probe" onclick="flashButton(this);startProbeByType()">&#9654; Run Surface Probe</button>
@@ -838,7 +857,7 @@
   </div>
 
   <!-- ── Face Probe Direct Controls ───────────────────────────────────── -->
-  <div id="face-direct-controls-section" style="display:none">
+  <div id="face-direct-controls-section" data-panel-key="top-face-direct-ctrl" style="display:none">
     <div class="panel">
       <div class="box-title">Face Probe Direct Controls</div>
       <div class="callout mini">Use the <strong>▶ Run Probe</strong> button in Probing Control above to run the face probe via the mode dropdown, or use these direct buttons to immediately probe a specific face axis.</div>
@@ -851,7 +870,7 @@
   </div>
 
   <!-- ── Surface Mesh Section ───────────────────────────────────────── -->
-  <div id="surface-mesh-section">
+  <div id="surface-mesh-section" data-panel-key="top-surf-mesh">
     <!-- Heatmap view (shown by default) -->
     <div id="sm-heatmap-panel" class="panel">
       <div class="box-title">&#127774; Surface Heatmap</div>
@@ -1008,7 +1027,7 @@
   </div><!-- /surface-mesh-section -->
 
   <!-- ── Face Mesh Section ──────────────────────────────────────────── -->
-  <div id="face-mesh-section" style="display:none">
+  <div id="face-mesh-section" data-panel-key="top-face-mesh" style="display:none">
     <!-- Face Heatmap (shown by default) -->
     <div id="face-heatmap-panel" class="panel">
       <div class="box-title">&#127774; Face Heatmap</div>
@@ -1112,7 +1131,7 @@
   </div><!-- /face-mesh-section -->
 
   <!-- ── Unified Probe Log ───────────────────────────────────────────── -->
-  <div class="panel">
+  <div class="panel" data-panel-key="top-probe-log">
     <div class="box-title">Probe Log</div>
     <div class="btn-row" style="margin-bottom:8px">
       <button class="btn ghost" onclick="flashSaveButton(this);saveUnifiedProbeLog()">&#128190; Save Log</button>
@@ -1141,7 +1160,7 @@
     <div class="tab-panel" id="pane-results">
 
       <!-- Top Surface 3D View panel (hidden until data is available) -->
-      <div id="res-surface-panel" style="display:none">
+      <div id="res-surface-panel" data-panel-key="results-surf-3d" style="display:none">
         <div class="panel">
           <div class="box-title">&#128208; Top Surface — 3D View</div>
           <div id="res-pviz-scene">
@@ -1162,7 +1181,7 @@
       </div>
 
       <!-- Face Surface 3D View panel (hidden until face data is available) -->
-      <div id="res-face-panel" style="display:none">
+      <div id="res-face-panel" data-panel-key="results-face-3d" style="display:none">
         <div class="panel">
           <div class="box-title">&#128208; Face Surface — 3D View</div>
           <div id="resface-pviz-scene">
@@ -1183,7 +1202,7 @@
       </div>
 
       <!-- 2D Relief Maps for Results tab — same heatmap style as Probe/Mesh Data tabs -->
-      <div id="res-relief-maps-panel" style="display:none">
+      <div id="res-relief-maps-panel" data-panel-key="results-relief-maps" style="display:none">
         <div class="panel" id="res-surface-relief-panel">
           <div class="box-title">&#127774; Surface Relief Map</div>
           <div class="callout mini" style="margin-bottom:8px">Top-down topographic heatmap (XY projection) — warm colors = high Z, cool colors = low Z. Hover for values.</div>
@@ -1202,7 +1221,7 @@
       </div>
 
       <!-- Probe Data: one table for all probe points (surface + face) with Type column -->
-      <div class="panel">
+      <div class="panel" data-panel-key="results-probe-data">
         <div class="box-title">Probe Data</div>
         <div style="max-height:320px;overflow-y:auto;border:1px solid var(--line);border-radius:10px">
           <table>
@@ -1226,7 +1245,7 @@
     <!-- ── MESH DATA TAB ──────────────────────────────────────────────── -->
     <div class="tab-panel" id="pane-meshdata">
 
-      <div class="panel">
+      <div class="panel" data-panel-key="meshdata-surf-3d">
         <div class="box-title">&#128208; Surface Mesh — 3D Visualizer</div>
         <div id="surf-pviz-scene">
           <div id="surf-three-canvas" class="three-canvas-wrap"></div>
@@ -1242,7 +1261,7 @@
       </div>
 
       <!-- ── Surface Relief Map ─────────────────────────────────────────── -->
-      <div class="panel">
+      <div class="panel" data-panel-key="meshdata-surf-relief">
         <div class="box-title">&#127774; Surface Relief Map</div>
         <div class="callout mini" style="margin-bottom:8px">Top-down topographic heatmap — warm colors (red/orange) = high Z, cool colors (blue/green) = low Z. Bilinear interpolation between probe points. Hover for values.</div>
         <div style="margin-top:4px">
@@ -1270,14 +1289,14 @@
       </div>
 
       <!-- Face Relief Map in Mesh Data tab (shown when face probe data is available) -->
-      <div class="panel" id="surf-face-relief-panel" style="display:none">
+      <div class="panel" id="surf-face-relief-panel" data-panel-key="meshdata-face-relief" style="display:none">
         <div class="box-title">&#127774; Face Relief Map</div>
         <div class="callout mini" style="margin-bottom:8px">Front view (XZ projection) — warm colors = shallow contact (Y near 0), cool colors = deep contact. Bilinear interpolation between probe points. Hover for values.</div>
         <canvas id="surf-face-relief-canvas" style="width:100%;border:1px solid var(--line);border-radius:8px;background:#0d111a;display:block"></canvas>
         <div id="surf-face-relief-tooltip" class="mini" style="color:var(--muted);margin-top:4px">Hover over map for values</div>
       </div>
 
-      <div class="panel">
+      <div class="panel" data-panel-key="meshdata-mesh-points">
         <div class="box-title">Mesh Point Data</div>
         <div style="max-height:260px;overflow-y:auto;border:1px solid var(--line);border-radius:10px">
           <table>
@@ -1287,7 +1306,7 @@
         </div>
       </div>
 
-      <div class="panel">
+      <div class="panel" data-panel-key="meshdata-mesh-mgmt">
         <div class="box-title">Mesh Data Management</div>
         <div class="callout mini" style="margin-bottom:12px">Save, load, export and import surface mesh data. <strong>Save Mesh</strong> opens a file save dialog to choose where to save — also backs up to browser storage. Use <strong>Load Mesh</strong> to restore from browser storage. Export/Import for file-based transfer.</div>
         <div class="btn-row">
@@ -1304,7 +1323,7 @@
         <div class="status-line" id="sm-meshStorageStatus" style="margin-top:8px"></div>
       </div>
 
-      <div class="panel">
+      <div class="panel" data-panel-key="meshdata-edge-results">
         <div class="box-title">Edge Probe Results Storage</div>
         <div class="callout mini" style="margin-bottom:12px">Save and load edge probe results (face and top profile data). Separate from the surface mesh above.</div>
         <div class="btn-row">
@@ -1319,7 +1338,7 @@
       </div>
 
       <!-- ── COMBINED MESH DATA ──────────────────────────────────────────── -->
-      <div class="panel" id="combined-mesh-panel" style="display:none">
+      <div class="panel" id="combined-mesh-panel" data-panel-key="meshdata-combined-3d" style="display:none">
         <div class="box-title">&#127937; Combined Mesh — 3D Visualizer</div>
         <div class="callout mini" style="margin-bottom:8px">Shows the top surface and face probe wall as a unified 3D shape — the slab top flowing over the live edge and down the face. <span style="color:var(--accent2)">&#9679; Blue/green = surface top</span> &nbsp; <span style="color:#e4a050">&#9679; Warm tones = face wall</span></div>
         <div id="comb-pviz-scene">
@@ -1335,7 +1354,7 @@
         <div class="mini" style="margin-top:4px;text-align:center;color:var(--muted)">Drag to rotate &middot; Scroll to zoom &middot; Right-click to pan &middot; Double-click to reset</div>
       </div>
 
-      <div class="panel" id="combined-mesh-data-panel" style="display:none">
+      <div class="panel" id="combined-mesh-data-panel" data-panel-key="meshdata-combined-data" style="display:none">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
           <div class="box-title" style="margin-bottom:0">Combined Mesh Point Data</div>
           <button class="btn warn" id="comb-data-btn-clear" style="padding:4px 12px;font-size:12px">&#128465; Clear</button>
@@ -1349,7 +1368,7 @@
         </div>
       </div>
 
-      <div class="panel" id="combined-mesh-mgmt-panel" style="display:none">
+      <div class="panel" id="combined-mesh-mgmt-panel" data-panel-key="meshdata-combined-mgmt" style="display:none">
         <div class="box-title">Combined Mesh Data Management</div>
         <div class="callout mini" style="margin-bottom:12px">Save, export and clear the combined (surface + face) mesh data. <strong>Save Combined Mesh</strong> opens a file save dialog.</div>
         <div class="btn-row">
@@ -1367,7 +1386,7 @@
     <div class="tab-panel" id="pane-apply">
 
       <!-- G-code Source -->
-      <div class="panel">
+      <div class="panel" data-panel-key="apply-gcode-src">
         <div class="box-title">&#128196; G-code Source</div>
         <div class="callout mini" style="margin-bottom:10px">Load the G-code program to apply Z compensation. You can paste G-code, load from a file, or use the currently loaded program in ncSender.</div>
         <div class="btn-row" style="margin-bottom:10px">
@@ -1381,7 +1400,7 @@
       </div>
 
       <!-- Surface Z Compensation -->
-      <div class="panel">
+      <div class="panel" data-panel-key="apply-surf-comp">
         <div class="box-title">&#9889; Surface Z Compensation</div>
         <div class="callout mini" style="margin-bottom:10px">Apply bilinear Z compensation from the surface mesh to the loaded G-code. <strong>Subdivide moves</strong> splits long linear moves into short segments that follow the mesh surface for smooth curves.</div>
         <div class="grid two" style="margin-bottom:10px">
@@ -1404,7 +1423,7 @@
       </div>
 
       <!-- Face Compensation -->
-      <div class="panel">
+      <div class="panel" data-panel-key="apply-face-comp">
         <div class="box-title">&#128736; Face Compensation</div>
         <div class="callout mini" style="margin-bottom:10px">Apply face probe compensation to adjust the depth axis (X or Y) based on the face mesh. Requires face probe data.</div>
         <div class="grid two" style="margin-bottom:10px">
@@ -1450,7 +1469,7 @@
       </div>
 
       <!-- G-code Preview -->
-      <div class="panel">
+      <div class="panel" data-panel-key="apply-gcode-preview">
         <div class="box-title">&#128203; Compensated G-code Preview</div>
         <pre id="apply-preview" class="mono" style="max-height:200px;overflow-y:auto;padding:10px;border:1px solid var(--line);border-radius:10px;background:#0d111a;font-size:11px;white-space:pre-wrap;color:var(--muted)">No compensated G-code yet</pre>
       </div>
@@ -8353,6 +8372,7 @@ function smLoadSettings() {
   try{ renderLog('face'); }catch(e){}
   try{ smLoadSettings(); }catch(e){}
   try{ onProbeTypeChange(); }catch(e){}
+  try{ initLayoutEditor(); }catch(e){ console.warn('Layout editor init error:', e); }
 
   // Tab buttons
   document.querySelectorAll('.tab').forEach(function(t){
@@ -11437,6 +11457,220 @@ window.runUIDiagnostics = runUIDiagnostics;
 })();
 
 })(); // end IIFE
+// ── Layout Editor ─────────────────────────────────────────────────────────────
+// Per-tab panel reordering with localStorage persistence.
+// Storage key format: le3dp.layout.<tabId>
+// Panels are identified by their data-panel-key attribute.
+
+var _layoutEditActive = false;
+var _layoutOriginalOrder = {};  // tabId -> [key, ...]
+var _layoutDragSrc = null;
+
+function _panelKey(el) {
+  return el.getAttribute('data-panel-key') || null;
+}
+
+function _getDraggableChildren(tabPane) {
+  return Array.prototype.filter.call(tabPane.children, function(child) {
+    return !!_panelKey(child);
+  });
+}
+
+function _getTabIdFromPane(pane) {
+  return pane.id.replace(/^pane-/, '');
+}
+
+function _layoutStorageKey(tabId) {
+  return 'le3dp.layout.' + tabId;
+}
+
+function _saveLayout(tabId) {
+  var pane = document.getElementById('pane-' + tabId);
+  if (!pane) return;
+  var children = _getDraggableChildren(pane);
+  var order = children.map(function(c) { return _panelKey(c); });
+  try { localStorage.setItem(_layoutStorageKey(tabId), JSON.stringify(order)); } catch(e) {}
+}
+
+function _reorderPane(pane, orderedKeys) {
+  if (!orderedKeys || !orderedKeys.length) return;
+  var allChildren = Array.from(pane.children);
+  var keyToEl = {};
+  allChildren.forEach(function(c) {
+    var k = _panelKey(c);
+    if (k) keyToEl[k] = c;
+  });
+
+  // Find the first non-keyed child as an anchor for insertion
+  var anchor = null;
+  for (var i = 0; i < allChildren.length; i++) {
+    if (!_panelKey(allChildren[i])) { anchor = allChildren[i]; break; }
+  }
+
+  // Insert keyed elements in the specified order, all before the anchor
+  orderedKeys.forEach(function(key) {
+    var el = keyToEl[key];
+    if (el) pane.insertBefore(el, anchor); // anchor=null → append to end
+  });
+}
+
+function _restoreLayout(tabId) {
+  var pane = document.getElementById('pane-' + tabId);
+  if (!pane) return;
+  var raw = localStorage.getItem(_layoutStorageKey(tabId));
+  if (!raw) return;
+  var savedOrder;
+  try { savedOrder = JSON.parse(raw); } catch(e) { return; }
+  if (!Array.isArray(savedOrder) || !savedOrder.length) return;
+
+  // Include any new keys not in saved order (e.g. after an update) at the end
+  var allChildren = Array.from(pane.children);
+  var allKeys = allChildren.map(function(c) { return _panelKey(c); }).filter(Boolean);
+  var savedSet = {};
+  savedOrder.forEach(function(k) { savedSet[k] = true; });
+  allKeys.forEach(function(k) { if (!savedSet[k]) savedOrder.push(k); });
+
+  _reorderPane(pane, savedOrder);
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
+function initLayoutEditor() {
+  document.querySelectorAll('.tab-panel').forEach(function(pane) {
+    var tabId = _getTabIdFromPane(pane);
+    var children = _getDraggableChildren(pane);
+    _layoutOriginalOrder[tabId] = children.map(function(c) { return _panelKey(c); });
+    try { _restoreLayout(tabId); } catch(e) {}
+  });
+}
+
+function toggleLayoutEdit() {
+  _layoutEditActive = !_layoutEditActive;
+  var root = document.getElementById('surface-edge-mesh-root');
+  var toggleBtn = document.getElementById('layout-edit-toggle');
+  var resetBtn = document.getElementById('layout-reset-btn');
+
+  if (_layoutEditActive) {
+    if (root) root.classList.add('layout-edit-active');
+    if (toggleBtn) { toggleBtn.textContent = '\uD83D\uDD13 Lock Layout'; toggleBtn.classList.add('active'); }
+    if (resetBtn) resetBtn.style.display = '';
+    _enableDrag();
+  } else {
+    if (root) root.classList.remove('layout-edit-active');
+    if (toggleBtn) { toggleBtn.textContent = '\u2699\uFE0F Edit Layout'; toggleBtn.classList.remove('active'); }
+    if (resetBtn) resetBtn.style.display = 'none';
+    _disableDrag();
+  }
+}
+
+function resetCurrentTabLayout() {
+  var activePane = document.querySelector('#surface-edge-mesh-root .tab-panel.active');
+  if (!activePane) return;
+  var tabId = _getTabIdFromPane(activePane);
+  try { localStorage.removeItem(_layoutStorageKey(tabId)); } catch(e) {}
+  var orig = _layoutOriginalOrder[tabId];
+  if (orig) _reorderPane(activePane, orig);
+}
+
+// ── Drag-and-drop ─────────────────────────────────────────────────────────────
+
+function _enableDrag() {
+  document.querySelectorAll('.tab-panel').forEach(function(pane) {
+    _getDraggableChildren(pane).forEach(function(child) {
+      // Inject drag handle
+      var handle = document.createElement('div');
+      handle.className = 'le3dp-drag-handle';
+      handle.setAttribute('aria-hidden', 'true');
+      handle.innerHTML = '\u22EE\u22EE Drag to reorder';
+      child.insertBefore(handle, child.firstChild);
+
+      child.setAttribute('draggable', 'true');
+      child.addEventListener('dragstart', _onDragStart);
+      child.addEventListener('dragover', _onDragOver);
+      child.addEventListener('dragleave', _onDragLeave);
+      child.addEventListener('drop', _onDrop);
+      child.addEventListener('dragend', _onDragEnd);
+    });
+  });
+}
+
+function _disableDrag() {
+  document.querySelectorAll('.tab-panel').forEach(function(pane) {
+    _getDraggableChildren(pane).forEach(function(child) {
+      // Remove injected drag handle
+      var handle = child.querySelector('.le3dp-drag-handle');
+      if (handle) handle.parentNode.removeChild(handle);
+
+      child.removeAttribute('draggable');
+      child.removeEventListener('dragstart', _onDragStart);
+      child.removeEventListener('dragover', _onDragOver);
+      child.removeEventListener('dragleave', _onDragLeave);
+      child.removeEventListener('drop', _onDrop);
+      child.removeEventListener('dragend', _onDragEnd);
+      child.classList.remove('layout-drag-over-before', 'layout-drag-over-after', 'layout-dragging');
+    });
+  });
+}
+
+function _onDragStart(e) {
+  _layoutDragSrc = this;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', _panelKey(this) || '');
+  this.classList.add('layout-dragging');
+}
+
+function _clearDragIndicators(pane) {
+  _getDraggableChildren(pane).forEach(function(c) {
+    c.classList.remove('layout-drag-over-before', 'layout-drag-over-after');
+  });
+}
+
+function _onDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  if (!_layoutDragSrc || this === _layoutDragSrc) return;
+  if (this.parentElement !== _layoutDragSrc.parentElement) return;
+
+  _clearDragIndicators(this.parentElement);
+  var rect = this.getBoundingClientRect();
+  if (e.clientY < rect.top + rect.height / 2) {
+    this.classList.add('layout-drag-over-before');
+  } else {
+    this.classList.add('layout-drag-over-after');
+  }
+}
+
+function _onDragLeave(e) {
+  // Only clear if actually leaving this element (not entering a child)
+  if (!this.contains(e.relatedTarget)) {
+    this.classList.remove('layout-drag-over-before', 'layout-drag-over-after');
+  }
+}
+
+function _onDrop(e) {
+  e.preventDefault();
+  this.classList.remove('layout-drag-over-before', 'layout-drag-over-after');
+  if (!_layoutDragSrc || _layoutDragSrc === this) return;
+  if (this.parentElement !== _layoutDragSrc.parentElement) return;
+
+  var pane = this.parentElement;
+  var tabId = _getTabIdFromPane(pane);
+  var rect = this.getBoundingClientRect();
+
+  if (e.clientY < rect.top + rect.height / 2) {
+    pane.insertBefore(_layoutDragSrc, this);
+  } else {
+    pane.insertBefore(_layoutDragSrc, this.nextSibling);
+  }
+
+  _saveLayout(tabId);
+}
+
+function _onDragEnd(e) {
+  this.classList.remove('layout-dragging');
+  if (this.parentElement) _clearDragIndicators(this.parentElement);
+  _layoutDragSrc = null;
+}
 </script>
 </body>
 </html>

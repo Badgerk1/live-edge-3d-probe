@@ -22,6 +22,7 @@ cat src/config-header.html \
     src/js/finish-motion.js \
     src/js/settings-and-exports.js \
     src/js/diagnostics.js \
+    src/js/layout-editor.js \
     src/config-footer.html \
     > config.html
 
