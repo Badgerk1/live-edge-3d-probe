@@ -1140,19 +1140,10 @@ function exportFaceOBJ() {
   pluginDebug('exportFaceOBJ: exported ' + allVerts.length + ' vertices, ' + allTris.length + ' triangles (subdivision ' + subSpacing + 'mm)');
   setFooterStatus('Exported face mesh to OBJ (' + allVerts.length + ' vertices, C2 spline subdivision ' + subSpacing + 'mm).', 'good');
 }
-// ── Face wall mesh builder for export (matches 3D preview pipeline) ───────────
-// Generates real-world-coordinate vertices/triangles using the SAME bicubic
-// Catmull-Rom interpolation and pre-smoothing as _buildThreeFaceWall in the 3D
-// preview, so the exported STL looks identical to the on-screen mesh.
-//
-// faceWall : output of buildFaceWallGrid()
-// sub      : subdivision factor per grid cell (preview uses SUB=8; higher = finer)
-// smPeak   : face wall peak-smoothing blend (0–1), same as faceWallSmoothPeak UI
-// smValley : face wall valley-smoothing blend (0–1), same as faceWallSmoothValley UI
-//
-// Returns { pts:[{x,y,z},...], tris:[[i0,i1,i2],...], totalCols, totalRows }
-//      or { tooLarge:true, vertCount:N } when safety cap would be exceeded
-//      or null for insufficient grid data.
+// ── Face wall mesh builder for export (kept for internal reference only — not called) ──────
+// NOTE: This function is no longer used by exportFaceSTL (which now uses _upsampleFaceData
+// for C2 natural-cubic-spline smoothness identical to exportFaceOBJ).  Retained temporarily
+// in case a future caller needs the Catmull-Rom path; it may be removed in a later cleanup.
 var FACE_STL_MAX_VERTS = 500000;
 function _buildFaceWallExportMesh(faceWall, sub, smPeak, smValley) {
   var nR = faceWall.nRows, nC = faceWall.nCols;
@@ -1272,65 +1263,66 @@ function _buildFaceWallExportMesh(faceWall, sub, smPeak, smValley) {
   return { pts: posArr, tris: tris, totalCols: totalCols, totalRows: totalRows };
 }
 // ── Face STL export ───────────────────────────────────────────────────────────
-// Uses the SAME bicubic Catmull-Rom mesh-generation pipeline as the 3D preview
-// (buildFaceWallGrid → per-cell Catmull-Rom SUB ≥ 8 → same pre-smoothing), so
-// the exported STL exactly matches the smooth on-screen preview in Aspire v12.
+// Uses the SAME C2 natural cubic spline upsampling pipeline as exportFaceOBJ
+// (_upsampleFaceData → _cubicSplineUpsampleGrid), so the exported STL has fully
+// smooth geometry in Aspire's flat-shaded 3D viewer — no horizontal or vertical
+// crease lines at probe-layer boundaries.
 function exportFaceSTL() {
   pluginDebug('exportFaceSTL ENTER');
-  var faceWall = buildFaceWallGrid();
-  if (!faceWall) { pluginDebug('exportFaceSTL: no data'); alert('No face mesh data. Run a face probe first.'); return; }
-  // Map mm-spacing setting to a per-cell subdivision factor.
-  // Minimum 8 matches the 3D preview (SUB=8); lower mm value = higher sub = finer mesh.
-  var subSpacingMm = Number((document.getElementById('faceOBJSubdivision') || {}).value);
-  if (!isFinite(subSpacingMm) || subSpacingMm <= 0) subSpacingMm = 0.5;
-  subSpacingMm = Math.max(0.25, subSpacingMm);
-  var cellX = faceWall.nCols > 1 ? (faceWall.xMax - faceWall.xMin) / (faceWall.nCols - 1) : 1;
-  var cellZ = faceWall.nRows > 1 ? (faceWall.zMax - faceWall.zMin) / (faceWall.nRows - 1) : 1;
-  var sub = Math.max(8, Math.ceil(Math.max(cellX, cellZ) / subSpacingMm));
-  // Safety: cap sub so we never exceed FACE_STL_MAX_VERTS in advance.
-  var nCX = faceWall.nCols - 1, nCY = faceWall.nRows - 1;
-  var maxSub = Math.max(8, Math.floor(Math.sqrt(FACE_STL_MAX_VERTS / Math.max(nCX * nCY, 1))));
-  sub = Math.min(sub, maxSub);
-  // Smoothing values: identical to 3D preview reads.
-  var smPeak   = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmoothPeak')   || {}).value) || 0));
-  var smValley = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmoothValley') || {}).value) || 0));
-  var mesh = _buildFaceWallExportMesh(faceWall, sub, smPeak, smValley);
-  if (!mesh) { pluginDebug('exportFaceSTL: insufficient grid'); alert('Insufficient face probe data — need at least a 2×2 grid of probe points.'); return; }
-  if (mesh.tooLarge) {
-    alert('Face STL export cancelled: requested subdivision would produce ' +
-      mesh.vertCount.toLocaleString() + ' vertices (limit ' + FACE_STL_MAX_VERTS.toLocaleString() + ').\n' +
-      'Increase "OBJ / STL Subdivision Resolution (mm)" to reduce vertex count.');
+  var data = getFaceMeshData();
+  if (!data || !data.length) { pluginDebug('exportFaceSTL: no data'); alert('No face mesh data. Run a face probe first.'); return; }
+  var subSpacing = Number((document.getElementById('faceOBJSubdivision') || {}).value);
+  if (!isFinite(subSpacing) || subSpacing <= 0) subSpacing = 0.5;
+  subSpacing = Math.max(0.5, subSpacing);
+  // Upsample the face probe grid via C2 natural cubic spline (same as exportFaceOBJ).
+  var up = _upsampleFaceData(data, subSpacing);
+  if (!up || !up.pts || up.pts.length < 3) {
+    pluginDebug('exportFaceSTL: insufficient grid');
+    alert('Insufficient face probe data — need at least a 2×2 grid of probe points.');
     return;
   }
-  // Optional seam-edge smoothing on the top row (blend toward neighbours).
-  // Default 0 = off; preview does not apply this step, so setting 0 gives exact preview match.
+  // Seam-edge and face-wall smoothing (same controls as exportFaceOBJ).
   var faceSeamBlend = Math.min(1, Math.max(0, Number((document.getElementById('faceSeamSmooth') || {}).value) || 0));
-  if (faceSeamBlend > 0) {
-    var bf = faceSeamBlend, tCols = mesh.totalCols, tRows = mesh.totalRows;
-    var topRowOff   = (tRows - 1) * tCols;
-    var innerRowOff = (tRows - 2) * tCols;
-    for (var ci = 0; ci < tCols; ci++) {
-      var vTop = mesh.pts[topRowOff + ci], vInner = mesh.pts[innerRowOff + ci];
-      if (!vTop || !vInner) continue;
-      var sum = vInner.y, cnt = 1;
-      if (ci > 0 && mesh.pts[topRowOff + ci - 1]) { sum += mesh.pts[topRowOff + ci - 1].y; cnt++; }
-      if (ci < tCols - 1 && mesh.pts[topRowOff + ci + 1]) { sum += mesh.pts[topRowOff + ci + 1].y; cnt++; }
-      vTop.y = vTop.y * (1 - bf) + (sum / cnt) * bf;
+  if (faceSeamBlend > 0) _smoothFaceSeamRow(up, faceSeamBlend);
+  var faceWallPeak   = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmoothPeak')   || {}).value) || 0));
+  var faceWallValley = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmoothValley') || {}).value) || 0));
+  if (faceWallPeak > 0 || faceWallValley > 0) _smoothFaceWallRows(up, faceWallPeak, faceWallValley);
+  var allVerts = up.pts;
+  var allTris;
+  if (up.vMap && up.rowCount >= 2 && up.colCount >= 2) {
+    allTris = [];
+    for (var ri = 0; ri < up.rowCount - 1; ri++) {
+      for (var ci = 0; ci < up.colCount - 1; ci++) {
+        var a=up.vMap[ri][ci], b=up.vMap[ri][ci+1], c=up.vMap[ri+1][ci+1], d=up.vMap[ri+1][ci];
+        if (a!=null && b!=null && c!=null && d!=null) {
+          allTris.push([a, b, c]);
+          allTris.push([a, c, d]);
+        } else if (a!=null && b!=null && c!=null) { allTris.push([a, b, c]);
+        } else if (a!=null && c!=null && d!=null) { allTris.push([a, c, d]);
+        } else if (b!=null && c!=null && d!=null) { allTris.push([b, c, d]);
+        } else if (a!=null && b!=null && d!=null) { allTris.push([a, b, d]); }
+      }
     }
+  } else {
+    var pts2d = allVerts.map(function(v) { return {x: v.x, y: v.z}; });
+    allTris = _delaunayTriangulate(pts2d);
   }
-  var allVerts = mesh.pts, allTris = mesh.tris;
-  if (!allTris.length) { pluginDebug('exportFaceSTL: no triangles'); alert('Triangulation failed — need at least a 2×2 grid of face probe points.'); return; }
+  if (!allTris || !allTris.length) {
+    pluginDebug('exportFaceSTL: triangulation failed');
+    alert('Triangulation failed — need at least a 2×2 grid of face probe points.');
+    return;
+  }
   // Ensure face normals point in -Y direction (outward toward probe approach).
   var sumNy = 0;
   allTris.forEach(function(t) {
-    var v0=allVerts[t[0]],v1=allVerts[t[1]],v2=allVerts[t[2]];
-    var e1x=v1.x-v0.x,e1z=v1.z-v0.z,e2x=v2.x-v0.x,e2z=v2.z-v0.z;
-    sumNy+=e1z*e2x-e1x*e2z;
+    var v0=allVerts[t[0]], v1=allVerts[t[1]], v2=allVerts[t[2]];
+    var e1x=v1.x-v0.x, e1z=v1.z-v0.z, e2x=v2.x-v0.x, e2z=v2.z-v0.z;
+    sumNy += e1z*e2x - e1x*e2z;
   });
-  if (sumNy > 0) allTris = allTris.map(function(t) { return [t[0],t[2],t[1]]; });
+  if (sumNy > 0) allTris = allTris.map(function(t) { return [t[0], t[2], t[1]]; });
   _stlDownload(allVerts, allTris, 'face_mesh_' + Date.now() + '.stl');
-  pluginDebug('exportFaceSTL: exported ' + allVerts.length + ' vertices, ' + allTris.length + ' triangles (sub=' + sub + ', ~' + subSpacingMm + 'mm)');
-  setFooterStatus('Exported face mesh to STL (' + allVerts.length + ' vertices, preview-matched mesh, sub=' + sub + ').', 'good');
+  pluginDebug('exportFaceSTL: exported ' + allVerts.length + ' vertices, ' + allTris.length + ' triangles (subdivision ' + subSpacing + 'mm)');
+  setFooterStatus('Exported face mesh to STL (' + allVerts.length + ' vertices, C2 spline subdivision ' + subSpacing + 'mm).', 'good');
 }
 // ── Combined DXF export ───────────────────────────────────────────────────────
 function exportCombinedDXF() {
