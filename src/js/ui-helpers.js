@@ -225,8 +225,10 @@ function populateSurfaceResults() {
   if (!hasSurface && !hasFace) {
     panel.style.display = 'none';
     if (facePanel) facePanel.style.display = 'none';
-    var reliefMapsPanel = document.getElementById('res-relief-maps-panel');
-    if (reliefMapsPanel) reliefMapsPanel.style.display = 'none';
+    var resSurfRelief0 = document.getElementById('res-surface-relief-panel');
+    if (resSurfRelief0) resSurfRelief0.style.display = 'none';
+    var resFaceRelief0 = document.getElementById('res-face-relief-panel');
+    if (resFaceRelief0) resFaceRelief0.style.display = 'none';
     populateUnifiedProbeTable();
     return;
   }
@@ -239,8 +241,6 @@ function populateSurfaceResults() {
   if (facePanel) facePanel.style.display = hasAnyProbeData ? 'block' : 'none';
 
   // Show/hide Results tab relief map panels based on available data
-  var reliefMapsPanel = document.getElementById('res-relief-maps-panel');
-  if (reliefMapsPanel) reliefMapsPanel.style.display = hasAnyProbeData ? '' : 'none';
   var resSurfRelief = document.getElementById('res-surface-relief-panel');
   if (resSurfRelief) resSurfRelief.style.display = hasSurface ? '' : 'none';
   var resFaceRelief = document.getElementById('res-face-relief-panel');
@@ -562,13 +562,31 @@ function onProbeTypeChange() {
   var faceSurfCfg = document.getElementById('face-surf-config-section');
   if (faceSurfCfg) faceSurfCfg.style.display = showFace ? '' : 'none';
 
-  // Surface mesh section (visualizer)
-  var surfMesh = document.getElementById('surface-mesh-section');
-  if (surfMesh) surfMesh.style.display = showSurface ? '' : 'none';
+  // Surface mesh panels (split from surface-mesh-section into individual top-level panels)
+  if (showSurface) {
+    var smHeatmap = document.getElementById('sm-heatmap-panel');
+    if (smHeatmap) smHeatmap.style.display = '';
+    var surfExport = document.getElementById('surf-export-panel');
+    if (surfExport) surfExport.style.display = '';
+  } else {
+    ['sm-heatmap-panel', 'sm-terrain-panel', 'surf-export-panel'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+  }
 
-  // Face mesh section (face visualizer, relief map, data mgmt)
-  var faceMesh = document.getElementById('face-mesh-section');
-  if (faceMesh) faceMesh.style.display = showFace ? '' : 'none';
+  // Face mesh panels (split from face-mesh-section into individual top-level panels)
+  if (showFace) {
+    ['face-heatmap-panel', 'face-point-data-panel', 'face-data-mgmt-panel', 'face-export-panel'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.style.display = '';
+    });
+  } else {
+    ['face-heatmap-panel', 'face-terrain-panel', 'face-point-data-panel', 'face-data-mgmt-panel', 'face-export-panel'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+  }
 
   // Face probe direct controls section
   var faceDirectControls = document.getElementById('face-direct-controls-section');

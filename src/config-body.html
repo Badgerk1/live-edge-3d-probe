@@ -652,9 +652,8 @@
   </div>
 
   <!-- ── Surface Mesh Section ───────────────────────────────────────── -->
-  <div id="surface-mesh-section" data-panel-key="top-surf-mesh">
-    <!-- Heatmap view (shown by default) -->
-    <div id="sm-heatmap-panel" class="panel">
+  <!-- Surface Heatmap panel -->
+  <div id="sm-heatmap-panel" class="panel" data-panel-key="top-surf-heatmap">
       <div class="box-title">&#127774; Surface Heatmap</div>
       <div class="callout mini" style="margin-bottom:8px">Top-down topographic heatmap — warm colors (red/orange) = high Z, cool colors (blue/green) = low Z. Bilinear interpolation between probe points. Hover for values.</div>
       <canvas id="sm-surface-relief-canvas" style="width:100%;border:1px solid var(--line);border-radius:8px;background:#0d111a;display:block"></canvas>
@@ -664,8 +663,9 @@
         <span style="font-size:11px;color:var(--muted);margin-left:10px">Drag to rotate &middot; Scroll to zoom &middot; Right-click to pan</span>
       </div>
     </div>
-    <!-- 3D Terrain view (hidden by default, shown on toggle or during probing) -->
-    <div id="sm-terrain-panel" class="panel" style="display:none">
+
+  <!-- Surface 3D Visualizer panel (hidden by default, shown on toggle or during probing) -->
+  <div id="sm-terrain-panel" class="panel" data-panel-key="top-surf-3d" style="display:none">
       <div class="box-title">Surface Probe Visualizer</div>
       <div id="sm-probeViz">
         <div id="sm-pviz-scene">
@@ -750,8 +750,9 @@
         <button class="btn ghost" onclick="flashButton(this);toggleProbeModeView('sm')" style="font-size:12px;font-weight:600">&#9660; Heatmap</button>
       </div>
     </div>
-    <!-- Surface Mesh Export -->
-    <div class="panel">
+
+  <!-- Surface Mesh Export panel -->
+  <div id="surf-export-panel" class="panel" data-panel-key="top-surf-export">
       <div class="box-title">Surface Mesh Export</div>
       <div class="callout mini" style="margin-bottom:10px">Export the surface probe mesh as CSV, DXF polylines, OBJ 3D mesh, or STL 3D mesh. Uses the current surface mesh data.</div>
       <div class="field" style="max-width:320px;margin-bottom:10px">
@@ -773,8 +774,9 @@
         <button class="btn ghost" id="btn-export-surf-stl" title="Export surface mesh as binary STL (recommended for Aspire v12)">&#128230; Export STL</button>
       </div>
     </div>
-    <!-- Combined Mode Settings — shown only in Combined mode -->
-    <div id="combined-settings-panel" class="panel" style="display:none">
+
+  <!-- Combined Mode Settings panel — shown only in Combined mode -->
+  <div id="combined-settings-panel" class="panel" data-panel-key="top-combined-settings" style="display:none">
       <div class="box-title">Combined Mode Settings</div>
       <div class="field" style="max-width:320px;margin-bottom:10px">
         <label><span class="tooltip">Phase Pause (ms)<span class="tip-icon">?</span><span class="tip">Delay in milliseconds inserted between the end of the surface probe row and the start of the face probe phase. Gives the machine and operator time to settle. Default: 2000ms.</span></span>
@@ -783,8 +785,9 @@
         <div class="mini" style="margin-top:4px">Pause before face probe starts. 0 = no delay. Saved with Settings.</div>
       </div>
     </div>
-    <!-- Combined Mesh Export (Watertight) — shown only in Combined mode -->
-    <div id="combined-export-panel" class="panel" style="display:none">
+
+  <!-- Combined Mesh Export (Watertight) panel — shown only in Combined mode -->
+  <div id="combined-export-panel" class="panel" data-panel-key="top-combined-export" style="display:none">
       <div class="box-title">Combined Mesh Export (Watertight)</div>
       <div class="callout mini" style="margin-bottom:10px">Stitches the <strong>Surface MinY edge (Row 1)</strong> to the <strong>Face top edge</strong> and closes the model down to a user-defined Bottom Z to produce a single watertight OBJ or STL. DXF exports both datasets as polylines (not watertight).</div>
       <div class="field" style="max-width:320px;margin-bottom:10px">
@@ -806,12 +809,10 @@
         <button class="btn ghost" id="btn-export-combined-dxf" title="Export combined DXF polylines (surface rows + face layers)">&#128208; Export Combined DXF (Polylines)</button>
       </div>
     </div>
-  </div><!-- /surface-mesh-section -->
 
   <!-- ── Face Mesh Section ──────────────────────────────────────────── -->
-  <div id="face-mesh-section" data-panel-key="top-face-mesh" style="display:none">
-    <!-- Face Heatmap (shown by default) -->
-    <div id="face-heatmap-panel" class="panel">
+  <!-- Face Heatmap panel (shown in face/combined mode) -->
+  <div id="face-heatmap-panel" class="panel" data-panel-key="top-face-heatmap" style="display:none">
       <div class="box-title">&#127774; Face Heatmap</div>
       <div class="callout mini" style="margin-bottom:8px">Front view (XZ plane) — warm colors = shallow contact (Y near 0), cool colors = deep contact (Y far negative). Bilinear interpolation between probe points. Hover for values.</div>
       <canvas id="face-relief-canvas" style="width:100%;border:1px solid var(--line);border-radius:8px;background:#0d111a;display:block"></canvas>
@@ -822,7 +823,7 @@
       </div>
     </div>
     <!-- Face Mesh 3D Visualizer (hidden by default, shown on toggle) -->
-    <div id="face-terrain-panel" class="panel" style="display:none">
+  <div id="face-terrain-panel" class="panel" data-panel-key="top-face-3d" style="display:none">
       <div class="box-title">&#128208; Face Mesh — 3D Visualizer</div>
       <div id="face-pviz-scene">
         <div id="face-three-canvas" class="three-canvas-wrap"></div>
@@ -840,8 +841,9 @@
         <button class="btn ghost" onclick="flashButton(this);toggleProbeModeView('face')" style="font-size:12px;font-weight:600">&#9660; Heatmap</button>
       </div>
     </div>
-    <!-- Face Mesh Point Data -->
-    <div class="panel">
+
+  <!-- Face Mesh Point Data panel (shown in face/combined mode) -->
+  <div id="face-point-data-panel" class="panel" data-panel-key="top-face-point-data" style="display:none">
       <div class="box-title">Face Mesh Point Data</div>
       <div style="max-height:260px;overflow-y:auto;border:1px solid var(--line);border-radius:10px">
         <table>
@@ -850,8 +852,9 @@
         </table>
       </div>
     </div>
-    <!-- Face Mesh Data Management -->
-    <div class="panel">
+
+  <!-- Face Mesh Data Management panel (shown in face/combined mode) -->
+  <div id="face-data-mgmt-panel" class="panel" data-panel-key="top-face-data-mgmt" style="display:none">
       <div class="box-title">Face Mesh Data Management</div>
       <div class="callout mini" style="margin-bottom:12px">Save, load, export and import face mesh data. <strong>Save Face Mesh</strong> opens a file save dialog. Use <strong>Load Face Mesh</strong> to restore from browser storage. Export/Import for file-based transfer.</div>
       <div class="btn-row">
@@ -866,8 +869,9 @@
       </div>
       <div class="status-line" id="face-meshStorageStatus" style="margin-top:8px"></div>
     </div>
-    <!-- Face Mesh Export -->
-    <div class="panel">
+
+  <!-- Face Mesh Export panel (shown in face/combined mode) -->
+  <div id="face-export-panel" class="panel" data-panel-key="top-face-export" style="display:none">
       <div class="box-title">Face Mesh Export (DXF / OBJ / STL)</div>
       <div class="callout mini" style="margin-bottom:10px">Export face probe results as CSV, DXF, OBJ, or STL. In layered mode these include all layers. In single-pass mode the results are exported as layer 1.</div>
       <div class="field" style="max-width:320px;margin-bottom:10px">
@@ -910,7 +914,6 @@
         <button class="btn ghost" id="btn-export-face-stl" title="Export face mesh as binary STL (recommended for Aspire v12)">&#128230; Export STL</button>
       </div>
     </div>
-  </div><!-- /face-mesh-section -->
 
   <!-- ── Unified Probe Log ───────────────────────────────────────────── -->
   <div class="panel" data-panel-key="top-probe-log">
@@ -983,9 +986,8 @@
         </div>
       </div>
 
-      <!-- 2D Relief Maps for Results tab — same heatmap style as Probe/Mesh Data tabs -->
-      <div id="res-relief-maps-panel" data-panel-key="results-relief-maps" style="display:none">
-        <div class="panel" id="res-surface-relief-panel">
+      <!-- 2D Relief Maps for Results tab — split into individual top-level panels -->
+      <div class="panel" id="res-surface-relief-panel" data-panel-key="results-surf-relief" style="display:none">
           <div class="box-title">&#127774; Surface Relief Map</div>
           <div class="callout mini" style="margin-bottom:8px">Top-down topographic heatmap (XY projection) — warm colors = high Z, cool colors = low Z. Hover for values.</div>
           <canvas id="res-surface-relief-canvas" style="width:100%;border:1px solid var(--line);border-radius:8px;background:#0d111a;display:block"></canvas>
@@ -993,13 +995,13 @@
           <div class="btn-row" style="margin-top:8px">
             <button class="btn ghost" onclick="flashButton(this);clearReliefCanvasPanel(['res-surface-relief-canvas','res-face-relief-canvas'])">&#128465; Clear</button>
           </div>
-        </div>
-        <div class="panel" id="res-face-relief-panel">
+      </div>
+
+      <div class="panel" id="res-face-relief-panel" data-panel-key="results-face-relief" style="display:none">
           <div class="box-title">&#127774; Face Relief Map</div>
           <div class="callout mini" style="margin-bottom:8px">Front view (XZ projection) — warm colors = shallow contact (Y near 0), cool colors = deep contact. Hover for values.</div>
           <canvas id="res-face-relief-canvas" style="width:100%;border:1px solid var(--line);border-radius:8px;background:#0d111a;display:block"></canvas>
           <div id="res-face-relief-tooltip" class="mini" style="color:var(--muted);margin-top:4px">Hover over map for values</div>
-        </div>
       </div>
 
       <!-- Probe Data: one table for all probe points (surface + face) with Type column -->
