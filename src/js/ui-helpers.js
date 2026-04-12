@@ -9,6 +9,23 @@ function switchTab(id){
   document.querySelectorAll('.tab').forEach(function(t){
     if(t.getAttribute('data-tab') === id) t.classList.add('active');
   });
+
+  // Teleport jog controls between Setup tab and Probe tab
+  var jogCard = document.getElementById('jog-controls-card');
+  var probeHolder = document.getElementById('probe-jog-placeholder');
+  var setupAnchor = document.getElementById('jog-original-anchor');
+  if (jogCard && probeHolder && setupAnchor) {
+    if (id === 'top') {
+      // Move jog card into the probe placeholder and apply compact style
+      probeHolder.appendChild(jogCard);
+      jogCard.classList.add('jog-compact');
+    } else {
+      // Return jog card to its original position in Setup tab (after the anchor)
+      setupAnchor.parentNode.insertBefore(jogCard, setupAnchor.nextSibling);
+      jogCard.classList.remove('jog-compact');
+    }
+  }
+
   // Re-render relief maps when switching to their tabs (canvas needs visible width)
   if(id === 'meshdata') { setTimeout(renderSurfaceReliefMap, 60); setTimeout(renderRelief3D, 120); setTimeout(renderFaceReliefMap, 90); }
   if(id === 'results')  { setTimeout(populateSurfaceResults, 30); setTimeout(renderSurfaceReliefMap, 60); setTimeout(renderFaceReliefMap, 90); setTimeout(renderResVizMesh, 100); setTimeout(renderResFaceVizMesh, 120); }

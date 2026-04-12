@@ -294,7 +294,8 @@
             <div class="mini">Save Current Location stores the present work position in the plugin. Check Homed reads controller state and shows homed, machine, and probe input status before you start probing. Finish Clearance sets how many mm above the highest measured probe contact to retract Z before any X/Y return.</div>
           </div>
 
-          <div class="jog-card">
+          <div id="jog-original-anchor"></div>
+          <div class="jog-card" id="jog-controls-card">
             <div class="box-title">Jog Controls</div>
             <div class="jog-topbar">
               <div class="jog-step-group">
@@ -379,6 +380,9 @@
 
     <!-- ── TOP PROFILE TAB ────────────────────────────────────────────── -->
     <div class="tab-panel" id="pane-top">
+
+  <!-- ── Jog Controls (teleported here from Setup tab when Probe tab is active) ── -->
+  <div id="probe-jog-placeholder"></div>
 
   <!-- ── Probe Type Selector ─────────────────────────────────────────── -->
   <div class="panel" data-panel-key="top-probe-mode">
