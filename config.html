@@ -9781,27 +9781,49 @@ function _objDownload(content, filename) {
 // ── Binary STL helper ─────────────────────────────────────────────────────────
 // Writes a binary STL file (80-byte header + 4-byte tri count + 50 bytes/tri).
 // verts: [{x,y,z}, ...], tris: [[i0,i1,i2], ...]
-// Each triangle's face normal is computed from the vertex positions so Aspire
-// does not have to rely on vertex-normal hints.
+// Per-triangle normals are the area-weighted average of their three vertex normals
+// (each vertex normal = sum of unnormalised cross-products of all adjacent faces),
+// matching Three.js BufferGeometry.computeVertexNormals() so Aspire renders the
+// imported mesh smooth — no crease lines at cell boundaries.
 function _stlDownload(verts, tris, filename) {
   if (!tris.length) return;
-  var buf = new ArrayBuffer(84 + 50 * tris.length);
+  var nV = verts.length, nT = tris.length;
+  // ── Step 1: accumulate area-weighted face normals into per-vertex buckets ──
+  var vnx = new Float64Array(nV), vny = new Float64Array(nV), vnz = new Float64Array(nV);
+  for (var i = 0; i < nT; i++) {
+    var v0=verts[tris[i][0]], v1=verts[tris[i][1]], v2=verts[tris[i][2]];
+    var e1x=v1.x-v0.x, e1y=v1.y-v0.y, e1z=v1.z-v0.z;
+    var e2x=v2.x-v0.x, e2y=v2.y-v0.y, e2z=v2.z-v0.z;
+    // Cross product (unnormalised magnitude ∝ triangle area — area weighting is free)
+    var nx=e1y*e2z-e1z*e2y, ny=e1z*e2x-e1x*e2z, nz=e1x*e2y-e1y*e2x;
+    vnx[tris[i][0]]+=nx; vny[tris[i][0]]+=ny; vnz[tris[i][0]]+=nz;
+    vnx[tris[i][1]]+=nx; vny[tris[i][1]]+=ny; vnz[tris[i][1]]+=nz;
+    vnx[tris[i][2]]+=nx; vny[tris[i][2]]+=ny; vnz[tris[i][2]]+=nz;
+  }
+  // ── Step 2: normalise per-vertex normals ──────────────────────────────────
+  for (var vi = 0; vi < nV; vi++) {
+    var nl=Math.sqrt(vnx[vi]*vnx[vi]+vny[vi]*vny[vi]+vnz[vi]*vnz[vi]);
+    if (nl > 1e-10) { vnx[vi]/=nl; vny[vi]/=nl; vnz[vi]/=nl; }
+    else { vnx[vi]=0; vny[vi]=0; vnz[vi]=1; }
+  }
+  // ── Step 3: write binary STL ─────────────────────────────────────────────
+  var buf = new ArrayBuffer(84 + 50 * nT);
   var view = new DataView(buf);
   // 80-byte ASCII header
   var hdr = '3D Live Edge Mesh — binary STL export';
   for (var h = 0; h < 80; h++) view.setUint8(h, h < hdr.length ? hdr.charCodeAt(h) : 0);
-  view.setUint32(80, tris.length, true);
+  view.setUint32(80, nT, true);
   var off = 84;
-  for (var i = 0; i < tris.length; i++) {
-    var v0=verts[tris[i][0]], v1=verts[tris[i][1]], v2=verts[tris[i][2]];
-    var e1x=v1.x-v0.x, e1y=v1.y-v0.y, e1z=v1.z-v0.z;
-    var e2x=v2.x-v0.x, e2y=v2.y-v0.y, e2z=v2.z-v0.z;
-    var nx=e1y*e2z-e1z*e2y, ny=e1z*e2x-e1x*e2z, nz=e1x*e2y-e1y*e2x;
-    var nl=Math.sqrt(nx*nx+ny*ny+nz*nz);
-    if (nl > 1e-10) { nx/=nl; ny/=nl; nz/=nl; } else { nx=0; ny=0; nz=1; }
-    view.setFloat32(off, nx, true); off+=4;
-    view.setFloat32(off, ny, true); off+=4;
-    view.setFloat32(off, nz, true); off+=4;
+  for (var i = 0; i < nT; i++) {
+    var i0=tris[i][0], i1=tris[i][1], i2=tris[i][2];
+    var v0=verts[i0], v1=verts[i1], v2=verts[i2];
+    // Smooth face normal = normalised average of the three corner vertex normals
+    var snx=vnx[i0]+vnx[i1]+vnx[i2], sny=vny[i0]+vny[i1]+vny[i2], snz=vnz[i0]+vnz[i1]+vnz[i2];
+    var snl=Math.sqrt(snx*snx+sny*sny+snz*snz);
+    if (snl > 1e-10) { snx/=snl; sny/=snl; snz/=snl; } else { snx=0; sny=0; snz=1; }
+    view.setFloat32(off, snx, true); off+=4;
+    view.setFloat32(off, sny, true); off+=4;
+    view.setFloat32(off, snz, true); off+=4;
     view.setFloat32(off, v0.x, true); off+=4;
     view.setFloat32(off, v0.y, true); off+=4;
     view.setFloat32(off, v0.z, true); off+=4;
@@ -10505,7 +10527,8 @@ function _buildFaceWallExportMesh(faceWall, sub, smPeak, smValley) {
       var r00=faceWall.grid[li]&&faceWall.grid[li][xi], r10=faceWall.grid[li]&&faceWall.grid[li][xi+1];
       var r01=faceWall.grid[li+1]&&faceWall.grid[li+1][xi], r11=faceWall.grid[li+1]&&faceWall.grid[li+1][xi+1];
       if (!r00||!r10||!r01||!r11){validCell[xi][li]=false;continue;}
-      validCell[xi][li]=isFinite(Number(r00.z))&&isFinite(Number(r10.z))&&isFinite(Number(r01.z))&&isFinite(Number(r11.z));
+      validCell[xi][li]=isFinite(Number(r00.z))&&isFinite(Number(r10.z))&&isFinite(Number(r01.z))&&isFinite(Number(r11.z))&&
+                        isFinite(Number(r00.y))&&isFinite(Number(r10.y))&&isFinite(Number(r01.y))&&isFinite(Number(r11.y));
     }
   }
   // ── Fill unified vertex grid (real-world coords: x=machineX, y=depth, z=layerZ) ──
