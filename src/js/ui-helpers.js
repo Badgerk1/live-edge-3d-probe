@@ -12,7 +12,7 @@ function switchTab(id){
 
   // Teleport jog controls between Setup tab and Probe tab
   var jogCard = document.getElementById('jog-controls-card');
-  var probeHolder = document.getElementById('probe-jog-placeholder');
+  var probeHolder = document.getElementById('probe-jog-panel');
   var setupAnchor = document.getElementById('jog-original-anchor');
   if (jogCard && probeHolder && setupAnchor) {
     if (id === 'top') {
