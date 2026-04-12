@@ -8045,6 +8045,14 @@ async function runFaceProbe(axis, _calledFromCombined){
       faceSamples = [{ index: 1, sampleCoord: fixedCoord, topZ: fallbackTopZ }];
     }
 
+    // Average all sample topZ values into a single reference height so every
+    // sample probes at the same Z depth — eliminates horizontal/vertical
+    // banding caused by per-sample Z variation.
+    var _avgTopZSum = 0;
+    for(var _ati = 0; _ati < faceSamples.length; _ati++) _avgTopZSum += Number(faceSamples[_ati].topZ);
+    var avgTopZ = faceSamples.length ? (_avgTopZSum / faceSamples.length) : 0;
+    logLine('face', 'Face probe: averaged topZ reference = ' + avgTopZ.toFixed(3) + ' coords (from ' + faceSamples.length + ' samples, range ' + Math.min.apply(null, faceSamples.map(function(s){ return Number(s.topZ); })).toFixed(3) + ' to ' + Math.max.apply(null, faceSamples.map(function(s){ return Number(s.topZ); })).toFixed(3) + ')');
+
     // ── Layered face probe mode ───────────────────────────────────────────────
     if(s.enableLayeredFace){
       var maxDepth = Number(s.faceMaxDepth) || 14.75;
@@ -8064,17 +8072,11 @@ async function runFaceProbe(axis, _calledFromCombined){
         if(layerIdx === totalLayers - 1){
           layerRetractZ.push(null);
         } else {
-          var retractShallowest = null;
-          for(var sampleIdx = 0; sampleIdx < faceSamples.length; sampleIdx++){
-            var nextTopZ = Number(faceSamples[sampleIdx].topZ);
-            var nextDeepestZ = nextTopZ - maxDepth;
-            var nextSpacing = (nextTopZ - 0.05 - nextDeepestZ) / (totalLayers - 1);
-            var nextLayerZ = parseFloat((nextDeepestZ + ((layerIdx + 1) * nextSpacing)).toFixed(6));
-            if(retractShallowest === null || nextLayerZ > retractShallowest){
-              retractShallowest = nextLayerZ;
-            }
-          }
-          layerRetractZ.push(retractShallowest + 2);
+          // Use averaged topZ so retract heights are consistent across all samples
+          var nextDeepestZ = avgTopZ - maxDepth;
+          var nextSpacing = (avgTopZ - 0.05 - nextDeepestZ) / (totalLayers - 1);
+          var nextLayerZ = parseFloat((nextDeepestZ + ((layerIdx + 1) * nextSpacing)).toFixed(6));
+          layerRetractZ.push(nextLayerZ + 2);
         }
       }
 
@@ -8117,7 +8119,9 @@ async function runFaceProbe(axis, _calledFromCombined){
           // Layer 1 (bottom) is at sampleTopZ - maxDepth (stylus length below top surface)
           // Shallowest layer probes at sampleTopZ - 0.05 (0.05 coords below surface to ensure contact)
           // Middle layers are evenly spaced between bottom and sampleTopZ - 0.05
-          var sampleTopZ = Number(sample.topZ);
+          // Use averaged topZ reference so all samples probe at the same absolute Z depth,
+          // eliminating vertical banding caused by per-sample Z variation.
+          var sampleTopZ = avgTopZ;
           var deepestZ = sampleTopZ - maxDepth;
           var layerZ;
           if(totalLayers === 1){
@@ -8288,8 +8292,8 @@ async function runFaceProbe(axis, _calledFromCombined){
       checkStop();
       var sample = faceSamples[i];
       var lineCoord = Number(sample.sampleCoord);
-      var zForProbe = Number(sample.topZ) - depthBelow;
-      logLine('face', 'Face sample ' + sample.index + '/' + faceSamples.length + ': line ' + sampledAxis + '=' + lineCoord.toFixed(3) + ' using top Z=' + Number(sample.topZ).toFixed(3) + ' depth below=' + depthBelow.toFixed(3) + ' probe Z=' + zForProbe.toFixed(3));
+      var zForProbe = avgTopZ - depthBelow;
+      logLine('face', 'Face sample ' + sample.index + '/' + faceSamples.length + ': line ' + sampledAxis + '=' + lineCoord.toFixed(3) + ' using avg top Z=' + avgTopZ.toFixed(3) + ' depth below=' + depthBelow.toFixed(3) + ' probe Z=' + zForProbe.toFixed(3));
 
       if(!spDidOptimizedRetract){
         await raiseFaceTravelSafeZ('Face sample ' + sample.index + ': safe retract before indexed move');
