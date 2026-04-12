@@ -117,6 +117,10 @@ function resetCurrentTabLayout() {
 
 function _enableDrag() {
   document.querySelectorAll('.tab-panel').forEach(function(pane) {
+    // Attach pane-level handlers so drops on whitespace/gaps are caught
+    pane.addEventListener('dragover', _onPaneDragOver);
+    pane.addEventListener('drop', _onPaneDrop);
+
     _getDraggableChildren(pane).forEach(function(child) {
       // Inject drag handle
       var handle = document.createElement('div');
@@ -137,6 +141,10 @@ function _enableDrag() {
 
 function _disableDrag() {
   document.querySelectorAll('.tab-panel').forEach(function(pane) {
+    // Remove pane-level drop zone listeners
+    pane.removeEventListener('dragover', _onPaneDragOver);
+    pane.removeEventListener('drop', _onPaneDrop);
+
     _getDraggableChildren(pane).forEach(function(child) {
       // Remove injected drag handle
       var handle = child.querySelector('.le3dp-drag-handle');
@@ -168,6 +176,7 @@ function _clearDragIndicators(pane) {
 
 function _onDragOver(e) {
   e.preventDefault();
+  e.stopPropagation(); // prevent pane-level handler from also firing
   e.dataTransfer.dropEffect = 'move';
   if (!_layoutDragSrc || this === _layoutDragSrc) return;
   if (this.parentElement !== _layoutDragSrc.parentElement) return;
@@ -190,6 +199,7 @@ function _onDragLeave(e) {
 
 function _onDrop(e) {
   e.preventDefault();
+  e.stopPropagation(); // prevent pane-level handler from also firing
   this.classList.remove('layout-drag-over-before', 'layout-drag-over-after');
   if (!_layoutDragSrc || _layoutDragSrc === this) return;
   if (this.parentElement !== _layoutDragSrc.parentElement) return;
@@ -211,4 +221,60 @@ function _onDragEnd(e) {
   this.classList.remove('layout-dragging');
   if (this.parentElement) _clearDragIndicators(this.parentElement);
   _layoutDragSrc = null;
+}
+
+// ── Pane-level drop zone (handles drops on whitespace/gaps) ───────────────────
+
+function _onPaneDragOver(e) {
+  if (!_layoutDragSrc) return;
+  if (_layoutDragSrc.parentElement !== this) return; // cross-tab guard
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+
+  // Show drag indicator on the nearest panel relative to the cursor Y
+  var pane = this;
+  var children = _getDraggableChildren(pane);
+  _clearDragIndicators(pane);
+  var nearest = null;
+  var nearestBefore = false;
+  for (var i = 0; i < children.length; i++) {
+    var child = children[i];
+    if (child === _layoutDragSrc) continue;
+    var rect = child.getBoundingClientRect();
+    if (e.clientY < rect.top + rect.height / 2) {
+      nearest = child;
+      nearestBefore = true;
+      break;
+    }
+    nearest = child;
+    nearestBefore = false;
+  }
+  if (nearest) {
+    nearest.classList.add(nearestBefore ? 'layout-drag-over-before' : 'layout-drag-over-after');
+  }
+}
+
+function _onPaneDrop(e) {
+  if (!_layoutDragSrc) return;
+  if (_layoutDragSrc.parentElement !== this) return; // cross-tab guard
+  e.preventDefault();
+
+  var pane = this;
+  _clearDragIndicators(pane);
+
+  // Find the insertion point by cursor Y position among sibling panels
+  var children = _getDraggableChildren(pane);
+  var insertBefore = null;
+  for (var i = 0; i < children.length; i++) {
+    var child = children[i];
+    if (child === _layoutDragSrc) continue;
+    var rect = child.getBoundingClientRect();
+    if (e.clientY < rect.top + rect.height / 2) {
+      insertBefore = child;
+      break;
+    }
+  }
+
+  pane.insertBefore(_layoutDragSrc, insertBefore); // insertBefore=null → append to end
+  _saveLayout(_getTabIdFromPane(pane));
 }
