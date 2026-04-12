@@ -685,38 +685,37 @@
   </div>
 
   <!-- ── Surface Configuration Section ─────────────────────────────── -->
-  <div id="surface-config-section" data-panel-key="top-surf-config">
-    <div class="panel">
-      <div class="box-title">2D Grid Configuration</div>
-      <div class="grid three">
-        <div class="field"><label><span class="tooltip">Min X (coords)<span class="tip-icon">?</span><span class="tip">Minimum X work coordinate for the 2D surface probe grid. Sets the left boundary of the probed area.</span></span></label><input type="number" id="sm-minX" value="0" step="1"></div>
-        <div class="field"><label><span class="tooltip">Max X (coords)<span class="tip-icon">?</span><span class="tip">Maximum X work coordinate for the 2D surface probe grid. Sets the right boundary of the probed area.</span></span></label><input type="number" id="sm-maxX" value="100" step="1"></div>
-        <div class="field"><label><span class="tooltip">Spacing X (coords)<span class="tip-icon">?</span><span class="tip">Distance between probe columns along the X axis. Smaller spacing gives more data points but increases run time.</span></span></label><input type="number" id="sm-spacingX" value="20" step="1" min="1"></div>
-        <div class="field"><label><span class="tooltip">Min Y (coords)<span class="tip-icon">?</span><span class="tip">Minimum Y work coordinate for the 2D surface probe grid. Set equal to Max Y for single-row (linear) probing along X.</span></span></label><input type="number" id="sm-minY" value="0" step="1"></div>
-        <div class="field"><label><span class="tooltip">Max Y (coords)<span class="tip-icon">?</span><span class="tip">Maximum Y work coordinate for the 2D surface probe grid. Set equal to Min Y for single-row (linear) probing along X.</span></span></label><input type="number" id="sm-maxY" value="100" step="1"></div>
-        <div class="field"><label><span class="tooltip">Spacing Y (coords)<span class="tip-icon">?</span><span class="tip">Distance between probe rows along the Y axis. Smaller spacing gives more data points but increases run time.</span></span></label><input type="number" id="sm-spacingY" value="20" step="1" min="1"></div>
-      </div>
-      <div style="margin-top:8px;display:inline-block;padding:6px 10px;border-radius:5px;background:var(--panel2);border:1px solid var(--line);color:var(--accent2);font-size:13px;font-weight:600" id="sm-gridSizeDisplay">6 &times; 6 = 36 points</div>
-      <div class="mini" style="color:var(--muted);margin-top:6px">&#128161; Set Min Y = Max Y = 0 for single-row (linear) probing along X axis</div>
+  <div class="panel" id="surface-config-section" data-panel-key="top-surf-config">
+    <div class="box-title">2D Grid Configuration</div>
+    <div class="grid three">
+      <div class="field"><label><span class="tooltip">Min X (coords)<span class="tip-icon">?</span><span class="tip">Minimum X work coordinate for the 2D surface probe grid. Sets the left boundary of the probed area.</span></span></label><input type="number" id="sm-minX" value="0" step="1"></div>
+      <div class="field"><label><span class="tooltip">Max X (coords)<span class="tip-icon">?</span><span class="tip">Maximum X work coordinate for the 2D surface probe grid. Sets the right boundary of the probed area.</span></span></label><input type="number" id="sm-maxX" value="100" step="1"></div>
+      <div class="field"><label><span class="tooltip">Spacing X (coords)<span class="tip-icon">?</span><span class="tip">Distance between probe columns along the X axis. Smaller spacing gives more data points but increases run time.</span></span></label><input type="number" id="sm-spacingX" value="20" step="1" min="1"></div>
+      <div class="field"><label><span class="tooltip">Min Y (coords)<span class="tip-icon">?</span><span class="tip">Minimum Y work coordinate for the 2D surface probe grid. Set equal to Max Y for single-row (linear) probing along X.</span></span></label><input type="number" id="sm-minY" value="0" step="1"></div>
+      <div class="field"><label><span class="tooltip">Max Y (coords)<span class="tip-icon">?</span><span class="tip">Maximum Y work coordinate for the 2D surface probe grid. Set equal to Min Y for single-row (linear) probing along X.</span></span></label><input type="number" id="sm-maxY" value="100" step="1"></div>
+      <div class="field"><label><span class="tooltip">Spacing Y (coords)<span class="tip-icon">?</span><span class="tip">Distance between probe rows along the Y axis. Smaller spacing gives more data points but increases run time.</span></span></label><input type="number" id="sm-spacingY" value="20" step="1" min="1"></div>
     </div>
-    <div class="panel">
-      <div class="box-title">2D Probe Settings</div>
-      <div class="grid three">
-        <div class="field"><label><span class="tooltip">Probe Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for the Z probe descent at each grid point. Slower rates improve accuracy; faster rates speed up large grids.</span></span></label><input type="number" id="sm-probeFeed" value="100" step="10" min="1"></div>
-        <div class="field"><label><span class="tooltip">Travel Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for XY moves between grid probe points. Can be much faster than the probe feed.</span></span></label><input type="number" id="sm-travelFeed" value="2000" step="100" min="1"></div>
-        <div class="field"><label><span class="tooltip">Clearance Z (coords)<span class="tip-icon">?</span><span class="tip">Z height above the reference Z to raise to before each XY travel move. Must be enough to clear any surface features.</span></span></label><input type="number" id="sm-clearanceZ" value="5" step="0.5" min="0.5"></div>
-        <div class="field"><label><span class="tooltip">Max Plunge (coords)<span class="tip-icon">?</span><span class="tip">Maximum Z distance to probe downward from the clearance height. Safety limit to prevent over-travel if the surface is missing.</span></span></label><input type="number" id="sm-maxPlunge" value="20" step="1" min="1"></div>
-        <div class="field"><label><span class="tooltip">Reference Z (coords)<span class="tip-icon">?</span><span class="tip">Work Z coordinate used as the zero reference for surface compensation. Typically 0 (the programmed cutting depth).</span></span></label><input type="number" id="sm-referenceZ" value="0" step="0.1"></div>
-      </div>
-      <div class="btn-row" style="margin-top:10px">
-        <button class="btn ghost" id="sm-btn-save-settings" onclick="flashSaveButton(this);smSaveSettings()">&#128190; Save Settings</button>
-      </div>
+    <div style="margin-top:8px;display:inline-block;padding:6px 10px;border-radius:5px;background:var(--panel2);border:1px solid var(--line);color:var(--accent2);font-size:13px;font-weight:600" id="sm-gridSizeDisplay">6 &times; 6 = 36 points</div>
+    <div class="mini" style="color:var(--muted);margin-top:6px">&#128161; Set Min Y = Max Y = 0 for single-row (linear) probing along X axis</div>
+  </div>
+
+  <!-- ── Surface Probe Settings ─────────────────────────────────────── -->
+  <div class="panel" id="surface-probe-settings-section" data-panel-key="top-surf-probe-settings">
+    <div class="box-title">2D Probe Settings</div>
+    <div class="grid three">
+      <div class="field"><label><span class="tooltip">Probe Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for the Z probe descent at each grid point. Slower rates improve accuracy; faster rates speed up large grids.</span></span></label><input type="number" id="sm-probeFeed" value="100" step="10" min="1"></div>
+      <div class="field"><label><span class="tooltip">Travel Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for XY moves between grid probe points. Can be much faster than the probe feed.</span></span></label><input type="number" id="sm-travelFeed" value="2000" step="100" min="1"></div>
+      <div class="field"><label><span class="tooltip">Clearance Z (coords)<span class="tip-icon">?</span><span class="tip">Z height above the reference Z to raise to before each XY travel move. Must be enough to clear any surface features.</span></span></label><input type="number" id="sm-clearanceZ" value="5" step="0.5" min="0.5"></div>
+      <div class="field"><label><span class="tooltip">Max Plunge (coords)<span class="tip-icon">?</span><span class="tip">Maximum Z distance to probe downward from the clearance height. Safety limit to prevent over-travel if the surface is missing.</span></span></label><input type="number" id="sm-maxPlunge" value="20" step="1" min="1"></div>
+      <div class="field"><label><span class="tooltip">Reference Z (coords)<span class="tip-icon">?</span><span class="tip">Work Z coordinate used as the zero reference for surface compensation. Typically 0 (the programmed cutting depth).</span></span></label><input type="number" id="sm-referenceZ" value="0" step="0.1"></div>
     </div>
-  </div><!-- /surface-config-section -->
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn ghost" id="sm-btn-save-settings" onclick="flashSaveButton(this);smSaveSettings()">&#128190; Save Settings</button>
+    </div>
+  </div>
 
   <!-- ── Face Configuration Section ────────────────────────────────── -->
-  <div id="face-config-section" data-panel-key="top-face-config" style="display:none">
-    <div class="panel">
+  <div class="panel" id="face-config-section" data-panel-key="top-face-config" style="display:none">
       <div class="box-title">Face Probe Configuration</div>
       <div class="grid three">
         <div class="field">
@@ -821,10 +820,11 @@
       <div class="btn-row" style="margin-top:10px">
         <button class="btn ghost" onclick="flashSaveButton(this);saveSettings()">&#128190; Save Face Settings</button>
       </div>
-    </div>
+  </div>
 
-    <div class="panel">
-      <div class="box-title">Surface Probe Settings</div>
+  <!-- ── Surface Probe Settings (face/combined mode) ────────────────── -->
+  <div class="panel" id="face-surf-config-section" data-panel-key="top-face-surf-config" style="display:none">
+    <div class="box-title">Surface Probe Settings</div>
       <div class="grid three">
         <div class="field"><label><span class="tooltip">Min X (coords)<span class="tip-icon">?</span><span class="tip">Minimum X work coordinate for the 2D surface probe grid. Sets the left boundary of the probed area.</span></span></label><input type="number" id="fp-sm-minX" value="0" step="1"></div>
         <div class="field"><label><span class="tooltip">Max X (coords)<span class="tip-icon">?</span><span class="tip">Maximum X work coordinate for the 2D surface probe grid. Sets the right boundary of the probed area.</span></span></label><input type="number" id="fp-sm-maxX" value="100" step="1"></div>
@@ -843,8 +843,6 @@
       </div>
     </div>
 
-  </div><!-- /face-config-section -->
-
   <!-- ── Probing Control ────────────────────────────────────────────── -->
   <div class="panel" data-panel-key="top-probing-ctrl">
     <div class="box-title">Probing Control</div>
@@ -857,15 +855,13 @@
   </div>
 
   <!-- ── Face Probe Direct Controls ───────────────────────────────────── -->
-  <div id="face-direct-controls-section" data-panel-key="top-face-direct-ctrl" style="display:none">
-    <div class="panel">
-      <div class="box-title">Face Probe Direct Controls</div>
-      <div class="callout mini">Use the <strong>▶ Run Probe</strong> button in Probing Control above to run the face probe via the mode dropdown, or use these direct buttons to immediately probe a specific face axis.</div>
-      <div class="btn-row" style="margin-top:12px">
-        <button class="btn" id="btn-face-x">&#9654; Probe X Face</button>
-        <button class="btn" id="btn-face-y">&#9654; Probe Y Face</button>
-        <button class="btn warn" id="btn-stop-face" disabled>&#9646;&#9646; Stop</button>
-      </div>
+  <div class="panel" id="face-direct-controls-section" data-panel-key="top-face-direct-ctrl" style="display:none">
+    <div class="box-title">Face Probe Direct Controls</div>
+    <div class="callout mini">Use the <strong>▶ Run Probe</strong> button in Probing Control above to run the face probe via the mode dropdown, or use these direct buttons to immediately probe a specific face axis.</div>
+    <div class="btn-row" style="margin-top:12px">
+      <button class="btn" id="btn-face-x">&#9654; Probe X Face</button>
+      <button class="btn" id="btn-face-y">&#9654; Probe Y Face</button>
+      <button class="btn warn" id="btn-stop-face" disabled>&#9646;&#9646; Stop</button>
     </div>
   </div>
 
@@ -3140,11 +3136,15 @@ function onProbeTypeChange() {
   var showSurface = (type === '2d-surface' || type === 'combined');
   var surfCfg = document.getElementById('surface-config-section');
   if (surfCfg) surfCfg.style.display = showSurface ? '' : 'none';
+  var surfProbeSettings = document.getElementById('surface-probe-settings-section');
+  if (surfProbeSettings) surfProbeSettings.style.display = showSurface ? '' : 'none';
 
   // Face config section
   var showFace = (type === 'face' || type === 'combined');
   var faceCfg = document.getElementById('face-config-section');
   if (faceCfg) faceCfg.style.display = showFace ? '' : 'none';
+  var faceSurfCfg = document.getElementById('face-surf-config-section');
+  if (faceSurfCfg) faceSurfCfg.style.display = showFace ? '' : 'none';
 
   // Surface mesh section (visualizer)
   var surfMesh = document.getElementById('surface-mesh-section');
