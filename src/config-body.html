@@ -500,136 +500,134 @@
     </div>
   </div><!-- /surface-config-section -->
 
-  <!-- ── Face Configuration Section ────────────────────────────────── -->
-  <div id="face-config-section" data-panel-key="top-face-config" style="display:none">
-    <div class="panel">
-      <div class="box-title">Face Probe Configuration</div>
-      <div class="grid three">
-        <div class="field">
-          <label><span class="tooltip">Face Start Offset (coords)<span class="tip-icon">?</span><span class="tip">Starting offset from the face fixed coordinate before probing. Negative = start before the face.</span></span></label>
-          <input type="number" id="faceStartOffset" value="-10" step="0.1">
-        </div>
-        <div class="field">
-          <label><span class="tooltip">X Start (coords)<span class="tip-icon">?</span><span class="tip">Starting X work coordinate for the face probe sweep. The probe will take samples from X Start to X End across the face.</span></span></label>
-          <input type="number" id="fp-xStart" value="0" step="1">
-        </div>
-        <div class="field">
-          <label><span class="tooltip">X End (coords)<span class="tip-icon">?</span><span class="tip">Ending X work coordinate for the face probe sweep. The last sample column is taken at this position.</span></span></label>
-          <input type="number" id="fp-xEnd" value="100" step="1">
-        </div>
-        <div class="field">
-          <label><span class="tooltip">Z Start (coords)<span class="tip-icon">?</span><span class="tip">Z depth below surface zero where face probing starts. Click "Auto Row 1" to populate from Surface Row 1 (top edge = zero reference).</span></span></label>
-          <div style="display:flex;gap:6px;align-items:center">
-            <input type="number" id="fp-zStart" value="0" step="0.1" style="flex:1;min-width:0">
-            <button class="btn ghost" style="white-space:nowrap;flex-shrink:0;padding:6px 10px;font-size:11px" onclick="flashButton(this);fpReadRow1ZStart()">&#8635; Auto Row 1</button>
-          </div>
-        </div>
-        <div class="field">
-          <label>
-            <span class="tooltip">Face Max Depth (coords)<span class="tip-icon">?</span><span class="tip">Deepest Z below surface zero for face probing. Cannot exceed probe stylus length (Setup &rarr; 3D Probe Dimensions).</span></span>
-            <span id="fp-stylus-warning" style="color:var(--bad);font-size:11px;font-weight:600;display:none"> &#9888; Exceeds stylus!</span>
-          </label>
-          <input type="number" id="faceMaxDepth" value="14.75" min="1" max="100" step="0.25" oninput="fpValidateZEnd()">
-          <div class="mini" id="fp-stylus-cap-info" style="color:var(--muted);margin-top:2px">Max = stylus callout length from Setup</div>
-        </div>
-        <div class="field">
-          <label><span class="tooltip">X Points (samples across face)<span class="tip-icon">?</span><span class="tip">Number of evenly-spaced probe columns from X Start to X End. More points give a more detailed face profile but take longer to run.</span></span></label>
-          <input type="number" id="fp-xPoints" value="5" min="2" max="50" step="1">
-        </div>
-        <div class="field">
-          <label><span class="tooltip">Face Probe Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for the probe move toward the face surface. Slower values reduce overshoot and improve contact accuracy.</span></span></label>
-          <input type="number" id="faceFeed" value="150" min="10" max="3000" step="10">
-        </div>
-        <div class="field">
-          <label>
-            <span class="tooltip">Face Retract Feed (mm/min)<span class="tip-icon">?</span>
-              <span class="tip">Feed rate used when retracting between face probe samples (backoff, return to start, inter-sample travel). Higher values speed up the cycle. Defaults to Travel Feed if not set.</span>
-            </span>
-          </label>
-          <input type="number" id="faceRetractFeed" value="1000" min="10" max="6000" step="10">
-        </div>
-        <div class="field">
-          <label>
-            <span class="tooltip">Depth Below Surface (coords)<span class="tip-icon">?</span>
-              <span class="tip">How far below the top profile Z surface to position for face probing. Uses nearest top profile point.</span>
-            </span>
-          </label>
-          <input type="number" id="faceDepthBelowSurface" value="2" min="0.1" max="50" step="0.1">
-        </div>
-        <div class="field">
-          <label>
-            <span class="tooltip">Face Probe Distance (coords)<span class="tip-icon">?</span>
-              <span class="tip">Total distance to probe along the face axis from the start offset position.</span>
-            </span>
-          </label>
-          <input type="number" id="faceProbeDistance" value="20" min="1" max="200" step="1">
-        </div>
-        <div class="field">
-          <label>
-            <span class="tooltip">Face Fixed Coord (coords)<span class="tip-icon">?</span>
-              <span class="tip">The non-probed axis coordinate held constant during face probing.</span>
-            </span>
-          </label>
-          <input type="number" id="faceFixedCoord" value="0" step="0.1">
-        </div>
-        <div class="field">
-          <label>
-            <span class="tooltip">Z Layers (layers down face)<span class="tip-icon">?</span>
-              <span class="tip">How many Z layers to probe across the face depth. Layers are distributed evenly per sample from max depth to each sample's own top profile Z.</span>
-            </span>
-          </label>
-          <input type="number" id="faceLayerCount" value="3" min="2" max="20" step="1">
-        </div>
-        <div class="field">
-          <label>
-            <span class="tooltip">Z Step Count<span class="tip-icon">?</span>
-              <span class="tip">Number of Z steps to take per face probe column. Distributes probe samples evenly across the face depth.</span>
-            </span>
-          </label>
-          <input type="number" id="fp-zStepCount" value="3" min="1" max="50" step="1">
-        </div>
-        <div class="field">
-          <label>
-            <span class="tooltip">Z Step Size (coords)<span class="tip-icon">?</span>
-              <span class="tip">Size of each Z step in machine coordinates for face probe Z-axis sampling.</span>
-            </span>
-          </label>
-          <input type="number" id="fp-zStepSize" value="1" min="0.01" max="50" step="0.1">
-        </div>
-        <div class="field" style="grid-column:1 / -1">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="enableLayeredFace"> <span>Enable Layered Face Probe</span></label>
-          <div class="mini" style="margin-top:4px">When enabled, probes from max depth up to surface zero across all X samples at each layer. When off, existing single-pass face probe is used.</div>
+  <!-- ── Face Probe Configuration (visible in face/combined modes) ─── -->
+  <div class="panel" id="face-config-section" data-panel-key="top-face-config" style="display:none">
+    <div class="box-title">Face Probe Configuration</div>
+    <div class="grid three">
+      <div class="field">
+        <label><span class="tooltip">Face Start Offset (coords)<span class="tip-icon">?</span><span class="tip">Starting offset from the face fixed coordinate before probing. Negative = start before the face.</span></span></label>
+        <input type="number" id="faceStartOffset" value="-10" step="0.1">
+      </div>
+      <div class="field">
+        <label><span class="tooltip">X Start (coords)<span class="tip-icon">?</span><span class="tip">Starting X work coordinate for the face probe sweep. The probe will take samples from X Start to X End across the face.</span></span></label>
+        <input type="number" id="fp-xStart" value="0" step="1">
+      </div>
+      <div class="field">
+        <label><span class="tooltip">X End (coords)<span class="tip-icon">?</span><span class="tip">Ending X work coordinate for the face probe sweep. The last sample column is taken at this position.</span></span></label>
+        <input type="number" id="fp-xEnd" value="100" step="1">
+      </div>
+      <div class="field">
+        <label><span class="tooltip">Z Start (coords)<span class="tip-icon">?</span><span class="tip">Z depth below surface zero where face probing starts. Click "Auto Row 1" to populate from Surface Row 1 (top edge = zero reference).</span></span></label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="number" id="fp-zStart" value="0" step="0.1" style="flex:1;min-width:0">
+          <button class="btn ghost" style="white-space:nowrap;flex-shrink:0;padding:6px 10px;font-size:11px" onclick="flashButton(this);fpReadRow1ZStart()">&#8635; Auto Row 1</button>
         </div>
       </div>
-      <div class="callout mini" style="margin-top:8px">
-        <strong>Z Start</strong> auto-populates from Surface Row 1 (top edge = zero reference). <strong>Face Max Depth</strong> is capped at probe stylus callout length (Setup &rarr; 3D Probe Dimensions). <span style="color:var(--accent2)">&#9679; Pre-trigger safety (smEnsureProbeClear) and Travel Contact Recovery are always active during face probing.</span>
+      <div class="field">
+        <label>
+          <span class="tooltip">Face Max Depth (coords)<span class="tip-icon">?</span><span class="tip">Deepest Z below surface zero for face probing. Cannot exceed probe stylus length (Setup &rarr; 3D Probe Dimensions).</span></span>
+          <span id="fp-stylus-warning" style="color:var(--bad);font-size:11px;font-weight:600;display:none"> &#9888; Exceeds stylus!</span>
+        </label>
+        <input type="number" id="faceMaxDepth" value="14.75" min="1" max="100" step="0.25" oninput="fpValidateZEnd()">
+        <div class="mini" id="fp-stylus-cap-info" style="color:var(--muted);margin-top:2px">Max = stylus callout length from Setup</div>
       </div>
-      <div class="btn-row" style="margin-top:10px">
-        <button class="btn ghost" onclick="flashSaveButton(this);saveSettings()">&#128190; Save Face Settings</button>
+      <div class="field">
+        <label><span class="tooltip">X Points (samples across face)<span class="tip-icon">?</span><span class="tip">Number of evenly-spaced probe columns from X Start to X End. More points give a more detailed face profile but take longer to run.</span></span></label>
+        <input type="number" id="fp-xPoints" value="5" min="2" max="50" step="1">
+      </div>
+      <div class="field">
+        <label><span class="tooltip">Face Probe Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for the probe move toward the face surface. Slower values reduce overshoot and improve contact accuracy.</span></span></label>
+        <input type="number" id="faceFeed" value="150" min="10" max="3000" step="10">
+      </div>
+      <div class="field">
+        <label>
+          <span class="tooltip">Face Retract Feed (mm/min)<span class="tip-icon">?</span>
+            <span class="tip">Feed rate used when retracting between face probe samples (backoff, return to start, inter-sample travel). Higher values speed up the cycle. Defaults to Travel Feed if not set.</span>
+          </span>
+        </label>
+        <input type="number" id="faceRetractFeed" value="1000" min="10" max="6000" step="10">
+      </div>
+      <div class="field">
+        <label>
+          <span class="tooltip">Depth Below Surface (coords)<span class="tip-icon">?</span>
+            <span class="tip">How far below the top profile Z surface to position for face probing. Uses nearest top profile point.</span>
+          </span>
+        </label>
+        <input type="number" id="faceDepthBelowSurface" value="2" min="0.1" max="50" step="0.1">
+      </div>
+      <div class="field">
+        <label>
+          <span class="tooltip">Face Probe Distance (coords)<span class="tip-icon">?</span>
+            <span class="tip">Total distance to probe along the face axis from the start offset position.</span>
+          </span>
+        </label>
+        <input type="number" id="faceProbeDistance" value="20" min="1" max="200" step="1">
+      </div>
+      <div class="field">
+        <label>
+          <span class="tooltip">Face Fixed Coord (coords)<span class="tip-icon">?</span>
+            <span class="tip">The non-probed axis coordinate held constant during face probing.</span>
+          </span>
+        </label>
+        <input type="number" id="faceFixedCoord" value="0" step="0.1">
+      </div>
+      <div class="field">
+        <label>
+          <span class="tooltip">Z Layers (layers down face)<span class="tip-icon">?</span>
+            <span class="tip">How many Z layers to probe across the face depth. Layers are distributed evenly per sample from max depth to each sample's own top profile Z.</span>
+          </span>
+        </label>
+        <input type="number" id="faceLayerCount" value="3" min="2" max="20" step="1">
+      </div>
+      <div class="field">
+        <label>
+          <span class="tooltip">Z Step Count<span class="tip-icon">?</span>
+            <span class="tip">Number of Z steps to take per face probe column. Distributes probe samples evenly across the face depth.</span>
+          </span>
+        </label>
+        <input type="number" id="fp-zStepCount" value="3" min="1" max="50" step="1">
+      </div>
+      <div class="field">
+        <label>
+          <span class="tooltip">Z Step Size (coords)<span class="tip-icon">?</span>
+            <span class="tip">Size of each Z step in machine coordinates for face probe Z-axis sampling.</span>
+          </span>
+        </label>
+        <input type="number" id="fp-zStepSize" value="1" min="0.01" max="50" step="0.1">
+      </div>
+      <div class="field" style="grid-column:1 / -1">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="enableLayeredFace"> <span>Enable Layered Face Probe</span></label>
+        <div class="mini" style="margin-top:4px">When enabled, probes from max depth up to surface zero across all X samples at each layer. When off, existing single-pass face probe is used.</div>
       </div>
     </div>
-
-    <div class="panel">
-      <div class="box-title">Surface Probe Settings</div>
-      <div class="grid three">
-        <div class="field"><label><span class="tooltip">Min X (coords)<span class="tip-icon">?</span><span class="tip">Minimum X work coordinate for the 2D surface probe grid. Sets the left boundary of the probed area.</span></span></label><input type="number" id="fp-sm-minX" value="0" step="1"></div>
-        <div class="field"><label><span class="tooltip">Max X (coords)<span class="tip-icon">?</span><span class="tip">Maximum X work coordinate for the 2D surface probe grid. Sets the right boundary of the probed area.</span></span></label><input type="number" id="fp-sm-maxX" value="100" step="1"></div>
-        <div class="field"><label><span class="tooltip">Spacing X (coords)<span class="tip-icon">?</span><span class="tip">Distance between probe columns along the X axis. Smaller spacing gives more data points but increases run time.</span></span></label><input type="number" id="fp-sm-spacingX" value="20" step="1" min="1"></div>
-        <div class="field"><label><span class="tooltip">Min Y (coords)<span class="tip-icon">?</span><span class="tip">Minimum Y work coordinate for the 2D surface probe grid. Set equal to Max Y for single-row (linear) probing along X.</span></span></label><input type="number" id="fp-sm-minY" value="0" step="1"></div>
-        <div class="field"><label><span class="tooltip">Max Y (coords)<span class="tip-icon">?</span><span class="tip">Maximum Y work coordinate for the 2D surface probe grid. Set equal to Min Y for single-row (linear) probing along X.</span></span></label><input type="number" id="fp-sm-maxY" value="100" step="1"></div>
-        <div class="field"><label><span class="tooltip">Spacing Y (coords)<span class="tip-icon">?</span><span class="tip">Distance between probe rows along the Y axis. Smaller spacing gives more data points but increases run time.</span></span></label><input type="number" id="fp-sm-spacingY" value="20" step="1" min="1"></div>
-        <div class="field"><label><span class="tooltip">Probe Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for the Z probe descent at each grid point. Slower rates improve accuracy; faster rates speed up large grids.</span></span></label><input type="number" id="fp-sm-probeFeed" value="100" step="10" min="1"></div>
-        <div class="field"><label><span class="tooltip">Travel Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for XY moves between grid probe points. Can be much faster than the probe feed.</span></span></label><input type="number" id="fp-sm-travelFeed" value="2000" step="100" min="1"></div>
-        <div class="field"><label><span class="tooltip">Clearance Z (coords)<span class="tip-icon">?</span><span class="tip">Z height above the reference Z to raise to before each XY travel move. Must be enough to clear any surface features.</span></span></label><input type="number" id="fp-sm-clearanceZ" value="5" step="0.5" min="0.5"></div>
-        <div class="field"><label><span class="tooltip">Max Plunge (coords)<span class="tip-icon">?</span><span class="tip">Maximum Z distance to probe downward from the clearance height. Safety limit to prevent over-travel if the surface is missing.</span></span></label><input type="number" id="fp-sm-maxPlunge" value="20" step="1" min="1"></div>
-        <div class="field"><label><span class="tooltip">Reference Z (coords)<span class="tip-icon">?</span><span class="tip">Work Z coordinate used as the zero reference for surface compensation. Typically 0 (the programmed cutting depth).</span></span></label><input type="number" id="fp-sm-referenceZ" value="0" step="0.1"></div>
-      </div>
-      <div class="btn-row" style="margin-top:10px">
-        <button class="btn ghost" id="fp-sm-btn-save-settings" onclick="flashSaveButton(this);fpSmSaveSettings()">&#128190; Save Surface Probe Settings</button>
-      </div>
+    <div class="callout mini" style="margin-top:8px">
+      <strong>Z Start</strong> auto-populates from Surface Row 1 (top edge = zero reference). <strong>Face Max Depth</strong> is capped at probe stylus callout length (Setup &rarr; 3D Probe Dimensions). <span style="color:var(--accent2)">&#9679; Pre-trigger safety (smEnsureProbeClear) and Travel Contact Recovery are always active during face probing.</span>
     </div>
-
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn ghost" onclick="flashSaveButton(this);saveSettings()">&#128190; Save Face Settings</button>
+    </div>
   </div><!-- /face-config-section -->
+
+  <!-- ── Face Mode Surface Probe Settings (visible in face/combined modes) ── -->
+  <div class="panel" id="face-surf-config-section" data-panel-key="top-face-surf-config" style="display:none">
+    <div class="box-title">Surface Probe Settings</div>
+    <div class="grid three">
+      <div class="field"><label><span class="tooltip">Min X (coords)<span class="tip-icon">?</span><span class="tip">Minimum X work coordinate for the 2D surface probe grid. Sets the left boundary of the probed area.</span></span></label><input type="number" id="fp-sm-minX" value="0" step="1"></div>
+      <div class="field"><label><span class="tooltip">Max X (coords)<span class="tip-icon">?</span><span class="tip">Maximum X work coordinate for the 2D surface probe grid. Sets the right boundary of the probed area.</span></span></label><input type="number" id="fp-sm-maxX" value="100" step="1"></div>
+      <div class="field"><label><span class="tooltip">Spacing X (coords)<span class="tip-icon">?</span><span class="tip">Distance between probe columns along the X axis. Smaller spacing gives more data points but increases run time.</span></span></label><input type="number" id="fp-sm-spacingX" value="20" step="1" min="1"></div>
+      <div class="field"><label><span class="tooltip">Min Y (coords)<span class="tip-icon">?</span><span class="tip">Minimum Y work coordinate for the 2D surface probe grid. Set equal to Max Y for single-row (linear) probing along X.</span></span></label><input type="number" id="fp-sm-minY" value="0" step="1"></div>
+      <div class="field"><label><span class="tooltip">Max Y (coords)<span class="tip-icon">?</span><span class="tip">Maximum Y work coordinate for the 2D surface probe grid. Set equal to Min Y for single-row (linear) probing along X.</span></span></label><input type="number" id="fp-sm-maxY" value="100" step="1"></div>
+      <div class="field"><label><span class="tooltip">Spacing Y (coords)<span class="tip-icon">?</span><span class="tip">Distance between probe rows along the Y axis. Smaller spacing gives more data points but increases run time.</span></span></label><input type="number" id="fp-sm-spacingY" value="20" step="1" min="1"></div>
+      <div class="field"><label><span class="tooltip">Probe Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for the Z probe descent at each grid point. Slower rates improve accuracy; faster rates speed up large grids.</span></span></label><input type="number" id="fp-sm-probeFeed" value="100" step="10" min="1"></div>
+      <div class="field"><label><span class="tooltip">Travel Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for XY moves between grid probe points. Can be much faster than the probe feed.</span></span></label><input type="number" id="fp-sm-travelFeed" value="2000" step="100" min="1"></div>
+      <div class="field"><label><span class="tooltip">Clearance Z (coords)<span class="tip-icon">?</span><span class="tip">Z height above the reference Z to raise to before each XY travel move. Must be enough to clear any surface features.</span></span></label><input type="number" id="fp-sm-clearanceZ" value="5" step="0.5" min="0.5"></div>
+      <div class="field"><label><span class="tooltip">Max Plunge (coords)<span class="tip-icon">?</span><span class="tip">Maximum Z distance to probe downward from the clearance height. Safety limit to prevent over-travel if the surface is missing.</span></span></label><input type="number" id="fp-sm-maxPlunge" value="20" step="1" min="1"></div>
+      <div class="field"><label><span class="tooltip">Reference Z (coords)<span class="tip-icon">?</span><span class="tip">Work Z coordinate used as the zero reference for surface compensation. Typically 0 (the programmed cutting depth).</span></span></label><input type="number" id="fp-sm-referenceZ" value="0" step="0.1"></div>
+    </div>
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn ghost" id="fp-sm-btn-save-settings" onclick="flashSaveButton(this);fpSmSaveSettings()">&#128190; Save Surface Probe Settings</button>
+    </div>
+  </div><!-- /face-surf-config-section -->
 
   <!-- ── Probing Control ────────────────────────────────────────────── -->
   <div class="panel" data-panel-key="top-probing-ctrl">

@@ -557,6 +557,8 @@ function onProbeTypeChange() {
   var showFace = (type === 'face' || type === 'combined');
   var faceCfg = document.getElementById('face-config-section');
   if (faceCfg) faceCfg.style.display = showFace ? '' : 'none';
+  var faceSurfCfg = document.getElementById('face-surf-config-section');
+  if (faceSurfCfg) faceSurfCfg.style.display = showFace ? '' : 'none';
 
   // Surface mesh section (visualizer)
   var surfMesh = document.getElementById('surface-mesh-section');
