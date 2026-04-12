@@ -20,7 +20,7 @@ function switchTab(id){
       probeHolder.appendChild(jogCard);
       jogCard.classList.add('jog-compact');
     } else {
-      // Return jog card to its original position in Setup tab (after the anchor)
+      // Return jog card to its dedicated top-level setup panel (setup-jog-controls)
       setupAnchor.parentNode.insertBefore(jogCard, setupAnchor.nextSibling);
       jogCard.classList.remove('jog-compact');
     }
