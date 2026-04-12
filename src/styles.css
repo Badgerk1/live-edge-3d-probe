@@ -99,6 +99,19 @@
     #surface-edge-mesh-root .jog-meta .field input{padding:9px 10px}
     #surface-edge-mesh-root .jog-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
     #surface-edge-mesh-root .jog-actions .btn{flex:1 1 160px}
+    /* compact mode — when jog card is teleported into the Probe tab */
+    #surface-edge-mesh-root .jog-card.jog-compact{padding:10px;border-radius:12px;position:static;margin-bottom:8px}
+    #surface-edge-mesh-root .jog-card.jog-compact .box-title{font-size:12px;margin-bottom:6px}
+    #surface-edge-mesh-root .jog-card.jog-compact .jog-topbar{margin-bottom:8px;gap:8px}
+    #surface-edge-mesh-root .jog-card.jog-compact .jog-pill{min-width:44px;height:28px;padding:0 10px;font-size:12px}
+    #surface-edge-mesh-root .jog-card.jog-compact .jog-feed-wrap input{width:72px;padding:5px 8px}
+    #surface-edge-mesh-root .jog-card.jog-compact .jog-btn{min-height:48px;border-radius:10px;font-size:13px}
+    #surface-edge-mesh-root .jog-card.jog-compact .jog-grid-wrap{gap:8px}
+    #surface-edge-mesh-root .jog-card.jog-compact .jog-meta{gap:8px;margin-top:8px}
+    #surface-edge-mesh-root .jog-card.jog-compact .jog-meta .field input{padding:6px 8px}
+    #surface-edge-mesh-root .jog-card.jog-compact .jog-actions{margin-top:8px;gap:6px}
+    #surface-edge-mesh-root .jog-card.jog-compact .jog-actions .btn{flex:1 1 120px;padding:6px 10px;font-size:12px}
+    #surface-edge-mesh-root .jog-card.jog-compact .mini{font-size:10px;margin-top:6px}
     @media (max-width: 980px){#surface-edge-mesh-root .setup-helpers{grid-template-columns:1fr}#surface-edge-mesh-root .jog-card{position:static}}
     @media (max-width: 640px){#surface-edge-mesh-root .jog-grid-wrap{grid-template-columns:1fr}#surface-edge-mesh-root .jog-col{grid-template-columns:1fr 1fr;grid-template-rows:none}#surface-edge-mesh-root .jog-btn{min-height:58px}}
     #surface-edge-mesh-root input[type="number"]::-webkit-inner-spin-button,#surface-edge-mesh-root input[type="number"]::-webkit-outer-spin-button{ opacity: 1; }
