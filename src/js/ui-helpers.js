@@ -552,11 +552,15 @@ function onProbeTypeChange() {
   var showSurface = (type === '2d-surface' || type === 'combined');
   var surfCfg = document.getElementById('surface-config-section');
   if (surfCfg) surfCfg.style.display = showSurface ? '' : 'none';
+  var surfProbeSettings = document.getElementById('surface-probe-settings-section');
+  if (surfProbeSettings) surfProbeSettings.style.display = showSurface ? '' : 'none';
 
   // Face config section
   var showFace = (type === 'face' || type === 'combined');
   var faceCfg = document.getElementById('face-config-section');
   if (faceCfg) faceCfg.style.display = showFace ? '' : 'none';
+  var faceSurfCfg = document.getElementById('face-surf-config-section');
+  if (faceSurfCfg) faceSurfCfg.style.display = showFace ? '' : 'none';
 
   // Surface mesh section (visualizer)
   var surfMesh = document.getElementById('surface-mesh-section');
