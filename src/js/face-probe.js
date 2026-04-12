@@ -555,7 +555,7 @@ async function runFaceProbe(axis, _calledFromCombined){
               layeredFaceResults.push({
                 x: Number(_ltrPos.x),
                 y: Number(_ltrPos.y),
-                z: Number(_ltrPos.z),
+                z: layerZ,
                 machineZ: _ltrPos.machineZ != null ? Number(_ltrPos.machineZ) : null,
                 layer: layerNum,
                 sampleTopZ: sampleTopZ
