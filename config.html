@@ -6270,27 +6270,30 @@ function subdivideFaceMesh(pts, spacing) {
   xs.forEach(function(x, i) { xiMap[x.toFixed(6)] = i; });
   layers.forEach(function(l, i) { liMap[l] = i; });
 
-  // Average Y (and machineZ, sampleTopZ) per cell to handle duplicates
-  var cellSumY = {}, cellSumMZ = {}, cellSumST = {}, cellCnt = {};
+  // Average Y, Z (and machineZ, sampleTopZ) per cell to handle duplicates
+  var cellSumY = {}, cellSumZ = {}, cellSumMZ = {}, cellSumST = {}, cellCnt = {};
   pts.forEach(function(p) {
     var xv = Number(p.x), yv = Number(p.y), zv = Number(p.z);
     var lv = p.layer != null ? Number(p.layer) : 1;
     if (!isFinite(xv) || !isFinite(yv) || !isFinite(zv)) return;
     var key = xv.toFixed(6) + '|' + lv;
-    if (!(key in cellCnt)) { cellSumY[key] = 0; cellSumMZ[key] = 0; cellSumST[key] = 0; cellCnt[key] = 0; }
+    if (!(key in cellCnt)) { cellSumY[key] = 0; cellSumZ[key] = 0; cellSumMZ[key] = 0; cellSumST[key] = 0; cellCnt[key] = 0; }
     cellSumY[key] += yv;
+    cellSumZ[key] += zv;
     cellSumMZ[key] += (p.machineZ != null ? Number(p.machineZ) : 0);
     cellSumST[key] += (p.sampleTopZ != null ? Number(p.sampleTopZ) : 0);
     cellCnt[key]++;
   });
   Object.keys(cellCnt).forEach(function(key) {
     var parts = key.split('|');
-    var xv = parseFloat(parts[0]), lv = parseInt(parts[1], 10);
+    // Use Number() (not parseInt) to support fractional layer IDs from prior subdivision
+    var xv = parseFloat(parts[0]), lv = Number(parts[1]);
     var xi = xiMap[xv.toFixed(6)], li = liMap[lv];
     if (xi == null || li == null) return;
     var cnt = cellCnt[key];
     grid[xi][li] = {
       y: cellSumY[key] / cnt,
+      z: cellSumZ[key] / cnt,
       machineZ: cellSumMZ[key] / cnt,
       sampleTopZ: cellSumST[key] / cnt
     };
@@ -6320,9 +6323,13 @@ function subdivideFaceMesh(pts, spacing) {
   for (var gy = 0; gy < newRows; gy++) {
     var li0 = Math.min(Math.floor(gy / zSub), nRows - 2);
     var ty = (gy - li0 * zSub) / zSub;
-    var newZ = layerAvgZ[layers[li0]] * (1 - ty) + layerAvgZ[layers[li0 + 1]] * ty;
-    var nearLi = ty < 0.5 ? li0 : li0 + 1;
-    var nearLayer = layers[nearLi];
+    // Intermediate rows (0 < ty < 1) get a fractional layer ID so that
+    // buildFaceWallGrid treats them as distinct rows and does not let them
+    // overwrite the correct original-layer data via the "first entry wins" rule.
+    // Endpoint rows (ty === 0 or ty === 1) keep the original integer layer ID.
+    var nearLayer = (ty > 0 && ty < 1)
+      ? layers[li0] + ty * (layers[li0 + 1] - layers[li0])
+      : layers[ty < 0.5 ? li0 : li0 + 1];
 
     for (var gx = 0; gx < newCols; gx++) {
       var xi0 = Math.min(Math.floor(gx / xSub), nCols - 2);
@@ -6333,6 +6340,11 @@ function subdivideFaceMesh(pts, spacing) {
       var c01 = grid[xi0][li0 + 1], c11 = grid[xi0 + 1][li0 + 1];
       if (!c00 || !c10 || !c01 || !c11) continue;
 
+      // Compute newZ by bilinear interpolation of the per-column z values so
+      // that each subdivided point sits at the correct probe height for its X
+      // position, rather than at the cross-column average (layerAvgZ).
+      var newZ = c00.z * (1 - tx) * (1 - ty) + c10.z * tx * (1 - ty) +
+                 c01.z * (1 - tx) * ty + c11.z * tx * ty;
       var newY = c00.y * (1 - tx) * (1 - ty) + c10.y * tx * (1 - ty) +
                  c01.y * (1 - tx) * ty + c11.y * tx * ty;
       var newMZ = c00.machineZ * (1 - tx) * (1 - ty) + c10.machineZ * tx * (1 - ty) +
@@ -8229,7 +8241,7 @@ async function runFaceProbe(axis, _calledFromCombined){
               layeredFaceResults.push({
                 x: Number(_ltrPos.x),
                 y: Number(_ltrPos.y),
-                z: Number(_ltrPos.z),
+                z: layerZ,
                 machineZ: _ltrPos.machineZ != null ? Number(_ltrPos.machineZ) : null,
                 layer: layerNum,
                 sampleTopZ: sampleTopZ
