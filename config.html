@@ -10213,15 +10213,34 @@ function _upsampleFaceData(data, targetSpacing) {
   var rowSpacing = (zVals[nRows - 1] - zVals[0]) / (nRows - 1);
   var cfg = { rowCount: nRows, colCount: nCols, colSpacing: colSpacing, rowSpacing: rowSpacing, minX: xVals[0], minY: zVals[0] };
   var up = _cubicSplineUpsampleGrid(depthGrid, cfg, targetSpacing);
+  // Recompute subdivision factors using the same formulas as _cubicSplineUpsampleGrid so
+  // we can map upsampled column/row indices back to actual probe positions.  Output
+  // vertices are placed at the physically correct X/Z coordinates (linearly interpolated
+  // between actual probe positions), not at assumed-uniform positions.  This eliminates
+  // geometric seams at column boundaries (vertical lines) and layer boundaries (horizontal
+  // lines) that appear when probe positions are non-uniformly spaced.
+  var _sp = Math.max(targetSpacing, 0.5);
+  var _nCX = nCols - 1, _nCY = nRows - 1;
+  var _subC = Math.max(1, Math.round(colSpacing / _sp));
+  var _subR = Math.max(1, Math.round(rowSpacing / _sp));
+  var _maxSub = Math.max(1, Math.floor(Math.sqrt(200000 / Math.max(_nCX * _nCY, 1))));
+  _subC = Math.min(_subC, _maxSub);
+  _subR = Math.min(_subR, _maxSub);
   // Convert grid to flat vertex list + vMap for structured triangulation.
   var pts = [], vMap = [];
   for (var ri2 = 0; ri2 < up.rowCount; ri2++) {
+    var kz = Math.min(Math.floor(ri2 / _subR), nRows - 2);
+    var fz = (ri2 - kz * _subR) / _subR;
+    var actualZ = zVals[kz] + fz * (zVals[kz + 1] - zVals[kz]);
     var vmRow = [];
     for (var ci2 = 0; ci2 < up.colCount; ci2++) {
       var depth = up.grid[ri2][ci2];
       if (depth !== null) {
         vmRow.push(pts.length);
-        pts.push({ x: up.minX + ci2 * up.colSpacing, y: depth, z: up.minY + ri2 * up.rowSpacing });
+        var kx = Math.min(Math.floor(ci2 / _subC), nCols - 2);
+        var fx = (ci2 - kx * _subC) / _subC;
+        var actualX = xVals[kx] + fx * (xVals[kx + 1] - xVals[kx]);
+        pts.push({ x: actualX, y: depth, z: actualZ });
       } else {
         vmRow.push(null);
       }
