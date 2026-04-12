@@ -793,6 +793,7 @@ function smLoadSettings() {
   try{ renderLog('face'); }catch(e){}
   try{ smLoadSettings(); }catch(e){}
   try{ onProbeTypeChange(); }catch(e){}
+  try{ initLayoutEditor(); }catch(e){ console.warn('Layout editor init error:', e); }
 
   // Tab buttons
   document.querySelectorAll('.tab').forEach(function(t){

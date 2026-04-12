@@ -97,6 +97,25 @@ The plugin automates the full probing workflow: it physically measures the surfa
 
 ---
 
+### 10 · Layout Edit Mode — Reorder Panels per Tab
+
+Each tab's panels can be dragged into any order you like, and the order is remembered automatically across sessions.
+
+**How to use:**
+
+1. Click the **✏️ Edit Layout** button in the tab bar (top-right of the tabs row).
+2. Each panel in the current tab displays a **⠇⠇ Drag to reorder** handle at the top.
+3. Drag any panel up or down to reorder it within the tab.
+4. Click **↺ Reset** (appears next to the button when editing) to restore the default order for the current tab.
+5. Click **🔒 Lock Layout** to exit edit mode and lock all panels in place.
+
+**Notes:**
+- Panel order is saved per tab in `localStorage` under the key `le3dp.layout.<tabId>` and restored automatically on next load.
+- Panels cannot be moved across tabs — reordering is constrained to the active tab only.
+- Reordering only changes visual position; all panel IDs, fields, buttons, and event handlers continue to work exactly as before.
+
+---
+
 ## Architecture
 
 ```

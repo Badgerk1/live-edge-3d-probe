@@ -189,4 +189,21 @@
     #surface-edge-mesh-root .three-canvas-wrap.three-active{display:block}
     #surface-edge-mesh-root .three-canvas-wrap canvas{display:block!important;width:100%!important}
 
+    /* ── Layout Editor ──────────────────────────────────────────────────────── */
+    /* Toggle button in the tabs bar */
+    #surface-edge-mesh-root .layout-edit-btn{border:1px solid var(--line);background:#182031;color:var(--muted);border-radius:8px;padding:6px 10px;cursor:pointer;font:inherit;font-size:11px;margin-left:auto;white-space:nowrap;transition:background .2s,color .2s,border-color .2s}
+    #surface-edge-mesh-root .layout-reset-btn{margin-left:4px}
+    #surface-edge-mesh-root .layout-edit-btn:hover{background:#1d2739;color:var(--text)}
+    #surface-edge-mesh-root .layout-edit-btn.active{background:linear-gradient(180deg,#2a4a1e,#1e3614);border-color:#5fdb8d;color:#a8f0c0}
+    /* Drag handle injected into each panel */
+    #surface-edge-mesh-root .le3dp-drag-handle{font-size:11px;color:var(--accent);opacity:.75;cursor:grab;user-select:none;margin-bottom:6px;display:flex;align-items:center;gap:6px;border-bottom:1px dashed rgba(110,168,255,.25);padding-bottom:5px}
+    #surface-edge-mesh-root .le3dp-drag-handle::before{content:'\2807\2807';font-size:14px;letter-spacing:2px;color:var(--accent);opacity:.8}
+    /* Make draggable children position:relative so the handle sits correctly */
+    #surface-edge-mesh-root.layout-edit-active .tab-panel > [data-panel-key]{position:relative;cursor:grab;transition:box-shadow .15s,opacity .15s}
+    /* Being dragged */
+    #surface-edge-mesh-root .layout-dragging{opacity:.45!important;box-shadow:0 0 0 2px var(--accent) inset}
+    /* Drop target indicators */
+    #surface-edge-mesh-root .layout-drag-over-before{box-shadow:0 -3px 0 0 var(--accent),0 0 0 1px rgba(110,168,255,.18)}
+    #surface-edge-mesh-root .layout-drag-over-after{box-shadow:0 3px 0 0 var(--accent),0 0 0 1px rgba(110,168,255,.18)}
+
   </style>

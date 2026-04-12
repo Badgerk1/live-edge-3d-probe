@@ -23,6 +23,8 @@
     <button class="tab" data-tab="results" onclick="switchTab('results')">&#9783; Results</button>
     <button class="tab" data-tab="meshdata" onclick="switchTab('meshdata')">&#128202; Mesh Data</button>
     <button class="tab" data-tab="apply" onclick="switchTab('apply')">&#9889; Apply</button>
+    <button id="layout-edit-toggle" class="layout-edit-btn" onclick="toggleLayoutEdit()" title="Toggle Layout Edit mode — when active, panels show a drag handle and can be reordered within the current tab. Changes are saved automatically per tab.">&#9998;&#xFE0F; Edit Layout</button>
+    <button id="layout-reset-btn" class="layout-edit-btn layout-reset-btn" onclick="resetCurrentTabLayout()" title="Reset the current tab&#39;s panel order to its default" style="display:none">&#8635; Reset</button>
   </div>
 
   <!-- ── CONTENT ────────────────────────────────────────────────────────── -->
@@ -31,7 +33,7 @@
     <!-- ── SETUP TAB ──────────────────────────────────────────────────── -->
     <div class="tab-panel active" id="pane-setup">
 
-      <div class="panel">
+      <div class="panel" data-panel-key="setup-probe-dims">
         <div class="box-title">3D Probe Dimensions</div>
         <div class="probe-chip">Editable geometry preset for your 3D probe</div>
         <div class="probe-dim-wrap">
@@ -136,7 +138,7 @@
       </div>
 
 
-      <div class="panel">
+      <div class="panel" data-panel-key="setup-travel-recovery">
         <div class="box-title">Travel &amp; Recovery Settings</div>
         <div class="grid three">
           <div class="field">
@@ -195,7 +197,7 @@
       </div>
 
 
-      <div class="panel">
+      <div class="panel" data-panel-key="setup-machine-helpers">
         <div class="box-title">Machine Helpers</div>
         <div class="setup-helpers">
           <div class="stack">
@@ -349,7 +351,7 @@
           </div>
         </div>
       </div>
-      <div class="panel">
+      <div class="panel" data-panel-key="setup-mesh-subdiv">
         <div class="box-title">Mesh Subdivision</div>
         <div class="grid three">
           <div class="field">
@@ -379,7 +381,7 @@
     <div class="tab-panel" id="pane-top">
 
   <!-- ── Probe Type Selector ─────────────────────────────────────────── -->
-  <div class="panel">
+  <div class="panel" data-panel-key="top-probe-mode">
     <div class="box-title">Probe Mode</div>
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <label style="font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap">Mode:</label>
@@ -399,7 +401,7 @@
   </div>
 
   <!-- ── Top Profile Settings (always visible — used by both Surface and Face probe modes) ── -->
-  <div class="panel">
+  <div class="panel" data-panel-key="top-top-profile">
     <div class="box-title">Top Profile Settings</div>
     <div class="grid three">
       <div class="field">
@@ -469,7 +471,7 @@
   </div>
 
   <!-- ── Surface Configuration Section ─────────────────────────────── -->
-  <div id="surface-config-section">
+  <div id="surface-config-section" data-panel-key="top-surf-config">
     <div class="panel">
       <div class="box-title">2D Grid Configuration</div>
       <div class="grid three">
@@ -499,7 +501,7 @@
   </div><!-- /surface-config-section -->
 
   <!-- ── Face Configuration Section ────────────────────────────────── -->
-  <div id="face-config-section" style="display:none">
+  <div id="face-config-section" data-panel-key="top-face-config" style="display:none">
     <div class="panel">
       <div class="box-title">Face Probe Configuration</div>
       <div class="grid three">
@@ -630,7 +632,7 @@
   </div><!-- /face-config-section -->
 
   <!-- ── Probing Control ────────────────────────────────────────────── -->
-  <div class="panel">
+  <div class="panel" data-panel-key="top-probing-ctrl">
     <div class="box-title">Probing Control</div>
     <div class="btn-row">
       <button class="btn" id="sm-btn-run-probe" onclick="flashButton(this);startProbeByType()">&#9654; Run Surface Probe</button>
@@ -641,7 +643,7 @@
   </div>
 
   <!-- ── Face Probe Direct Controls ───────────────────────────────────── -->
-  <div id="face-direct-controls-section" style="display:none">
+  <div id="face-direct-controls-section" data-panel-key="top-face-direct-ctrl" style="display:none">
     <div class="panel">
       <div class="box-title">Face Probe Direct Controls</div>
       <div class="callout mini">Use the <strong>▶ Run Probe</strong> button in Probing Control above to run the face probe via the mode dropdown, or use these direct buttons to immediately probe a specific face axis.</div>
@@ -654,7 +656,7 @@
   </div>
 
   <!-- ── Surface Mesh Section ───────────────────────────────────────── -->
-  <div id="surface-mesh-section">
+  <div id="surface-mesh-section" data-panel-key="top-surf-mesh">
     <!-- Heatmap view (shown by default) -->
     <div id="sm-heatmap-panel" class="panel">
       <div class="box-title">&#127774; Surface Heatmap</div>
@@ -811,7 +813,7 @@
   </div><!-- /surface-mesh-section -->
 
   <!-- ── Face Mesh Section ──────────────────────────────────────────── -->
-  <div id="face-mesh-section" style="display:none">
+  <div id="face-mesh-section" data-panel-key="top-face-mesh" style="display:none">
     <!-- Face Heatmap (shown by default) -->
     <div id="face-heatmap-panel" class="panel">
       <div class="box-title">&#127774; Face Heatmap</div>
@@ -915,7 +917,7 @@
   </div><!-- /face-mesh-section -->
 
   <!-- ── Unified Probe Log ───────────────────────────────────────────── -->
-  <div class="panel">
+  <div class="panel" data-panel-key="top-probe-log">
     <div class="box-title">Probe Log</div>
     <div class="btn-row" style="margin-bottom:8px">
       <button class="btn ghost" onclick="flashSaveButton(this);saveUnifiedProbeLog()">&#128190; Save Log</button>
@@ -944,7 +946,7 @@
     <div class="tab-panel" id="pane-results">
 
       <!-- Top Surface 3D View panel (hidden until data is available) -->
-      <div id="res-surface-panel" style="display:none">
+      <div id="res-surface-panel" data-panel-key="results-surf-3d" style="display:none">
         <div class="panel">
           <div class="box-title">&#128208; Top Surface — 3D View</div>
           <div id="res-pviz-scene">
@@ -965,7 +967,7 @@
       </div>
 
       <!-- Face Surface 3D View panel (hidden until face data is available) -->
-      <div id="res-face-panel" style="display:none">
+      <div id="res-face-panel" data-panel-key="results-face-3d" style="display:none">
         <div class="panel">
           <div class="box-title">&#128208; Face Surface — 3D View</div>
           <div id="resface-pviz-scene">
@@ -986,7 +988,7 @@
       </div>
 
       <!-- 2D Relief Maps for Results tab — same heatmap style as Probe/Mesh Data tabs -->
-      <div id="res-relief-maps-panel" style="display:none">
+      <div id="res-relief-maps-panel" data-panel-key="results-relief-maps" style="display:none">
         <div class="panel" id="res-surface-relief-panel">
           <div class="box-title">&#127774; Surface Relief Map</div>
           <div class="callout mini" style="margin-bottom:8px">Top-down topographic heatmap (XY projection) — warm colors = high Z, cool colors = low Z. Hover for values.</div>
@@ -1005,7 +1007,7 @@
       </div>
 
       <!-- Probe Data: one table for all probe points (surface + face) with Type column -->
-      <div class="panel">
+      <div class="panel" data-panel-key="results-probe-data">
         <div class="box-title">Probe Data</div>
         <div style="max-height:320px;overflow-y:auto;border:1px solid var(--line);border-radius:10px">
           <table>
@@ -1029,7 +1031,7 @@
     <!-- ── MESH DATA TAB ──────────────────────────────────────────────── -->
     <div class="tab-panel" id="pane-meshdata">
 
-      <div class="panel">
+      <div class="panel" data-panel-key="meshdata-surf-3d">
         <div class="box-title">&#128208; Surface Mesh — 3D Visualizer</div>
         <div id="surf-pviz-scene">
           <div id="surf-three-canvas" class="three-canvas-wrap"></div>
@@ -1045,7 +1047,7 @@
       </div>
 
       <!-- ── Surface Relief Map ─────────────────────────────────────────── -->
-      <div class="panel">
+      <div class="panel" data-panel-key="meshdata-surf-relief">
         <div class="box-title">&#127774; Surface Relief Map</div>
         <div class="callout mini" style="margin-bottom:8px">Top-down topographic heatmap — warm colors (red/orange) = high Z, cool colors (blue/green) = low Z. Bilinear interpolation between probe points. Hover for values.</div>
         <div style="margin-top:4px">
@@ -1073,14 +1075,14 @@
       </div>
 
       <!-- Face Relief Map in Mesh Data tab (shown when face probe data is available) -->
-      <div class="panel" id="surf-face-relief-panel" style="display:none">
+      <div class="panel" id="surf-face-relief-panel" data-panel-key="meshdata-face-relief" style="display:none">
         <div class="box-title">&#127774; Face Relief Map</div>
         <div class="callout mini" style="margin-bottom:8px">Front view (XZ projection) — warm colors = shallow contact (Y near 0), cool colors = deep contact. Bilinear interpolation between probe points. Hover for values.</div>
         <canvas id="surf-face-relief-canvas" style="width:100%;border:1px solid var(--line);border-radius:8px;background:#0d111a;display:block"></canvas>
         <div id="surf-face-relief-tooltip" class="mini" style="color:var(--muted);margin-top:4px">Hover over map for values</div>
       </div>
 
-      <div class="panel">
+      <div class="panel" data-panel-key="meshdata-mesh-points">
         <div class="box-title">Mesh Point Data</div>
         <div style="max-height:260px;overflow-y:auto;border:1px solid var(--line);border-radius:10px">
           <table>
@@ -1090,7 +1092,7 @@
         </div>
       </div>
 
-      <div class="panel">
+      <div class="panel" data-panel-key="meshdata-mesh-mgmt">
         <div class="box-title">Mesh Data Management</div>
         <div class="callout mini" style="margin-bottom:12px">Save, load, export and import surface mesh data. <strong>Save Mesh</strong> opens a file save dialog to choose where to save — also backs up to browser storage. Use <strong>Load Mesh</strong> to restore from browser storage. Export/Import for file-based transfer.</div>
         <div class="btn-row">
@@ -1107,7 +1109,7 @@
         <div class="status-line" id="sm-meshStorageStatus" style="margin-top:8px"></div>
       </div>
 
-      <div class="panel">
+      <div class="panel" data-panel-key="meshdata-edge-results">
         <div class="box-title">Edge Probe Results Storage</div>
         <div class="callout mini" style="margin-bottom:12px">Save and load edge probe results (face and top profile data). Separate from the surface mesh above.</div>
         <div class="btn-row">
@@ -1122,7 +1124,7 @@
       </div>
 
       <!-- ── COMBINED MESH DATA ──────────────────────────────────────────── -->
-      <div class="panel" id="combined-mesh-panel" style="display:none">
+      <div class="panel" id="combined-mesh-panel" data-panel-key="meshdata-combined-3d" style="display:none">
         <div class="box-title">&#127937; Combined Mesh — 3D Visualizer</div>
         <div class="callout mini" style="margin-bottom:8px">Shows the top surface and face probe wall as a unified 3D shape — the slab top flowing over the live edge and down the face. <span style="color:var(--accent2)">&#9679; Blue/green = surface top</span> &nbsp; <span style="color:#e4a050">&#9679; Warm tones = face wall</span></div>
         <div id="comb-pviz-scene">
@@ -1138,7 +1140,7 @@
         <div class="mini" style="margin-top:4px;text-align:center;color:var(--muted)">Drag to rotate &middot; Scroll to zoom &middot; Right-click to pan &middot; Double-click to reset</div>
       </div>
 
-      <div class="panel" id="combined-mesh-data-panel" style="display:none">
+      <div class="panel" id="combined-mesh-data-panel" data-panel-key="meshdata-combined-data" style="display:none">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
           <div class="box-title" style="margin-bottom:0">Combined Mesh Point Data</div>
           <button class="btn warn" id="comb-data-btn-clear" style="padding:4px 12px;font-size:12px">&#128465; Clear</button>
@@ -1152,7 +1154,7 @@
         </div>
       </div>
 
-      <div class="panel" id="combined-mesh-mgmt-panel" style="display:none">
+      <div class="panel" id="combined-mesh-mgmt-panel" data-panel-key="meshdata-combined-mgmt" style="display:none">
         <div class="box-title">Combined Mesh Data Management</div>
         <div class="callout mini" style="margin-bottom:12px">Save, export and clear the combined (surface + face) mesh data. <strong>Save Combined Mesh</strong> opens a file save dialog.</div>
         <div class="btn-row">
@@ -1170,7 +1172,7 @@
     <div class="tab-panel" id="pane-apply">
 
       <!-- G-code Source -->
-      <div class="panel">
+      <div class="panel" data-panel-key="apply-gcode-src">
         <div class="box-title">&#128196; G-code Source</div>
         <div class="callout mini" style="margin-bottom:10px">Load the G-code program to apply Z compensation. You can paste G-code, load from a file, or use the currently loaded program in ncSender.</div>
         <div class="btn-row" style="margin-bottom:10px">
@@ -1184,7 +1186,7 @@
       </div>
 
       <!-- Surface Z Compensation -->
-      <div class="panel">
+      <div class="panel" data-panel-key="apply-surf-comp">
         <div class="box-title">&#9889; Surface Z Compensation</div>
         <div class="callout mini" style="margin-bottom:10px">Apply bilinear Z compensation from the surface mesh to the loaded G-code. <strong>Subdivide moves</strong> splits long linear moves into short segments that follow the mesh surface for smooth curves.</div>
         <div class="grid two" style="margin-bottom:10px">
@@ -1207,7 +1209,7 @@
       </div>
 
       <!-- Face Compensation -->
-      <div class="panel">
+      <div class="panel" data-panel-key="apply-face-comp">
         <div class="box-title">&#128736; Face Compensation</div>
         <div class="callout mini" style="margin-bottom:10px">Apply face probe compensation to adjust the depth axis (X or Y) based on the face mesh. Requires face probe data.</div>
         <div class="grid two" style="margin-bottom:10px">
@@ -1253,7 +1255,7 @@
       </div>
 
       <!-- G-code Preview -->
-      <div class="panel">
+      <div class="panel" data-panel-key="apply-gcode-preview">
         <div class="box-title">&#128203; Compensated G-code Preview</div>
         <pre id="apply-preview" class="mono" style="max-height:200px;overflow-y:auto;padding:10px;border:1px solid var(--line);border-radius:10px;background:#0d111a;font-size:11px;white-space:pre-wrap;color:var(--muted)">No compensated G-code yet</pre>
       </div>
