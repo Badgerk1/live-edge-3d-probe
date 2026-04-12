@@ -1364,6 +1364,25 @@ function _catmullRom(p0, p1, p2, p3, t) {
   );
 }
 
+// Chord-length-parameterised Hermite interpolation for the segment [x1, x2].
+// Computes tangents from adjacent physical positions so that
+// d(value)/d(physical_pos) is C1-continuous at cell boundaries even when
+// control-point positions x0…x3 are non-uniformly spaced.
+// p0…p3 : scalar values at the four control points
+// x0…x3 : physical positions (monotonically increasing)
+// t      : local parameter in [0,1] for the segment [x1, x2]
+function _chordHermite(p0, p1, p2, p3, x0, x1, x2, x3, t) {
+  var d01 = x1 - x0; if (d01 <= 0) d01 = x2 - x1;
+  var d12 = x2 - x1;  // current cell span
+  var d23 = x3 - x2; if (d23 <= 0) d23 = d12;
+  var denom1 = d01 + d12;  // x2 - x0
+  var denom2 = d12 + d23;  // x3 - x1
+  var m1 = denom1 > 0 ? (p2 - p0) / denom1 * d12 : 0;
+  var m2 = denom2 > 0 ? (p3 - p1) / denom2 * d12 : 0;
+  var t2 = t*t, t3 = t2*t;
+  return (2*t3 - 3*t2 + 1)*p1 + (t3 - 2*t2 + t)*m1 + (-2*t3 + 3*t2)*p2 + (t3 - t2)*m2;
+}
+
 // Smooth subdivided surface mesh with bicubic Catmull-Rom interpolation between probe points.
 // Catmull-Rom gives C1-continuous joints (matching slopes across grid-cell boundaries),
 // which eliminates the sharp crease / "blocky terrain" artefact that bilinear produces
@@ -1475,6 +1494,15 @@ function _buildThreeFaceWall(faceWall, cfg, zMin, zMax, zExag, si) {
   var nCX = faceWall.nCols - 1, nCY = faceWall.nRows - 1;
   if (nCX < 1 || nCY < 1) return null;
   var nR = faceWall.nRows, nC = faceWall.nCols;
+  // Actual column X positions and row Z heights for chord-length parameterisation.
+  var fwXs = faceWall.xs; // fwXs[xi] = physical X of column xi
+  var rowZs = new Array(nR).fill(null);
+  for (var _liz = 0; _liz < nR; _liz++) {
+    for (var _xiz = 0; _xiz < nC; _xiz++) {
+      var _fwg = faceWall.grid[_liz] && faceWall.grid[_liz][_xiz];
+      if (_fwg && isFinite(Number(_fwg.z))) { rowZs[_liz] = Number(_fwg.z); break; }
+    }
+  }
   // Helper: get grid point with boundary clamping; returns null if missing/invalid
   function gR(li, xi) {
     var lli = Math.max(0, Math.min(nR-1, li));
@@ -1482,16 +1510,19 @@ function _buildThreeFaceWall(faceWall, cfg, zMin, zMax, zExag, si) {
     var r = faceWall.grid[lli] && faceWall.grid[lli][lxi];
     return (r && isFinite(Number(r.z)) && isFinite(Number(r.y))) ? r : null;
   }
-  // 1-D Catmull-Rom along a row (layer li) for X-index xi and fractional t, extracting scalar fn(r).
-  // Falls back to linear if either outer neighbour is null.
+  // 1-D chord-length Hermite along a row (layer li) for X-index xi and fractional t.
+  // Uses actual physical X positions so d(value)/dX is continuous across column boundaries
+  // even when probe columns are non-uniformly spaced.
   function rowInterpFn(li, xi, t, fn) {
     var p1 = gR(li, xi); var p2 = gR(li, xi+1);
     if (!p1 || !p2) return null;
     var p0 = gR(li, xi-1); if (!p0) p0 = p1;
     var p3 = gR(li, xi+2); if (!p3) p3 = p2;
-    return _catmullRom(fn(p0), fn(p1), fn(p2), fn(p3), t);
+    var x0 = xi > 0 ? fwXs[xi-1] : fwXs[xi];
+    var x3 = xi+2 < nC ? fwXs[xi+2] : fwXs[xi+1];
+    return _chordHermite(fn(p0), fn(p1), fn(p2), fn(p3), x0, fwXs[xi], fwXs[xi+1], x3, t);
   }
-  // Bicubic Catmull-Rom for cell (li, xi) at params (tx, ty) extracting field fn.
+  // Bicubic chord-length Hermite for cell (li, xi) at params (tx, ty) extracting field fn.
   // Falls back to bilinear if any primary corner is null.
   function faceInterpFn(li, xi, tx, ty, fn) {
     var r00=gR(li,xi), r10=gR(li,xi+1), r01=gR(li+1,xi), r11=gR(li+1,xi+1);
@@ -1503,7 +1534,12 @@ function _buildThreeFaceWall(faceWall, cfg, zMin, zMax, zExag, si) {
     }
     if (ri0===null) ri0=ri1;
     if (ri3===null) ri3=ri2;
-    return _catmullRom(ri0, ri1, ri2, ri3, ty);
+    // Chord-length Hermite in the layer-Z direction for non-uniform row spacing.
+    var z0 = rowZs[li-1] != null ? rowZs[li-1] : rowZs[li];
+    var z1 = rowZs[li], z2 = rowZs[li+1];
+    var z3 = rowZs[li+2] != null ? rowZs[li+2] : rowZs[li+1];
+    if (z0 == null) z0 = z1; if (z3 == null) z3 = z2;
+    return _chordHermite(ri0, ri1, ri2, ri3, z0, z1, z2, z3, ty);
   }
   // Unified vertex grid: shared vertices at cell boundaries allow
   // computeVertexNormals() to average normals across all cells — eliminates
