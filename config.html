@@ -520,65 +520,68 @@
             </div>
             <div class="mini">Save Current Location stores the present work position in the plugin. Check Homed reads controller state and shows homed, machine, and probe input status before you start probing. Finish Clearance sets how many mm above the highest measured probe contact to retract Z before any X/Y return.</div>
           </div>
-
-          <div id="jog-original-anchor"></div>
-          <div class="jog-card" id="jog-controls-card">
-            <div class="box-title">Jog Controls</div>
-            <div class="jog-topbar">
-              <div class="jog-step-group">
-                <span class="mini" style="font-size:12px;color:var(--text)">Step</span>
-                <div class="jog-step-pills">
-                  <button class="jog-pill" type="button" data-step="0.1">0.1</button>
-                  <button class="jog-pill active" type="button" data-step="1">1</button>
-                  <button class="jog-pill" type="button" data-step="10">10</button>
-                </div>
-              </div>
-              <div class="jog-feed-wrap">
-                <span class="mini" style="font-size:12px;color:var(--text)">Feed</span>
-                <input type="number" id="jogFeedXY" value="600" min="1" step="10">
-              </div>
-            </div>
-            <input type="hidden" id="jogStepXY" value="1">
-            <div class="jog-grid-wrap">
-              <div class="jog-xy-pad">
-                <button class="jog-btn" type="button" id="btn-jog-xy-up-left">&#8598;</button>
-                <button class="jog-btn" type="button" id="btn-jog-y-plus">Y+</button>
-                <button class="jog-btn" type="button" id="btn-jog-xy-up-right">&#8599;</button>
-                <button class="jog-btn" type="button" id="btn-jog-x-minus">X-</button>
-                <button class="jog-btn stop" type="button" id="btn-jog-hold">Hold</button>
-                <button class="jog-btn" type="button" id="btn-jog-x-plus">X+</button>
-                <button class="jog-btn" type="button" id="btn-jog-xy-down-left">&#8601;</button>
-                <button class="jog-btn" type="button" id="btn-jog-y-minus">Y-</button>
-                <button class="jog-btn" type="button" id="btn-jog-xy-down-right">&#8600;</button>
-              </div>
-              <div class="jog-col">
-                <button class="jog-btn" type="button" id="btn-jog-z-plus">Z+</button>
-                <button class="jog-btn" type="button" id="btn-jog-z-minus">Z-</button>
-              </div>
-              <div class="jog-col">
-                <button class="jog-btn resume" type="button" id="btn-jog-resume">Resume</button>
-                <button class="jog-btn disabled" type="button" id="btn-jog-a-minus" disabled>A-</button>
-              </div>
-            </div>
-            <div class="jog-meta">
-              <div class="field">
-                <label><span class="tooltip">Jog Step Z (coords)<span class="tip-icon">?</span><span class="tip">Distance moved per Z jog button press. Independent of the XY step pills above. Adjust before probing to position Z accurately.</span></span></label>
-                <input type="number" id="jogStepZ" value="2" min="0.001" step="0.1">
-              </div>
-              <div class="field">
-                <label><span class="tooltip">Jog Feed Z (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for Z axis jog moves. Keep lower than XY to avoid crashing the probe into the workpiece.</span></span></label>
-                <input type="number" id="jogFeedZ" value="300" min="1" step="10">
-              </div>
-            </div>
-            <div class="jog-actions">
-              <button class="btn ghost" id="btn-refresh-position">&#10227; Refresh Position</button>
-              <button class="btn ghost" id="btn-jog-work-zero">Go X0 Y0</button>
-              <button class="btn ghost" id="btn-jog-safe-top">Raise to Machine Safe Z</button>
-            </div>
-            <div class="mini" style="margin-top:10px">A-axis buttons are placeholders for future rotary support. Raise to Machine Safe Z uses G53 when the machine is homed and machine-home retract is enabled.</div>
-          </div>
         </div>
       </div>
+
+      <div class="panel" data-panel-key="setup-jog-controls">
+        <div id="jog-original-anchor" style="display:none"></div>
+        <div class="jog-card" id="jog-controls-card">
+          <div class="box-title">Jog Controls</div>
+          <div class="jog-topbar">
+            <div class="jog-step-group">
+              <span class="mini" style="font-size:12px;color:var(--text)">Step</span>
+              <div class="jog-step-pills">
+                <button class="jog-pill" type="button" data-step="0.1">0.1</button>
+                <button class="jog-pill active" type="button" data-step="1">1</button>
+                <button class="jog-pill" type="button" data-step="10">10</button>
+              </div>
+            </div>
+            <div class="jog-feed-wrap">
+              <span class="mini" style="font-size:12px;color:var(--text)">Feed</span>
+              <input type="number" id="jogFeedXY" value="600" min="1" step="10">
+            </div>
+          </div>
+          <input type="hidden" id="jogStepXY" value="1">
+          <div class="jog-grid-wrap">
+            <div class="jog-xy-pad">
+              <button class="jog-btn" type="button" id="btn-jog-xy-up-left">&#8598;</button>
+              <button class="jog-btn" type="button" id="btn-jog-y-plus">Y+</button>
+              <button class="jog-btn" type="button" id="btn-jog-xy-up-right">&#8599;</button>
+              <button class="jog-btn" type="button" id="btn-jog-x-minus">X-</button>
+              <button class="jog-btn stop" type="button" id="btn-jog-hold">Hold</button>
+              <button class="jog-btn" type="button" id="btn-jog-x-plus">X+</button>
+              <button class="jog-btn" type="button" id="btn-jog-xy-down-left">&#8601;</button>
+              <button class="jog-btn" type="button" id="btn-jog-y-minus">Y-</button>
+              <button class="jog-btn" type="button" id="btn-jog-xy-down-right">&#8600;</button>
+            </div>
+            <div class="jog-col">
+              <button class="jog-btn" type="button" id="btn-jog-z-plus">Z+</button>
+              <button class="jog-btn" type="button" id="btn-jog-z-minus">Z-</button>
+            </div>
+            <div class="jog-col">
+              <button class="jog-btn resume" type="button" id="btn-jog-resume">Resume</button>
+              <button class="jog-btn disabled" type="button" id="btn-jog-a-minus" disabled>A-</button>
+            </div>
+          </div>
+          <div class="jog-meta">
+            <div class="field">
+              <label><span class="tooltip">Jog Step Z (coords)<span class="tip-icon">?</span><span class="tip">Distance moved per Z jog button press. Independent of the XY step pills above. Adjust before probing to position Z accurately.</span></span></label>
+              <input type="number" id="jogStepZ" value="2" min="0.001" step="0.1">
+            </div>
+            <div class="field">
+              <label><span class="tooltip">Jog Feed Z (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for Z axis jog moves. Keep lower than XY to avoid crashing the probe into the workpiece.</span></span></label>
+              <input type="number" id="jogFeedZ" value="300" min="1" step="10">
+            </div>
+          </div>
+          <div class="jog-actions">
+            <button class="btn ghost" id="btn-refresh-position">&#10227; Refresh Position</button>
+            <button class="btn ghost" id="btn-jog-work-zero">Go X0 Y0</button>
+            <button class="btn ghost" id="btn-jog-safe-top">Raise to Machine Safe Z</button>
+          </div>
+          <div class="mini" style="margin-top:10px">A-axis buttons are placeholders for future rotary support. Raise to Machine Safe Z uses G53 when the machine is homed and machine-home retract is enabled.</div>
+        </div>
+      </div>
+
       <div class="panel" data-panel-key="setup-mesh-subdiv">
         <div class="box-title">Mesh Subdivision</div>
         <div class="grid three">
@@ -2625,7 +2628,7 @@ function switchTab(id){
       probeHolder.appendChild(jogCard);
       jogCard.classList.add('jog-compact');
     } else {
-      // Return jog card to its original position in Setup tab (after the anchor)
+      // Return jog card to its dedicated top-level setup panel (setup-jog-controls)
       setupAnchor.parentNode.insertBefore(jogCard, setupAnchor.nextSibling);
       jogCard.classList.remove('jog-compact');
     }
