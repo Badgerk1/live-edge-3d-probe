@@ -837,6 +837,19 @@
     <div class="mini" id="sm-probeStatus" style="margin-top:6px">Ready</div>
   </div>
 
+  <!-- ── Face Probe Direct Controls ───────────────────────────────────── -->
+  <div id="face-direct-controls-section" style="display:none">
+    <div class="panel">
+      <div class="box-title">Face Probe Direct Controls</div>
+      <div class="callout mini">Use the <strong>▶ Run Probe</strong> button in Probing Control above to run the face probe via the mode dropdown, or use these direct buttons to immediately probe a specific face axis.</div>
+      <div class="btn-row" style="margin-top:12px">
+        <button class="btn" id="btn-face-x">&#9654; Probe X Face</button>
+        <button class="btn" id="btn-face-y">&#9654; Probe Y Face</button>
+        <button class="btn warn" id="btn-stop-face" disabled>&#9646;&#9646; Stop</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Surface Mesh Section ───────────────────────────────────────── -->
   <div id="surface-mesh-section">
     <!-- Heatmap view (shown by default) -->
@@ -996,16 +1009,6 @@
 
   <!-- ── Face Mesh Section ──────────────────────────────────────────── -->
   <div id="face-mesh-section" style="display:none">
-    <!-- Face Probe Control -->
-    <div class="panel">
-      <div class="box-title">Face Probe Direct Controls</div>
-      <div class="callout mini">Use the <strong>▶ Run Probe</strong> button in Probing Control above to run the face probe via the mode dropdown, or use these direct buttons to immediately probe a specific face axis.</div>
-      <div class="btn-row" style="margin-top:12px">
-        <button class="btn" id="btn-face-x">&#9654; Probe X Face</button>
-        <button class="btn" id="btn-face-y">&#9654; Probe Y Face</button>
-        <button class="btn warn" id="btn-stop-face" disabled>&#9646;&#9646; Stop</button>
-      </div>
-    </div>
     <!-- Face Heatmap (shown by default) -->
     <div id="face-heatmap-panel" class="panel">
       <div class="box-title">&#127774; Face Heatmap</div>
@@ -3131,6 +3134,10 @@ function onProbeTypeChange() {
   // Face mesh section (face visualizer, relief map, data mgmt)
   var faceMesh = document.getElementById('face-mesh-section');
   if (faceMesh) faceMesh.style.display = showFace ? '' : 'none';
+
+  // Face probe direct controls section
+  var faceDirectControls = document.getElementById('face-direct-controls-section');
+  if (faceDirectControls) faceDirectControls.style.display = showFace ? '' : 'none';
 
   // Unified log sections
   var surfLogWrap = document.getElementById('unified-log-surface-wrap');
