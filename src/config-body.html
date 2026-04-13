@@ -789,10 +789,30 @@
         <div class="mini" style="margin-top:4px">Interpolates additional vertices using C2 cubic splines for a smooth mesh. 0.5mm default; increase for smaller files.</div>
       </div>
       <div class="field" style="max-width:320px;margin-bottom:10px">
-        <label><span class="tooltip">Seam Edge Smoothing (0–1)<span class="tip-icon">?</span><span class="tip">Blends the front seam-edge row of the surface mesh toward its interior neighbours. 0 = off (default). 0.5 = gentle smooth. 1 = full blend. Automatically corrects both peaks (+) and valleys (−) along the edge — no manual ± needed.</span></span>
-          <input type="number" id="surfSeamSmooth" value="0" min="0" max="1" step="0.1" style="width:80px">
+        <label><span class="tooltip">Surface Smoothing – Peaks (0–1)<span class="tip-icon">?</span><span class="tip">Blends elevated points (Z above neighbourhood average) toward the local 2-D neighbourhood average. 0 = off. 0.5 = gentle smooth. 1 = full blend. Applied to OBJ/STL exports only.</span></span>
+          <select id="surfSmoothPeak" style="width:80px">
+            <option value="0" selected>0</option>
+            <option value="0.5">0.5</option>
+            <option value="1">1</option>
+          </select>
         </label>
-        <div class="mini" style="margin-top:4px">Auto-smooths peaks and valleys along the surface seam edge. Applied to OBJ and STL exports only.</div>
+        <div class="mini" style="margin-top:4px">Smooths peaks (high points) on the surface mesh. Applied to OBJ and STL exports only.</div>
+      </div>
+      <div class="field" style="max-width:320px;margin-bottom:10px">
+        <label><span class="tooltip">Surface Smoothing – Valleys (0–1)<span class="tip-icon">?</span><span class="tip">Blends depressed points (Z below neighbourhood average) toward the local 2-D neighbourhood average. 0 = off. 0.5 = gentle smooth. 1 = full blend. Applied to OBJ/STL exports only.</span></span>
+          <select id="surfSmoothValley" style="width:80px">
+            <option value="0" selected>0</option>
+            <option value="0.5">0.5</option>
+            <option value="1">1</option>
+          </select>
+        </label>
+        <div class="mini" style="margin-top:4px">Smooths valleys (low points) on the surface mesh. Applied to OBJ and STL exports only.</div>
+      </div>
+      <div class="field" style="max-width:320px;margin-bottom:10px">
+        <label><span class="tooltip">Surface Smoothing – Passes (1–10)<span class="tip-icon">?</span><span class="tip">Number of times the neighbourhood-average smoothing is applied to the surface mesh. More passes create a stronger blur. Default 1; increase for very uneven surfaces.</span></span>
+          <input type="number" id="surfSmoothPasses" value="1" min="1" max="10" step="1" style="width:80px">
+        </label>
+        <div class="mini" style="margin-top:4px">Smoothing iterations for the surface mesh. Applied to OBJ and STL exports only.</div>
       </div>
       <div class="btn-row">
         <button class="btn ghost" id="btn-export-surf-csv" title="Export surface mesh as CSV">&#128196; Export CSV</button>
@@ -829,6 +849,89 @@
           <input type="number" id="combinedOBJSubdivision" value="0.5" min="0.5" max="25" step="0.5" style="width:80px">
         </label>
         <div class="mini" style="margin-top:4px">Face wall subdivision resolution for the combined export. 0.5mm recommended.</div>
+      </div>
+      <div style="font-size:11px;font-weight:600;color:var(--muted);margin:12px 0 4px">Surface Smoothing <span style="font-weight:400">(OBJ/STL export only)</span></div>
+      <div class="field" style="max-width:320px;margin-bottom:10px">
+        <label><span class="tooltip">Combined Surface Smoothing – Peaks (0–1)<span class="tip-icon">?</span><span class="tip">Blends elevated surface points (Z above neighbourhood average) toward the local 2-D neighbourhood average. 0 = off. 0.5 = gentle smooth. 1 = full blend. Applied to combined OBJ/STL exports only.</span></span>
+          <select id="combinedSurfSmoothPeak" style="width:80px">
+            <option value="0" selected>0</option>
+            <option value="0.5">0.5</option>
+            <option value="1">1</option>
+          </select>
+        </label>
+        <div class="mini" style="margin-top:4px">Smooths surface peaks in the combined export. Applied to OBJ and STL exports only.</div>
+      </div>
+      <div class="field" style="max-width:320px;margin-bottom:10px">
+        <label><span class="tooltip">Combined Surface Smoothing – Valleys (0–1)<span class="tip-icon">?</span><span class="tip">Blends depressed surface points (Z below neighbourhood average) toward the local 2-D neighbourhood average. 0 = off. 0.5 = gentle smooth. 1 = full blend. Applied to combined OBJ/STL exports only.</span></span>
+          <select id="combinedSurfSmoothValley" style="width:80px">
+            <option value="0" selected>0</option>
+            <option value="0.5">0.5</option>
+            <option value="1">1</option>
+          </select>
+        </label>
+        <div class="mini" style="margin-top:4px">Smooths surface valleys in the combined export. Applied to OBJ and STL exports only.</div>
+      </div>
+      <div class="field" style="max-width:320px;margin-bottom:10px">
+        <label><span class="tooltip">Combined Surface Smoothing – Passes (1–10)<span class="tip-icon">?</span><span class="tip">Number of smoothing passes applied to the surface portion. More passes create a stronger blur. Default 1.</span></span>
+          <input type="number" id="combinedSurfSmoothPasses" value="1" min="1" max="10" step="1" style="width:80px">
+        </label>
+        <div class="mini" style="margin-top:4px">Surface smoothing iterations for the combined export. Applied to OBJ and STL exports only.</div>
+      </div>
+      <div style="font-size:11px;font-weight:600;color:var(--muted);margin:12px 0 4px">Face Wall Smoothing <span style="font-weight:400">(OBJ/STL export only)</span></div>
+      <div class="field" style="max-width:320px;margin-bottom:10px">
+        <label><span class="tooltip">Combined Face Wall Smoothing – Peaks (0–1)<span class="tip-icon">?</span><span class="tip">Blends protruding face wall points (where the probe contacted earlier than neighbours) toward the local 2-D neighbourhood average. 0 = off. 0.5 = gentle smooth. 1 = full blend. Applied to combined OBJ/STL exports only.</span></span>
+          <select id="combinedFaceWallSmoothPeak" style="width:80px">
+            <option value="0">0</option>
+            <option value="0.5" selected>0.5</option>
+            <option value="1">1</option>
+          </select>
+        </label>
+        <div class="mini" style="margin-top:4px">Smooths face wall peaks in the combined export. Applied to OBJ and STL exports only.</div>
+      </div>
+      <div class="field" style="max-width:320px;margin-bottom:10px">
+        <label><span class="tooltip">Combined Face Wall Smoothing – Valleys (0–1)<span class="tip-icon">?</span><span class="tip">Blends recessed face wall points (where the probe traveled further than neighbours) toward the local 2-D neighbourhood average. 0 = off. 0.5 = gentle smooth. 1 = full blend. Applied to combined OBJ/STL exports only.</span></span>
+          <select id="combinedFaceWallSmoothValley" style="width:80px">
+            <option value="0">0</option>
+            <option value="0.5" selected>0.5</option>
+            <option value="1">1</option>
+          </select>
+        </label>
+        <div class="mini" style="margin-top:4px">Smooths face wall valleys in the combined export. Applied to OBJ and STL exports only.</div>
+      </div>
+      <div class="field" style="max-width:320px;margin-bottom:10px">
+        <label><span class="tooltip">Combined Face Wall Smoothing – Passes (1–10)<span class="tip-icon">?</span><span class="tip">Number of smoothing passes applied to the face wall portion. More passes create a stronger blur. Default 3 works well for most parts.</span></span>
+          <input type="number" id="combinedFaceWallSmoothPasses" value="3" min="1" max="10" step="1" style="width:80px">
+        </label>
+        <div class="mini" style="margin-top:4px">Face wall smoothing iterations for the combined export. Applied to OBJ and STL exports only.</div>
+      </div>
+      <div style="font-size:11px;font-weight:600;color:var(--muted);margin:12px 0 4px">Seam Smoothing <span style="font-weight:400">(OBJ/STL export only)</span></div>
+      <div class="field" style="max-width:320px;margin-bottom:10px">
+        <label><span class="tooltip">Seam Smoothing (0–10)<span class="tip-icon">?</span><span class="tip">Blends the join between the surface mesh and the face wall mesh. 0 = off (default). Values up to 10 apply progressively stronger blending at the seam edge. Applied to combined OBJ/STL exports only.</span></span>
+          <select id="combinedSeamSmooth" style="width:80px">
+            <option value="0">0</option>
+            <option value="0.5">0.5</option>
+            <option value="1">1</option>
+            <option value="1.5">1.5</option>
+            <option value="2">2</option>
+            <option value="2.5">2.5</option>
+            <option value="3">3</option>
+            <option value="3.5">3.5</option>
+            <option value="4">4</option>
+            <option value="4.5">4.5</option>
+            <option value="5">5</option>
+            <option value="5.5">5.5</option>
+            <option value="6">6</option>
+            <option value="6.5">6.5</option>
+            <option value="7">7</option>
+            <option value="7.5">7.5</option>
+            <option value="8">8</option>
+            <option value="8.5">8.5</option>
+            <option value="9">9</option>
+            <option value="9.5">9.5</option>
+            <option value="10">10</option>
+          </select>
+        </label>
+        <div class="mini" style="margin-top:4px">Smooths the seam edge where surface and face wall meet. Applied to OBJ and STL exports only.</div>
       </div>
       <div class="btn-row">
         <button class="btn ghost" id="btn-export-combined-obj" title="Export single watertight OBJ (surface + face stitched)">&#129518; Export Combined OBJ (Watertight)</button>
