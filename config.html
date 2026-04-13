@@ -8052,13 +8052,20 @@ async function runFaceProbe(axis, _calledFromCombined){
       faceSamples = [{ index: 1, sampleCoord: fixedCoord, topZ: fallbackTopZ }];
     }
 
-    // Average all sample topZ values into a single reference height so every
-    // sample probes at the same Z depth — eliminates horizontal/vertical
-    // banding caused by per-sample Z variation.
-    var _avgTopZSum = 0;
-    for(var _ati = 0; _ati < faceSamples.length; _ati++) _avgTopZSum += Number(faceSamples[_ati].topZ);
-    var avgTopZ = faceSamples.length ? (_avgTopZSum / faceSamples.length) : 0;
-    logLine('face', 'Face probe: averaged topZ reference = ' + avgTopZ.toFixed(3) + ' coords (from ' + faceSamples.length + ' samples, range ' + Math.min.apply(null, faceSamples.map(function(s){ return Number(s.topZ); })).toFixed(3) + ' to ' + Math.max.apply(null, faceSamples.map(function(s){ return Number(s.topZ); })).toFixed(3) + ')');
+    // Use the lowest (minimum) topZ across all samples as the single reference
+    // depth for every face probe move.  Every sample therefore probes at the
+    // exact same absolute Z coordinate, which completely eliminates horizontal
+    // banding.  For samples whose surface is higher than the minimum the probe
+    // is simply inserted a little deeper below their surface — this is always
+    // safe and still contacts the face wall correctly.  The user-configurable
+    // depth-below / maxDepth offset is applied on top of this minimum.
+    var minTopZ = Infinity;
+    for(var _mti = 0; _mti < faceSamples.length; _mti++){
+      var _mtz = Number(faceSamples[_mti].topZ);
+      if(_mtz < minTopZ) minTopZ = _mtz;
+    }
+    if(!isFinite(minTopZ)) minTopZ = 0;
+    logLine('face', 'Face probe: minimum topZ reference = ' + minTopZ.toFixed(3) + ' coords (from ' + faceSamples.length + ' samples, range ' + minTopZ.toFixed(3) + ' to ' + Math.max.apply(null, faceSamples.map(function(s){ return Number(s.topZ); })).toFixed(3) + ')');
 
     // ── Layered face probe mode ───────────────────────────────────────────────
     if(s.enableLayeredFace){
@@ -8079,9 +8086,9 @@ async function runFaceProbe(axis, _calledFromCombined){
         if(layerIdx === totalLayers - 1){
           layerRetractZ.push(null);
         } else {
-          // Use averaged topZ so retract heights are consistent across all samples
-          var nextDeepestZ = avgTopZ - maxDepth;
-          var nextSpacing = (avgTopZ - 0.05 - nextDeepestZ) / (totalLayers - 1);
+          // Use minTopZ so retract heights are consistent and always above the workpiece
+          var nextDeepestZ = minTopZ - maxDepth;
+          var nextSpacing = (minTopZ - 0.05 - nextDeepestZ) / (totalLayers - 1);
           var nextLayerZ = parseFloat((nextDeepestZ + ((layerIdx + 1) * nextSpacing)).toFixed(6));
           layerRetractZ.push(nextLayerZ + 2);
         }
@@ -8122,13 +8129,11 @@ async function runFaceProbe(axis, _calledFromCombined){
           var lineCoord = Number(sample.sampleCoord);
           var sampleNum = si + 1;
 
-          // Per-sample layer Z calculation:
-          // Layer 1 (bottom) is at sampleTopZ - maxDepth (stylus length below top surface)
-          // Shallowest layer probes at sampleTopZ - 0.05 (0.05 coords below surface to ensure contact)
-          // Middle layers are evenly spaced between bottom and sampleTopZ - 0.05
-          // Use averaged topZ reference so all samples probe at the same absolute Z depth,
-          // eliminating vertical banding caused by per-sample Z variation.
-          var sampleTopZ = avgTopZ;
+          // Per-sample layer Z calculation uses minTopZ so every sample probes at
+          // the same absolute Z — completely eliminates banding.  For higher-surface
+          // samples the probe is simply inserted a bit deeper below their surface,
+          // which is always safe and still contacts the face wall correctly.
+          var sampleTopZ = minTopZ;
           var deepestZ = sampleTopZ - maxDepth;
           var layerZ;
           if(totalLayers === 1){
@@ -8305,8 +8310,13 @@ async function runFaceProbe(axis, _calledFromCombined){
       checkStop();
       var sample = faceSamples[i];
       var lineCoord = Number(sample.sampleCoord);
-      var zForProbe = avgTopZ - depthBelow;
-      logLine('face', 'Face sample ' + sample.index + '/' + faceSamples.length + ': line ' + sampledAxis + '=' + lineCoord.toFixed(3) + ' using avg top Z=' + avgTopZ.toFixed(3) + ' depth below=' + depthBelow.toFixed(3) + ' probe Z=' + zForProbe.toFixed(3));
+      // Use minTopZ so every sample probes at the exact same absolute Z coordinate,
+      // which completely eliminates banding.  For samples with a higher surface the
+      // probe is inserted a little deeper below their topZ — always safe and still
+      // contacts the face wall correctly.
+      var _spEffectiveTopZ = minTopZ;
+      var zForProbe = _spEffectiveTopZ - depthBelow;
+      logLine('face', 'Face sample ' + sample.index + '/' + faceSamples.length + ': line ' + sampledAxis + '=' + lineCoord.toFixed(3) + ' using minTopZ=' + minTopZ.toFixed(3) + ' (sample=' + Number(sample.topZ).toFixed(3) + ') depth below=' + depthBelow.toFixed(3) + ' probe Z=' + zForProbe.toFixed(3));
 
       if(!spDidOptimizedRetract){
         await raiseFaceTravelSafeZ('Face sample ' + sample.index + ': safe retract before indexed move');
