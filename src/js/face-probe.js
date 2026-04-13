@@ -433,9 +433,12 @@ async function runFaceProbe(axis, _calledFromCombined){
           // Layer 1 (bottom) is at sampleTopZ - maxDepth (stylus length below top surface)
           // Shallowest layer probes at sampleTopZ - 0.05 (0.05 coords below surface to ensure contact)
           // Middle layers are evenly spaced between bottom and sampleTopZ - 0.05
-          // Use averaged topZ reference so all samples probe at the same absolute Z depth,
-          // eliminating vertical banding caused by per-sample Z variation.
-          var sampleTopZ = avgTopZ;
+          // Use the lower of avgTopZ and this sample's actual topZ.  avgTopZ keeps
+          // banding minimal across samples whose surface is at or above average;
+          // falling back to the sample's own topZ when the surface is below average
+          // prevents the probe from being positioned above the actual workpiece (which
+          // would produce a complete miss — including missing the surface-row trigger).
+          var sampleTopZ = Math.min(avgTopZ, Number(sample.topZ));
           var deepestZ = sampleTopZ - maxDepth;
           var layerZ;
           if(totalLayers === 1){
@@ -612,8 +615,16 @@ async function runFaceProbe(axis, _calledFromCombined){
       checkStop();
       var sample = faceSamples[i];
       var lineCoord = Number(sample.sampleCoord);
-      var zForProbe = avgTopZ - depthBelow;
-      logLine('face', 'Face sample ' + sample.index + '/' + faceSamples.length + ': line ' + sampledAxis + '=' + lineCoord.toFixed(3) + ' using avg top Z=' + avgTopZ.toFixed(3) + ' depth below=' + depthBelow.toFixed(3) + ' probe Z=' + zForProbe.toFixed(3));
+      // Use the lower of avgTopZ and this sample's actual topZ so the probe is
+      // always below the real surface at this position.  avgTopZ can exceed a
+      // sample's actual topZ when the surface dips below average, which would
+      // place the probe in mid-air and cause a complete miss (including missing
+      // the surface-row trigger).  Taking the minimum preserves the anti-banding
+      // intent for higher samples while guaranteeing the probe depth is correct
+      // for lower ones.
+      var _spEffectiveTopZ = Math.min(avgTopZ, Number(sample.topZ));
+      var zForProbe = _spEffectiveTopZ - depthBelow;
+      logLine('face', 'Face sample ' + sample.index + '/' + faceSamples.length + ': line ' + sampledAxis + '=' + lineCoord.toFixed(3) + ' using effective top Z=' + _spEffectiveTopZ.toFixed(3) + ' (avg=' + avgTopZ.toFixed(3) + ' sample=' + Number(sample.topZ).toFixed(3) + ') depth below=' + depthBelow.toFixed(3) + ' probe Z=' + zForProbe.toFixed(3));
 
       if(!spDidOptimizedRetract){
         await raiseFaceTravelSafeZ('Face sample ' + sample.index + ': safe retract before indexed move');
