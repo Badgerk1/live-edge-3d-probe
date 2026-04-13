@@ -1569,35 +1569,73 @@ function _buildThreeFaceWall(faceWall, cfg, zMin, zMax, zExag, si) {
   var colArr = new Array(totalVerts * 3);
   // 1 byte per vertex: 0=unfilled, 1=filled (avoids recomputing shared boundary verts)
   var filled = new Uint8Array(totalVerts);
-  // Pre-smooth contact-Y (depth) values to reduce visible fold lines between layers.
-  // Uses a 2-D neighbourhood average with separate blend factors for peaks (protrusions)
-  // and valleys (recessions); does not mutate faceWall.grid.
+  // Pre-smooth contact-Y (depth) values to reduce visible fold lines at column/row boundaries.
+  // Uses a multi-pass 2-D neighbourhood average with separate blend factors for peaks
+  // (protrusions) and valleys (recessions); does not mutate faceWall.grid.
   var smPeak    = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmoothPeak')   || {}).value) || 0));
   var smValley  = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmoothValley') || {}).value) || 0));
+  var smPasses  = Math.max(1, Math.min(10, Math.round(Number((document.getElementById('faceWallSmoothPasses') || {}).value) || 1)));
   var smC = null; // smC[li][xi] = smoothed contact-Y, or null if missing
   if (smPeak > 0 || smValley > 0) {
-    var rawC = [];
+    // Build raw contact-Y grid
+    var smData = [];
     for (var _li = 0; _li < nR; _li++) {
-      rawC.push([]);
-      for (var _xi = 0; _xi < nC; _xi++) { var _r = gR(_li, _xi); rawC[_li][_xi] = _r ? (_r.contactCoord != null ? Number(_r.contactCoord) : Number(_r.y)) : null; }
+      smData.push([]);
+      for (var _xi = 0; _xi < nC; _xi++) { var _r = gR(_li, _xi); smData[_li][_xi] = _r ? (_r.contactCoord != null ? Number(_r.contactCoord) : Number(_r.y)) : null; }
     }
-    smC = [];
-    for (var _li2 = 0; _li2 < nR; _li2++) {
-      smC.push([]);
-      for (var _xi2 = 0; _xi2 < nC; _xi2++) {
-        var _orig = rawC[_li2][_xi2]; if (_orig == null) { smC[_li2][_xi2] = null; continue; }
-        var _sum = _orig, _cnt = 1;
-        if (_li2 > 0 && rawC[_li2-1][_xi2] != null) { _sum += rawC[_li2-1][_xi2]; _cnt++; }
-        if (_li2 < nR-1 && rawC[_li2+1][_xi2] != null) { _sum += rawC[_li2+1][_xi2]; _cnt++; }
-        if (_xi2 > 0 && rawC[_li2][_xi2-1] != null) { _sum += rawC[_li2][_xi2-1]; _cnt++; }
-        if (_xi2 < nC-1 && rawC[_li2][_xi2+1] != null) { _sum += rawC[_li2][_xi2+1]; _cnt++; }
-        var _avg = _sum / _cnt;
-        // Peak: Y below average (probe contacted sooner = protrusion); Valley: Y above average.
-        var _bf = _orig < _avg ? smPeak : (_orig > _avg ? smValley : 0);
-        smC[_li2][_xi2] = _bf > 0 ? _orig * (1 - _bf) + _avg * _bf : _orig;
+    // Apply smPasses iterations of neighbourhood averaging for a Gaussian-like blur
+    // that progressively reduces steep gradients causing visible fold lines.
+    for (var _pass = 0; _pass < smPasses; _pass++) {
+      var _nextSm = [];
+      for (var _li2 = 0; _li2 < nR; _li2++) {
+        _nextSm.push([]);
+        for (var _xi2 = 0; _xi2 < nC; _xi2++) {
+          var _orig = smData[_li2][_xi2]; if (_orig == null) { _nextSm[_li2][_xi2] = null; continue; }
+          var _sum = _orig, _cnt = 1;
+          if (_li2 > 0 && smData[_li2-1][_xi2] != null) { _sum += smData[_li2-1][_xi2]; _cnt++; }
+          if (_li2 < nR-1 && smData[_li2+1][_xi2] != null) { _sum += smData[_li2+1][_xi2]; _cnt++; }
+          if (_xi2 > 0 && smData[_li2][_xi2-1] != null) { _sum += smData[_li2][_xi2-1]; _cnt++; }
+          if (_xi2 < nC-1 && smData[_li2][_xi2+1] != null) { _sum += smData[_li2][_xi2+1]; _cnt++; }
+          var _avg = _sum / _cnt;
+          // Peak: Y below average (probe contacted sooner = protrusion); Valley: Y above average.
+          var _bf = _orig < _avg ? smPeak : (_orig > _avg ? smValley : 0);
+          _nextSm[_li2][_xi2] = _bf > 0 ? _orig * (1 - _bf) + _avg * _bf : _orig;
+        }
       }
+      smData = _nextSm;
     }
+    smC = smData;
   }
+  // Bicubic chord-length Hermite interpolation for smoothed contact-Y (smC).
+  // Replaces the previous bilinear approach: bilinear is only C0-continuous (slope
+  // discontinuity at every cell boundary) → visible crease lines.  Chord Hermite gives
+  // C1-continuous results that match the un-smoothed bicubic path, eliminating creases.
+  var smcInterpFn = smC ? function(li, xi, tx, ty) {
+    function smcRow(l) {
+      var ll = Math.max(0, Math.min(nR-1, l));
+      var p1 = smC[ll][xi], p2 = (xi+1 < nC) ? smC[ll][xi+1] : null;
+      if (p1==null||p2==null) return null;
+      var p0 = xi>0 ? smC[ll][xi-1] : null; if (p0==null) p0=p1;
+      var p3 = xi+2<nC ? smC[ll][xi+2] : null; if (p3==null) p3=p2;
+      var x0 = xi>0 ? fwXs[xi-1] : fwXs[xi];
+      var x3 = xi+2<nC ? fwXs[xi+2] : fwXs[xi+1];
+      return _chordHermite(p0, p1, p2, p3, x0, fwXs[xi], fwXs[xi+1], x3, tx);
+    }
+    var c00=smC[li][xi], c10=smC[li][xi+1];
+    var c01=smC[li+1]&&smC[li+1][xi], c11=smC[li+1]&&smC[li+1][xi+1];
+    if (c00==null||c10==null||c01==null||c11==null) return null;
+    var sri0=smcRow(li-1), sri1=smcRow(li), sri2=smcRow(li+1), sri3=smcRow(li+2);
+    if (sri1===null||sri2===null) {
+      return c00*(1-tx)*(1-ty)+c10*tx*(1-ty)+c01*(1-tx)*ty+c11*tx*ty; // bilinear fallback
+    }
+    if (sri0===null) sri0=sri1;
+    if (sri3===null) sri3=sri2;
+    var sz0=rowZs[li-1]!=null?rowZs[li-1]:rowZs[li];
+    var sz1=rowZs[li], sz2=rowZs[li+1];
+    var sz3=rowZs[li+2]!=null?rowZs[li+2]:rowZs[li+1];
+    if (sz0==null) sz0=sz1; if (sz3==null) sz3=sz2;
+    return _chordHermite(sri0, sri1, sri2, sri3, sz0, sz1, sz2, sz3, ty);
+  } : null;
   // Pre-check cell validity (all 4 corners present with finite Z)
   var validCell = [];
   for (var xi=0; xi<nCX; xi++) { validCell[xi] = [];
@@ -1628,12 +1666,9 @@ function _buildThreeFaceWall(faceWall, cfg, zMin, zMax, zExag, si) {
           // Bicubic Catmull-Rom for both Z (layer height) and contact-Y (face depth)
           var mz = faceInterpFn(li, xi, tx, ty, function(r){ return Number(r.z); });
           var mc;
-          if (smC) {
-            // Bilinear interpolation of pre-smoothed contact-Y values.
-            var c00=smC[li][xi], c10=smC[li][xi+1], c01=smC[li+1][xi], c11=smC[li+1][xi+1];
-            if (c00!=null&&c10!=null&&c01!=null&&c11!=null) {
-              mc = c00*(1-tx)*(1-ty) + c10*tx*(1-ty) + c01*(1-tx)*ty + c11*tx*ty;
-            } else { mc = null; }
+          if (smcInterpFn) {
+            // Bicubic chord-length Hermite on multi-pass smoothed contact-Y (C1-continuous).
+            mc = smcInterpFn(li, xi, tx, ty);
           } else {
             mc = faceInterpFn(li, xi, tx, ty, function(r){ return r.contactCoord != null ? Number(r.contactCoord) : Number(r.y); });
           }
