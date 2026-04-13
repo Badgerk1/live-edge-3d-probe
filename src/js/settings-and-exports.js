@@ -53,6 +53,7 @@ function getSettingsFromUI() {
     faceSeamSmooth:              n('faceSeamSmooth'),
     faceWallSmoothPeak:          n('faceWallSmoothPeak'),
     faceWallSmoothValley:        n('faceWallSmoothValley'),
+    faceWallSmoothPasses:        n('faceWallSmoothPasses'),
     // Probe dimensions
     probeShankDiameter:          n('probeShankDiameter'),
     probeBodyDiameter:           n('probeBodyDiameter'),
@@ -145,6 +146,7 @@ function loadSettings() {
   sv('faceSeamSmooth',             data.faceSeamSmooth);
   sv('faceWallSmoothPeak',         data.faceWallSmoothPeak);
   sv('faceWallSmoothValley',       data.faceWallSmoothValley);
+  sv('faceWallSmoothPasses',       data.faceWallSmoothPasses);
   // Probe dimensions
   sv('probeShankDiameter',         data.probeShankDiameter);
   sv('probeBodyDiameter',          data.probeBodyDiameter);
@@ -176,7 +178,7 @@ function resetSettings() {
     faceFeed: 150, faceRetractFeed: 1000, faceDepthBelowSurface: 2, faceProbeDistance: 20, faceLayerCount: 3,
     fpZStepCount: 3, fpZStepSize: 1,
     combinedPhasePause: 2000,
-    surfSeamSmooth: 0, faceSeamSmooth: 0, faceWallSmoothPeak: 0, faceWallSmoothValley: 0,
+    surfSeamSmooth: 0, faceSeamSmooth: 0, faceWallSmoothPeak: 0.5, faceWallSmoothValley: 0.5, faceWallSmoothPasses: 3,
     probeShankDiameter: 6, probeBodyDiameter: 33, probeUpperHeight: 20, probeUpperLength: 20,
     probeMainBodyHeight: 21, probeLowerLength: 21,
     probeStylusLength: 26, probeStylusCalloutLength: 14.75, probeBallTipDiameter: 0, probeTipBallDiameter: 0, probeTotalLength: 67
@@ -236,6 +238,7 @@ function resetSettings() {
   sv('faceSeamSmooth',             defaults.faceSeamSmooth);
   sv('faceWallSmoothPeak',         defaults.faceWallSmoothPeak);
   sv('faceWallSmoothValley',       defaults.faceWallSmoothValley);
+  sv('faceWallSmoothPasses',       defaults.faceWallSmoothPasses);
   try { refreshFinishBehaviorPreview(); } catch(e) {}
   try { refreshTravelRecoveryPreview(); } catch(e) {}
   try { calcProbeAutoTotalLength(); } catch(e) {}
@@ -1164,7 +1167,7 @@ function exportFaceOBJ() {
 // chord-length Hermite interpolation and pre-smoothing as _buildThreeFaceWall in
 // the 3D preview, so the exported STL looks identical to the on-screen mesh.
 var FACE_STL_MAX_VERTS = 500000;
-function _buildFaceWallExportMesh(faceWall, sub, smPeak, smValley) {
+function _buildFaceWallExportMesh(faceWall, sub, smPeak, smValley, smPasses) {
   var nR = faceWall.nRows, nC = faceWall.nCols;
   var nCX = nC - 1, nCY = nR - 1;
   if (nCX < 1 || nCY < 1) return null;
@@ -1207,30 +1210,59 @@ function _buildFaceWallExportMesh(faceWall, sub, smPeak, smValley) {
     if (z0 == null) z0 = z1; if (z3 == null) z3 = z2;
     return _chordHermite(ri0,ri1,ri2,ri3, z0,z1,z2,z3, ty);
   }
-  // ── Pre-smooth contact-Y: same 2-D neighbourhood blend as the preview ────
+  // ── Pre-smooth contact-Y: multi-pass 2-D neighbourhood blend (same as preview) ──
   var smC = null;
   if (smPeak > 0 || smValley > 0) {
-    var rawC = [];
+    var _smPasses = Math.max(1, Math.min(10, Math.round(smPasses) || 1));
+    var smData = [];
     for (var _li=0; _li<nR; _li++) {
-      rawC.push([]);
-      for (var _xi=0; _xi<nC; _xi++) { var _r=gR(_li,_xi); rawC[_li][_xi]=_r?(_r.contactCoord!=null?Number(_r.contactCoord):Number(_r.y)):null; }
+      smData.push([]);
+      for (var _xi=0; _xi<nC; _xi++) { var _r=gR(_li,_xi); smData[_li][_xi]=_r?(_r.contactCoord!=null?Number(_r.contactCoord):Number(_r.y)):null; }
     }
-    smC = [];
-    for (var _li2=0; _li2<nR; _li2++) {
-      smC.push([]);
-      for (var _xi2=0; _xi2<nC; _xi2++) {
-        var _orig=rawC[_li2][_xi2]; if (_orig==null){smC[_li2][_xi2]=null;continue;}
-        var _sum=_orig,_cnt=1;
-        if (_li2>0&&rawC[_li2-1][_xi2]!=null){_sum+=rawC[_li2-1][_xi2];_cnt++;}
-        if (_li2<nR-1&&rawC[_li2+1][_xi2]!=null){_sum+=rawC[_li2+1][_xi2];_cnt++;}
-        if (_xi2>0&&rawC[_li2][_xi2-1]!=null){_sum+=rawC[_li2][_xi2-1];_cnt++;}
-        if (_xi2<nC-1&&rawC[_li2][_xi2+1]!=null){_sum+=rawC[_li2][_xi2+1];_cnt++;}
-        var _avg=_sum/_cnt;
-        var _bf=_orig<_avg?smPeak:(_orig>_avg?smValley:0);
-        smC[_li2][_xi2]=_bf>0?_orig*(1-_bf)+_avg*_bf:_orig;
+    for (var _pass=0; _pass<_smPasses; _pass++) {
+      var _nextSm = [];
+      for (var _li2=0; _li2<nR; _li2++) {
+        _nextSm.push([]);
+        for (var _xi2=0; _xi2<nC; _xi2++) {
+          var _orig=smData[_li2][_xi2]; if (_orig==null){_nextSm[_li2][_xi2]=null;continue;}
+          var _sum=_orig,_cnt=1;
+          if (_li2>0&&smData[_li2-1][_xi2]!=null){_sum+=smData[_li2-1][_xi2];_cnt++;}
+          if (_li2<nR-1&&smData[_li2+1][_xi2]!=null){_sum+=smData[_li2+1][_xi2];_cnt++;}
+          if (_xi2>0&&smData[_li2][_xi2-1]!=null){_sum+=smData[_li2][_xi2-1];_cnt++;}
+          if (_xi2<nC-1&&smData[_li2][_xi2+1]!=null){_sum+=smData[_li2][_xi2+1];_cnt++;}
+          var _avg=_sum/_cnt;
+          var _bf=_orig<_avg?smPeak:(_orig>_avg?smValley:0);
+          _nextSm[_li2][_xi2]=_bf>0?_orig*(1-_bf)+_avg*_bf:_orig;
+        }
       }
+      smData = _nextSm;
     }
+    smC = smData;
   }
+  // Bicubic chord-length Hermite on smoothed contact-Y (C1-continuous, eliminates crease lines).
+  var smcInterpFn = smC ? function(li2, xi2, tx, ty) {
+    function smcRow(l) {
+      var ll=Math.max(0,Math.min(nR-1,l));
+      var p1=smC[ll][xi2], p2=(xi2+1<nC)?smC[ll][xi2+1]:null;
+      if (p1==null||p2==null) return null;
+      var p0=xi2>0?smC[ll][xi2-1]:null; if (p0==null) p0=p1;
+      var p3=xi2+2<nC?smC[ll][xi2+2]:null; if (p3==null) p3=p2;
+      var x0=xi2>0?fwXs[xi2-1]:fwXs[xi2];
+      var x3=xi2+2<nC?fwXs[xi2+2]:fwXs[xi2+1];
+      return _chordHermite(p0,p1,p2,p3,x0,fwXs[xi2],fwXs[xi2+1],x3,tx);
+    }
+    var c00=smC[li2][xi2],c10=smC[li2][xi2+1];
+    var c01=smC[li2+1]&&smC[li2+1][xi2],c11=smC[li2+1]&&smC[li2+1][xi2+1];
+    if (c00==null||c10==null||c01==null||c11==null) return null;
+    var sri0=smcRow(li2-1),sri1=smcRow(li2),sri2=smcRow(li2+1),sri3=smcRow(li2+2);
+    if (sri1===null||sri2===null) { return c00*(1-tx)*(1-ty)+c10*tx*(1-ty)+c01*(1-tx)*ty+c11*tx*ty; }
+    if (sri0===null) sri0=sri1; if (sri3===null) sri3=sri2;
+    var sz0=rowZs[li2-1]!=null?rowZs[li2-1]:rowZs[li2];
+    var sz1=rowZs[li2],sz2=rowZs[li2+1];
+    var sz3=rowZs[li2+2]!=null?rowZs[li2+2]:rowZs[li2+1];
+    if (sz0==null) sz0=sz1; if (sz3==null) sz3=sz2;
+    return _chordHermite(sri0,sri1,sri2,sri3,sz0,sz1,sz2,sz3,ty);
+  } : null;
   // ── Pre-check cell validity ───────────────────────────────────────────────
   var validCell = [];
   for (var xi=0; xi<nCX; xi++) {
@@ -1262,9 +1294,9 @@ function _buildFaceWallExportMesh(faceWall, sub, smPeak, smValley) {
           var mx=x00+tx*(x10-x00);
           var mz=faceInterpFn(li2,xi2,tx,ty,function(r){return Number(r.z);});
           var mc;
-          if (smC) {
-            var c00=smC[li2][xi2],c10=smC[li2][xi2+1],c01=smC[li2+1][xi2],c11=smC[li2+1][xi2+1];
-            mc=(c00!=null&&c10!=null&&c01!=null&&c11!=null)?c00*(1-tx)*(1-ty)+c10*tx*(1-ty)+c01*(1-tx)*ty+c11*tx*ty:null;
+          if (smcInterpFn) {
+            // Bicubic chord-length Hermite on multi-pass smoothed contact-Y (C1-continuous).
+            mc = smcInterpFn(li2,xi2,tx,ty);
           } else {
             mc=faceInterpFn(li2,xi2,tx,ty,function(r){return r.contactCoord!=null?Number(r.contactCoord):Number(r.y);});
           }
@@ -1316,7 +1348,8 @@ function exportFaceSTL() {
   sub = Math.min(sub, maxSub);
   var smPeak   = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmoothPeak')   || {}).value) || 0));
   var smValley = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmoothValley') || {}).value) || 0));
-  var mesh = _buildFaceWallExportMesh(faceWall, sub, smPeak, smValley);
+  var smPasses = Math.max(1, Math.min(10, Math.round(Number((document.getElementById('faceWallSmoothPasses') || {}).value) || 1)));
+  var mesh = _buildFaceWallExportMesh(faceWall, sub, smPeak, smValley, smPasses);
   if (!mesh) { pluginDebug('exportFaceSTL: insufficient grid'); alert('Insufficient face probe data — need at least a 2×2 grid of probe points.'); return; }
   if (mesh.tooLarge) {
     alert('Face STL export cancelled: requested subdivision would produce ' +
