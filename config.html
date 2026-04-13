@@ -767,7 +767,7 @@
         </div>
         <div class="field">
           <label><span class="tooltip">X Points (samples across face)<span class="tip-icon">?</span><span class="tip">Number of evenly-spaced probe columns from X Start to X End. More points give a more detailed face profile but take longer to run. Disabled when Auto-calc X spacing is on.</span></span></label>
-          <input type="number" id="fp-xPoints" value="5" min="2" max="50" step="1">
+          <input type="number" id="fp-xPoints" value="5" min="2" max="50" step="1" oninput="fpUpdateCombinedFacePlanStatus()">
         </div>
         <div class="field" style="grid-column:1 / -1">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
@@ -783,7 +783,7 @@
         </div>
         <div class="field" style="grid-column:1 / -1">
           <label><span class="tooltip">Top reference mode<span class="tip-icon">?</span><span class="tip">Controls how Phase 0 AUTO TOP-Z collects the top-surface Z reference before face probing. "Every column" probes the top at each face X column (most accurate). "Endpoints only (fast)" probes only at X Start and X End — minTopZ is still applied to all columns for safety.</span></span></label>
-          <select id="fp-topRefMode">
+          <select id="fp-topRefMode" onchange="fpUpdateCombinedFacePlanStatus()">
             <option value="all">Probe top at every face X column (current)</option>
             <option value="endpoints">Probe top at endpoints only (fast)</option>
           </select>
@@ -831,7 +831,7 @@
               <span class="tip">How many Z layers to probe across the face depth. Layers are distributed evenly per sample from max depth to each sample's own top profile Z.</span>
             </span>
           </label>
-          <input type="number" id="faceLayerCount" value="3" min="2" max="20" step="1">
+          <input type="number" id="faceLayerCount" value="3" min="2" max="20" step="1" oninput="fpUpdateCombinedFacePlanStatus()">
         </div>
         <div class="field">
           <label>
@@ -850,7 +850,7 @@
           <input type="number" id="fp-zStepSize" value="1" min="0.01" max="50" step="0.1">
         </div>
         <div class="field" style="grid-column:1 / -1">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="enableLayeredFace"> <span>Enable Layered Face Probe</span></label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="enableLayeredFace" onchange="fpUpdateCombinedFacePlanStatus()"> <span>Enable Layered Face Probe</span></label>
           <div class="mini" style="margin-top:4px">When enabled, probes from max depth up to surface zero across all X samples at each layer. When off, existing single-pass face probe is used.</div>
         </div>
       </div>
@@ -1058,6 +1058,8 @@
         </label>
         <div class="mini" style="margin-top:4px">Pause before face probe starts. 0 = no delay. Saved with Settings.</div>
       </div>
+      <div class="callout mini" style="margin-bottom:8px">&#8505; The <strong>Face Probe Configuration</strong> panel below is shared between Face mode and Combined mode. Settings changed in either place apply to both.</div>
+      <div id="combined-face-plan-status" style="font-size:12px;font-weight:600;color:var(--accent2);background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px 10px;margin-top:4px">Face phase plan: loading…</div>
     </div>
 
   <!-- Combined Mesh Export (Watertight) panel — shown only in Combined mode -->
@@ -2541,6 +2543,39 @@ function fpUpdateAutoSpacingUI() {
     var statusEl = document.getElementById('fp-xAutoSpacing-status');
     if (statusEl) statusEl.textContent = '';
   }
+  fpUpdateCombinedFacePlanStatus();
+}
+
+// Updates the Combined mode status line that summarises the planned face probe phase.
+// Called whenever any face-probe config setting changes that affects the plan.
+function fpUpdateCombinedFacePlanStatus() {
+  var el = document.getElementById('combined-face-plan-status');
+  if (!el) return;
+  var xPts = fpGetEffectiveXPoints();
+  var autoEl = document.getElementById('fp-xAutoSpacing');
+  var isAuto = autoEl && autoEl.checked;
+  var spacingInfo = '';
+  if (isAuto) {
+    var xStartEl = document.getElementById('fp-xStart');
+    var xEndEl   = document.getElementById('fp-xEnd');
+    var xStart   = Number((xStartEl || {}).value);
+    var xEnd     = Number((xEndEl   || {}).value);
+    if (isFinite(xStart) && isFinite(xEnd) && xStart !== xEnd) {
+      var effectiveSpacing = Math.abs(xEnd - xStart) / Math.max(1, xPts - 1);
+      spacingInfo = ', spacing \u2248 ' + effectiveSpacing.toFixed(2) + ' mm';
+    }
+  }
+  var topModeEl = document.getElementById('fp-topRefMode');
+  var topMode   = (topModeEl && topModeEl.value === 'endpoints') ? 'endpoints only' : 'every column';
+  var layerEl   = document.getElementById('enableLayeredFace');
+  var isLayered = layerEl && layerEl.checked;
+  var layerCountEl = document.getElementById('faceLayerCount');
+  var layerCount   = isLayered ? (Math.max(2, Math.round(Number((layerCountEl || {}).value) || 3))) : 1;
+  var layerInfo    = isLayered ? (layerCount + ' layers') : '1 layer (single pass)';
+  el.textContent = 'Face phase plan: X points = ' + xPts +
+    (isAuto ? ' (auto spacing ON' + spacingInfo + ')' : ' (manual)') +
+    ' \u00b7 ' + layerInfo +
+    ' \u00b7 top ref = ' + topMode;
 }
 
 function calcProbeAutoTotalLength(){
@@ -3455,6 +3490,9 @@ function onProbeTypeChange() {
 
   // Auto-fill Bottom Z when switching into combined mode
   if (type === 'combined') _autoFillCombinedBottomZ();
+
+  // Update Combined face plan status line whenever the mode changes
+  try { fpUpdateCombinedFacePlanStatus(); } catch(e) {}
 }
 
 function saveUnifiedProbeLog() {
@@ -8262,13 +8300,14 @@ async function runFaceProbe(axis, _calledFromCombined){
 
     var faceSamples = [];
     if(topPts.length && sampledAxis !== axis){
-      if (_p0Ran && s.fpTopRefMode === 'endpoints') {
-        // Phase 0 ran in endpoints mode: only 2 top-Z reference points were measured
-        // (xStart and xEnd). Build the full face sample grid from the X-sampling config
-        // (auto-spacing or manual xPoints) so that face probing uses all configured
-        // columns — NOT just the 2 endpoint columns from topResults.
-        // topZ for each column is linearly interpolated from the two measured endpoints
-        // so that minTopZ correctly reflects the measured surface height.
+      if ((_p0Ran || _calledFromCombined) && s.fpTopRefMode === 'endpoints') {
+        // Phase 0 (standalone) or Phase 1.5 (combined) ran in endpoints mode: only
+        // 2 top-Z reference points were measured (xStart and xEnd).  Build the full
+        // face sample grid from the X-sampling config (auto-spacing or manual xPoints)
+        // so that face probing uses all configured columns — NOT just the 2 endpoint
+        // columns from topResults.  topZ for each column is linearly interpolated from
+        // the two measured endpoints so that minTopZ correctly reflects the measured
+        // surface height.
         var _epSamples = fpBuildFaceSamplesFromConfig();
         if (_epSamples && _epSamples.length >= 2) {
           var _ep0 = topPts[0];
@@ -8280,7 +8319,7 @@ async function runFaceProbe(axis, _calledFromCombined){
             var interpTopZ = Number(_ep0.z) * (1 - t) + Number(_ep1.z) * t;
             return { index: cs.index, sampleCoord: cs.sampleCoord, topZ: interpTopZ };
           });
-          logLine('face', 'Face probe (endpoints top-ref): building ' + faceSamples.length + ' X columns from config; topZ linearly interpolated from ' + topPts.length + ' measured endpoint(s).');
+          logLine('face', 'Face probe (endpoints top-ref' + (_calledFromCombined ? ', combined' : '') + '): building ' + faceSamples.length + ' X columns from config; topZ linearly interpolated from ' + topPts.length + ' measured endpoint(s).');
           logLine('face', 'Face probe: faceSamples length=' + faceSamples.length + ' first sampleCoord=' + faceSamples[0].sampleCoord.toFixed(3) + ' last sampleCoord=' + faceSamples[faceSamples.length - 1].sampleCoord.toFixed(3));
         } else {
           // Config build failed — fall back to the 2 measured endpoint values.
@@ -9351,12 +9390,13 @@ async function runCombinedProbeMode(axis) {
       var _p15MaxPlunge = _p15Settings.topProbeDepth;
       var _p15Retract = _p15Settings.topRetract;
 
-      // Compute face sample X positions — prefer fpBuildFaceSamplesFromConfig() when
-      // mesh data is available (same logic used in runFaceProbe).
-      var _p15Samples = null;
-      if (smMeshData && smGridConfig) {
-        _p15Samples = fpBuildFaceSamplesFromConfig();
-      }
+      // Compute face sample X positions using face probe config (auto-spacing or manual
+      // xPoints). fpBuildFaceSamplesFromConfig() is the authoritative source — it honours
+      // fp-xAutoSpacing, fp-xTargetSpacing, fp-xStart and fp-xEnd so that Phase 1.5
+      // probes the top surface at exactly the X positions the face probe will use in
+      // Phase 2.  Fall back to surface grid column positions only when the face config
+      // cannot produce samples (fp-xStart/xEnd not configured).
+      var _p15Samples = fpBuildFaceSamplesFromConfig();
       // Fallback: use grid column X positions when face config is unavailable.
       if (!_p15Samples || _p15Samples.length === 0) {
         if (smGridConfig) {
