@@ -869,6 +869,39 @@ function fpUpdateAutoSpacingUI() {
     var statusEl = document.getElementById('fp-xAutoSpacing-status');
     if (statusEl) statusEl.textContent = '';
   }
+  fpUpdateCombinedFacePlanStatus();
+}
+
+// Updates the Combined mode status line that summarises the planned face probe phase.
+// Called whenever any face-probe config setting changes that affects the plan.
+function fpUpdateCombinedFacePlanStatus() {
+  var el = document.getElementById('combined-face-plan-status');
+  if (!el) return;
+  var xPts = fpGetEffectiveXPoints();
+  var autoEl = document.getElementById('fp-xAutoSpacing');
+  var isAuto = autoEl && autoEl.checked;
+  var spacingInfo = '';
+  if (isAuto) {
+    var xStartEl = document.getElementById('fp-xStart');
+    var xEndEl   = document.getElementById('fp-xEnd');
+    var xStart   = Number((xStartEl || {}).value);
+    var xEnd     = Number((xEndEl   || {}).value);
+    if (isFinite(xStart) && isFinite(xEnd) && xStart !== xEnd) {
+      var effectiveSpacing = Math.abs(xEnd - xStart) / Math.max(1, xPts - 1);
+      spacingInfo = ', spacing \u2248 ' + effectiveSpacing.toFixed(2) + ' mm';
+    }
+  }
+  var topModeEl = document.getElementById('fp-topRefMode');
+  var topMode   = (topModeEl && topModeEl.value === 'endpoints') ? 'endpoints only' : 'every column';
+  var layerEl   = document.getElementById('enableLayeredFace');
+  var isLayered = layerEl && layerEl.checked;
+  var layerCountEl = document.getElementById('faceLayerCount');
+  var layerCount   = isLayered ? (Math.max(2, Math.round(Number((layerCountEl || {}).value) || 3))) : 1;
+  var layerInfo    = isLayered ? (layerCount + ' layers') : '1 layer (single pass)';
+  el.textContent = 'Face phase plan: X points = ' + xPts +
+    (isAuto ? ' (auto spacing ON' + spacingInfo + ')' : ' (manual)') +
+    ' \u00b7 ' + layerInfo +
+    ' \u00b7 top ref = ' + topMode;
 }
 
 function calcProbeAutoTotalLength(){

@@ -635,6 +635,9 @@ function onProbeTypeChange() {
 
   // Auto-fill Bottom Z when switching into combined mode
   if (type === 'combined') _autoFillCombinedBottomZ();
+
+  // Update Combined face plan status line whenever the mode changes
+  try { fpUpdateCombinedFacePlanStatus(); } catch(e) {}
 }
 
 function saveUnifiedProbeLog() {

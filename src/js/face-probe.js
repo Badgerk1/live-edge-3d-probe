@@ -322,13 +322,14 @@ async function runFaceProbe(axis, _calledFromCombined){
 
     var faceSamples = [];
     if(topPts.length && sampledAxis !== axis){
-      if (_p0Ran && s.fpTopRefMode === 'endpoints') {
-        // Phase 0 ran in endpoints mode: only 2 top-Z reference points were measured
-        // (xStart and xEnd). Build the full face sample grid from the X-sampling config
-        // (auto-spacing or manual xPoints) so that face probing uses all configured
-        // columns — NOT just the 2 endpoint columns from topResults.
-        // topZ for each column is linearly interpolated from the two measured endpoints
-        // so that minTopZ correctly reflects the measured surface height.
+      if ((_p0Ran || _calledFromCombined) && s.fpTopRefMode === 'endpoints') {
+        // Phase 0 (standalone) or Phase 1.5 (combined) ran in endpoints mode: only
+        // 2 top-Z reference points were measured (xStart and xEnd).  Build the full
+        // face sample grid from the X-sampling config (auto-spacing or manual xPoints)
+        // so that face probing uses all configured columns — NOT just the 2 endpoint
+        // columns from topResults.  topZ for each column is linearly interpolated from
+        // the two measured endpoints so that minTopZ correctly reflects the measured
+        // surface height.
         var _epSamples = fpBuildFaceSamplesFromConfig();
         if (_epSamples && _epSamples.length >= 2) {
           var _ep0 = topPts[0];
@@ -340,7 +341,7 @@ async function runFaceProbe(axis, _calledFromCombined){
             var interpTopZ = Number(_ep0.z) * (1 - t) + Number(_ep1.z) * t;
             return { index: cs.index, sampleCoord: cs.sampleCoord, topZ: interpTopZ };
           });
-          logLine('face', 'Face probe (endpoints top-ref): building ' + faceSamples.length + ' X columns from config; topZ linearly interpolated from ' + topPts.length + ' measured endpoint(s).');
+          logLine('face', 'Face probe (endpoints top-ref' + (_calledFromCombined ? ', combined' : '') + '): building ' + faceSamples.length + ' X columns from config; topZ linearly interpolated from ' + topPts.length + ' measured endpoint(s).');
           logLine('face', 'Face probe: faceSamples length=' + faceSamples.length + ' first sampleCoord=' + faceSamples[0].sampleCoord.toFixed(3) + ' last sampleCoord=' + faceSamples[faceSamples.length - 1].sampleCoord.toFixed(3));
         } else {
           // Config build failed — fall back to the 2 measured endpoint values.
@@ -1411,12 +1412,13 @@ async function runCombinedProbeMode(axis) {
       var _p15MaxPlunge = _p15Settings.topProbeDepth;
       var _p15Retract = _p15Settings.topRetract;
 
-      // Compute face sample X positions — prefer fpBuildFaceSamplesFromConfig() when
-      // mesh data is available (same logic used in runFaceProbe).
-      var _p15Samples = null;
-      if (smMeshData && smGridConfig) {
-        _p15Samples = fpBuildFaceSamplesFromConfig();
-      }
+      // Compute face sample X positions using face probe config (auto-spacing or manual
+      // xPoints). fpBuildFaceSamplesFromConfig() is the authoritative source — it honours
+      // fp-xAutoSpacing, fp-xTargetSpacing, fp-xStart and fp-xEnd so that Phase 1.5
+      // probes the top surface at exactly the X positions the face probe will use in
+      // Phase 2.  Fall back to surface grid column positions only when the face config
+      // cannot produce samples (fp-xStart/xEnd not configured).
+      var _p15Samples = fpBuildFaceSamplesFromConfig();
       // Fallback: use grid column X positions when face config is unavailable.
       if (!_p15Samples || _p15Samples.length === 0) {
         if (smGridConfig) {
