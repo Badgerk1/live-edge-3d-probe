@@ -517,11 +517,11 @@
         </div>
         <div class="field">
           <label><span class="tooltip">X Start (coords)<span class="tip-icon">?</span><span class="tip">Starting X work coordinate for the face probe sweep. The probe will take samples from X Start to X End across the face.</span></span></label>
-          <input type="number" id="fp-xStart" value="0" step="1">
+          <input type="number" id="fp-xStart" value="0" step="1" oninput="fpUpdateAutoSpacingUI()">
         </div>
         <div class="field">
           <label><span class="tooltip">X End (coords)<span class="tip-icon">?</span><span class="tip">Ending X work coordinate for the face probe sweep. The last sample column is taken at this position.</span></span></label>
-          <input type="number" id="fp-xEnd" value="100" step="1">
+          <input type="number" id="fp-xEnd" value="100" step="1" oninput="fpUpdateAutoSpacingUI()">
         </div>
         <div class="field">
           <label><span class="tooltip">Z Start (coords)<span class="tip-icon">?</span><span class="tip">Z depth below surface zero where face probing starts. Click "Auto Row 1" to populate from Surface Row 1 (top edge = zero reference).</span></span></label>
@@ -539,8 +539,20 @@
           <div class="mini" id="fp-stylus-cap-info" style="color:var(--muted);margin-top:2px">Max = stylus callout length from Setup</div>
         </div>
         <div class="field">
-          <label><span class="tooltip">X Points (samples across face)<span class="tip-icon">?</span><span class="tip">Number of evenly-spaced probe columns from X Start to X End. More points give a more detailed face profile but take longer to run.</span></span></label>
+          <label><span class="tooltip">X Points (samples across face)<span class="tip-icon">?</span><span class="tip">Number of evenly-spaced probe columns from X Start to X End. More points give a more detailed face profile but take longer to run. Disabled when Auto-calc X spacing is on.</span></span></label>
           <input type="number" id="fp-xPoints" value="5" min="2" max="50" step="1">
+        </div>
+        <div class="field" style="grid-column:1 / -1">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="fp-xAutoSpacing" onchange="fpUpdateAutoSpacingUI()">
+            <span>Auto-calc X points from spacing</span>
+          </label>
+          <div class="mini" style="margin-top:4px">When enabled, computes X Points automatically from a target spacing (mm) across the face width [X Start → X End], with equal spacing and exact endpoints.</div>
+        </div>
+        <div class="field" id="fp-xTargetSpacing-field" style="display:none">
+          <label><span class="tooltip">Target X Spacing (mm)<span class="tip-icon">?</span><span class="tip">Target distance between face probe X columns in mm. The actual spacing is adjusted so points are evenly distributed with endpoints included. Clamped to 2–50 X points.</span></span></label>
+          <input type="number" id="fp-xTargetSpacing" value="2" min="0.5" max="100" step="0.5" oninput="fpUpdateAutoSpacingUI()">
+          <div class="mini" id="fp-xAutoSpacing-status" style="margin-top:4px;color:var(--muted)"></div>
         </div>
         <div class="field">
           <label><span class="tooltip">Face Probe Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for the probe move toward the face surface. Slower values reduce overshoot and improve contact accuracy.</span></span></label>

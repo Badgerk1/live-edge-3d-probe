@@ -46,6 +46,8 @@ function getSettingsFromUI() {
     faceLayerCount:              n('faceLayerCount'),
     fpZStepCount:                n('fp-zStepCount'),
     fpZStepSize:                 n('fp-zStepSize'),
+    fpXAutoSpacing:              chk('fp-xAutoSpacing'),
+    fpXTargetSpacing:            n('fp-xTargetSpacing'),
     // Combined mode
     combinedPhasePause:          n('combined-phase-pause'),
     // Seam edge smoothing
@@ -139,6 +141,9 @@ function loadSettings() {
   sv('faceLayerCount',             data.faceLayerCount);
   sv('fp-zStepCount',              data.fpZStepCount);
   sv('fp-zStepSize',               data.fpZStepSize);
+  sc('fp-xAutoSpacing',            data.fpXAutoSpacing);
+  sv('fp-xTargetSpacing',          data.fpXTargetSpacing);
+  try { fpUpdateAutoSpacingUI(); } catch(e) {}
   // Combined mode
   sv('combined-phase-pause',       data.combinedPhasePause);
   // Seam edge smoothing
@@ -177,6 +182,7 @@ function resetSettings() {
     faceFixedCoord: 0, enableLayeredFace: false, faceStartOffset: -10, faceMaxDepth: 14.75,
     faceFeed: 150, faceRetractFeed: 1000, faceDepthBelowSurface: 2, faceProbeDistance: 20, faceLayerCount: 3,
     fpZStepCount: 3, fpZStepSize: 1,
+    fpXAutoSpacing: false, fpXTargetSpacing: 2,
     combinedPhasePause: 2000,
     surfSeamSmooth: 0, faceSeamSmooth: 0, faceWallSmoothPeak: 0.5, faceWallSmoothValley: 0.5, faceWallSmoothPasses: 3,
     probeShankDiameter: 6, probeBodyDiameter: 33, probeUpperHeight: 20, probeUpperLength: 20,
@@ -222,6 +228,9 @@ function resetSettings() {
   sv('faceLayerCount',             defaults.faceLayerCount);
   sv('fp-zStepCount',              defaults.fpZStepCount);
   sv('fp-zStepSize',               defaults.fpZStepSize);
+  sc('fp-xAutoSpacing',            defaults.fpXAutoSpacing);
+  sv('fp-xTargetSpacing',          defaults.fpXTargetSpacing);
+  try { fpUpdateAutoSpacingUI(); } catch(e) {}
   sv('combined-phase-pause',       defaults.combinedPhasePause);
   sv('probeShankDiameter',         defaults.probeShankDiameter);
   sv('probeBodyDiameter',          defaults.probeBodyDiameter);

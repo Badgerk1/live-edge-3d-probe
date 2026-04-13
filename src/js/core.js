@@ -802,7 +802,7 @@ var SM_SURFACE_GRID_SETTINGS_KEY = 'smSurfaceGridSettings';
 function fpBuildFaceSamplesFromConfig() {
   var xStart = Number((document.getElementById('fp-xStart') || {}).value);
   var xEnd   = Number((document.getElementById('fp-xEnd') || {}).value);
-  var xPts   = Math.max(2, Math.round(Number((document.getElementById('fp-xPoints') || {}).value) || 5));
+  var xPts   = fpGetEffectiveXPoints();
   if (!isFinite(xStart) || !isFinite(xEnd)) return null;
   var range = xEnd - xStart;
   var step = range / (xPts - 1);
@@ -816,6 +816,59 @@ function fpBuildFaceSamplesFromConfig() {
     samples.push({ index: i + 1, sampleCoord: xPos, topZ: topZ });
   }
   return samples;
+}
+
+// Returns the effective number of face probe X points, honoring the auto-spacing
+// toggle (fp-xAutoSpacing). When the toggle is on, computes xPoints from the
+// target spacing and the configured face width [fp-xStart, fp-xEnd], clamped to
+// [2, 50]. When off, reads fp-xPoints directly.
+function fpGetEffectiveXPoints() {
+  var autoEl = document.getElementById('fp-xAutoSpacing');
+  if (autoEl && autoEl.checked) {
+    var xStart  = Number((document.getElementById('fp-xStart')        || {}).value);
+    var xEnd    = Number((document.getElementById('fp-xEnd')          || {}).value);
+    var spacing = Number((document.getElementById('fp-xTargetSpacing') || {}).value) || 2;
+    if (!isFinite(xStart) || !isFinite(xEnd) || xStart === xEnd) {
+      return Math.max(2, Math.round(Number((document.getElementById('fp-xPoints') || {}).value) || 5));
+    }
+    var widthMm = Math.abs(xEnd - xStart);
+    spacing = Math.max(0.5, spacing);
+    var nIntervals = Math.max(1, Math.round(widthMm / spacing));
+    var xPts = nIntervals + 1;
+    var clamped = false;
+    if (xPts < 2)  { xPts = 2;  clamped = true; }
+    if (xPts > 50) { xPts = 50; clamped = true; }
+    // Update the fp-xPoints display to reflect computed value
+    var xPtsEl = document.getElementById('fp-xPoints');
+    if (xPtsEl) xPtsEl.value = xPts;
+    // Update status note
+    var statusEl = document.getElementById('fp-xAutoSpacing-status');
+    if (statusEl) {
+      var effectiveSpacing = widthMm / (xPts - 1);
+      var msg = xPts + ' X points (effective spacing: ' + effectiveSpacing.toFixed(2) + ' mm)';
+      if (clamped) msg += ' — clamped to ' + xPts + ' (limit: 2–50)';
+      statusEl.textContent = msg;
+      statusEl.style.color = clamped ? 'var(--accent2)' : 'var(--muted)';
+    }
+    return xPts;
+  }
+  return Math.max(2, Math.round(Number((document.getElementById('fp-xPoints') || {}).value) || 5));
+}
+
+// Shows/hides the target-spacing field and refreshes the computed point count.
+function fpUpdateAutoSpacingUI() {
+  var autoEl   = document.getElementById('fp-xAutoSpacing');
+  var fieldEl  = document.getElementById('fp-xTargetSpacing-field');
+  var xPtsEl   = document.getElementById('fp-xPoints');
+  var isAuto   = autoEl && autoEl.checked;
+  if (fieldEl)  fieldEl.style.display  = isAuto ? '' : 'none';
+  if (xPtsEl)   xPtsEl.readOnly        = isAuto;
+  if (xPtsEl)   xPtsEl.style.opacity   = isAuto ? '0.5' : '';
+  if (isAuto) fpGetEffectiveXPoints(); // trigger status update
+  else {
+    var statusEl = document.getElementById('fp-xAutoSpacing-status');
+    if (statusEl) statusEl.textContent = '';
+  }
 }
 
 function calcProbeAutoTotalLength(){

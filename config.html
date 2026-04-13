@@ -744,11 +744,11 @@
         </div>
         <div class="field">
           <label><span class="tooltip">X Start (coords)<span class="tip-icon">?</span><span class="tip">Starting X work coordinate for the face probe sweep. The probe will take samples from X Start to X End across the face.</span></span></label>
-          <input type="number" id="fp-xStart" value="0" step="1">
+          <input type="number" id="fp-xStart" value="0" step="1" oninput="fpUpdateAutoSpacingUI()">
         </div>
         <div class="field">
           <label><span class="tooltip">X End (coords)<span class="tip-icon">?</span><span class="tip">Ending X work coordinate for the face probe sweep. The last sample column is taken at this position.</span></span></label>
-          <input type="number" id="fp-xEnd" value="100" step="1">
+          <input type="number" id="fp-xEnd" value="100" step="1" oninput="fpUpdateAutoSpacingUI()">
         </div>
         <div class="field">
           <label><span class="tooltip">Z Start (coords)<span class="tip-icon">?</span><span class="tip">Z depth below surface zero where face probing starts. Click "Auto Row 1" to populate from Surface Row 1 (top edge = zero reference).</span></span></label>
@@ -766,8 +766,20 @@
           <div class="mini" id="fp-stylus-cap-info" style="color:var(--muted);margin-top:2px">Max = stylus callout length from Setup</div>
         </div>
         <div class="field">
-          <label><span class="tooltip">X Points (samples across face)<span class="tip-icon">?</span><span class="tip">Number of evenly-spaced probe columns from X Start to X End. More points give a more detailed face profile but take longer to run.</span></span></label>
+          <label><span class="tooltip">X Points (samples across face)<span class="tip-icon">?</span><span class="tip">Number of evenly-spaced probe columns from X Start to X End. More points give a more detailed face profile but take longer to run. Disabled when Auto-calc X spacing is on.</span></span></label>
           <input type="number" id="fp-xPoints" value="5" min="2" max="50" step="1">
+        </div>
+        <div class="field" style="grid-column:1 / -1">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="fp-xAutoSpacing" onchange="fpUpdateAutoSpacingUI()">
+            <span>Auto-calc X points from spacing</span>
+          </label>
+          <div class="mini" style="margin-top:4px">When enabled, computes X Points automatically from a target spacing (mm) across the face width [X Start → X End], with equal spacing and exact endpoints.</div>
+        </div>
+        <div class="field" id="fp-xTargetSpacing-field" style="display:none">
+          <label><span class="tooltip">Target X Spacing (mm)<span class="tip-icon">?</span><span class="tip">Target distance between face probe X columns in mm. The actual spacing is adjusted so points are evenly distributed with endpoints included. Clamped to 2–50 X points.</span></span></label>
+          <input type="number" id="fp-xTargetSpacing" value="2" min="0.5" max="100" step="0.5" oninput="fpUpdateAutoSpacingUI()">
+          <div class="mini" id="fp-xAutoSpacing-status" style="margin-top:4px;color:var(--muted)"></div>
         </div>
         <div class="field">
           <label><span class="tooltip">Face Probe Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for the probe move toward the face surface. Slower values reduce overshoot and improve contact accuracy.</span></span></label>
@@ -2321,7 +2333,7 @@ var SM_SURFACE_GRID_SETTINGS_KEY = 'smSurfaceGridSettings';
 function fpBuildFaceSamplesFromConfig() {
   var xStart = Number((document.getElementById('fp-xStart') || {}).value);
   var xEnd   = Number((document.getElementById('fp-xEnd') || {}).value);
-  var xPts   = Math.max(2, Math.round(Number((document.getElementById('fp-xPoints') || {}).value) || 5));
+  var xPts   = fpGetEffectiveXPoints();
   if (!isFinite(xStart) || !isFinite(xEnd)) return null;
   var range = xEnd - xStart;
   var step = range / (xPts - 1);
@@ -2335,6 +2347,59 @@ function fpBuildFaceSamplesFromConfig() {
     samples.push({ index: i + 1, sampleCoord: xPos, topZ: topZ });
   }
   return samples;
+}
+
+// Returns the effective number of face probe X points, honoring the auto-spacing
+// toggle (fp-xAutoSpacing). When the toggle is on, computes xPoints from the
+// target spacing and the configured face width [fp-xStart, fp-xEnd], clamped to
+// [2, 50]. When off, reads fp-xPoints directly.
+function fpGetEffectiveXPoints() {
+  var autoEl = document.getElementById('fp-xAutoSpacing');
+  if (autoEl && autoEl.checked) {
+    var xStart  = Number((document.getElementById('fp-xStart')        || {}).value);
+    var xEnd    = Number((document.getElementById('fp-xEnd')          || {}).value);
+    var spacing = Number((document.getElementById('fp-xTargetSpacing') || {}).value) || 2;
+    if (!isFinite(xStart) || !isFinite(xEnd) || xStart === xEnd) {
+      return Math.max(2, Math.round(Number((document.getElementById('fp-xPoints') || {}).value) || 5));
+    }
+    var widthMm = Math.abs(xEnd - xStart);
+    spacing = Math.max(0.5, spacing);
+    var nIntervals = Math.max(1, Math.round(widthMm / spacing));
+    var xPts = nIntervals + 1;
+    var clamped = false;
+    if (xPts < 2)  { xPts = 2;  clamped = true; }
+    if (xPts > 50) { xPts = 50; clamped = true; }
+    // Update the fp-xPoints display to reflect computed value
+    var xPtsEl = document.getElementById('fp-xPoints');
+    if (xPtsEl) xPtsEl.value = xPts;
+    // Update status note
+    var statusEl = document.getElementById('fp-xAutoSpacing-status');
+    if (statusEl) {
+      var effectiveSpacing = widthMm / (xPts - 1);
+      var msg = xPts + ' X points (effective spacing: ' + effectiveSpacing.toFixed(2) + ' mm)';
+      if (clamped) msg += ' — clamped to ' + xPts + ' (limit: 2–50)';
+      statusEl.textContent = msg;
+      statusEl.style.color = clamped ? 'var(--accent2)' : 'var(--muted)';
+    }
+    return xPts;
+  }
+  return Math.max(2, Math.round(Number((document.getElementById('fp-xPoints') || {}).value) || 5));
+}
+
+// Shows/hides the target-spacing field and refreshes the computed point count.
+function fpUpdateAutoSpacingUI() {
+  var autoEl   = document.getElementById('fp-xAutoSpacing');
+  var fieldEl  = document.getElementById('fp-xTargetSpacing-field');
+  var xPtsEl   = document.getElementById('fp-xPoints');
+  var isAuto   = autoEl && autoEl.checked;
+  if (fieldEl)  fieldEl.style.display  = isAuto ? '' : 'none';
+  if (xPtsEl)   xPtsEl.readOnly        = isAuto;
+  if (xPtsEl)   xPtsEl.style.opacity   = isAuto ? '0.5' : '';
+  if (isAuto) fpGetEffectiveXPoints(); // trigger status update
+  else {
+    var statusEl = document.getElementById('fp-xAutoSpacing-status');
+    if (statusEl) statusEl.textContent = '';
+  }
 }
 
 function calcProbeAutoTotalLength(){
@@ -7991,7 +8056,7 @@ async function runFaceProbe(axis, _calledFromCombined){
     if (!_calledFromCombined) {
       var _p0xStart = Number((document.getElementById('fp-xStart') || {}).value);
       var _p0xEnd   = Number((document.getElementById('fp-xEnd')   || {}).value);
-      var _p0xPts   = Math.max(2, Math.round(Number((document.getElementById('fp-xPoints') || {}).value) || 5));
+      var _p0xPts   = fpGetEffectiveXPoints();
       if (isFinite(_p0xStart) && isFinite(_p0xEnd) && _p0xStart !== _p0xEnd) {
         var _p0ClearZ  = Number(s.topClearZ)      || 5;
         var _p0Feed    = Number(s.topFeed)         || 200;
@@ -9479,6 +9544,8 @@ function getSettingsFromUI() {
     faceLayerCount:              n('faceLayerCount'),
     fpZStepCount:                n('fp-zStepCount'),
     fpZStepSize:                 n('fp-zStepSize'),
+    fpXAutoSpacing:              chk('fp-xAutoSpacing'),
+    fpXTargetSpacing:            n('fp-xTargetSpacing'),
     // Combined mode
     combinedPhasePause:          n('combined-phase-pause'),
     // Seam edge smoothing
@@ -9572,6 +9639,9 @@ function loadSettings() {
   sv('faceLayerCount',             data.faceLayerCount);
   sv('fp-zStepCount',              data.fpZStepCount);
   sv('fp-zStepSize',               data.fpZStepSize);
+  sc('fp-xAutoSpacing',            data.fpXAutoSpacing);
+  sv('fp-xTargetSpacing',          data.fpXTargetSpacing);
+  try { fpUpdateAutoSpacingUI(); } catch(e) {}
   // Combined mode
   sv('combined-phase-pause',       data.combinedPhasePause);
   // Seam edge smoothing
@@ -9610,6 +9680,7 @@ function resetSettings() {
     faceFixedCoord: 0, enableLayeredFace: false, faceStartOffset: -10, faceMaxDepth: 14.75,
     faceFeed: 150, faceRetractFeed: 1000, faceDepthBelowSurface: 2, faceProbeDistance: 20, faceLayerCount: 3,
     fpZStepCount: 3, fpZStepSize: 1,
+    fpXAutoSpacing: false, fpXTargetSpacing: 2,
     combinedPhasePause: 2000,
     surfSeamSmooth: 0, faceSeamSmooth: 0, faceWallSmoothPeak: 0.5, faceWallSmoothValley: 0.5, faceWallSmoothPasses: 3,
     probeShankDiameter: 6, probeBodyDiameter: 33, probeUpperHeight: 20, probeUpperLength: 20,
@@ -9655,6 +9726,9 @@ function resetSettings() {
   sv('faceLayerCount',             defaults.faceLayerCount);
   sv('fp-zStepCount',              defaults.fpZStepCount);
   sv('fp-zStepSize',               defaults.fpZStepSize);
+  sc('fp-xAutoSpacing',            defaults.fpXAutoSpacing);
+  sv('fp-xTargetSpacing',          defaults.fpXTargetSpacing);
+  try { fpUpdateAutoSpacingUI(); } catch(e) {}
   sv('combined-phase-pause',       defaults.combinedPhasePause);
   sv('probeShankDiameter',         defaults.probeShankDiameter);
   sv('probeBodyDiameter',          defaults.probeBodyDiameter);
