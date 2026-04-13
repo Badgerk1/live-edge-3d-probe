@@ -781,6 +781,14 @@
           <input type="number" id="fp-xTargetSpacing" value="2" min="0.5" max="100" step="0.5" oninput="fpUpdateAutoSpacingUI()">
           <div class="mini" id="fp-xAutoSpacing-status" style="margin-top:4px;color:var(--muted)"></div>
         </div>
+        <div class="field" style="grid-column:1 / -1">
+          <label><span class="tooltip">Top reference mode<span class="tip-icon">?</span><span class="tip">Controls how Phase 0 AUTO TOP-Z collects the top-surface Z reference before face probing. "Every column" probes the top at each face X column (most accurate). "Endpoints only (fast)" probes only at X Start and X End — minTopZ is still applied to all columns for safety.</span></span></label>
+          <select id="fp-topRefMode">
+            <option value="all">Probe top at every face X column (current)</option>
+            <option value="endpoints">Probe top at endpoints only (fast)</option>
+          </select>
+          <div class="mini" style="margin-top:4px">In fast mode, Phase 0 and Combined Phase 1.5 probe only the two X endpoints. minTopZ from those two points is still used as the Z reference for all face columns.</div>
+        </div>
         <div class="field">
           <label><span class="tooltip">Face Probe Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for the probe move toward the face surface. Slower values reduce overshoot and improve contact accuracy.</span></span></label>
           <input type="number" id="faceFeed" value="150" min="10" max="3000" step="10">
@@ -8057,6 +8065,8 @@ async function runFaceProbe(axis, _calledFromCombined){
       var _p0xStart = Number((document.getElementById('fp-xStart') || {}).value);
       var _p0xEnd   = Number((document.getElementById('fp-xEnd')   || {}).value);
       var _p0xPts   = fpGetEffectiveXPoints();
+      // In endpoints mode, Phase 0 probes only xStart and xEnd
+      if (s.fpTopRefMode === 'endpoints') { _p0xPts = 2; }
       if (isFinite(_p0xStart) && isFinite(_p0xEnd) && _p0xStart !== _p0xEnd) {
         var _p0ClearZ  = Number(s.topClearZ)      || 5;
         var _p0Feed    = Number(s.topFeed)         || 200;
@@ -9199,6 +9209,20 @@ async function runCombinedProbeMode(axis) {
         throw new Error('No face sample X positions available for Phase 1.5');
       }
 
+      // In endpoints mode, restrict Phase 1.5 to probe only xStart and xEnd
+      if (_p15Settings.fpTopRefMode === 'endpoints') {
+        var _p15xStartEp = Number((document.getElementById('fp-xStart') || {}).value);
+        var _p15xEndEp   = Number((document.getElementById('fp-xEnd')   || {}).value);
+        if (isFinite(_p15xStartEp) && isFinite(_p15xEndEp) && _p15xStartEp !== _p15xEndEp) {
+          _p15Samples = [
+            { index: 1, sampleCoord: _p15xStartEp },
+            { index: 2, sampleCoord: _p15xEndEp }
+          ];
+        } else if (_p15Samples.length > 2) {
+          _p15Samples = [_p15Samples[0], _p15Samples[_p15Samples.length - 1]];
+        }
+      }
+
       var _p15Total = _p15Samples.length;
       pluginDebug('runCombinedProbeMode Phase 1.5: faceY=' + _p15FaceY + ' samples=' + _p15Total + ' maxPlunge=' + _p15MaxPlunge + ' probeFeed=' + _p15ProbeFeed);
 
@@ -9546,6 +9570,7 @@ function getSettingsFromUI() {
     fpZStepSize:                 n('fp-zStepSize'),
     fpXAutoSpacing:              chk('fp-xAutoSpacing'),
     fpXTargetSpacing:            n('fp-xTargetSpacing'),
+    fpTopRefMode:                s('fp-topRefMode'),
     // Combined mode
     combinedPhasePause:          n('combined-phase-pause'),
     // Seam edge smoothing
@@ -9641,6 +9666,7 @@ function loadSettings() {
   sv('fp-zStepSize',               data.fpZStepSize);
   sc('fp-xAutoSpacing',            data.fpXAutoSpacing);
   sv('fp-xTargetSpacing',          data.fpXTargetSpacing);
+  sv('fp-topRefMode',              data.fpTopRefMode);
   try { fpUpdateAutoSpacingUI(); } catch(e) {}
   // Combined mode
   sv('combined-phase-pause',       data.combinedPhasePause);
@@ -9680,7 +9706,7 @@ function resetSettings() {
     faceFixedCoord: 0, enableLayeredFace: false, faceStartOffset: -10, faceMaxDepth: 14.75,
     faceFeed: 150, faceRetractFeed: 1000, faceDepthBelowSurface: 2, faceProbeDistance: 20, faceLayerCount: 3,
     fpZStepCount: 3, fpZStepSize: 1,
-    fpXAutoSpacing: false, fpXTargetSpacing: 2,
+    fpXAutoSpacing: false, fpXTargetSpacing: 2, fpTopRefMode: 'all',
     combinedPhasePause: 2000,
     surfSeamSmooth: 0, faceSeamSmooth: 0, faceWallSmoothPeak: 0.5, faceWallSmoothValley: 0.5, faceWallSmoothPasses: 3,
     probeShankDiameter: 6, probeBodyDiameter: 33, probeUpperHeight: 20, probeUpperLength: 20,
@@ -9728,6 +9754,7 @@ function resetSettings() {
   sv('fp-zStepSize',               defaults.fpZStepSize);
   sc('fp-xAutoSpacing',            defaults.fpXAutoSpacing);
   sv('fp-xTargetSpacing',          defaults.fpXTargetSpacing);
+  sv('fp-topRefMode',              defaults.fpTopRefMode);
   try { fpUpdateAutoSpacingUI(); } catch(e) {}
   sv('combined-phase-pause',       defaults.combinedPhasePause);
   sv('probeShankDiameter',         defaults.probeShankDiameter);

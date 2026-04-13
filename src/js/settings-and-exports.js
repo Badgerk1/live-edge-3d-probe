@@ -48,6 +48,7 @@ function getSettingsFromUI() {
     fpZStepSize:                 n('fp-zStepSize'),
     fpXAutoSpacing:              chk('fp-xAutoSpacing'),
     fpXTargetSpacing:            n('fp-xTargetSpacing'),
+    fpTopRefMode:                s('fp-topRefMode'),
     // Combined mode
     combinedPhasePause:          n('combined-phase-pause'),
     // Seam edge smoothing
@@ -143,6 +144,7 @@ function loadSettings() {
   sv('fp-zStepSize',               data.fpZStepSize);
   sc('fp-xAutoSpacing',            data.fpXAutoSpacing);
   sv('fp-xTargetSpacing',          data.fpXTargetSpacing);
+  sv('fp-topRefMode',              data.fpTopRefMode);
   try { fpUpdateAutoSpacingUI(); } catch(e) {}
   // Combined mode
   sv('combined-phase-pause',       data.combinedPhasePause);
@@ -182,7 +184,7 @@ function resetSettings() {
     faceFixedCoord: 0, enableLayeredFace: false, faceStartOffset: -10, faceMaxDepth: 14.75,
     faceFeed: 150, faceRetractFeed: 1000, faceDepthBelowSurface: 2, faceProbeDistance: 20, faceLayerCount: 3,
     fpZStepCount: 3, fpZStepSize: 1,
-    fpXAutoSpacing: false, fpXTargetSpacing: 2,
+    fpXAutoSpacing: false, fpXTargetSpacing: 2, fpTopRefMode: 'all',
     combinedPhasePause: 2000,
     surfSeamSmooth: 0, faceSeamSmooth: 0, faceWallSmoothPeak: 0.5, faceWallSmoothValley: 0.5, faceWallSmoothPasses: 3,
     probeShankDiameter: 6, probeBodyDiameter: 33, probeUpperHeight: 20, probeUpperLength: 20,
@@ -230,6 +232,7 @@ function resetSettings() {
   sv('fp-zStepSize',               defaults.fpZStepSize);
   sc('fp-xAutoSpacing',            defaults.fpXAutoSpacing);
   sv('fp-xTargetSpacing',          defaults.fpXTargetSpacing);
+  sv('fp-topRefMode',              defaults.fpTopRefMode);
   try { fpUpdateAutoSpacingUI(); } catch(e) {}
   sv('combined-phase-pause',       defaults.combinedPhasePause);
   sv('probeShankDiameter',         defaults.probeShankDiameter);

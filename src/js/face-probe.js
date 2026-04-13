@@ -258,6 +258,8 @@ async function runFaceProbe(axis, _calledFromCombined){
       var _p0xStart = Number((document.getElementById('fp-xStart') || {}).value);
       var _p0xEnd   = Number((document.getElementById('fp-xEnd')   || {}).value);
       var _p0xPts   = fpGetEffectiveXPoints();
+      // In endpoints mode, Phase 0 probes only xStart and xEnd
+      if (s.fpTopRefMode === 'endpoints') { _p0xPts = 2; }
       if (isFinite(_p0xStart) && isFinite(_p0xEnd) && _p0xStart !== _p0xEnd) {
         var _p0ClearZ  = Number(s.topClearZ)      || 5;
         var _p0Feed    = Number(s.topFeed)         || 200;
@@ -1398,6 +1400,20 @@ async function runCombinedProbeMode(axis) {
 
       if (!_p15Samples || _p15Samples.length === 0) {
         throw new Error('No face sample X positions available for Phase 1.5');
+      }
+
+      // In endpoints mode, restrict Phase 1.5 to probe only xStart and xEnd
+      if (_p15Settings.fpTopRefMode === 'endpoints') {
+        var _p15xStartEp = Number((document.getElementById('fp-xStart') || {}).value);
+        var _p15xEndEp   = Number((document.getElementById('fp-xEnd')   || {}).value);
+        if (isFinite(_p15xStartEp) && isFinite(_p15xEndEp) && _p15xStartEp !== _p15xEndEp) {
+          _p15Samples = [
+            { index: 1, sampleCoord: _p15xStartEp },
+            { index: 2, sampleCoord: _p15xEndEp }
+          ];
+        } else if (_p15Samples.length > 2) {
+          _p15Samples = [_p15Samples[0], _p15Samples[_p15Samples.length - 1]];
+        }
       }
 
       var _p15Total = _p15Samples.length;

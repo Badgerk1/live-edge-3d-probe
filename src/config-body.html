@@ -554,6 +554,14 @@
           <input type="number" id="fp-xTargetSpacing" value="2" min="0.5" max="100" step="0.5" oninput="fpUpdateAutoSpacingUI()">
           <div class="mini" id="fp-xAutoSpacing-status" style="margin-top:4px;color:var(--muted)"></div>
         </div>
+        <div class="field" style="grid-column:1 / -1">
+          <label><span class="tooltip">Top reference mode<span class="tip-icon">?</span><span class="tip">Controls how Phase 0 AUTO TOP-Z collects the top-surface Z reference before face probing. "Every column" probes the top at each face X column (most accurate). "Endpoints only (fast)" probes only at X Start and X End — minTopZ is still applied to all columns for safety.</span></span></label>
+          <select id="fp-topRefMode">
+            <option value="all">Probe top at every face X column (current)</option>
+            <option value="endpoints">Probe top at endpoints only (fast)</option>
+          </select>
+          <div class="mini" style="margin-top:4px">In fast mode, Phase 0 and Combined Phase 1.5 probe only the two X endpoints. minTopZ from those two points is still used as the Z reference for all face columns.</div>
+        </div>
         <div class="field">
           <label><span class="tooltip">Face Probe Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for the probe move toward the face surface. Slower values reduce overshoot and improve contact accuracy.</span></span></label>
           <input type="number" id="faceFeed" value="150" min="10" max="3000" step="10">
