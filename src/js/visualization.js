@@ -937,7 +937,10 @@ function renderFaceReliefMap() {
   var DEFAULT_LAYER = 1;
   var xKeyToVal = {}, layerZSum = {}, layerZCnt = {};
   data.forEach(function(r) {
-    var xv = Number(r.x), yv = Number(r.y), zv = Number(r.z);
+    // Use sampleCoord (controlled axis) when present; fall back to r.x for backward compat.
+    var xv = r.sampleCoord != null ? Number(r.sampleCoord) : Number(r.x);
+    var yv = r.contactCoord != null ? Number(r.contactCoord) : Number(r.y);
+    var zv = Number(r.z);
     var lv = r.layer != null ? Number(r.layer) : DEFAULT_LAYER;
     if (!isFinite(xv) || !isFinite(yv) || !isFinite(zv)) return;
     var xKey = xv.toFixed(6);
@@ -955,10 +958,11 @@ function renderFaceReliefMap() {
   var layerToAvgZ = {};
   layers.forEach(function(l) { layerToAvgZ[l] = layerZSum[l] / layerZCnt[l]; });
 
-  // Build per-(x, layer) average Y contact value to handle any duplicates
+  // Build per-(sampleCoord, layer) average contact value to handle any duplicates
   var cellSumY = {}, cellCntY = {};
   data.forEach(function(r) {
-    var xv = Number(r.x), yv = Number(r.y);
+    var xv = r.sampleCoord != null ? Number(r.sampleCoord) : Number(r.x);
+    var yv = r.contactCoord != null ? Number(r.contactCoord) : Number(r.y);
     var lv = r.layer != null ? Number(r.layer) : DEFAULT_LAYER;
     if (!isFinite(xv) || !isFinite(yv)) return;
     var key = xv.toFixed(6) + '|' + lv;
@@ -1240,9 +1244,12 @@ function subdivideFaceMesh(pts, spacing) {
   // Collect unique X positions and unique layer numbers
   var xKeyMap = {}, layerNums = {};
   pts.forEach(function(p) {
-    var xv = Number(p.x), lv = p.layer != null ? Number(p.layer) : 1;
-    if (!isFinite(xv) || !isFinite(Number(p.y)) || !isFinite(Number(p.z))) return;
-    xKeyMap[xv.toFixed(6)] = xv;
+    // Use sampleCoord (controlled axis) when present; fall back to p.x for backward compat.
+    var scv = p.sampleCoord != null ? Number(p.sampleCoord) : Number(p.x);
+    var ccv = p.contactCoord != null ? Number(p.contactCoord) : Number(p.y);
+    var lv = p.layer != null ? Number(p.layer) : 1;
+    if (!isFinite(scv) || !isFinite(ccv) || !isFinite(Number(p.z))) return;
+    xKeyMap[scv.toFixed(6)] = scv;
     layerNums[lv] = true;
   });
 
@@ -1263,21 +1270,26 @@ function subdivideFaceMesh(pts, spacing) {
   var layerAvgZ = {};
   layers.forEach(function(l) { layerAvgZ[l] = layerZSum[l] / layerZCnt[l]; });
 
-  // Build 2D grid [colIdx][rowIdx] → { y, machineZ, sampleTopZ }
+  // Build 2D grid [colIdx][rowIdx] → { cc, mx, y, machineZ, sampleTopZ }
+  // cc = contactCoord (face measurement), mx = machine X, y = machine Y
   var grid = [];
   for (var ci = 0; ci < nCols; ci++) { grid.push(new Array(nRows).fill(null)); }
   var xiMap = {}, liMap = {};
   xs.forEach(function(x, i) { xiMap[x.toFixed(6)] = i; });
   layers.forEach(function(l, i) { liMap[l] = i; });
 
-  // Average Y (and machineZ, sampleTopZ) per cell to handle duplicates
-  var cellSumY = {}, cellSumMZ = {}, cellSumST = {}, cellCnt = {};
+  // Average contact coord, machine X, machine Y (and machineZ, sampleTopZ) per cell
+  var cellSumCC = {}, cellSumMX = {}, cellSumY = {}, cellSumMZ = {}, cellSumST = {}, cellCnt = {};
   pts.forEach(function(p) {
-    var xv = Number(p.x), yv = Number(p.y), zv = Number(p.z);
+    var scv = p.sampleCoord != null ? Number(p.sampleCoord) : Number(p.x);
+    var ccv = p.contactCoord != null ? Number(p.contactCoord) : Number(p.y);
+    var mxv = Number(p.x), yv = Number(p.y);
     var lv = p.layer != null ? Number(p.layer) : 1;
-    if (!isFinite(xv) || !isFinite(yv) || !isFinite(zv)) return;
-    var key = xv.toFixed(6) + '|' + lv;
-    if (!(key in cellCnt)) { cellSumY[key] = 0; cellSumMZ[key] = 0; cellSumST[key] = 0; cellCnt[key] = 0; }
+    if (!isFinite(scv) || !isFinite(ccv) || !isFinite(Number(p.z))) return;
+    var key = scv.toFixed(6) + '|' + lv;
+    if (!(key in cellCnt)) { cellSumCC[key] = 0; cellSumMX[key] = 0; cellSumY[key] = 0; cellSumMZ[key] = 0; cellSumST[key] = 0; cellCnt[key] = 0; }
+    cellSumCC[key] += ccv;
+    cellSumMX[key] += mxv;
     cellSumY[key] += yv;
     cellSumMZ[key] += (p.machineZ != null ? Number(p.machineZ) : 0);
     cellSumST[key] += (p.sampleTopZ != null ? Number(p.sampleTopZ) : 0);
@@ -1285,11 +1297,13 @@ function subdivideFaceMesh(pts, spacing) {
   });
   Object.keys(cellCnt).forEach(function(key) {
     var parts = key.split('|');
-    var xv = parseFloat(parts[0]), lv = parseInt(parts[1], 10);
-    var xi = xiMap[xv.toFixed(6)], li = liMap[lv];
+    var scv = parseFloat(parts[0]), lv = parseInt(parts[1], 10);
+    var xi = xiMap[scv.toFixed(6)], li = liMap[lv];
     if (xi == null || li == null) return;
     var cnt = cellCnt[key];
     grid[xi][li] = {
+      cc: cellSumCC[key] / cnt,
+      mx: cellSumMX[key] / cnt,
       y: cellSumY[key] / cnt,
       machineZ: cellSumMZ[key] / cnt,
       sampleTopZ: cellSumST[key] / cnt
@@ -1333,6 +1347,10 @@ function subdivideFaceMesh(pts, spacing) {
       var c01 = grid[xi0][li0 + 1], c11 = grid[xi0 + 1][li0 + 1];
       if (!c00 || !c10 || !c01 || !c11) continue;
 
+      var newCC = c00.cc * (1 - tx) * (1 - ty) + c10.cc * tx * (1 - ty) +
+                  c01.cc * (1 - tx) * ty + c11.cc * tx * ty;
+      var newMX = c00.mx * (1 - tx) * (1 - ty) + c10.mx * tx * (1 - ty) +
+                  c01.mx * (1 - tx) * ty + c11.mx * tx * ty;
       var newY = c00.y * (1 - tx) * (1 - ty) + c10.y * tx * (1 - ty) +
                  c01.y * (1 - tx) * ty + c11.y * tx * ty;
       var newMZ = c00.machineZ * (1 - tx) * (1 - ty) + c10.machineZ * tx * (1 - ty) +
@@ -1341,7 +1359,8 @@ function subdivideFaceMesh(pts, spacing) {
                   c01.sampleTopZ * (1 - tx) * ty + c11.sampleTopZ * tx * ty;
 
       newPts.push({
-        x: newX, y: newY, z: newZ,
+        x: newMX, y: newY, z: newZ,
+        sampleCoord: newX, contactCoord: newCC,
         machineZ: newMZ, sampleTopZ: newST,
         layer: nearLayer
       });
@@ -1560,7 +1579,7 @@ function _buildThreeFaceWall(faceWall, cfg, zMin, zMax, zExag, si) {
     var rawC = [];
     for (var _li = 0; _li < nR; _li++) {
       rawC.push([]);
-      for (var _xi = 0; _xi < nC; _xi++) { var _r = gR(_li, _xi); rawC[_li][_xi] = _r ? Number(_r.y) : null; }
+      for (var _xi = 0; _xi < nC; _xi++) { var _r = gR(_li, _xi); rawC[_li][_xi] = _r ? (_r.contactCoord != null ? Number(_r.contactCoord) : Number(_r.y)) : null; }
     }
     smC = [];
     for (var _li2 = 0; _li2 < nR; _li2++) {
@@ -1596,7 +1615,7 @@ function _buildThreeFaceWall(faceWall, cfg, zMin, zMax, zExag, si) {
     for (var li=0; li<nCY; li++) {
       if (!validCell[xi][li]) continue;
       var r00=faceWall.grid[li][xi], r10=faceWall.grid[li][xi+1];
-      var x00=Number(r00.x), x10=Number(r10.x);
+      var x00=fwXs[xi], x10=fwXs[xi+1];
       var baseGy = li * SUB;
       for (var sy=0; sy<=SUB; sy++) {
         var gy = baseGy + sy;
@@ -1616,10 +1635,10 @@ function _buildThreeFaceWall(faceWall, cfg, zMin, zMax, zExag, si) {
               mc = c00*(1-tx)*(1-ty) + c10*tx*(1-ty) + c01*(1-tx)*ty + c11*tx*ty;
             } else { mc = null; }
           } else {
-            mc = faceInterpFn(li, xi, tx, ty, function(r){ return Number(r.y); });
+            mc = faceInterpFn(li, xi, tx, ty, function(r){ return r.contactCoord != null ? Number(r.contactCoord) : Number(r.y); });
           }
           if (mz===null) { var r01=faceWall.grid[li+1][xi], r11=faceWall.grid[li+1][xi+1]; mz=Number(r00.z)*(1-tx)*(1-ty)+Number(r10.z)*tx*(1-ty)+Number(r01.z)*(1-tx)*ty+Number(r11.z)*tx*ty; }
-          if (mc===null) { var r01b=faceWall.grid[li+1][xi], r11b=faceWall.grid[li+1][xi+1]; mc=Number(r00.y)*(1-tx)*(1-ty)+Number(r10.y)*tx*(1-ty)+Number(r01b.y)*(1-tx)*ty+Number(r11b.y)*tx*ty; }
+          if (mc===null) { var r01b=faceWall.grid[li+1][xi], r11b=faceWall.grid[li+1][xi+1]; var _cc=function(r){return r.contactCoord!=null?Number(r.contactCoord):Number(r.y);}; mc=_cc(r00)*(1-tx)*(1-ty)+_cc(r10)*tx*(1-ty)+_cc(r01b)*(1-tx)*ty+_cc(r11b)*tx*ty; }
           var layerFrac = (li + ty) / nRowsM1;
           var worldX = (mx-xCenter)/maxSpan*100;
           var worldY = (mz-zMid)*zExag*zScale;

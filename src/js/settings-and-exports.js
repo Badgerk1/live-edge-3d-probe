@@ -1213,7 +1213,7 @@ function _buildFaceWallExportMesh(faceWall, sub, smPeak, smValley) {
     var rawC = [];
     for (var _li=0; _li<nR; _li++) {
       rawC.push([]);
-      for (var _xi=0; _xi<nC; _xi++) { var _r=gR(_li,_xi); rawC[_li][_xi]=_r?Number(_r.y):null; }
+      for (var _xi=0; _xi<nC; _xi++) { var _r=gR(_li,_xi); rawC[_li][_xi]=_r?(_r.contactCoord!=null?Number(_r.contactCoord):Number(_r.y)):null; }
     }
     smC = [];
     for (var _li2=0; _li2<nR; _li2++) {
@@ -1251,7 +1251,7 @@ function _buildFaceWallExportMesh(faceWall, sub, smPeak, smValley) {
     for (var li2=0; li2<nCY; li2++) {
       if (!validCell[xi2][li2]) continue;
       var r00b=faceWall.grid[li2][xi2], r10b=faceWall.grid[li2][xi2+1];
-      var x00=Number(r00b.x), x10=Number(r10b.x);
+      var x00=fwXs[xi2], x10=fwXs[xi2+1];
       var baseGy=li2*sub;
       for (var sy=0; sy<=sub; sy++) {
         var gy=baseGy+sy, rowOff=gy*totalCols;
@@ -1266,10 +1266,10 @@ function _buildFaceWallExportMesh(faceWall, sub, smPeak, smValley) {
             var c00=smC[li2][xi2],c10=smC[li2][xi2+1],c01=smC[li2+1][xi2],c11=smC[li2+1][xi2+1];
             mc=(c00!=null&&c10!=null&&c01!=null&&c11!=null)?c00*(1-tx)*(1-ty)+c10*tx*(1-ty)+c01*(1-tx)*ty+c11*tx*ty:null;
           } else {
-            mc=faceInterpFn(li2,xi2,tx,ty,function(r){return Number(r.y);});
+            mc=faceInterpFn(li2,xi2,tx,ty,function(r){return r.contactCoord!=null?Number(r.contactCoord):Number(r.y);});
           }
           if (mz===null){var r01c=faceWall.grid[li2+1][xi2],r11c=faceWall.grid[li2+1][xi2+1];mz=Number(r00b.z)*(1-tx)*(1-ty)+Number(r10b.z)*tx*(1-ty)+Number(r01c.z)*(1-tx)*ty+Number(r11c.z)*tx*ty;}
-          if (mc===null){var r01d=faceWall.grid[li2+1][xi2],r11d=faceWall.grid[li2+1][xi2+1];mc=Number(r00b.y)*(1-tx)*(1-ty)+Number(r10b.y)*tx*(1-ty)+Number(r01d.y)*(1-tx)*ty+Number(r11d.y)*tx*ty;}
+          if (mc===null){var r01d=faceWall.grid[li2+1][xi2],r11d=faceWall.grid[li2+1][xi2+1];var _cc2=function(r){return r.contactCoord!=null?Number(r.contactCoord):Number(r.y);};mc=_cc2(r00b)*(1-tx)*(1-ty)+_cc2(r10b)*tx*(1-ty)+_cc2(r01d)*(1-tx)*ty+_cc2(r11d)*tx*ty;}
           posArr[vIdx]={x:mx, y:mc, z:mz};
           filled[vIdx]=1;
         }

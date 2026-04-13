@@ -489,7 +489,9 @@ async function runFaceProbe(axis, _calledFromCombined){
               z: layerZ,
               machineZ: contact.machineZ != null ? Number(contact.machineZ) : null,
               layer: layerNum,
-              sampleTopZ: sampleTopZ
+              sampleTopZ: sampleTopZ,
+              sampleCoord: lineCoord,
+              contactCoord: contactFaceCoord
             });
           } else {
             logLine('face', 'Layer ' + layerNum + ' sample ' + sampleNum + ': reached target ' + axis + '=' + targetCoord.toFixed(3) + ' without contact.');
@@ -529,7 +531,9 @@ async function runFaceProbe(axis, _calledFromCombined){
                 z: layerZ,
                 machineZ: _isrPos.machineZ != null ? Number(_isrPos.machineZ) : null,
                 layer: layerNum,
-                sampleTopZ: sampleTopZ
+                sampleTopZ: sampleTopZ,
+                sampleCoord: lineCoord,
+                contactCoord: axis === 'Y' ? Number(_isrPos.y) : Number(_isrPos.x)
               });
               saveProbeResultsThrottled();
               var _isrRecovery = {recoveries: 0, totalLift: 0};
@@ -562,7 +566,9 @@ async function runFaceProbe(axis, _calledFromCombined){
                 z: Number(_ltrPos.z),
                 machineZ: _ltrPos.machineZ != null ? Number(_ltrPos.machineZ) : null,
                 layer: layerNum,
-                sampleTopZ: sampleTopZ
+                sampleTopZ: sampleTopZ,
+                sampleCoord: lineCoord,
+                contactCoord: axis === 'Y' ? Number(_ltrPos.y) : Number(_ltrPos.x)
               });
               saveProbeResultsThrottled();
               var _ltrRecovery = {recoveries: 0, totalLift: 0};
@@ -1044,13 +1050,16 @@ function buildFaceWallGrid(dataOverride) {
   var data = dataOverride || getFaceMeshData();
   if (!data || !data.length) return null;
 
-  // Collect unique X positions (rounded to 3 dp to merge near-identical floats)
+  // Collect unique sample positions (rounded to 3 dp to merge near-identical floats)
   // and layer numbers. Build an index map for O(1) lookup during grid fill.
+  // Use sampleCoord (always the controlled axis position) when present; fall back
+  // to r.x for backward-compatibility with data captured before this field was added.
   var xKeyToVal = {}, layerSet = {};
   data.forEach(function(r) {
-    var key = Number(r.x).toFixed(3);
+    var sc = r.sampleCoord != null ? Number(r.sampleCoord) : Number(r.x);
+    var key = sc.toFixed(3);
     // Use the first seen exact value for this rounded key to avoid drift
-    if (!(key in xKeyToVal)) xKeyToVal[key] = Number(r.x);
+    if (!(key in xKeyToVal)) xKeyToVal[key] = sc;
     layerSet[r.layer != null ? r.layer : 1] = true;
   });
 
@@ -1073,7 +1082,8 @@ function buildFaceWallGrid(dataOverride) {
   for (var li = 0; li < layers.length; li++) { grid.push({}); }
 
   data.forEach(function(r) {
-    var xi = xIndexMap[Number(r.x).toFixed(3)];
+    var sc = r.sampleCoord != null ? Number(r.sampleCoord) : Number(r.x);
+    var xi = xIndexMap[sc.toFixed(3)];
     if (xi == null) return;
     var l = r.layer != null ? r.layer : 1;
     var li = layerIndexMap[l];
