@@ -1123,8 +1123,13 @@ function exportFaceOBJ() {
   // Upsample the face probe grid via C2 natural cubic spline interpolation.
   var up = _upsampleFaceData(data, subSpacing);
   // Auto seam-edge smoothing: blend top edge row toward interior neighbours.
-  var faceSeamBlend = Math.min(1, Math.max(0, Number((document.getElementById('faceSeamSmooth') || {}).value) || 0));
-  if (faceSeamBlend > 0) _smoothFaceSeamRow(up, faceSeamBlend);
+  // Value 0–10: integer part = full-blend passes, fractional part = one partial pass.
+  var rawFaceSeamVal = Math.min(10, Math.max(0, Number((document.getElementById('faceSeamSmooth') || {}).value) || 0));
+  if (rawFaceSeamVal > 0) {
+    var _fsFull = Math.floor(rawFaceSeamVal), _fsFrac = rawFaceSeamVal - _fsFull;
+    for (var _fsi = 0; _fsi < _fsFull; _fsi++) _smoothFaceSeamRow(up, 1.0);
+    if (_fsFrac > 0) _smoothFaceSeamRow(up, _fsFrac);
+  }
   // Face wall surface smoothing: reduce fold lines between probe layers across full wall height.
   var faceWallPeak = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmoothPeak') || {}).value) || 0));
   var faceWallValley = Math.min(1, Math.max(0, Number((document.getElementById('faceWallSmoothValley') || {}).value) || 0));
@@ -1372,19 +1377,25 @@ function exportFaceSTL() {
   var allVerts = mesh.pts;
   var allTris  = mesh.tris;
   // Optional seam-edge smoothing on the top row.
-  var faceSeamBlend = Math.min(1, Math.max(0, Number((document.getElementById('faceSeamSmooth') || {}).value) || 0));
-  if (faceSeamBlend > 0) {
-    var bf = faceSeamBlend, tCols = mesh.totalCols, tRows = mesh.totalRows;
+  // Value 0–10: integer part = full-blend passes, fractional part = one partial pass.
+  var rawSeamVal = Math.min(10, Math.max(0, Number((document.getElementById('faceSeamSmooth') || {}).value) || 0));
+  if (rawSeamVal > 0) {
+    var _sfull = Math.floor(rawSeamVal), _sfrac = rawSeamVal - _sfull;
+    var tCols = mesh.totalCols, tRows = mesh.totalRows;
     var topRowOff = (tRows - 1) * tCols;
-    for (var _sc = 0; _sc < tCols; _sc++) {
-      var vi = topRowOff + _sc;
-      var vi2 = topRowOff - tCols + _sc; // one row below top
-      if (vi2 >= 0) allVerts[vi] = {
-        x: allVerts[vi].x * (1-bf) + allVerts[vi2].x * bf,
-        y: allVerts[vi].y * (1-bf) + allVerts[vi2].y * bf,
-        z: allVerts[vi].z * (1-bf) + allVerts[vi2].z * bf
-      };
-    }
+    var _applySTLSeamPass = function(bf) {
+      for (var _sc = 0; _sc < tCols; _sc++) {
+        var vi = topRowOff + _sc;
+        var vi2 = topRowOff - tCols + _sc; // one row below top
+        if (vi2 >= 0) allVerts[vi] = {
+          x: allVerts[vi].x * (1-bf) + allVerts[vi2].x * bf,
+          y: allVerts[vi].y * (1-bf) + allVerts[vi2].y * bf,
+          z: allVerts[vi].z * (1-bf) + allVerts[vi2].z * bf
+        };
+      }
+    };
+    for (var _si = 0; _si < _sfull; _si++) _applySTLSeamPass(1.0);
+    if (_sfrac > 0) _applySTLSeamPass(_sfrac);
   }
   if (!allTris || !allTris.length) {
     pluginDebug('exportFaceSTL: no triangles');
