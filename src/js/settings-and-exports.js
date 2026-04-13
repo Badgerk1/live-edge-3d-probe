@@ -51,6 +51,8 @@ function getSettingsFromUI() {
     fpTopRefMode:                s('fp-topRefMode'),
     // Combined mode
     combinedPhasePause:          n('combined-phase-pause'),
+    combinedFinalParkEnabled:    chk('combined-final-park-enabled'),
+    combinedParkZ:               n('combined-park-z'),
     // Surface smoothing (OBJ/STL export only)
     surfSmoothPeak:              n('surfSmoothPeak'),
     surfSmoothValley:            n('surfSmoothValley'),
@@ -159,6 +161,8 @@ function loadSettings() {
   try { fpUpdateAutoSpacingUI(); } catch(e) {}
   // Combined mode
   sv('combined-phase-pause',       data.combinedPhasePause);
+  sc('combined-final-park-enabled', data.combinedFinalParkEnabled !== false); // default ON
+  sv('combined-park-z',            data.combinedParkZ != null ? data.combinedParkZ : 10);
   // Surface smoothing (OBJ/STL export only)
   sv('surfSmoothPeak',             data.surfSmoothPeak);
   sv('surfSmoothValley',           data.surfSmoothValley);
@@ -207,7 +211,7 @@ function resetSettings() {
     faceFeed: 150, faceRetractFeed: 1000, faceDepthBelowSurface: 2, faceProbeDistance: 20, faceLayerCount: 3,
     fpZStepCount: 3, fpZStepSize: 1,
     fpXAutoSpacing: false, fpXTargetSpacing: 2, fpTopRefMode: 'all',
-    combinedPhasePause: 2000,
+    combinedPhasePause: 2000, combinedFinalParkEnabled: true, combinedParkZ: 10,
     surfSmoothPeak: 0, surfSmoothValley: 0, surfSmoothPasses: 1,
     faceSeamSmooth: 0, faceWallSmoothPeak: 0.5, faceWallSmoothValley: 0.5, faceWallSmoothPasses: 3,
     combinedSurfSmoothPeak: 0, combinedSurfSmoothValley: 0, combinedSurfSmoothPasses: 1,
@@ -261,6 +265,8 @@ function resetSettings() {
   sv('fp-topRefMode',              defaults.fpTopRefMode);
   try { fpUpdateAutoSpacingUI(); } catch(e) {}
   sv('combined-phase-pause',       defaults.combinedPhasePause);
+  sc('combined-final-park-enabled', defaults.combinedFinalParkEnabled);
+  sv('combined-park-z',            defaults.combinedParkZ);
   sv('probeShankDiameter',         defaults.probeShankDiameter);
   sv('probeBodyDiameter',          defaults.probeBodyDiameter);
   sv('probeUpperHeight',           defaults.probeUpperHeight);

@@ -1058,6 +1058,18 @@
         </label>
         <div class="mini" style="margin-top:4px">Pause before face probe starts. 0 = no delay. Saved with Settings.</div>
       </div>
+      <div class="field" style="max-width:320px;margin-bottom:6px">
+        <label style="display:flex;align-items:center;gap:8px">
+          <input type="checkbox" id="combined-final-park-enabled" checked>
+          <span class="tooltip">Enable Final Park<span class="tip-icon">?</span><span class="tip">When enabled, Combined mode always attempts to lift Z to the Park Z height and then rapid to X0 Y0 (work zero) after probing — even if the run ended with an error or timeout. Default: ON.</span></span>
+        </label>
+      </div>
+      <div class="field" style="max-width:320px;margin-bottom:10px">
+        <label><span class="tooltip">Park Z (work coords)<span class="tip-icon">?</span><span class="tip">Z height (in work coordinates) to retract to before moving to X0 Y0 at the end of a Combined run. Applied whether the run succeeded or failed. Default: 10.</span></span>
+          <input type="number" id="combined-park-z" value="10" min="0" max="200" step="0.5" style="width:80px">
+        </label>
+        <div class="mini" style="margin-top:4px">Safe retract height for end-of-run park move. Saved with Settings.</div>
+      </div>
       <div class="callout mini" style="margin-bottom:8px">&#8505; The <strong>Face Probe Configuration</strong> panel below is shared between Face mode and Combined mode. Settings changed in either place apply to both.</div>
       <div id="combined-face-plan-status" style="font-size:12px;font-weight:600;color:var(--accent2);background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px 10px;margin-top:4px">Face phase plan: loading…</div>
     </div>
@@ -9599,12 +9611,44 @@ async function runCombinedProbeMode(axis) {
     // Still attempt to merge any partial data
     try { mergeCombinedProbeData(); updateCombinedMeshUI(); } catch(e2) { /* ignore */ }
   } finally {
+    // Best-effort final park: lift to Park Z then rapid to X0 Y0 (work coords).
+    // Runs whether the combined probe completed normally or aborted with an error.
+    var finalParkEnabledEl = document.getElementById('combined-final-park-enabled');
+    if (finalParkEnabledEl && finalParkEnabledEl.checked) {
+      await _combinedFinalPark();
+    }
     if (runBtn) runBtn.disabled = false;
     if (stopBtn) stopBtn.disabled = true;
     if (btnFaceX) btnFaceX.disabled = false;
     if (btnFaceY) btnFaceY.disabled = false;
     _running = false;
     pluginDebug('runCombinedProbeMode EXIT (finally): _running reset to false');
+  }
+}
+
+// Best-effort park routine for Combined mode.
+// Lifts Z to parkZ (work coords) then rapids to X0 Y0.
+// If the Z lift fails, the X/Y move is skipped for safety.
+async function _combinedFinalPark() {
+  var parkZEl = document.getElementById('combined-park-z');
+  var parkZ = (parkZEl && isFinite(Number(parkZEl.value)) && Number(parkZEl.value) > 0) ? Number(parkZEl.value) : 10;
+  smLogProbe('COMBINED: parking to Z=' + parkZ + ' then G0 X0 Y0');
+  pluginDebug('_combinedFinalPark: parkZ=' + parkZ);
+  try {
+    await sendCommand('G90 G1 Z' + parkZ.toFixed(3) + ' F8000');
+    await waitForIdleWithTimeout();
+    smLogProbe('COMBINED: park Z lift done, moving to X0 Y0');
+    try {
+      await sendCommand('G0 X0 Y0');
+      await waitForIdleWithTimeout();
+      smLogProbe('COMBINED: park complete — machine at X0 Y0 Z' + parkZ.toFixed(3));
+    } catch (xyErr) {
+      smLogProbe('COMBINED: park X0 Y0 move failed: ' + (xyErr && xyErr.message ? xyErr.message : String(xyErr)));
+      pluginDebug('_combinedFinalPark XY move failed: ' + (xyErr && xyErr.message ? xyErr.message : String(xyErr)));
+    }
+  } catch (zErr) {
+    smLogProbe('COMBINED: park Z lift failed — skipping X/Y move: ' + (zErr && zErr.message ? zErr.message : String(zErr)));
+    pluginDebug('_combinedFinalPark Z lift failed: ' + (zErr && zErr.message ? zErr.message : String(zErr)));
   }
 }
 
@@ -9775,6 +9819,8 @@ function getSettingsFromUI() {
     fpTopRefMode:                s('fp-topRefMode'),
     // Combined mode
     combinedPhasePause:          n('combined-phase-pause'),
+    combinedFinalParkEnabled:    chk('combined-final-park-enabled'),
+    combinedParkZ:               n('combined-park-z'),
     // Surface smoothing (OBJ/STL export only)
     surfSmoothPeak:              n('surfSmoothPeak'),
     surfSmoothValley:            n('surfSmoothValley'),
@@ -9883,6 +9929,8 @@ function loadSettings() {
   try { fpUpdateAutoSpacingUI(); } catch(e) {}
   // Combined mode
   sv('combined-phase-pause',       data.combinedPhasePause);
+  sc('combined-final-park-enabled', data.combinedFinalParkEnabled !== false); // default ON
+  sv('combined-park-z',            data.combinedParkZ != null ? data.combinedParkZ : 10);
   // Surface smoothing (OBJ/STL export only)
   sv('surfSmoothPeak',             data.surfSmoothPeak);
   sv('surfSmoothValley',           data.surfSmoothValley);
@@ -9931,7 +9979,7 @@ function resetSettings() {
     faceFeed: 150, faceRetractFeed: 1000, faceDepthBelowSurface: 2, faceProbeDistance: 20, faceLayerCount: 3,
     fpZStepCount: 3, fpZStepSize: 1,
     fpXAutoSpacing: false, fpXTargetSpacing: 2, fpTopRefMode: 'all',
-    combinedPhasePause: 2000,
+    combinedPhasePause: 2000, combinedFinalParkEnabled: true, combinedParkZ: 10,
     surfSmoothPeak: 0, surfSmoothValley: 0, surfSmoothPasses: 1,
     faceSeamSmooth: 0, faceWallSmoothPeak: 0.5, faceWallSmoothValley: 0.5, faceWallSmoothPasses: 3,
     combinedSurfSmoothPeak: 0, combinedSurfSmoothValley: 0, combinedSurfSmoothPasses: 1,
@@ -9985,6 +10033,8 @@ function resetSettings() {
   sv('fp-topRefMode',              defaults.fpTopRefMode);
   try { fpUpdateAutoSpacingUI(); } catch(e) {}
   sv('combined-phase-pause',       defaults.combinedPhasePause);
+  sc('combined-final-park-enabled', defaults.combinedFinalParkEnabled);
+  sv('combined-park-z',            defaults.combinedParkZ);
   sv('probeShankDiameter',         defaults.probeShankDiameter);
   sv('probeBodyDiameter',          defaults.probeBodyDiameter);
   sv('probeUpperHeight',           defaults.probeUpperHeight);
