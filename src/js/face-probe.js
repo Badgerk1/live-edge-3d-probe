@@ -1621,12 +1621,44 @@ async function runCombinedProbeMode(axis) {
     // Still attempt to merge any partial data
     try { mergeCombinedProbeData(); updateCombinedMeshUI(); } catch(e2) { /* ignore */ }
   } finally {
+    // Best-effort final park: lift to Park Z then rapid to X0 Y0 (work coords).
+    // Runs whether the combined probe completed normally or aborted with an error.
+    var finalParkEnabledEl = document.getElementById('combined-final-park-enabled');
+    if (finalParkEnabledEl && finalParkEnabledEl.checked) {
+      await _combinedFinalPark();
+    }
     if (runBtn) runBtn.disabled = false;
     if (stopBtn) stopBtn.disabled = true;
     if (btnFaceX) btnFaceX.disabled = false;
     if (btnFaceY) btnFaceY.disabled = false;
     _running = false;
     pluginDebug('runCombinedProbeMode EXIT (finally): _running reset to false');
+  }
+}
+
+// Best-effort park routine for Combined mode.
+// Lifts Z to parkZ (work coords) then rapids to X0 Y0.
+// If the Z lift fails, the X/Y move is skipped for safety.
+async function _combinedFinalPark() {
+  var parkZEl = document.getElementById('combined-park-z');
+  var parkZ = (parkZEl && isFinite(Number(parkZEl.value)) && Number(parkZEl.value) > 0) ? Number(parkZEl.value) : 10;
+  smLogProbe('COMBINED: parking to Z=' + parkZ + ' then G0 X0 Y0');
+  pluginDebug('_combinedFinalPark: parkZ=' + parkZ);
+  try {
+    await sendCommand('G90 G1 Z' + parkZ.toFixed(3) + ' F8000');
+    await waitForIdleWithTimeout();
+    smLogProbe('COMBINED: park Z lift done, moving to X0 Y0');
+    try {
+      await sendCommand('G0 X0 Y0');
+      await waitForIdleWithTimeout();
+      smLogProbe('COMBINED: park complete — machine at X0 Y0 Z' + parkZ.toFixed(3));
+    } catch (xyErr) {
+      smLogProbe('COMBINED: park X0 Y0 move failed: ' + (xyErr && xyErr.message ? xyErr.message : String(xyErr)));
+      pluginDebug('_combinedFinalPark XY move failed: ' + (xyErr && xyErr.message ? xyErr.message : String(xyErr)));
+    }
+  } catch (zErr) {
+    smLogProbe('COMBINED: park Z lift failed — skipping X/Y move: ' + (zErr && zErr.message ? zErr.message : String(zErr)));
+    pluginDebug('_combinedFinalPark Z lift failed: ' + (zErr && zErr.message ? zErr.message : String(zErr)));
   }
 }
 

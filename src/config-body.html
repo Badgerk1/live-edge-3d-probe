@@ -831,6 +831,18 @@
         </label>
         <div class="mini" style="margin-top:4px">Pause before face probe starts. 0 = no delay. Saved with Settings.</div>
       </div>
+      <div class="field" style="max-width:320px;margin-bottom:6px">
+        <label style="display:flex;align-items:center;gap:8px">
+          <input type="checkbox" id="combined-final-park-enabled" checked>
+          <span class="tooltip">Enable Final Park<span class="tip-icon">?</span><span class="tip">When enabled, Combined mode always attempts to lift Z to the Park Z height and then rapid to X0 Y0 (work zero) after probing — even if the run ended with an error or timeout. Default: ON.</span></span>
+        </label>
+      </div>
+      <div class="field" style="max-width:320px;margin-bottom:10px">
+        <label><span class="tooltip">Park Z (work coords)<span class="tip-icon">?</span><span class="tip">Z height (in work coordinates) to retract to before moving to X0 Y0 at the end of a Combined run. Applied whether the run succeeded or failed. Default: 10.</span></span>
+          <input type="number" id="combined-park-z" value="10" min="0" max="200" step="0.5" style="width:80px">
+        </label>
+        <div class="mini" style="margin-top:4px">Safe retract height for end-of-run park move. Saved with Settings.</div>
+      </div>
       <div class="callout mini" style="margin-bottom:8px">&#8505; The <strong>Face Probe Configuration</strong> panel below is shared between Face mode and Combined mode. Settings changed in either place apply to both.</div>
       <div id="combined-face-plan-status" style="font-size:12px;font-weight:600;color:var(--accent2);background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px 10px;margin-top:4px">Face phase plan: loading…</div>
     </div>
