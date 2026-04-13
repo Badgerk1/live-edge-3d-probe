@@ -257,7 +257,7 @@ async function runFaceProbe(axis, _calledFromCombined){
     if (!_calledFromCombined) {
       var _p0xStart = Number((document.getElementById('fp-xStart') || {}).value);
       var _p0xEnd   = Number((document.getElementById('fp-xEnd')   || {}).value);
-      var _p0xPts   = Math.max(2, Math.round(Number((document.getElementById('fp-xPoints') || {}).value) || 5));
+      var _p0xPts   = fpGetEffectiveXPoints();
       if (isFinite(_p0xStart) && isFinite(_p0xEnd) && _p0xStart !== _p0xEnd) {
         var _p0ClearZ  = Number(s.topClearZ)      || 5;
         var _p0Feed    = Number(s.topFeed)         || 200;
