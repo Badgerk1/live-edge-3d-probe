@@ -322,29 +322,58 @@ async function runFaceProbe(axis, _calledFromCombined){
 
     var faceSamples = [];
     if(topPts.length && sampledAxis !== axis){
-      // When Phase 0 (standalone) or Phase 1.5 (combined) has already measured real
-      // top-Z values at the exact face X positions, use those directly.
-      // Only fall back to fpBuildFaceSamplesFromConfig() (mesh interpolation) when
-      // no auto top-Z pass was made AND we are not in combined mode (combined mode
-      // always provides real Phase 1.5 measured values via topResults).
-      var configSamples = (!_p0Ran && !_calledFromCombined && smMeshData && smGridConfig) ? fpBuildFaceSamplesFromConfig() : null;
-      if(configSamples && configSamples.length >= 2){
-        faceSamples = configSamples;
-        logLine('face', 'Face probe: user requested ' + faceSamples.length + ' X samples (fp-xPoints).');
-        logLine('face', 'Face probe: X positions = [' + faceSamples.map(function(s){ return s.sampleCoord.toFixed(1); }).join(', ') + ']');
-        logLine('face', 'Face probe: interpolated topZ = [' + faceSamples.map(function(s){ return s.topZ.toFixed(3); }).join(', ') + ']');
-      } else {
-        // Use topPts directly — real measured values from Phase 0 (standalone) or
-        // Phase 1.5 (combined mode), or the best available data when neither ran.
-        faceSamples = topPts.map(function(tp, idx){
-          return { index: idx + 1, sampleCoord: Number(tp.sampleCoord), topZ: Number(tp.z) };
-        });
-        if(_p0Ran){
-          logLine('face', 'Face probe: using ' + faceSamples.length + ' measured top-Z reference points from Phase 0 auto top-Z pass.');
-        } else if(_calledFromCombined){
-          logLine('face', 'Face probe: using ' + faceSamples.length + ' measured top-Z reference points from Phase 1.5 (combined mode).');
+      if (_p0Ran && s.fpTopRefMode === 'endpoints') {
+        // Phase 0 ran in endpoints mode: only 2 top-Z reference points were measured
+        // (xStart and xEnd). Build the full face sample grid from the X-sampling config
+        // (auto-spacing or manual xPoints) so that face probing uses all configured
+        // columns — NOT just the 2 endpoint columns from topResults.
+        // topZ for each column is linearly interpolated from the two measured endpoints
+        // so that minTopZ correctly reflects the measured surface height.
+        var _epSamples = fpBuildFaceSamplesFromConfig();
+        if (_epSamples && _epSamples.length >= 2) {
+          var _ep0 = topPts[0];
+          var _ep1 = topPts[topPts.length - 1];
+          var _epSpan = Number(_ep1.sampleCoord) - Number(_ep0.sampleCoord);
+          faceSamples = _epSamples.map(function(cs) {
+            var t = _epSpan !== 0 ? (cs.sampleCoord - Number(_ep0.sampleCoord)) / _epSpan : 0;
+            t = Math.max(0, Math.min(1, t));
+            var interpTopZ = Number(_ep0.z) * (1 - t) + Number(_ep1.z) * t;
+            return { index: cs.index, sampleCoord: cs.sampleCoord, topZ: interpTopZ };
+          });
+          logLine('face', 'Face probe (endpoints top-ref): building ' + faceSamples.length + ' X columns from config; topZ linearly interpolated from ' + topPts.length + ' measured endpoint(s).');
+          logLine('face', 'Face probe: faceSamples length=' + faceSamples.length + ' first sampleCoord=' + faceSamples[0].sampleCoord.toFixed(3) + ' last sampleCoord=' + faceSamples[faceSamples.length - 1].sampleCoord.toFixed(3));
         } else {
-          logLine('face', 'Using ' + faceSamples.length + ' indexed face sample(s) from top profile along ' + sampledAxis + ' (no mesh data for interpolation).');
+          // Config build failed — fall back to the 2 measured endpoint values.
+          faceSamples = topPts.map(function(tp, idx){
+            return { index: idx + 1, sampleCoord: Number(tp.sampleCoord), topZ: Number(tp.z) };
+          });
+          logLine('face', 'Face probe (endpoints top-ref): config sample build failed; falling back to ' + faceSamples.length + ' measured endpoint(s).');
+        }
+      } else {
+        // When Phase 0 (standalone, all mode) or Phase 1.5 (combined) has already
+        // measured real top-Z values at the exact face X positions, use those directly.
+        // Only fall back to fpBuildFaceSamplesFromConfig() (mesh interpolation) when
+        // no auto top-Z pass was made AND we are not in combined mode (combined mode
+        // always provides real Phase 1.5 measured values via topResults).
+        var configSamples = (!_p0Ran && !_calledFromCombined && smMeshData && smGridConfig) ? fpBuildFaceSamplesFromConfig() : null;
+        if(configSamples && configSamples.length >= 2){
+          faceSamples = configSamples;
+          logLine('face', 'Face probe: user requested ' + faceSamples.length + ' X samples (fp-xPoints).');
+          logLine('face', 'Face probe: X positions = [' + faceSamples.map(function(s){ return s.sampleCoord.toFixed(1); }).join(', ') + ']');
+          logLine('face', 'Face probe: interpolated topZ = [' + faceSamples.map(function(s){ return s.topZ.toFixed(3); }).join(', ') + ']');
+        } else {
+          // Use topPts directly — real measured values from Phase 0 (standalone) or
+          // Phase 1.5 (combined mode), or the best available data when neither ran.
+          faceSamples = topPts.map(function(tp, idx){
+            return { index: idx + 1, sampleCoord: Number(tp.sampleCoord), topZ: Number(tp.z) };
+          });
+          if(_p0Ran){
+            logLine('face', 'Face probe: using ' + faceSamples.length + ' measured top-Z reference points from Phase 0 auto top-Z pass.');
+          } else if(_calledFromCombined){
+            logLine('face', 'Face probe: using ' + faceSamples.length + ' measured top-Z reference points from Phase 1.5 (combined mode).');
+          } else {
+            logLine('face', 'Using ' + faceSamples.length + ' indexed face sample(s) from top profile along ' + sampledAxis + ' (no mesh data for interpolation).');
+          }
         }
       }
     } else {
