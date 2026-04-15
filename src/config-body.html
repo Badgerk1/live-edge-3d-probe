@@ -194,6 +194,9 @@
             <input type="text" id="travelRecoveryPreview" value="" readonly>
           </div>
         </div>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn ghost" id="btn-save-travel-recovery" onclick="flashSaveButton(this);saveSettingsPartial(['travelFeedRate','travelRecoveryFeedRate','travelRecoveryLiftFeedRate','useTravelContactRecovery','travelContactStep','travelContactBackoff','travelContactLift','travelContactMaxRetries','probeFeed','retractDist'])">&#128190; Save Settings</button>
+        </div>
       </div>
 
 
@@ -291,6 +294,9 @@
               <button class="btn ghost" id="btn-check-homed">&#128269; Check Homed</button>
               <button class="btn ghost" id="btn-use-current-z-home">&#8679; Set Clearance From Current Z</button>
             </div>
+            <div class="btn-row" style="margin-top:8px">
+              <button class="btn ghost" id="btn-save-machine-helpers" onclick="flashSaveButton(this);saveSettingsPartial(['finishHomeZ','useMachineHomeRetract','machineSafeTopZ','returnToXYZero'])">&#128190; Save Finish Motion Settings</button>
+            </div>
             <div class="mini">Save Current Location stores the present work position in the plugin. Check Homed reads controller state and shows homed, machine, and probe input status before you start probing. Finish Clearance sets how many mm above the highest measured probe contact to retract Z before any X/Y return.</div>
           </div>
         </div>
@@ -351,6 +357,9 @@
             <button class="btn ghost" id="btn-jog-work-zero">Go X0 Y0</button>
             <button class="btn ghost" id="btn-jog-safe-top">Raise to Machine Safe Z</button>
           </div>
+          <div class="btn-row" style="margin-top:10px">
+            <button class="btn ghost" id="btn-save-jog-settings" onclick="flashSaveButton(this);saveSettingsPartial(['jogFeedXY','jogStepZ','jogFeedZ'])">&#128190; Save Jog Settings</button>
+          </div>
           <div class="mini" style="margin-top:10px">A-axis buttons are placeholders for future rotary support. Raise to Machine Safe Z uses G53 when the machine is homed and machine-home retract is enabled.</div>
         </div>
       </div>
@@ -404,6 +413,9 @@
           <option value="X">X</option>
         </select>
       </div>
+    </div>
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn ghost" id="btn-save-probe-mode" onclick="flashSaveButton(this);saveSettingsPartial(['probeTypeSelect','probeFaceAxisSelect'])">&#128190; Save Mode</button>
     </div>
   </div>
 
@@ -490,6 +502,9 @@
     </div>
     <div style="margin-top:8px;display:inline-block;padding:6px 10px;border-radius:5px;background:var(--panel2);border:1px solid var(--line);color:var(--accent2);font-size:13px;font-weight:600" id="sm-gridSizeDisplay">6 &times; 6 = 36 points</div>
     <div class="mini" style="color:var(--muted);margin-top:6px">&#128161; Set Min Y = Max Y = 0 for single-row (linear) probing along X axis</div>
+    <div class="btn-row" style="margin-top:8px">
+      <button class="btn ghost" id="btn-save-surf-config" onclick="flashSaveButton(this);smSaveSettings()">&#128190; Save Grid Config</button>
+    </div>
   </div>
 
   <!-- ── Surface Probe Settings ─────────────────────────────────────── -->
@@ -814,6 +829,9 @@
         </label>
         <div class="mini" style="margin-top:4px">Smoothing iterations for the surface mesh. Applied to OBJ and STL exports only.</div>
       </div>
+      <div class="btn-row" style="margin-top:8px">
+        <button class="btn ghost" id="btn-save-surf-export-settings" onclick="flashSaveButton(this);saveSettingsPartial(['surfOBJSubdivision','surfSmoothPeak','surfSmoothValley','surfSmoothPasses'])">&#128190; Save Export Settings</button>
+      </div>
       <div class="btn-row">
         <button class="btn ghost" id="btn-export-surf-csv" title="Export surface mesh as CSV">&#128196; Export CSV</button>
         <button class="btn ghost" id="btn-export-surf-dxf" title="Export surface mesh as DXF">&#128208; Export DXF</button>
@@ -845,6 +863,9 @@
       </div>
       <div class="callout mini" style="margin-bottom:8px">&#8505; The <strong>Face Probe Configuration</strong> panel below is shared between Face mode and Combined mode. Settings changed in either place apply to both.</div>
       <div id="combined-face-plan-status" style="font-size:12px;font-weight:600;color:var(--accent2);background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px 10px;margin-top:4px">Face phase plan: loading…</div>
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn ghost" id="btn-save-combined-settings" onclick="flashSaveButton(this);saveSettingsPartial(['combinedPhasePause','combinedFinalParkEnabled','combinedParkZ'])">&#128190; Save Settings</button>
+      </div>
     </div>
 
   <!-- Combined Mesh Export (Watertight) panel — shown only in Combined mode -->
@@ -946,6 +967,9 @@
           </select>
         </label>
         <div class="mini" style="margin-top:4px">Smooths the seam edge where surface and face wall meet. Applied to OBJ and STL exports only.</div>
+      </div>
+      <div class="btn-row" style="margin-top:8px">
+        <button class="btn ghost" id="btn-save-combined-export-settings" onclick="flashSaveButton(this);saveSettingsPartial(['combinedBottomZ','combinedOBJSubdivision','combinedSurfSmoothPeak','combinedSurfSmoothValley','combinedSurfSmoothPasses','combinedFaceWallSmoothPeak','combinedFaceWallSmoothValley','combinedFaceWallSmoothPasses','combinedSeamSmooth'])">&#128190; Save Export Settings</button>
       </div>
       <div class="btn-row">
         <button class="btn ghost" id="btn-export-combined-obj" title="Export single watertight OBJ (surface + face stitched)">&#129518; Export Combined OBJ (Watertight)</button>
@@ -1086,6 +1110,9 @@
           <input type="number" id="faceWallSmoothPasses" value="3" min="1" max="10" step="1" style="width:80px">
         </label>
         <div class="mini" style="margin-top:4px">Smoothing iterations. Higher = softer face wall, fewer visible fold lines. Saved with Settings.</div>
+      </div>
+      <div class="btn-row" style="margin-top:8px">
+        <button class="btn ghost" id="btn-save-face-export-settings" onclick="flashSaveButton(this);saveSettingsPartial(['faceTopSurfaceMode','faceOBJSubdivision','faceSeamSmooth','faceWallSmoothPeak','faceWallSmoothValley','faceWallSmoothPasses'])">&#128190; Save Export Settings</button>
       </div>
       <div class="btn-row">
         <button class="btn ghost" id="btn-export-face-csv" title="Export face mesh as CSV">&#128196; Export CSV</button>
@@ -1378,6 +1405,9 @@
           </div>
         </div>
         <div class="btn-row">
+          <button class="btn ghost" id="btn-save-surf-comp-settings" onclick="flashSaveButton(this);saveSettingsPartial(['applyRefZ','applySubdivide'])">&#128190; Save Settings</button>
+        </div>
+        <div class="btn-row">
           <button class="btn secondary" id="apply-btn-surface-comp" onclick="flashButton(this);applyServerSurfaceCompensation()" disabled>&#9889; Apply Surface Compensation</button>
           <button class="btn ghost" id="apply-btn-download-surface" onclick="flashButton(this);applyDownloadCompensatedGcode('surface')" disabled>&#8659; Download</button>
           <button class="btn" id="apply-btn-send-ncsender-surface" onclick="flashButton(this);applySendToNcSender('surface')" disabled>&#128640; Send to ncSender</button>
@@ -1422,6 +1452,9 @@
             When checked, all points in each letter/feature receive the same face offset (computed at the group&rsquo;s centroid), keeping geometry intact.
             Uncheck only for contouring applications where per-point variation is desired.
           </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn ghost" id="btn-save-face-comp-settings" onclick="flashSaveButton(this);saveSettingsPartial(['applyFaceRefPos','applyFaceAxis','applyFaceUniform'])">&#128190; Save Settings</button>
         </div>
         <div class="btn-row">
           <button class="btn secondary" id="apply-btn-face-comp" onclick="flashButton(this);applyFaceCompensationFromTab()" disabled>&#128736; Apply Face Compensation</button>
