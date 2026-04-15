@@ -81,7 +81,29 @@ function getSettingsFromUI() {
     probeStylusCalloutLength:    n('probeStylusCalloutLength'),
     probeBallTipDiameter:        n('probeBallTipDiameter'),
     probeTipBallDiameter:        n('probeTipBallDiameter'),
-    probeTotalLength:            n('probeTotalLength')
+    probeTotalLength:            n('probeTotalLength'),
+    // Jog controls
+    jogFeedXY:                   n('jogFeedXY'),
+    jogStepZ:                    n('jogStepZ'),
+    jogFeedZ:                    n('jogFeedZ'),
+    // Probe mode
+    probeTypeSelect:             s('probe-type-select'),
+    probeFaceAxisSelect:         s('probe-face-axis-select'),
+    // Surface export
+    surfOBJSubdivision:          n('surfOBJSubdivision'),
+    // Face export
+    faceTopSurfaceMode:          s('faceTopSurfaceMode'),
+    faceOBJSubdivision:          n('faceOBJSubdivision'),
+    // Combined export
+    combinedBottomZ:             n('combinedBottomZ'),
+    combinedOBJSubdivision:      n('combinedOBJSubdivision'),
+    // Apply tab — surface compensation
+    applyRefZ:                   n('apply-refZ'),
+    applySubdivide:              chk('apply-subdivide'),
+    // Apply tab — face compensation
+    applyFaceRefPos:             n('apply-face-refPos'),
+    applyFaceAxis:               s('apply-face-axis'),
+    applyFaceUniform:            chk('apply-face-uniform')
   };
 }
 function saveSettings() {
@@ -103,6 +125,22 @@ function saveSettings() {
     setFooterStatus('Failed to save settings: ' + e.message, 'bad');
     var el = document.getElementById('setup-status');
     if (el) { el.textContent = 'Save failed: ' + e.message; el.className = 'status-line bad'; }
+  }
+}
+function saveSettingsPartial(keys) {
+  pluginDebug('saveSettingsPartial ENTER keys=' + keys.join(','));
+  try {
+    var stored = {};
+    try { var raw = localStorage.getItem(SM_SETTINGS_KEY); if (raw) stored = JSON.parse(raw); } catch(e) {}
+    var all = getSettingsFromUI();
+    keys.forEach(function(k) { if (k in all) stored[k] = all[k]; });
+    localStorage.setItem(SM_SETTINGS_KEY, JSON.stringify(stored));
+    pluginDebug('saveSettingsPartial: saved ' + keys.length + ' keys');
+    setFooterStatus('Settings saved.', 'good');
+  } catch(e) {
+    pluginDebug('saveSettingsPartial ERROR: ' + e.message);
+    console.error('saveSettingsPartial error:', e);
+    setFooterStatus('Failed to save settings: ' + e.message, 'bad');
   }
 }
 function loadSettings() {
@@ -192,6 +230,28 @@ function loadSettings() {
   sv('probeBallTipDiameter',       data.probeBallTipDiameter);
   sv('probeTipBallDiameter',       data.probeTipBallDiameter);
   sv('probeTotalLength',           data.probeTotalLength);
+  // Jog controls
+  if (data.jogFeedXY != null) sv('jogFeedXY', data.jogFeedXY);
+  if (data.jogStepZ  != null) sv('jogStepZ',  data.jogStepZ);
+  if (data.jogFeedZ  != null) sv('jogFeedZ',  data.jogFeedZ);
+  // Probe mode
+  if (data.probeTypeSelect     != null) sv('probe-type-select',     data.probeTypeSelect);
+  if (data.probeFaceAxisSelect != null) sv('probe-face-axis-select', data.probeFaceAxisSelect);
+  // Surface export
+  if (data.surfOBJSubdivision  != null) sv('surfOBJSubdivision',  data.surfOBJSubdivision);
+  // Face export
+  if (data.faceTopSurfaceMode  != null) sv('faceTopSurfaceMode',  data.faceTopSurfaceMode);
+  if (data.faceOBJSubdivision  != null) sv('faceOBJSubdivision',  data.faceOBJSubdivision);
+  // Combined export
+  if (data.combinedBottomZ        != null) sv('combinedBottomZ',       data.combinedBottomZ);
+  if (data.combinedOBJSubdivision != null) sv('combinedOBJSubdivision', data.combinedOBJSubdivision);
+  // Apply tab — surface compensation
+  if (data.applyRefZ    != null) sv('apply-refZ', data.applyRefZ);
+  if (data.applySubdivide != null) sc('apply-subdivide', data.applySubdivide);
+  // Apply tab — face compensation
+  if (data.applyFaceRefPos != null) sv('apply-face-refPos', data.applyFaceRefPos);
+  if (data.applyFaceAxis   != null) sv('apply-face-axis',   data.applyFaceAxis);
+  if (data.applyFaceUniform != null) sc('apply-face-uniform', data.applyFaceUniform);
   // Trigger dependent previews
   try { refreshFinishBehaviorPreview(); } catch(e) {}
   try { refreshTravelRecoveryPreview(); } catch(e) {}
@@ -219,7 +279,19 @@ function resetSettings() {
     combinedSeamSmooth: 0,
     probeShankDiameter: 6, probeBodyDiameter: 33, probeUpperHeight: 20, probeUpperLength: 20,
     probeMainBodyHeight: 21, probeLowerLength: 21,
-    probeStylusLength: 26, probeStylusCalloutLength: 14.75, probeBallTipDiameter: 0, probeTipBallDiameter: 0, probeTotalLength: 67
+    probeStylusLength: 26, probeStylusCalloutLength: 14.75, probeBallTipDiameter: 0, probeTipBallDiameter: 0, probeTotalLength: 67,
+    // Jog controls
+    jogFeedXY: 600, jogStepZ: 2, jogFeedZ: 300,
+    // Probe mode
+    probeTypeSelect: '2d-surface', probeFaceAxisSelect: 'Y',
+    // Surface export
+    surfOBJSubdivision: 0.5,
+    // Face export
+    faceTopSurfaceMode: 'flat', faceOBJSubdivision: 0.5,
+    // Combined export
+    combinedBottomZ: -20, combinedOBJSubdivision: 0.5,
+    // Apply tab
+    applyRefZ: 0, applySubdivide: true, applyFaceRefPos: 0, applyFaceAxis: 'Y', applyFaceUniform: true
   };
   function sv(id, val) { var el = document.getElementById(id); if (el) el.value = val; }
   function sc(id, val) { var el = document.getElementById(id); if (el) el.checked = !!val; }
@@ -292,6 +364,27 @@ function resetSettings() {
   sv('combinedFaceWallSmoothValley', defaults.combinedFaceWallSmoothValley);
   sv('combinedFaceWallSmoothPasses', defaults.combinedFaceWallSmoothPasses);
   sv('combinedSeamSmooth',         defaults.combinedSeamSmooth);
+  // Jog controls
+  sv('jogFeedXY',                  defaults.jogFeedXY);
+  sv('jogStepZ',                   defaults.jogStepZ);
+  sv('jogFeedZ',                   defaults.jogFeedZ);
+  // Probe mode
+  sv('probe-type-select',          defaults.probeTypeSelect);
+  sv('probe-face-axis-select',     defaults.probeFaceAxisSelect);
+  // Surface export
+  sv('surfOBJSubdivision',         defaults.surfOBJSubdivision);
+  // Face export
+  sv('faceTopSurfaceMode',         defaults.faceTopSurfaceMode);
+  sv('faceOBJSubdivision',         defaults.faceOBJSubdivision);
+  // Combined export
+  sv('combinedBottomZ',            defaults.combinedBottomZ);
+  sv('combinedOBJSubdivision',     defaults.combinedOBJSubdivision);
+  // Apply tab
+  sv('apply-refZ',                 defaults.applyRefZ);
+  sc('apply-subdivide',            defaults.applySubdivide);
+  sv('apply-face-refPos',          defaults.applyFaceRefPos);
+  sv('apply-face-axis',            defaults.applyFaceAxis);
+  sc('apply-face-uniform',         defaults.applyFaceUniform);
   try { refreshFinishBehaviorPreview(); } catch(e) {}
   try { refreshTravelRecoveryPreview(); } catch(e) {}
   try { calcProbeAutoTotalLength(); } catch(e) {}
