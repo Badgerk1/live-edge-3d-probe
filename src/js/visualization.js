@@ -2274,25 +2274,21 @@ function _vizDrawOutlineCanvas() {
     ctx.fill();
   });
 
-  // Closed outline polygon — collect all edge points then sort by angle from centroid
+  // Closed outline polygon — convex hull of all edge points
   var allEdgePts = [];
   leftPts.forEach(function(r)   { allEdgePts.push([r.xLeft,  r.y]);       });
   rightPts.forEach(function(r)  { allEdgePts.push([r.xRight, r.y]);       });
   bottomPts.forEach(function(c) { allEdgePts.push([c.x,      c.yBottom]); });
   topPts.forEach(function(c)    { allEdgePts.push([c.x,      c.yTop]);    });
-  if (allEdgePts.length > 1) {
-    var centerX = allEdgePts.reduce(function(s, p) { return s + p[0]; }, 0) / allEdgePts.length;
-    var centerY = allEdgePts.reduce(function(s, p) { return s + p[1]; }, 0) / allEdgePts.length;
-    allEdgePts.sort(function(a, b) {
-      return Math.atan2(a[1] - centerY, a[0] - centerX) - Math.atan2(b[1] - centerY, b[0] - centerX);
-    });
+  var hull = convexHull(allEdgePts);
+  if (hull.length > 2) {
     ctx.strokeStyle = '#4da6ff';
     ctx.lineWidth = 1;
     ctx.setLineDash([3, 2]);
     ctx.beginPath();
-    ctx.moveTo(cx(allEdgePts[0][0]), cy(allEdgePts[0][1]));
-    for (var k = 1; k < allEdgePts.length; k++) {
-      ctx.lineTo(cx(allEdgePts[k][0]), cy(allEdgePts[k][1]));
+    ctx.moveTo(cx(hull[0][0]), cy(hull[0][1]));
+    for (var k = 1; k < hull.length; k++) {
+      ctx.lineTo(cx(hull[k][0]), cy(hull[k][1]));
     }
     ctx.closePath();
     ctx.stroke();
