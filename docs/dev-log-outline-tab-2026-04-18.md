@@ -99,6 +99,17 @@ for 360 edge detection and face probing on live edge wood slabs.
 - **Additional fix in PR #226:** "No edges found" retract replaced `smRetractToZ()` with explicit `sendCommand('G90 G1 Z...')` + `sleep(50)` + `waitForIdleWithTimeout(30000)` to guarantee the retract fires before next row approach (logs showed `smRetractToZ` may silently fail in this context)
 - **PRs:** #225 and #226 both address this — **#226 is preferred** (explicit G-code retract for no-edges case, source-only change)
 
+### Bug 11: `config.html` not rebuilt after PR #226 merge — plugin still running old code
+- **File:** `config.html` (generated file) / `build.sh`
+- **Problem:** PR #226 fixed `safeTravelZ` computation in `src/js/outline-probe.js`, but `config.html` was never regenerated via `bash build.sh`. The plugin runs from `config.html`, not the source files directly, so the fix was not active despite being merged to main.
+- **Symptom:** Log confirmed `safeTravelZ=10.000` (raw UI value) instead of `19.637` (surfZ + cfg.safeTravelZ):
+  ```
+  X-axis scan: surfZ=9.637 faceZ=6.637 clearZ=14.637 safeTravelZ=10.000 rows=9
+  ```
+- **Log file:** `outline_log_2026-04-18_14-21-49.txt` — confirmed safeTravelZ still showing raw UI value (10.000) instead of computed value (19.637) after PR #226 merge.
+- **Fix:** Run `bash build.sh` from the repository root to rebuild `config.html` from all source partials in `src/`. After rebuild, `config.html` now contains `var safeTravelZ = surfZ + cfg.safeTravelZ` and the log will show `safeTravelZ=19.637`.
+- **Rule added:** After any source file change in `src/`, always run `bash build.sh` before testing. The plugin only reads `config.html`.
+
 ### Bug 10: `_outlineAbsTravel` made separate X then Y moves instead of diagonal
 - **File:** `src/js/outline-probe.js` — `_outlineAbsTravel()` function
 - **Problem:** Travel between rows used separate `moveAbs(x, null, ...)` then `moveAbs(null, y, ...)` commands — doubling travel time and moving along the surface edge unnecessarily.
@@ -228,3 +239,4 @@ Key rules learned:
 - `outline_log_2026-04-18_13-08-40.txt` — Bug 9: diagonal moves fixed but still dragging between rows
 - `outline_log_2026-04-18_13-34-20.txt` — Bug 9: stopped before probe damage, same Z issue
 - `outline_log_2026-04-18_13-51-16.txt` — fastFeed increased to 2000, same Z issue
+- `outline_log_2026-04-18_14-21-49.txt` — Bug 11: confirmed safeTravelZ still showing raw UI value (10.000) instead of computed value (19.637) after PR #226 merge; config.html had not been rebuilt
