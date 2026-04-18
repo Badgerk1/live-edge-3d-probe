@@ -842,6 +842,48 @@ function drawOutlineCanvas() {
   }
 }
 
+// ── Convex Hull (Graham scan) ──────────────────────────────
+function convexHull(points) {
+  var pts = [];
+  for (var i = 0; i < points.length; i++) {
+    var dup = false;
+    for (var j = 0; j < pts.length; j++) {
+      if (Math.abs(points[i][0] - pts[j][0]) < 0.1 && Math.abs(points[i][1] - pts[j][1]) < 0.1) { dup = true; break; }
+    }
+    if (!dup) pts.push(points[i]);
+  }
+  if (pts.length < 3) return pts;
+  var start = 0;
+  for (var i = 1; i < pts.length; i++) {
+    if (pts[i][1] < pts[start][1] || (pts[i][1] === pts[start][1] && pts[i][0] < pts[start][0])) start = i;
+  }
+  var tmp = pts[0]; pts[0] = pts[start]; pts[start] = tmp;
+  var pivot = pts[0];
+  pts.sort(function(a, b) {
+    if (a === pivot) return -1;
+    if (b === pivot) return 1;
+    var angleA = Math.atan2(a[1] - pivot[1], a[0] - pivot[0]);
+    var angleB = Math.atan2(b[1] - pivot[1], b[0] - pivot[0]);
+    if (angleA !== angleB) return angleA - angleB;
+    var distA = (a[0]-pivot[0])*(a[0]-pivot[0]) + (a[1]-pivot[1])*(a[1]-pivot[1]);
+    var distB = (b[0]-pivot[0])*(b[0]-pivot[0]) + (b[1]-pivot[1])*(b[1]-pivot[1]);
+    return distA - distB;
+  });
+  var hull = [pts[0], pts[1]];
+  for (var i = 2; i < pts.length; i++) {
+    while (hull.length > 1) {
+      var a = hull[hull.length - 2];
+      var b = hull[hull.length - 1];
+      var c = pts[i];
+      var cross = (b[0]-a[0])*(c[1]-a[1]) - (b[1]-a[1])*(c[0]-a[0]);
+      if (cross > 0) break;
+      hull.pop();
+    }
+    hull.push(pts[i]);
+  }
+  return hull;
+}
+
 // ── Export SVG ────────────────────────────────────────────
 function exportOutlineSVG() {
   if (outlineRowResults.length === 0 && outlineColResults.length === 0) {
@@ -911,21 +953,17 @@ function exportOutlineSVG() {
     lines.push('  <path d="' + dTop + '" stroke="#e05555" />');
   }
 
-  // Closed outline polygon — collect all edge points then sort by angle from centroid
+  // Closed outline polygon — convex hull of all edge points
   var allEdgePts = [];
   leftPts.forEach(function(r)   { allEdgePts.push([r.xLeft,  r.y]);       });
   rightPts.forEach(function(r)  { allEdgePts.push([r.xRight, r.y]);       });
   bottomPts.forEach(function(c) { allEdgePts.push([c.x,      c.yBottom]); });
   topPts.forEach(function(c)    { allEdgePts.push([c.x,      c.yTop]);    });
-  if (allEdgePts.length > 1) {
-    var centerX = allEdgePts.reduce(function(s, p) { return s + p[0]; }, 0) / allEdgePts.length;
-    var centerY = allEdgePts.reduce(function(s, p) { return s + p[1]; }, 0) / allEdgePts.length;
-    allEdgePts.sort(function(a, b) {
-      return Math.atan2(a[1] - centerY, a[0] - centerX) - Math.atan2(b[1] - centerY, b[0] - centerX);
-    });
-    var dPoly = 'M ' + svgX(allEdgePts[0][0]) + ',' + svgY(allEdgePts[0][1]);
-    for (var k = 1; k < allEdgePts.length; k++) {
-      dPoly += ' L ' + svgX(allEdgePts[k][0]) + ',' + svgY(allEdgePts[k][1]);
+  var hull = convexHull(allEdgePts);
+  if (hull.length > 2) {
+    var dPoly = 'M ' + svgX(hull[0][0]) + ',' + svgY(hull[0][1]);
+    for (var k = 1; k < hull.length; k++) {
+      dPoly += ' L ' + svgX(hull[k][0]) + ',' + svgY(hull[k][1]);
     }
     dPoly += ' Z';
     lines.push('  <path d="' + dPoly + '" stroke="#4da6ff" stroke-width="0.8" stroke-dasharray="2,1" />');
