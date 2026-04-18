@@ -10132,9 +10132,13 @@ async function _outlineMoveToZ(targetZ, feed) {
 // ── Safety retract helper ─────────────────────────────────
 async function _outlineSafetyRetract() {
   try {
-    var safeZ    = Number((document.getElementById('outlineSafeTravelZ') || {}).value) || 10;
-    var safeFeed = Number((document.getElementById('outlineFastFeed')    || {}).value) || 800;
-    await smRetractToZ(safeZ, safeFeed);
+    // Always retract to machine Z=0 first — guarantees clearance even if work Z zero
+    // is set below the wood surface and safeTravelZ wouldn't clear it.
+    var safeFeed = Number((document.getElementById('outlineFastFeed') || {}).value) || 800;
+    outlineAppendLog('SAFETY RETRACT: Z to machine Z=0');
+    await moveMachineZAbs(0, safeFeed);
+    await sleep(50);
+    await waitForIdleWithTimeout(30000);
   } catch(re) { pluginDebug('Safety retract failed: ' + re.message); }
 }
 
@@ -10179,6 +10183,14 @@ async function runOutlineSurfaceProbe() {
 
     await smEnsureProbeClear(cfg.clearZ, cfg.fastFeed);
 
+    // 1. Retract to machine Z=0 (top of travel) for guaranteed clearance
+    //    Surface Z is unknown — safeTravelZ/clearZ may be below the wood
+    outlineAppendLog('RETRACT: Z to machine Z=0 (top of travel) for safe lateral move');
+    await moveMachineZAbs(0, cfg.retractFeed);
+    await sleep(50);
+    await waitForIdleWithTimeout(30000);
+
+    // 2. Now safe to travel laterally to grid center
     var cx = cfg.x0 + cfg.xLen / 2;
     var cy = cfg.y0 + cfg.yLen / 2;
     outlineAppendLog('TRAVEL: moving to center X=' + cx.toFixed(3) + ' Y=' + cy.toFixed(3));
