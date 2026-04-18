@@ -284,11 +284,12 @@ async function _runRowScan(cfg, surfZ) {
   var totalRows = Math.ceil(cfg.yLen / cfg.yStep) + 1;
   var rowIdx    = 0;
   var faceZ     = surfZ - cfg.faceDepth;    // absolute Z below surface for face probe
-  var clearZ    = surfZ + cfg.retractAbove; // absolute Z above surface after contact
+  var clearZ      = surfZ + cfg.retractAbove; // absolute Z above surface after contact
+  var safeTravelZ = surfZ + cfg.safeTravelZ;  // e.g. 9.637 + 10 = 19.637
 
   outlineAppendLog('X-axis scan: surfZ=' + surfZ.toFixed(3) +
     ' faceZ=' + faceZ.toFixed(3) + ' clearZ=' + clearZ.toFixed(3) +
-    ' safeTravelZ=' + cfg.safeTravelZ.toFixed(3) + ' rows=' + totalRows);
+    ' safeTravelZ=' + safeTravelZ.toFixed(3) + ' rows=' + totalRows);
 
   for (var y = cfg.y0; y <= cfg.y0 + cfg.yLen + 1e-9; y += cfg.yStep) {
     outlineCheckStop();
@@ -300,7 +301,7 @@ async function _runRowScan(cfg, surfZ) {
     // 1. Travel to approach position (outside bounds on -X side)
     var approachX = cfg.x0 - cfg.approachDist;
     outlineAppendLog('TRAVEL: approach X=' + approachX.toFixed(3) + ' Y=' + rowY.toFixed(3) + ' at F' + cfg.fastFeed);
-    await _outlineAbsTravel(approachX, rowY, clearZ, cfg.fastFeed, cfg.retractFeed);
+    await _outlineAbsTravel(approachX, rowY, safeTravelZ, cfg.fastFeed, cfg.retractFeed);
 
     // 2. Lower Z to face probe depth (below surface)
     outlineAppendLog('LOWER: Z to faceZ=' + faceZ.toFixed(3) + ' at F' + cfg.retractFeed);
@@ -308,12 +309,13 @@ async function _runRowScan(cfg, surfZ) {
 
     // 3. Probe +X for left (near) edge
     var leftTarget = cfg.x0 + cfg.xLen + cfg.approachDist;
-    var edgePos    = await _probeHorizEdge('X', leftTarget, cfg.faceFeed, cfg.safeTravelZ);
+    var edgePos    = await _probeHorizEdge('X', leftTarget, cfg.faceFeed, safeTravelZ);
 
     if (!edgePos.probeTriggered) {
       outlineAppendLog('Row Y=' + rowY.toFixed(3) + ' complete. No edges found.');
       outlineRowResults.push({ y: rowY, xLeft: null, xRight: null, hasLeft: false, hasRight: false });
-      await smRetractToZ(clearZ, cfg.retractFeed);
+      outlineAppendLog('RETRACT: Z to safeTravelZ=' + safeTravelZ.toFixed(3) + ' at F' + cfg.retractFeed);
+      await smRetractToZ(safeTravelZ, cfg.retractFeed);
       continue;
     }
 
@@ -373,12 +375,12 @@ async function _runRowScan(cfg, surfZ) {
     // 8. Reverse probe -X for exact right edge
     var reverseStartX = Math.min(lastHitX + scanStep * 2, cfg.x0 + cfg.xLen + cfg.approachDist);
     outlineAppendLog('TRAVEL: reverse probe start X=' + reverseStartX.toFixed(3) + ' at F' + cfg.fastFeed);
-    await _outlineAbsTravel(reverseStartX, rowY, clearZ, cfg.fastFeed, cfg.retractFeed);
+    await _outlineAbsTravel(reverseStartX, rowY, safeTravelZ, cfg.fastFeed, cfg.retractFeed);
 
     outlineAppendLog('LOWER: Z to faceZ=' + faceZ.toFixed(3) + ' at F' + cfg.retractFeed);
     await _outlineMoveToZ(faceZ, cfg.retractFeed);
 
-    var rightEdgePos = await _probeHorizEdge('X', xLeft - 1, cfg.faceFeed, cfg.safeTravelZ);
+    var rightEdgePos = await _probeHorizEdge('X', xLeft - 1, cfg.faceFeed, safeTravelZ);
     if (rightEdgePos.probeTriggered) {
       xRight = rightEdgePos.x;
       outlineAppendLog('Row Y=' + rowY.toFixed(3) + ' Right edge TRIGGERED at X=' + xRight.toFixed(3) + ' Z=' + rightEdgePos.z.toFixed(3));
@@ -387,9 +389,9 @@ async function _runRowScan(cfg, surfZ) {
       outlineAppendLog('Row Y=' + rowY.toFixed(3) + ' Right edge not confirmed, using lastHitX=' + xRight.toFixed(3));
     }
 
-    // 9. Retract to clearZ
-    outlineAppendLog('RETRACT: Z to clearZ=' + clearZ.toFixed(3) + ' at F' + cfg.retractFeed);
-    await smRetractToZ(clearZ, cfg.retractFeed);
+    // 9. Retract to safeTravelZ
+    outlineAppendLog('RETRACT: Z to safeTravelZ=' + safeTravelZ.toFixed(3) + ' at F' + cfg.retractFeed);
+    await smRetractToZ(safeTravelZ, cfg.retractFeed);
 
     outlineRowResults.push({ y: rowY, xLeft: xLeft, xRight: xRight, hasLeft: true, hasRight: xRight !== null });
     var rowMs = Date.now() - rowStart;
@@ -399,19 +401,20 @@ async function _runRowScan(cfg, surfZ) {
   }
 
   outlineAppendLog('X-axis scan complete. ' + outlineRowResults.length + ' rows scanned. Returning to X0 Y0.');
-  await _outlineAbsTravel(0, 0, clearZ, cfg.fastFeed, cfg.retractFeed);
+  await _outlineAbsTravel(0, 0, safeTravelZ, cfg.fastFeed, cfg.retractFeed);
 }
 
 // ── Phase 3: Column scan (Y scanlines at fixed X) ─────────
 async function _runColScan(cfg, surfZ) {
   var totalCols = Math.ceil(cfg.xLen / cfg.xStep) + 1;
   var colIdx    = 0;
-  var faceZ     = surfZ - cfg.faceDepth;
-  var clearZ    = surfZ + cfg.retractAbove;
+  var faceZ       = surfZ - cfg.faceDepth;
+  var clearZ      = surfZ + cfg.retractAbove;
+  var safeTravelZ = surfZ + cfg.safeTravelZ;
 
   outlineAppendLog('Y-axis scan: surfZ=' + surfZ.toFixed(3) +
     ' faceZ=' + faceZ.toFixed(3) + ' clearZ=' + clearZ.toFixed(3) +
-    ' safeTravelZ=' + cfg.safeTravelZ.toFixed(3) + ' cols=' + totalCols);
+    ' safeTravelZ=' + safeTravelZ.toFixed(3) + ' cols=' + totalCols);
 
   for (var x = cfg.x0; x <= cfg.x0 + cfg.xLen + 1e-9; x += cfg.xStep) {
     outlineCheckStop();
@@ -423,7 +426,7 @@ async function _runColScan(cfg, surfZ) {
     // 1. Travel to approach position (outside bounds on -Y side)
     var approachY = cfg.y0 - cfg.approachDist;
     outlineAppendLog('TRAVEL: approach X=' + colX.toFixed(3) + ' Y=' + approachY.toFixed(3) + ' at F' + cfg.fastFeed);
-    await _outlineAbsTravel(colX, approachY, clearZ, cfg.fastFeed, cfg.retractFeed);
+    await _outlineAbsTravel(colX, approachY, safeTravelZ, cfg.fastFeed, cfg.retractFeed);
 
     // 2. Lower Z to face probe depth (below surface)
     outlineAppendLog('LOWER: Z to faceZ=' + faceZ.toFixed(3) + ' at F' + cfg.retractFeed);
@@ -431,12 +434,13 @@ async function _runColScan(cfg, surfZ) {
 
     // 3. Probe +Y for bottom (near) edge
     var bottomTarget = cfg.y0 + cfg.yLen + cfg.approachDist;
-    var edgePos      = await _probeHorizEdge('Y', bottomTarget, cfg.faceFeed, cfg.safeTravelZ);
+    var edgePos      = await _probeHorizEdge('Y', bottomTarget, cfg.faceFeed, safeTravelZ);
 
     if (!edgePos.probeTriggered) {
       outlineAppendLog('Col X=' + colX.toFixed(3) + ' complete. No edges found.');
       outlineColResults.push({ x: colX, yBottom: null, yTop: null, hasBottom: false, hasTop: false });
-      await smRetractToZ(clearZ, cfg.retractFeed);
+      outlineAppendLog('RETRACT: Z to safeTravelZ=' + safeTravelZ.toFixed(3) + ' at F' + cfg.retractFeed);
+      await smRetractToZ(safeTravelZ, cfg.retractFeed);
       continue;
     }
 
@@ -496,12 +500,12 @@ async function _runColScan(cfg, surfZ) {
     // 8. Reverse probe -Y for exact top edge
     var reverseStartY = Math.min(lastHitY + scanStep * 2, cfg.y0 + cfg.yLen + cfg.approachDist);
     outlineAppendLog('TRAVEL: reverse probe start Y=' + reverseStartY.toFixed(3) + ' at F' + cfg.fastFeed);
-    await _outlineAbsTravel(colX, reverseStartY, clearZ, cfg.fastFeed, cfg.retractFeed);
+    await _outlineAbsTravel(colX, reverseStartY, safeTravelZ, cfg.fastFeed, cfg.retractFeed);
 
     outlineAppendLog('LOWER: Z to faceZ=' + faceZ.toFixed(3) + ' at F' + cfg.retractFeed);
     await _outlineMoveToZ(faceZ, cfg.retractFeed);
 
-    var topEdgePos = await _probeHorizEdge('Y', yBottom - 1, cfg.faceFeed, cfg.safeTravelZ);
+    var topEdgePos = await _probeHorizEdge('Y', yBottom - 1, cfg.faceFeed, safeTravelZ);
     if (topEdgePos.probeTriggered) {
       yTop = topEdgePos.y;
       outlineAppendLog('Col X=' + colX.toFixed(3) + ' Top edge TRIGGERED at Y=' + yTop.toFixed(3) + ' Z=' + topEdgePos.z.toFixed(3));
@@ -510,9 +514,9 @@ async function _runColScan(cfg, surfZ) {
       outlineAppendLog('Col X=' + colX.toFixed(3) + ' Top edge not confirmed, using lastHitY=' + yTop.toFixed(3));
     }
 
-    // 9. Retract to clearZ
-    outlineAppendLog('RETRACT: Z to clearZ=' + clearZ.toFixed(3) + ' at F' + cfg.retractFeed);
-    await smRetractToZ(clearZ, cfg.retractFeed);
+    // 9. Retract to safeTravelZ
+    outlineAppendLog('RETRACT: Z to safeTravelZ=' + safeTravelZ.toFixed(3) + ' at F' + cfg.retractFeed);
+    await smRetractToZ(safeTravelZ, cfg.retractFeed);
 
     outlineColResults.push({ x: colX, yBottom: yBottom, yTop: yTop, hasBottom: true, hasTop: yTop !== null });
     var colMs = Date.now() - colStart;
@@ -522,7 +526,7 @@ async function _runColScan(cfg, surfZ) {
   }
 
   outlineAppendLog('Y-axis scan complete. ' + outlineColResults.length + ' cols scanned. Returning to X0 Y0.');
-  await _outlineAbsTravel(0, 0, clearZ, cfg.fastFeed, cfg.retractFeed);
+  await _outlineAbsTravel(0, 0, safeTravelZ, cfg.fastFeed, cfg.retractFeed);
 }
 
 // ── Main outline scan (Phases 2 + 3) ─────────────────────
@@ -552,6 +556,7 @@ async function runOutlineScan() {
       throw new Error('Surface Z not set. Run \u25bc Surface Probe first or enter a value in the Surface Z field.');
     }
     outlineSurfaceZ = surfZ;
+    var safeTravelZ = surfZ + cfg.safeTravelZ;
 
     outlineAppendLog('Outline scan start. SurfaceZ=' + surfZ.toFixed(4) +
       ' Bounds: X' + cfg.x0.toFixed(2) + '+' + cfg.xLen.toFixed(2) +
@@ -559,7 +564,7 @@ async function runOutlineScan() {
     outlineAppendLog('Settings: ' + JSON.stringify(cfg, null, 0));
 
     await requireStartupHomingPreflight('Outline Scan');
-    await smEnsureProbeClear(cfg.safeTravelZ, cfg.fastFeed);
+    await smEnsureProbeClear(safeTravelZ, cfg.fastFeed);
 
     // Phase 2: X-axis edge scan
     outlineAppendLog('\u2500\u2500 Phase 2: X-axis edge scan \u2500\u2500');
@@ -572,8 +577,7 @@ async function runOutlineScan() {
 
     // Return home
     outlineCheckStop();
-    var clearZ = surfZ + cfg.retractAbove;
-    await _outlineAbsTravel(0, 0, clearZ, cfg.fastFeed, cfg.retractFeed);
+    await _outlineAbsTravel(0, 0, safeTravelZ, cfg.fastFeed, cfg.retractFeed);
 
     outlineSetProgress(100);
     outlineSetStatus('Done \u2013 ' + outlineRowResults.length + ' rows, ' + outlineColResults.length + ' cols', 'good');
@@ -628,11 +632,12 @@ async function runOutline360FaceProbe() {
     var travelFeed  = cfg.fastFeed;
     var feed        = cfg.faceFeed;
     var retFeed     = cfg.retractFeed;
+    var safeTravelZ = outlineSurfaceZ + cfg.safeTravelZ;
     var n           = 0;
     var totalOps    = outlineRowResults.length * 2 + outlineColResults.length * 2;
     var done        = 0;
 
-    await smEnsureProbeClear(cfg.safeTravelZ, travelFeed);
+    await smEnsureProbeClear(safeTravelZ, travelFeed);
     outlineAppendLog('360 face probe: surfZ=' + outlineSurfaceZ.toFixed(3) +
       ' faceZ=' + faceZ.toFixed(3) + ' approachDist=' + cfg.approachDist.toFixed(1));
 
@@ -645,10 +650,10 @@ async function runOutline360FaceProbe() {
         var approachX = row.xLeft - cfg.approachDist;
         outlineAppendLog('360 Face: edge #' + (n + 1) + ' axis=X dir=+X at X=' + row.xLeft.toFixed(3) + ' Y=' + row.y.toFixed(3));
         outlineAppendLog('TRAVEL: approach X=' + approachX.toFixed(3) + ' Y=' + row.y.toFixed(3) + ' at F' + travelFeed);
-        await _outlineAbsTravel(approachX, row.y, cfg.safeTravelZ, travelFeed, retFeed);
+        await _outlineAbsTravel(approachX, row.y, safeTravelZ, travelFeed, retFeed);
         outlineAppendLog('LOWER: Z to faceZ=' + faceZ.toFixed(3) + ' at F' + retFeed);
         await _outlineMoveToZ(faceZ, retFeed);
-        await smEnsureProbeClear(cfg.safeTravelZ, travelFeed);
+        await smEnsureProbeClear(safeTravelZ, travelFeed);
         var _lStartPos = await getWorkPosition();
         var _lStartX   = Number(_lStartPos.x);
         var _lTarget   = row.xLeft + cfg.approachDist * 2;
@@ -673,8 +678,8 @@ async function runOutline360FaceProbe() {
           outlineAppendLog('360 Face: edge #' + n + ' axis=X dir=+X at X=' + lpos.x.toFixed(3) +
             ' Y=' + lpos.y.toFixed(3) + ' Z=' + lpos.z.toFixed(3) + ' TRIGGERED');
         }
-        outlineAppendLog('RETRACT: Z to safeTravelZ=' + cfg.safeTravelZ.toFixed(3) + ' at F' + retFeed);
-        await smRetractToZ(cfg.safeTravelZ, retFeed);
+        outlineAppendLog('RETRACT: Z to safeTravelZ=' + safeTravelZ.toFixed(3) + ' at F' + retFeed);
+        await smRetractToZ(safeTravelZ, retFeed);
       }
       done++;
       outlineSetProgress((done / totalOps) * 100);
@@ -684,10 +689,10 @@ async function runOutline360FaceProbe() {
         var approachXR = row.xRight + cfg.approachDist;
         outlineAppendLog('360 Face: edge #' + (n + 1) + ' axis=X dir=-X at X=' + row.xRight.toFixed(3) + ' Y=' + row.y.toFixed(3));
         outlineAppendLog('TRAVEL: approach X=' + approachXR.toFixed(3) + ' Y=' + row.y.toFixed(3) + ' at F' + travelFeed);
-        await _outlineAbsTravel(approachXR, row.y, cfg.safeTravelZ, travelFeed, retFeed);
+        await _outlineAbsTravel(approachXR, row.y, safeTravelZ, travelFeed, retFeed);
         outlineAppendLog('LOWER: Z to faceZ=' + faceZ.toFixed(3) + ' at F' + retFeed);
         await _outlineMoveToZ(faceZ, retFeed);
-        await smEnsureProbeClear(cfg.safeTravelZ, travelFeed);
+        await smEnsureProbeClear(safeTravelZ, travelFeed);
         var _rStartPos = await getWorkPosition();
         var _rStartX   = Number(_rStartPos.x);
         var _rTarget   = row.xRight - cfg.approachDist * 2;
@@ -712,8 +717,8 @@ async function runOutline360FaceProbe() {
           outlineAppendLog('360 Face: edge #' + n + ' axis=X dir=-X at X=' + rpos.x.toFixed(3) +
             ' Y=' + rpos.y.toFixed(3) + ' Z=' + rpos.z.toFixed(3) + ' TRIGGERED');
         }
-        outlineAppendLog('RETRACT: Z to safeTravelZ=' + cfg.safeTravelZ.toFixed(3) + ' at F' + retFeed);
-        await smRetractToZ(cfg.safeTravelZ, retFeed);
+        outlineAppendLog('RETRACT: Z to safeTravelZ=' + safeTravelZ.toFixed(3) + ' at F' + retFeed);
+        await smRetractToZ(safeTravelZ, retFeed);
       }
       done++;
       outlineSetProgress((done / totalOps) * 100);
@@ -728,10 +733,10 @@ async function runOutline360FaceProbe() {
         var approachYB = col.yBottom - cfg.approachDist;
         outlineAppendLog('360 Face: edge #' + (n + 1) + ' axis=Y dir=+Y at X=' + col.x.toFixed(3) + ' Y=' + col.yBottom.toFixed(3));
         outlineAppendLog('TRAVEL: approach X=' + col.x.toFixed(3) + ' Y=' + approachYB.toFixed(3) + ' at F' + travelFeed);
-        await _outlineAbsTravel(col.x, approachYB, cfg.safeTravelZ, travelFeed, retFeed);
+        await _outlineAbsTravel(col.x, approachYB, safeTravelZ, travelFeed, retFeed);
         outlineAppendLog('LOWER: Z to faceZ=' + faceZ.toFixed(3) + ' at F' + retFeed);
         await _outlineMoveToZ(faceZ, retFeed);
-        await smEnsureProbeClear(cfg.safeTravelZ, travelFeed);
+        await smEnsureProbeClear(safeTravelZ, travelFeed);
         var _bStartPos = await getWorkPosition();
         var _bStartY   = Number(_bStartPos.y);
         var _bTarget   = col.yBottom + cfg.approachDist * 2;
@@ -756,8 +761,8 @@ async function runOutline360FaceProbe() {
           outlineAppendLog('360 Face: edge #' + n + ' axis=Y dir=+Y at X=' + col.x.toFixed(3) +
             ' Y=' + bpos.y.toFixed(3) + ' Z=' + bpos.z.toFixed(3) + ' TRIGGERED');
         }
-        outlineAppendLog('RETRACT: Z to safeTravelZ=' + cfg.safeTravelZ.toFixed(3) + ' at F' + retFeed);
-        await smRetractToZ(cfg.safeTravelZ, retFeed);
+        outlineAppendLog('RETRACT: Z to safeTravelZ=' + safeTravelZ.toFixed(3) + ' at F' + retFeed);
+        await smRetractToZ(safeTravelZ, retFeed);
       }
       done++;
       outlineSetProgress((done / totalOps) * 100);
@@ -767,10 +772,10 @@ async function runOutline360FaceProbe() {
         var approachYT = col.yTop + cfg.approachDist;
         outlineAppendLog('360 Face: edge #' + (n + 1) + ' axis=Y dir=-Y at X=' + col.x.toFixed(3) + ' Y=' + col.yTop.toFixed(3));
         outlineAppendLog('TRAVEL: approach X=' + col.x.toFixed(3) + ' Y=' + approachYT.toFixed(3) + ' at F' + travelFeed);
-        await _outlineAbsTravel(col.x, approachYT, cfg.safeTravelZ, travelFeed, retFeed);
+        await _outlineAbsTravel(col.x, approachYT, safeTravelZ, travelFeed, retFeed);
         outlineAppendLog('LOWER: Z to faceZ=' + faceZ.toFixed(3) + ' at F' + retFeed);
         await _outlineMoveToZ(faceZ, retFeed);
-        await smEnsureProbeClear(cfg.safeTravelZ, travelFeed);
+        await smEnsureProbeClear(safeTravelZ, travelFeed);
         var _tStartPos = await getWorkPosition();
         var _tStartY   = Number(_tStartPos.y);
         var _tTarget   = col.yTop - cfg.approachDist * 2;
@@ -795,8 +800,8 @@ async function runOutline360FaceProbe() {
           outlineAppendLog('360 Face: edge #' + n + ' axis=Y dir=-Y at X=' + col.x.toFixed(3) +
             ' Y=' + tpos.y.toFixed(3) + ' Z=' + tpos.z.toFixed(3) + ' TRIGGERED');
         }
-        outlineAppendLog('RETRACT: Z to safeTravelZ=' + cfg.safeTravelZ.toFixed(3) + ' at F' + retFeed);
-        await smRetractToZ(cfg.safeTravelZ, retFeed);
+        outlineAppendLog('RETRACT: Z to safeTravelZ=' + safeTravelZ.toFixed(3) + ' at F' + retFeed);
+        await smRetractToZ(safeTravelZ, retFeed);
       }
       done++;
       outlineSetProgress((done / totalOps) * 100);
