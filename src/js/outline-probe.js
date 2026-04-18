@@ -105,6 +105,8 @@ async function _outlineSafetyRetract() {
     await moveMachineZAbs(0, safeFeed);
     await sleep(50);
     await waitForIdleWithTimeout(30000);
+    outlineAppendLog('SAFETY RETRACT: returning to X0 Y0');
+    await moveAbs(0, 0, null, safeFeed);
   } catch(re) { pluginDebug('Safety retract failed: ' + re.message); }
 }
 
@@ -169,7 +171,10 @@ async function runOutlineSurfaceProbe() {
     outlineAppendLog('PROBE: full Z plunge from Z=' + pos.z.toFixed(3) + ' distance=' + fullPlunge.toFixed(3));
 
     // 4. G38.2 plunge — stops on contact, errors only if nothing touched
-    await sendCommand('G91 G38.2 Z-' + fullPlunge.toFixed(3) + ' F' + cfg.probeFeed.toFixed(0));
+    // Calculate timeout: travel time at probe feed rate + 10s buffer
+    var probeTimeMs = Math.ceil((fullPlunge / cfg.probeFeed) * 60000) + 10000;
+    outlineAppendLog('PROBE: G91 G38.2 Z-' + fullPlunge.toFixed(3) + ' F' + cfg.probeFeed.toFixed(0) + ' timeout=' + probeTimeMs + 'ms');
+    await sendCommand('G91 G38.2 Z-' + fullPlunge.toFixed(3) + ' F' + cfg.probeFeed.toFixed(0), probeTimeMs);
     await sleep(50);
     await waitForIdleWithTimeout(30000);
 
