@@ -887,17 +887,61 @@ function exportOutlineSVG() {
     lines.push('  <path d="' + d2 + '" stroke="#ffaa33" />');
   }
 
-  // Closed outline polygon (left edge up, right edge down)
-  if (leftPts.length > 0 && rightPts.length > 0) {
+  // Bottom edge polyline (left to right)
+  var bottomPts = outlineColResults
+    .filter(function(c){ return c.hasBottom && c.yBottom !== null; })
+    .sort(function(a,b){ return a.x - b.x; });
+  if (bottomPts.length > 0) {
+    var dBottom = 'M ' + svgX(bottomPts[0].x) + ',' + svgY(bottomPts[0].yBottom);
+    for (var bi = 1; bi < bottomPts.length; bi++) {
+      dBottom += ' L ' + svgX(bottomPts[bi].x) + ',' + svgY(bottomPts[bi].yBottom);
+    }
+    lines.push('  <path d="' + dBottom + '" stroke="#4da6ff" />');
+  }
+
+  // Top edge polyline (left to right)
+  var topPts = outlineColResults
+    .filter(function(c){ return c.hasTop && c.yTop !== null; })
+    .sort(function(a,b){ return a.x - b.x; });
+  if (topPts.length > 0) {
+    var dTop = 'M ' + svgX(topPts[0].x) + ',' + svgY(topPts[0].yTop);
+    for (var ti = 1; ti < topPts.length; ti++) {
+      dTop += ' L ' + svgX(topPts[ti].x) + ',' + svgY(topPts[ti].yTop);
+    }
+    lines.push('  <path d="' + dTop + '" stroke="#e05555" />');
+  }
+
+  // Closed outline polygon using all 4 edges:
+  // bottom (L→R), right (bottom→top), top (R→L), left (top→bottom)
+  if (leftPts.length > 0 && rightPts.length > 0 && bottomPts.length > 0 && topPts.length > 0) {
+    var dPoly = 'M ' + svgX(bottomPts[0].x) + ',' + svgY(bottomPts[0].yBottom);
+    for (var bp = 1; bp < bottomPts.length; bp++) {
+      dPoly += ' L ' + svgX(bottomPts[bp].x) + ',' + svgY(bottomPts[bp].yBottom);
+    }
+    rightPts.forEach(function(r) {
+      dPoly += ' L ' + svgX(r.xRight) + ',' + svgY(r.y);
+    });
+    var revTop = topPts.slice().reverse();
+    revTop.forEach(function(c) {
+      dPoly += ' L ' + svgX(c.x) + ',' + svgY(c.yTop);
+    });
+    var revLeft = leftPts.slice().reverse();
+    revLeft.forEach(function(r) {
+      dPoly += ' L ' + svgX(r.xLeft) + ',' + svgY(r.y);
+    });
+    dPoly += ' Z';
+    lines.push('  <path d="' + dPoly + '" stroke="#4da6ff" stroke-width="0.8" stroke-dasharray="2,1" />');
+  } else if (leftPts.length > 0 && rightPts.length > 0) {
+    // Fallback: only row edges available — straight-line top/bottom
     var polyPts = leftPts.map(function(r){ return [r.xLeft, r.y]; });
     var revRight = rightPts.slice().reverse();
     revRight.forEach(function(r){ polyPts.push([r.xRight, r.y]); });
-    var dPoly = 'M ' + svgX(polyPts[0][0]) + ',' + svgY(polyPts[0][1]);
+    var dPoly2 = 'M ' + svgX(polyPts[0][0]) + ',' + svgY(polyPts[0][1]);
     for (var k = 1; k < polyPts.length; k++) {
-      dPoly += ' L ' + svgX(polyPts[k][0]) + ',' + svgY(polyPts[k][1]);
+      dPoly2 += ' L ' + svgX(polyPts[k][0]) + ',' + svgY(polyPts[k][1]);
     }
-    dPoly += ' Z';
-    lines.push('  <path d="' + dPoly + '" stroke="#4da6ff" stroke-width="0.8" stroke-dasharray="2,1" />');
+    dPoly2 += ' Z';
+    lines.push('  <path d="' + dPoly2 + '" stroke="#4da6ff" stroke-width="0.8" stroke-dasharray="2,1" />');
   }
 
   // Bottom / top edge points
