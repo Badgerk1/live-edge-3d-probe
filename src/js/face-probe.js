@@ -855,6 +855,7 @@ function smLoadSettings() {
   try{ renderLog('face'); }catch(e){}
   try{ smLoadSettings(); }catch(e){}
   try{ onProbeTypeChange(); }catch(e){}
+  try{ updateOutlineProbeCenter(); }catch(e){}
   try{ initLayoutEditor(); }catch(e){ console.warn('Layout editor init error:', e); }
 
   // Tab buttons

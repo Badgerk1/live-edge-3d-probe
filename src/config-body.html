@@ -1493,11 +1493,11 @@
         <div class="grid three">
           <div class="field">
             <label>X Origin (coords)</label>
-            <input type="number" id="outlineX0" value="0" step="1">
+            <input type="number" id="outlineX0" value="0" step="1" oninput="updateOutlineProbeCenter()">
           </div>
           <div class="field">
             <label>X Length (coords)</label>
-            <input type="number" id="outlineXLen" value="100" step="1" min="1">
+            <input type="number" id="outlineXLen" value="100" step="1" min="1" oninput="updateOutlineProbeCenter()">
           </div>
           <div class="field">
             <label>X Step (coords)</label>
@@ -1505,11 +1505,11 @@
           </div>
           <div class="field">
             <label>Y Origin (coords)</label>
-            <input type="number" id="outlineY0" value="0" step="1">
+            <input type="number" id="outlineY0" value="0" step="1" oninput="updateOutlineProbeCenter()">
           </div>
           <div class="field">
             <label>Y Length (coords)</label>
-            <input type="number" id="outlineYLen" value="100" step="1" min="1">
+            <input type="number" id="outlineYLen" value="100" step="1" min="1" oninput="updateOutlineProbeCenter()">
           </div>
           <div class="field">
             <label>Y Step (coords)</label>
@@ -1583,6 +1583,12 @@
       <!-- Probing Controls -->
       <div class="panel" data-panel-key="outline-ctrl">
         <div class="box-title">Probing Control</div>
+        <div class="grid three" style="margin-bottom:8px">
+          <div class="field" style="grid-column:1 / -1">
+            <label>Probe Center (auto-calculated from grid)</label>
+            <input type="text" id="outlineProbeCenter" readonly style="color:var(--accent2);font-weight:600">
+          </div>
+        </div>
         <div class="btn-row">
           <button class="btn" onclick="flashButton(this);runOutlineSurfaceProbe()">&#9660; Surface Probe</button>
           <button class="btn" onclick="flashButton(this);runOutlineScan()">&#9711; Run Outline Scan</button>
@@ -1609,6 +1615,7 @@
         <div class="btn-row" style="margin-bottom:8px">
           <button class="btn ghost" onclick="flashSaveButton(this);exportLog('outline')">&#128190; Save Log</button>
           <button class="btn ghost" onclick="flashButton(this);clearLog('outline')">&#10005; Clear Log</button>
+          <button class="btn ghost" onclick="flashButton(this);recoverOutlineLog()">&#128269; Recover Last Log</button>
         </div>
         <div id="outline-log" class="log-area mono"></div>
       </div>

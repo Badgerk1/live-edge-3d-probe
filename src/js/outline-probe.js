@@ -28,6 +28,28 @@ function stopOutlineScan() {
   setFooterStatus('Stopping\u2026', 'warn');
 }
 
+// ── Log backup / recovery ─────────────────────────────────
+function clearOutlineLogBackup() {
+  try { localStorage.removeItem('outlineLogBackup'); } catch(e) {}
+}
+
+function recoverOutlineLog() {
+  var saved = localStorage.getItem('outlineLogBackup');
+  if (!saved) {
+    outlineAppendLog('No saved log found in localStorage.');
+    return;
+  }
+  var logEl = document.getElementById('outline-log');
+  if (logEl) {
+    logEl.innerHTML = '';
+    var lines = saved.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      if (lines[i].trim()) logLine('outline', '[RECOVERED] ' + lines[i]);
+    }
+  }
+  outlineAppendLog('Recovered ' + saved.split('\n').length + ' log lines from last session.');
+}
+
 // ── Read outline settings ─────────────────────────────────
 function _outlineSettings() {
   function gn(id, def) { var el = document.getElementById(id); if (!el) return def; var v = Number(el.value); return isNaN(v) ? def : v; }
@@ -72,7 +94,7 @@ async function _outlineMoveToZ(targetZ, feed) {
   outlineAppendLog('LOWER: Z to ' + targetZ.toFixed(3) + ' at F' + feed.toFixed(0));
   await sendCommand('G90 G1 Z' + targetZ.toFixed(3) + ' F' + feed.toFixed(0));
   await sleep(50);
-  await waitForIdleWithTimeout(5000);
+  await waitForIdleWithTimeout(30000);
 }
 
 // ── Safety retract helper ─────────────────────────────────
@@ -113,11 +135,34 @@ async function runOutlineSurfaceProbe() {
     outlineAppendLog('LOWER: Z to clearZ=' + cfg.clearZ.toFixed(3) + ' at F' + cfg.retractFeed);
     await _outlineMoveToZ(cfg.clearZ, cfg.retractFeed);
 
-    outlineAppendLog('PROBE: plunge Z max=' + cfg.probeDown.toFixed(3) + ' F' + cfg.probeFeed);
-    var pos = await smPlungeProbe(cfg.probeDown, cfg.probeFeed);
-    var surfZ = pos.z;
-    outlineAppendLog('PROBE RESULT: triggered=' + !!pos.probeTriggered +
-      ' X=' + pos.x.toFixed(3) + ' Y=' + pos.y.toFixed(3) + ' Z=' + surfZ.toFixed(3));
+    // Log probe pin state before plunge
+    var pinBefore = await smGetProbeTriggered();
+    outlineAppendLog('PROBE PIN STATE: triggered=' + pinBefore + ' before surface probe plunge');
+    if (pinBefore) {
+      outlineAppendLog('WARN: probe pin already triggered before plunge — ensuring clear first');
+      await smEnsureProbeClear(cfg.safeTravelZ, cfg.fastFeed);
+    }
+
+    // Direct G38.2 plunge using outline's own fields (NOT smPlungeProbe which reads the wrong tab's clearance)
+    var startPos = await getWorkPosition();
+    var startZ   = startPos.z;
+    outlineAppendLog('PROBE: G91 G38.2 Z-' + cfg.probeDown.toFixed(3) + ' F' + cfg.probeFeed + ' from Z=' + startZ.toFixed(3));
+    await sendCommand('G91 G38.2 Z-' + cfg.probeDown.toFixed(3) + ' F' + cfg.probeFeed.toFixed(0));
+    await sleep(50);
+    await waitForIdleWithTimeout(30000);
+
+    var endPos        = await getWorkPosition();
+    var distTraveled  = startZ - endPos.z;
+    var stoppedShort  = distTraveled < (cfg.probeDown - 0.5);
+    var pinTriggered  = await smGetProbeTriggered();
+    outlineAppendLog('PROBE RESULT: pinTriggered=' + pinTriggered + ' stoppedShort=' + stoppedShort +
+      ' startZ=' + startZ.toFixed(3) + ' endZ=' + endPos.z.toFixed(3) + ' traveled=' + distTraveled.toFixed(3));
+
+    if (!pinTriggered && !stoppedShort) {
+      throw new Error('Surface probe: No contact within ' + cfg.probeDown.toFixed(1) + ' coords plunge depth');
+    }
+
+    var surfZ = endPos.z;
     outlineAppendLog('Surface Z established: ' + surfZ.toFixed(4));
 
     _outlineSetSurfaceZField(surfZ);
@@ -155,6 +200,8 @@ async function runOutlineSurfaceProbe() {
 // ── Horizontal edge probe (G38.2) ─────────────────────────
 async function _probeHorizEdge(axis, targetCoord, feed, safeTravelZ) {
   var pos0 = await getWorkPosition();
+  var pinState = await smGetProbeTriggered();
+  outlineAppendLog('PROBE PIN STATE: triggered=' + pinState + ' before probe move');
   outlineAppendLog('PROBE: G38.2 ' + axis + targetCoord.toFixed(3) + ' F' + feed.toFixed(0) +
     ' from X=' + pos0.x.toFixed(3) + ' Y=' + pos0.y.toFixed(3) + ' Z=' + pos0.z.toFixed(3));
   await smEnsureProbeClear(safeTravelZ, feed);
@@ -162,7 +209,8 @@ async function _probeHorizEdge(axis, targetCoord, feed, safeTravelZ) {
   await sleep(50);
   await waitForIdleWithTimeout(30000);
   var pos = await getWorkPosition();
-  outlineAppendLog('PROBE RESULT: triggered=' + !!pos.probeTriggered +
+  var pinAfter = await smGetProbeTriggered();
+  outlineAppendLog('PROBE RESULT: triggered=' + !!pos.probeTriggered + ' pinAfter=' + pinAfter +
     ' X=' + pos.x.toFixed(3) + ' Y=' + pos.y.toFixed(3) + ' Z=' + pos.z.toFixed(3));
   return pos;
 }
@@ -171,18 +219,22 @@ async function _probeHorizEdge(axis, targetCoord, feed, safeTravelZ) {
 async function _surfStepProbe(probeDown, probeFeed) {
   var startPos = await getWorkPosition();
   var startZ   = startPos.z;
+  var pinBefore = await smGetProbeTriggered();
+  outlineAppendLog('PROBE PIN STATE: triggered=' + pinBefore + ' before surface step probe');
   outlineAppendLog('PROBE: surface plunge at X=' + startPos.x.toFixed(3) +
     ' Y=' + startPos.y.toFixed(3) + ' Z=' + startZ.toFixed(3) +
     ' depth=' + probeDown.toFixed(3) + ' F' + probeFeed.toFixed(0));
   await sendCommand('G91 G38.3 Z-' + Math.abs(probeDown).toFixed(4) + ' F' + probeFeed.toFixed(0));
   await sleep(50);
-  await waitForIdleWithTimeout(10000);
+  await waitForIdleWithTimeout(30000);
   var pos = await getWorkPosition();
   var distanceTraveled = startZ - pos.z;
   var stoppedShort = distanceTraveled < (probeDown - 0.5);
   var triggered = pos.probeTriggered || stoppedShort;
-  outlineAppendLog('PROBE RESULT: triggered=' + triggered +
-    ' X=' + pos.x.toFixed(3) + ' Y=' + pos.y.toFixed(3) + ' Z=' + pos.z.toFixed(3));
+  var pinAfter = await smGetProbeTriggered();
+  outlineAppendLog('PROBE RESULT: triggered=' + triggered + ' pinAfter=' + pinAfter +
+    ' X=' + pos.x.toFixed(3) + ' Y=' + pos.y.toFixed(3) + ' Z=' + pos.z.toFixed(3) +
+    ' traveled=' + distanceTraveled.toFixed(3));
   return { triggered: triggered, z: pos.z, x: pos.x, y: pos.y };
 }
 
@@ -233,7 +285,7 @@ async function _runRowScan(cfg, surfZ) {
     outlineAppendLog('TRAVEL: backoff -X to X=' + backoffX.toFixed(3) + ' at F' + cfg.fastFeed);
     await sendCommand('G90 G1 X' + backoffX.toFixed(3) + ' F' + cfg.fastFeed.toFixed(0));
     await sleep(50);
-    await waitForIdleWithTimeout(5000);
+    await waitForIdleWithTimeout(30000);
 
     // 5. Retract Z above surface
     outlineAppendLog('RETRACT: Z to clearZ=' + clearZ.toFixed(3) + ' at F' + cfg.retractFeed);
@@ -357,7 +409,7 @@ async function _runColScan(cfg, surfZ) {
     outlineAppendLog('TRAVEL: backoff -Y to Y=' + backoffY.toFixed(3) + ' at F' + cfg.fastFeed);
     await sendCommand('G90 G1 Y' + backoffY.toFixed(3) + ' F' + cfg.fastFeed.toFixed(0));
     await sleep(50);
-    await waitForIdleWithTimeout(5000);
+    await waitForIdleWithTimeout(30000);
 
     // 5. Retract Z above surface
     outlineAppendLog('RETRACT: Z to clearZ=' + clearZ.toFixed(3) + ' at F' + cfg.retractFeed);
@@ -465,6 +517,7 @@ async function runOutlineScan() {
     outlineAppendLog('Outline scan start. SurfaceZ=' + surfZ.toFixed(4) +
       ' Bounds: X' + cfg.x0.toFixed(2) + '+' + cfg.xLen.toFixed(2) +
       '  Y' + cfg.y0.toFixed(2) + '+' + cfg.yLen.toFixed(2));
+    outlineAppendLog('Settings: ' + JSON.stringify(cfg, null, 0));
 
     await requireStartupHomingPreflight('Outline Scan');
     await smEnsureProbeClear(cfg.safeTravelZ, cfg.fastFeed);
