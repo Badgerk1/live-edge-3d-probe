@@ -2274,33 +2274,26 @@ function _vizDrawOutlineCanvas() {
     ctx.fill();
   });
 
-  // Closed outline polygon using all 4 edges:
-  // bottom (L→R), right (bottom→top), top (R→L), left (top→bottom)
-  if (leftPts.length > 0 && rightPts.length > 0 && bottomPts.length > 0 && topPts.length > 0) {
+  // Closed outline polygon — collect all edge points then sort by angle from centroid
+  var allEdgePts = [];
+  leftPts.forEach(function(r)   { allEdgePts.push([r.xLeft,  r.y]);       });
+  rightPts.forEach(function(r)  { allEdgePts.push([r.xRight, r.y]);       });
+  bottomPts.forEach(function(c) { allEdgePts.push([c.x,      c.yBottom]); });
+  topPts.forEach(function(c)    { allEdgePts.push([c.x,      c.yTop]);    });
+  if (allEdgePts.length > 1) {
+    var centerX = allEdgePts.reduce(function(s, p) { return s + p[0]; }, 0) / allEdgePts.length;
+    var centerY = allEdgePts.reduce(function(s, p) { return s + p[1]; }, 0) / allEdgePts.length;
+    allEdgePts.sort(function(a, b) {
+      return Math.atan2(a[1] - centerY, a[0] - centerX) - Math.atan2(b[1] - centerY, b[0] - centerX);
+    });
     ctx.strokeStyle = '#4da6ff';
     ctx.lineWidth = 1;
     ctx.setLineDash([3, 2]);
     ctx.beginPath();
-    ctx.moveTo(cx(bottomPts[0].x), cy(bottomPts[0].yBottom));
-    for (var bp = 1; bp < bottomPts.length; bp++) ctx.lineTo(cx(bottomPts[bp].x), cy(bottomPts[bp].yBottom));
-    rightPts.forEach(function(r) { ctx.lineTo(cx(r.xRight), cy(r.y)); });
-    var revTop = topPts.slice().reverse();
-    revTop.forEach(function(c) { ctx.lineTo(cx(c.x), cy(c.yTop)); });
-    var revLeft = leftPts.slice().reverse();
-    revLeft.forEach(function(r) { ctx.lineTo(cx(r.xLeft), cy(r.y)); });
-    ctx.closePath();
-    ctx.stroke();
-    ctx.setLineDash([]);
-  } else if (leftPts.length > 0 && rightPts.length > 0) {
-    // Fallback: only row edges available — straight-line top/bottom
-    ctx.strokeStyle = '#4da6ff';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([3, 2]);
-    ctx.beginPath();
-    ctx.moveTo(cx(leftPts[0].xLeft), cy(leftPts[0].y));
-    for (var li = 1; li < leftPts.length; li++) ctx.lineTo(cx(leftPts[li].xLeft), cy(leftPts[li].y));
-    var revRight2 = rightPts.slice().reverse();
-    revRight2.forEach(function(r) { ctx.lineTo(cx(r.xRight), cy(r.y)); });
+    ctx.moveTo(cx(allEdgePts[0][0]), cy(allEdgePts[0][1]));
+    for (var k = 1; k < allEdgePts.length; k++) {
+      ctx.lineTo(cx(allEdgePts[k][0]), cy(allEdgePts[k][1]));
+    }
     ctx.closePath();
     ctx.stroke();
     ctx.setLineDash([]);
