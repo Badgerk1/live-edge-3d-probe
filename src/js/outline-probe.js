@@ -226,20 +226,38 @@ async function runOutlineSurfaceProbe() {
   }
 }
 
-// ── Horizontal edge probe (G38.2) ─────────────────────────
+// ── Horizontal edge probe (G38.3 — no error on miss) ──────
 async function _probeHorizEdge(axis, targetCoord, feed, safeTravelZ) {
   var pos0 = await getWorkPosition();
   var pinState = await smGetProbeTriggered();
   outlineAppendLog('PROBE PIN STATE: triggered=' + pinState + ' before probe move');
-  outlineAppendLog('PROBE: G38.2 ' + axis + targetCoord.toFixed(3) + ' F' + feed.toFixed(0) +
+  outlineAppendLog('PROBE: G38.3 ' + axis + targetCoord.toFixed(3) + ' F' + feed.toFixed(0) +
     ' from X=' + pos0.x.toFixed(3) + ' Y=' + pos0.y.toFixed(3) + ' Z=' + pos0.z.toFixed(3));
   await smEnsureProbeClear(safeTravelZ, feed);
-  await sendCommand('G90 G38.2 ' + axis + targetCoord.toFixed(3) + ' F' + feed.toFixed(0));
+
+  // Calculate travel distance for timeout
+  var travelDist = (axis === 'X') ? Math.abs(targetCoord - pos0.x) : Math.abs(targetCoord - pos0.y);
+  var probeTimeMs = Math.ceil((travelDist / feed) * 60000) + 10000;
+
+  // G38.3 — probe without error on miss; machine just stops at target if no contact
+  await sendCommand('G90 G38.3 ' + axis + targetCoord.toFixed(3) + ' F' + feed.toFixed(0), probeTimeMs);
   await sleep(50);
-  await waitForIdleWithTimeout(30000);
+  await waitForIdleWithTimeout(probeTimeMs);
+
   var pos = await getWorkPosition();
   var pinAfter = await smGetProbeTriggered();
-  outlineAppendLog('PROBE RESULT: triggered=' + !!pos.probeTriggered + ' pinAfter=' + pinAfter +
+
+  // Position-based contact detection: stopped well short of target means probe triggered
+  var endCoord = (axis === 'X') ? pos.x : pos.y;
+  var distToTarget = Math.abs(targetCoord - endCoord);
+  var stoppedShort = distToTarget > 0.5;
+  var triggered = pinAfter || stoppedShort;
+
+  // Attach triggered flag to pos object for callers
+  pos.probeTriggered = triggered;
+
+  outlineAppendLog('PROBE RESULT: triggered=' + triggered + ' pinAfter=' + pinAfter +
+    ' stoppedShort=' + stoppedShort + ' distToTarget=' + distToTarget.toFixed(3) +
     ' X=' + pos.x.toFixed(3) + ' Y=' + pos.y.toFixed(3) + ' Z=' + pos.z.toFixed(3));
   return pos;
 }
@@ -639,11 +657,12 @@ async function runOutline360FaceProbe() {
         var _lStartPos = await getWorkPosition();
         var _lStartX   = Number(_lStartPos.x);
         var _lTarget   = row.xLeft + cfg.approachDist * 2;
+        var _lProbeTimeMs = Math.ceil((Math.abs(_lTarget - _lStartX) / feed) * 60000) + 10000;
         outlineAppendLog('PROBE: G38.2 X' + _lTarget.toFixed(3) + ' F' + feed +
           ' from X=' + _lStartPos.x.toFixed(3) + ' Y=' + _lStartPos.y.toFixed(3) + ' Z=' + _lStartPos.z.toFixed(3));
-        await sendCommand('G90 G38.2 X' + _lTarget.toFixed(3) + ' F' + feed.toFixed(0));
+        await sendCommand('G90 G38.2 X' + _lTarget.toFixed(3) + ' F' + feed.toFixed(0), _lProbeTimeMs);
         await sleep(50);
-        var lpos = await waitForIdleWithTimeout();
+        var lpos = await waitForIdleWithTimeout(_lProbeTimeMs);
         if (!lpos) lpos = await getWorkPosition();
         var _lEndX = Number(lpos.x);
         var _lDist = Math.abs(_lTarget - _lStartX);
@@ -677,11 +696,12 @@ async function runOutline360FaceProbe() {
         var _rStartPos = await getWorkPosition();
         var _rStartX   = Number(_rStartPos.x);
         var _rTarget   = row.xRight - cfg.approachDist * 2;
+        var _rProbeTimeMs = Math.ceil((Math.abs(_rTarget - _rStartX) / feed) * 60000) + 10000;
         outlineAppendLog('PROBE: G38.2 X' + _rTarget.toFixed(3) + ' F' + feed +
           ' from X=' + _rStartPos.x.toFixed(3) + ' Y=' + _rStartPos.y.toFixed(3) + ' Z=' + _rStartPos.z.toFixed(3));
-        await sendCommand('G90 G38.2 X' + _rTarget.toFixed(3) + ' F' + feed.toFixed(0));
+        await sendCommand('G90 G38.2 X' + _rTarget.toFixed(3) + ' F' + feed.toFixed(0), _rProbeTimeMs);
         await sleep(50);
-        var rpos = await waitForIdleWithTimeout();
+        var rpos = await waitForIdleWithTimeout(_rProbeTimeMs);
         if (!rpos) rpos = await getWorkPosition();
         var _rEndX = Number(rpos.x);
         var _rDist = Math.abs(_rTarget - _rStartX);
@@ -720,11 +740,12 @@ async function runOutline360FaceProbe() {
         var _bStartPos = await getWorkPosition();
         var _bStartY   = Number(_bStartPos.y);
         var _bTarget   = col.yBottom + cfg.approachDist * 2;
+        var _bProbeTimeMs = Math.ceil((Math.abs(_bTarget - _bStartY) / feed) * 60000) + 10000;
         outlineAppendLog('PROBE: G38.2 Y' + _bTarget.toFixed(3) + ' F' + feed +
           ' from X=' + _bStartPos.x.toFixed(3) + ' Y=' + _bStartPos.y.toFixed(3) + ' Z=' + _bStartPos.z.toFixed(3));
-        await sendCommand('G90 G38.2 Y' + _bTarget.toFixed(3) + ' F' + feed.toFixed(0));
+        await sendCommand('G90 G38.2 Y' + _bTarget.toFixed(3) + ' F' + feed.toFixed(0), _bProbeTimeMs);
         await sleep(50);
-        var bpos = await waitForIdleWithTimeout();
+        var bpos = await waitForIdleWithTimeout(_bProbeTimeMs);
         if (!bpos) bpos = await getWorkPosition();
         var _bEndY = Number(bpos.y);
         var _bDist = Math.abs(_bTarget - _bStartY);
@@ -758,11 +779,12 @@ async function runOutline360FaceProbe() {
         var _tStartPos = await getWorkPosition();
         var _tStartY   = Number(_tStartPos.y);
         var _tTarget   = col.yTop - cfg.approachDist * 2;
+        var _tProbeTimeMs = Math.ceil((Math.abs(_tTarget - _tStartY) / feed) * 60000) + 10000;
         outlineAppendLog('PROBE: G38.2 Y' + _tTarget.toFixed(3) + ' F' + feed +
           ' from X=' + _tStartPos.x.toFixed(3) + ' Y=' + _tStartPos.y.toFixed(3) + ' Z=' + _tStartPos.z.toFixed(3));
-        await sendCommand('G90 G38.2 Y' + _tTarget.toFixed(3) + ' F' + feed.toFixed(0));
+        await sendCommand('G90 G38.2 Y' + _tTarget.toFixed(3) + ' F' + feed.toFixed(0), _tProbeTimeMs);
         await sleep(50);
-        var tpos = await waitForIdleWithTimeout();
+        var tpos = await waitForIdleWithTimeout(_tProbeTimeMs);
         if (!tpos) tpos = await getWorkPosition();
         var _tEndY = Number(tpos.y);
         var _tDist = Math.abs(_tTarget - _tStartY);
