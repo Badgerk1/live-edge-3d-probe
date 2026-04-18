@@ -87,7 +87,7 @@ function logLine(tab, msg){
 
 function clearLog(tab){
   if(tab === 'face') faceLogLines = [];
-  else if(tab === 'outline') outlineLogLines = [];
+  else if(tab === 'outline') { outlineLogLines = []; try { clearOutlineLogBackup(); } catch(e) {} }
   else topLogLines = [];
   persistLogs();
   renderLog(tab);
@@ -776,6 +776,12 @@ function outlineSetProgress(pct) {
 }
 function outlineAppendLog(msg) {
   logLine('outline', msg);
+  // Persist to localStorage for crash/E-stop recovery
+  try {
+    var key = 'outlineLogBackup';
+    var existing = localStorage.getItem(key) || '';
+    localStorage.setItem(key, existing + msg + '\n');
+  } catch(e) { /* storage full or unavailable */ }
   // Also update results summary when scan completes
   try { _outlineUpdateResultsSummary(); } catch(e) {}
 }
@@ -805,3 +811,13 @@ function _outlineUpdateResultsSummary() {
   if (panel) panel.style.display = (rows > 0 || cols > 0) ? '' : 'none';
 }
 
+function updateOutlineProbeCenter() {
+  var x0   = Number((document.getElementById('outlineX0')   || {}).value) || 0;
+  var xLen = Number((document.getElementById('outlineXLen') || {}).value) || 0;
+  var y0   = Number((document.getElementById('outlineY0')   || {}).value) || 0;
+  var yLen = Number((document.getElementById('outlineYLen') || {}).value) || 0;
+  var cx = x0 + xLen / 2;
+  var cy = y0 + yLen / 2;
+  var el = document.getElementById('outlineProbeCenter');
+  if (el) el.value = 'X=' + cx.toFixed(3) + '  Y=' + cy.toFixed(3);
+}
