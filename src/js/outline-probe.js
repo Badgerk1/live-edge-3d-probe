@@ -319,7 +319,7 @@ async function _runRowScan(cfg, surfZ) {
     if (!edgePos.probeTriggered) {
       outlineAppendLog('Row Y=' + rowY.toFixed(3) + ' complete. No edges found.');
       outlineRowResults.push({ y: rowY, xLeft: null, xRight: null, hasLeft: false, hasRight: false });
-      await smRetractToZ(cfg.safeTravelZ, cfg.retractFeed);
+      await smRetractToZ(clearZ, cfg.retractFeed);
       continue;
     }
 
@@ -355,7 +355,7 @@ async function _runRowScan(cfg, surfZ) {
       outlineAppendLog('TRAVEL: step to X=' + scanX.toFixed(3) + ' Y=' + rowY.toFixed(3) + ' at F' + cfg.fastFeed);
       await _outlineAbsTravel(scanX, rowY, clearZ, cfg.fastFeed, cfg.retractFeed);
 
-      var stepResult = await _surfStepProbe(cfg.zStepDepth, cfg.probeFeed);
+      var stepResult = await _surfStepProbe(cfg.retractAbove + cfg.zStepDepth, cfg.probeFeed);
       outlineAppendLog('Row Y=' + rowY.toFixed(3) + ' surface step X=' + scanX.toFixed(3) +
         ' Z=' + stepResult.z.toFixed(3) + ' triggered=' + stepResult.triggered);
 
@@ -442,7 +442,7 @@ async function _runColScan(cfg, surfZ) {
     if (!edgePos.probeTriggered) {
       outlineAppendLog('Col X=' + colX.toFixed(3) + ' complete. No edges found.');
       outlineColResults.push({ x: colX, yBottom: null, yTop: null, hasBottom: false, hasTop: false });
-      await smRetractToZ(cfg.safeTravelZ, cfg.retractFeed);
+      await smRetractToZ(clearZ, cfg.retractFeed);
       continue;
     }
 
@@ -478,7 +478,7 @@ async function _runColScan(cfg, surfZ) {
       outlineAppendLog('TRAVEL: step to X=' + colX.toFixed(3) + ' Y=' + scanY.toFixed(3) + ' at F' + cfg.fastFeed);
       await _outlineAbsTravel(colX, scanY, clearZ, cfg.fastFeed, cfg.retractFeed);
 
-      var stepResult = await _surfStepProbe(cfg.zStepDepth, cfg.probeFeed);
+      var stepResult = await _surfStepProbe(cfg.retractAbove + cfg.zStepDepth, cfg.probeFeed);
       outlineAppendLog('Col X=' + colX.toFixed(3) + ' surface step Y=' + scanY.toFixed(3) +
         ' Z=' + stepResult.z.toFixed(3) + ' triggered=' + stepResult.triggered);
 
