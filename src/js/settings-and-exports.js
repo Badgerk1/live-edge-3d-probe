@@ -103,7 +103,19 @@ function getSettingsFromUI() {
     // Apply tab — face compensation
     applyFaceRefPos:             n('apply-face-refPos'),
     applyFaceAxis:               s('apply-face-axis'),
-    applyFaceUniform:            chk('apply-face-uniform')
+    applyFaceUniform:            chk('apply-face-uniform'),
+    // Outline tab
+    outlineX0:                   n('outlineX0'),
+    outlineXLen:                 n('outlineXLen'),
+    outlineXStep:                n('outlineXStep'),
+    outlineY0:                   n('outlineY0'),
+    outlineYLen:                 n('outlineYLen'),
+    outlineYStep:                n('outlineYStep'),
+    outlineClearZ:               n('outlineClearZ'),
+    outlineProbeDown:            n('outlineProbeDown'),
+    outlineProbeFeed:            n('outlineProbeFeed'),
+    outlineFastFeed:             n('outlineFastFeed'),
+    outlineRetractFeed:          n('outlineRetractFeed')
   };
 }
 function saveSettings() {
@@ -252,6 +264,18 @@ function loadSettings() {
   if (data.applyFaceRefPos != null) sv('apply-face-refPos', data.applyFaceRefPos);
   if (data.applyFaceAxis   != null) sv('apply-face-axis',   data.applyFaceAxis);
   if (data.applyFaceUniform != null) sc('apply-face-uniform', data.applyFaceUniform);
+  // Outline tab
+  if (data.outlineX0          != null) sv('outlineX0',          data.outlineX0);
+  if (data.outlineXLen        != null) sv('outlineXLen',        data.outlineXLen);
+  if (data.outlineXStep       != null) sv('outlineXStep',       data.outlineXStep);
+  if (data.outlineY0          != null) sv('outlineY0',          data.outlineY0);
+  if (data.outlineYLen        != null) sv('outlineYLen',        data.outlineYLen);
+  if (data.outlineYStep       != null) sv('outlineYStep',       data.outlineYStep);
+  if (data.outlineClearZ      != null) sv('outlineClearZ',      data.outlineClearZ);
+  if (data.outlineProbeDown   != null) sv('outlineProbeDown',   data.outlineProbeDown);
+  if (data.outlineProbeFeed   != null) sv('outlineProbeFeed',   data.outlineProbeFeed);
+  if (data.outlineFastFeed    != null) sv('outlineFastFeed',    data.outlineFastFeed);
+  if (data.outlineRetractFeed != null) sv('outlineRetractFeed', data.outlineRetractFeed);
   // Trigger dependent previews
   try { refreshFinishBehaviorPreview(); } catch(e) {}
   try { refreshTravelRecoveryPreview(); } catch(e) {}

@@ -58,7 +58,7 @@ function loadPersistedLogs(){
 function renderLog(tab){
   var el = document.getElementById(tab + '-log');
   if(!el) return;
-  var lines = tab === 'face' ? faceLogLines : topLogLines;
+  var lines = tab === 'face' ? faceLogLines : (tab === 'outline' ? outlineLogLines : topLogLines);
   el.innerHTML = '';
   lines.forEach(function(line){
     var div = document.createElement('div');
@@ -74,7 +74,7 @@ function logLine(tab, msg){
   if(!el) return;
   var ts = tsMs();
   var line = '[' + ts + '] ' + msg;
-  var lines = tab === 'face' ? faceLogLines : topLogLines;
+  var lines = tab === 'face' ? faceLogLines : (tab === 'outline' ? outlineLogLines : topLogLines);
   lines.push(line);
   if(lines.length > 5000) lines.splice(0, lines.length - 5000);
   persistLogs();
@@ -87,6 +87,7 @@ function logLine(tab, msg){
 
 function clearLog(tab){
   if(tab === 'face') faceLogLines = [];
+  else if(tab === 'outline') outlineLogLines = [];
   else topLogLines = [];
   persistLogs();
   renderLog(tab);
@@ -766,5 +767,41 @@ function updateCombinedMeshUI() {
   // Render combined 3D visualizer
   renderCombinedViz();
   initCombVizRotation();
+}
+
+// ── Outline UI helpers ────────────────────────────────────────────────────────
+function outlineSetProgress(pct) {
+  var bar = document.getElementById('outline-progressBar');
+  if (bar) bar.style.width = Math.max(0, Math.min(100, pct)).toFixed(1) + '%';
+}
+function outlineAppendLog(msg) {
+  logLine('outline', msg);
+  // Also update results summary when scan completes
+  try { _outlineUpdateResultsSummary(); } catch(e) {}
+}
+function outlineSetStatus(msg, type) {
+  var el = document.getElementById('outline-status');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'status-line mini mt4 mb8' + (type ? ' status-' + type : '');
+}
+function exportLog(tabName) {
+  var logEl = document.getElementById(tabName + '-log');
+  if (!logEl) return;
+  saveTextFile(tabName + '_log_' + tsForFilename() + '.txt', logEl.innerText || logEl.textContent);
+}
+function _outlineUpdateResultsSummary() {
+  var rows = typeof outlineRowResults !== 'undefined' ? outlineRowResults.length : 0;
+  var cols = typeof outlineColResults !== 'undefined' ? outlineColResults.length : 0;
+  var surfZ = typeof outlineSurfaceZ !== 'undefined' && outlineSurfaceZ !== null ? outlineSurfaceZ.toFixed(4) : 'n/a';
+  var msg = rows > 0 || cols > 0
+    ? rows + ' row(s), ' + cols + ' col(s) detected.  Surface Z: ' + surfZ
+    : 'No outline data yet. Run Outline Scan first.';
+  var s1 = document.getElementById('outline-results-summary');
+  var s2 = document.getElementById('res-outline-summary');
+  if (s1) s1.textContent = msg;
+  if (s2) s2.textContent = msg;
+  var panel = document.getElementById('res-outline-panel');
+  if (panel) panel.style.display = (rows > 0 || cols > 0) ? '' : 'none';
 }
 

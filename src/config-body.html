@@ -23,6 +23,7 @@
     <button class="tab" data-tab="results" onclick="switchTab('results')">&#9783; Results</button>
     <button class="tab" data-tab="meshdata" onclick="switchTab('meshdata')">&#128202; Mesh Data</button>
     <button class="tab" data-tab="apply" onclick="switchTab('apply')">&#9889; Apply</button>
+    <button class="tab" data-tab="outline" onclick="switchTab('outline')">&#9711; Outline</button>
     <button id="layout-edit-toggle" class="layout-edit-btn" onclick="toggleLayoutEdit()" title="Toggle Layout Edit mode — when active, panels show a drag handle and can be reordered within the current tab. Changes are saved automatically per tab.">&#9998;&#xFE0F; Edit Layout</button>
     <button id="layout-reset-btn" class="layout-edit-btn layout-reset-btn" onclick="resetCurrentTabLayout()" title="Reset the current tab&#39;s panel order to its default" style="display:none">&#8635; Reset</button>
   </div>
@@ -1231,6 +1232,16 @@
         </div>
       </div>
 
+      <!-- Outline Results Summary in Results tab -->
+      <div class="panel" id="res-outline-panel" data-panel-key="results-outline-summary" style="display:none">
+        <div class="box-title">&#9711; Outline Results Summary</div>
+        <div class="mini" id="res-outline-summary" style="color:var(--muted)">No outline data yet.</div>
+        <div class="btn-row" style="margin-top:8px">
+          <button class="btn ghost" onclick="flashSaveButton(this);exportOutlineSVG()">&#8659; Export SVG</button>
+          <button class="btn ghost" onclick="flashSaveButton(this);exportOutlineJSON()">&#128190; Export JSON</button>
+        </div>
+      </div>
+
     </div><!-- /pane-results -->
 
     <!-- ── MESH DATA TAB ──────────────────────────────────────────────── -->
@@ -1473,8 +1484,109 @@
 
     </div><!-- /pane-apply -->
 
+    <!-- ── OUTLINE TAB ───────────────────────────────────────────────── -->
+    <div class="tab-panel" id="pane-outline">
 
-  </div><!-- /content -->
+      <!-- Outline Search Bounds -->
+      <div class="panel" data-panel-key="outline-bounds">
+        <div class="box-title">&#9711; Outline Search Bounds</div>
+        <div class="grid three">
+          <div class="field">
+            <label>X Origin (coords)</label>
+            <input type="number" id="outlineX0" value="0" step="1">
+          </div>
+          <div class="field">
+            <label>X Length (coords)</label>
+            <input type="number" id="outlineXLen" value="100" step="1" min="1">
+          </div>
+          <div class="field">
+            <label>X Step (coords)</label>
+            <input type="number" id="outlineXStep" value="5" step="0.5" min="0.5">
+          </div>
+          <div class="field">
+            <label>Y Origin (coords)</label>
+            <input type="number" id="outlineY0" value="0" step="1">
+          </div>
+          <div class="field">
+            <label>Y Length (coords)</label>
+            <input type="number" id="outlineYLen" value="100" step="1" min="1">
+          </div>
+          <div class="field">
+            <label>Y Step (coords)</label>
+            <input type="number" id="outlineYStep" value="5" step="0.5" min="0.5">
+          </div>
+        </div>
+      </div>
+
+      <!-- Probe Parameters -->
+      <div class="panel" data-panel-key="outline-params">
+        <div class="box-title">Probe Parameters</div>
+        <div class="grid three">
+          <div class="field">
+            <label><span class="tooltip">Clear Z (coords)<span class="tip-icon">?</span><span class="tip">Z clearance above the measured surface used during lateral travel. Added to the measured surface Z.</span></span></label>
+            <input type="number" id="outlineClearZ" value="5" step="0.5" min="1">
+          </div>
+          <div class="field">
+            <label><span class="tooltip">Probe Down (coords)<span class="tip-icon">?</span><span class="tip">Maximum downward probe distance for surface and edge detection probes.</span></span></label>
+            <input type="number" id="outlineProbeDown" value="5" step="0.5" min="0.5">
+          </div>
+          <div class="field">
+            <label><span class="tooltip">Probe Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate used for probing moves.</span></span></label>
+            <input type="number" id="outlineProbeFeed" value="200" step="10" min="10">
+          </div>
+          <div class="field">
+            <label><span class="tooltip">Fast Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Rapid travel feed rate used for lateral moves between probe points.</span></span></label>
+            <input type="number" id="outlineFastFeed" value="800" step="50" min="10">
+          </div>
+          <div class="field">
+            <label><span class="tooltip">Retract Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for Z retract moves after probing.</span></span></label>
+            <input type="number" id="outlineRetractFeed" value="600" step="50" min="10">
+          </div>
+        </div>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn ghost" onclick="flashSaveButton(this);saveSettings()">&#128190; Save Settings</button>
+        </div>
+      </div>
+
+      <!-- Probing Controls -->
+      <div class="panel" data-panel-key="outline-ctrl">
+        <div class="box-title">Probing Control</div>
+        <div class="btn-row">
+          <button class="btn" onclick="flashButton(this);runOutlineScan()">&#9711; Run Outline Scan</button>
+          <button class="btn" onclick="flashButton(this);runOutline360FaceProbe()">&#8635; 360 Face Probe</button>
+          <button class="btn warn" onclick="flashButton(this);stopOutlineScan()">&#9646;&#9646; Stop</button>
+        </div>
+        <div class="progress-track" style="margin-top:8px"><div class="progress-fill" id="outline-progressBar" style="width:0%"></div></div>
+        <div id="outline-status" class="status-line mini mt4 mb8">Ready</div>
+      </div>
+
+      <!-- Outline Preview Canvas -->
+      <div class="panel" data-panel-key="outline-preview">
+        <div class="box-title">Outline Preview</div>
+        <canvas id="outline-canvas" style="width:100%;border:1px solid var(--line);border-radius:8px;background:#0d111a;display:block;min-height:200px"></canvas>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn ghost" onclick="flashSaveButton(this);exportOutlineSVG()">&#8659; Export SVG</button>
+          <button class="btn ghost" onclick="flashSaveButton(this);exportOutlineJSON()">&#128190; Export JSON</button>
+        </div>
+      </div>
+
+      <!-- Outline Log -->
+      <div class="panel" data-panel-key="outline-log">
+        <div class="box-title">Outline Log</div>
+        <div class="btn-row" style="margin-bottom:8px">
+          <button class="btn ghost" onclick="flashSaveButton(this);exportLog('outline')">&#128190; Save Log</button>
+          <button class="btn ghost" onclick="flashButton(this);clearLog('outline')">&#10005; Clear Log</button>
+        </div>
+        <div id="outline-log" class="log-area mono"></div>
+      </div>
+
+      <!-- Outline Results Summary -->
+      <div class="panel" data-panel-key="outline-results">
+        <div class="box-title">Outline Results Summary</div>
+        <div class="mini" id="outline-results-summary" style="color:var(--muted)">No outline data yet. Run Outline Scan first.</div>
+      </div>
+
+    </div><!-- /pane-outline -->
 
   <!-- ── FOOTER ─────────────────────────────────────────────────────────── -->
   <div class="footer">
