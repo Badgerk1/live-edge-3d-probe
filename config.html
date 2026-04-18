@@ -10142,7 +10142,7 @@ async function _outlineSafetyRetract() {
   } catch(re) { pluginDebug('Safety retract failed: ' + re.message); }
 }
 
-// ── Absolute travel helper — retract Z first, then move X then Y ─────────────
+// ── Absolute travel helper — retract Z first, then move X/Y diagonally ───────
 // Uses G90 absolute moves so Z never exceeds soft limits regardless of start Z.
 async function _outlineAbsTravel(targetX, targetY, safeTravelZ, fastFeed, retractFeed) {
   var pos = await getWorkPosition();
@@ -10153,14 +10153,8 @@ async function _outlineAbsTravel(targetX, targetY, safeTravelZ, fastFeed, retrac
     await sleep(50);
     await waitForIdleWithTimeout(30000);
   }
-  outlineAppendLog('TRAVEL: X to ' + targetX.toFixed(3) + ' at F' + fastFeed.toFixed(0));
-  await sendCommand('G90 G1 X' + targetX.toFixed(3) + ' F' + fastFeed.toFixed(0));
-  await sleep(50);
-  await waitForIdleWithTimeout(30000);
-  outlineAppendLog('TRAVEL: Y to ' + targetY.toFixed(3) + ' at F' + fastFeed.toFixed(0));
-  await sendCommand('G90 G1 Y' + targetY.toFixed(3) + ' F' + fastFeed.toFixed(0));
-  await sleep(50);
-  await waitForIdleWithTimeout(30000);
+  outlineAppendLog('TRAVEL: diagonal to X=' + targetX.toFixed(3) + ' Y=' + targetY.toFixed(3) + ' at F' + fastFeed.toFixed(0));
+  await moveAbs(targetX, targetY, null, fastFeed);
 }
 
 // ── Phase 1: Surface reference probe ─────────────────────
@@ -10425,9 +10419,9 @@ async function _runRowScan(cfg, surfZ) {
       outlineAppendLog('Row Y=' + rowY.toFixed(3) + ' Right edge not confirmed, using lastHitX=' + xRight.toFixed(3));
     }
 
-    // 9. Retract to safe travel Z
-    outlineAppendLog('RETRACT: Z to safeTravelZ=' + cfg.safeTravelZ.toFixed(3) + ' at F' + cfg.retractFeed);
-    await smRetractToZ(cfg.safeTravelZ, cfg.retractFeed);
+    // 9. Retract to clearZ
+    outlineAppendLog('RETRACT: Z to clearZ=' + clearZ.toFixed(3) + ' at F' + cfg.retractFeed);
+    await smRetractToZ(clearZ, cfg.retractFeed);
 
     outlineRowResults.push({ y: rowY, xLeft: xLeft, xRight: xRight, hasLeft: true, hasRight: xRight !== null });
     var rowMs = Date.now() - rowStart;
@@ -10548,9 +10542,9 @@ async function _runColScan(cfg, surfZ) {
       outlineAppendLog('Col X=' + colX.toFixed(3) + ' Top edge not confirmed, using lastHitY=' + yTop.toFixed(3));
     }
 
-    // 9. Retract to safe travel Z
-    outlineAppendLog('RETRACT: Z to safeTravelZ=' + cfg.safeTravelZ.toFixed(3) + ' at F' + cfg.retractFeed);
-    await smRetractToZ(cfg.safeTravelZ, cfg.retractFeed);
+    // 9. Retract to clearZ
+    outlineAppendLog('RETRACT: Z to clearZ=' + clearZ.toFixed(3) + ' at F' + cfg.retractFeed);
+    await smRetractToZ(clearZ, cfg.retractFeed);
 
     outlineColResults.push({ x: colX, yBottom: yBottom, yTop: yTop, hasBottom: true, hasTop: yTop !== null });
     var colMs = Date.now() - colStart;
