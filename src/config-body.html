@@ -1523,24 +1523,56 @@
         <div class="box-title">Probe Parameters</div>
         <div class="grid three">
           <div class="field">
-            <label><span class="tooltip">Clear Z (coords)<span class="tip-icon">?</span><span class="tip">Z clearance above the measured surface used during lateral travel. Added to the measured surface Z.</span></span></label>
-            <input type="number" id="outlineClearZ" value="5" step="0.5" min="1">
+            <label><span class="tooltip">Surface Z (coords)<span class="tip-icon">?</span><span class="tip">Absolute Z of the wood surface. Auto-populated by Surface Probe, or enter manually to skip probing.</span></span></label>
+            <input type="number" id="outlineSurfaceZ" value="0" step="0.001">
           </div>
           <div class="field">
-            <label><span class="tooltip">Probe Down (coords)<span class="tip-icon">?</span><span class="tip">Maximum downward probe distance for surface and edge detection probes.</span></span></label>
-            <input type="number" id="outlineProbeDown" value="5" step="0.5" min="0.5">
+            <label><span class="tooltip">Face Probe Depth Below Surface (coords)<span class="tip-icon">?</span><span class="tip">How far below surface Z to position the probe for horizontal edge probing. E.g. 3 = probe at surfaceZ&#8722;3.</span></span></label>
+            <input type="number" id="outlineFaceDepth" value="3" step="0.5" min="0.5">
           </div>
           <div class="field">
-            <label><span class="tooltip">Probe Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate used for probing moves.</span></span></label>
+            <label><span class="tooltip">Face Probe Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for horizontal G38.2 edge probe moves.</span></span></label>
+            <input type="number" id="outlineFaceFeed" value="200" step="10" min="10">
+          </div>
+          <div class="field">
+            <label><span class="tooltip">Retract Above Surface (coords)<span class="tip-icon">?</span><span class="tip">Z clearance above surface after face contact before stepping across the wood top.</span></span></label>
+            <input type="number" id="outlineRetractAbove" value="2" step="0.5" min="0.5">
+          </div>
+          <div class="field">
+            <label><span class="tooltip">Overshoot Past Trigger (coords)<span class="tip-icon">?</span><span class="tip">Distance to move past the face trigger point onto the top of the wood before Z stepping.</span></span></label>
+            <input type="number" id="outlineOvershoot" value="2" step="0.5" min="0.5">
+          </div>
+          <div class="field">
+            <label><span class="tooltip">Approach Distance (coords)<span class="tip-icon">?</span><span class="tip">How far outside the expected edge to start the horizontal probe from.</span></span></label>
+            <input type="number" id="outlineApproachDist" value="10" step="1" min="1">
+          </div>
+          <div class="field">
+            <label><span class="tooltip">Safe Travel Z (coords)<span class="tip-icon">?</span><span class="tip">Absolute Z height for safe travel between rows and columns.</span></span></label>
+            <input type="number" id="outlineSafeTravelZ" value="10" step="1" min="1">
+          </div>
+          <div class="field">
+            <label><span class="tooltip">Z Step Probe Depth (coords)<span class="tip-icon">?</span><span class="tip">How deep to plunge Z at each surface step when scanning across the wood top for the far edge.</span></span></label>
+            <input type="number" id="outlineZStepDepth" value="5" step="0.5" min="0.5">
+          </div>
+          <div class="field">
+            <label><span class="tooltip">Surface Probe Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for Z plunge probes (surface probe and surface stepping).</span></span></label>
             <input type="number" id="outlineProbeFeed" value="200" step="10" min="10">
           </div>
           <div class="field">
-            <label><span class="tooltip">Fast Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Rapid travel feed rate used for lateral moves between probe points.</span></span></label>
+            <label><span class="tooltip">Fast Feed / Travel Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Rapid travel feed rate for lateral moves between probe points.</span></span></label>
             <input type="number" id="outlineFastFeed" value="800" step="50" min="10">
           </div>
           <div class="field">
             <label><span class="tooltip">Retract Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for Z retract moves after probing.</span></span></label>
             <input type="number" id="outlineRetractFeed" value="600" step="50" min="10">
+          </div>
+          <div class="field">
+            <label><span class="tooltip">Clear Z (coords)<span class="tip-icon">?</span><span class="tip">Z height to lower to before the center surface probe plunge.</span></span></label>
+            <input type="number" id="outlineClearZ" value="5" step="0.5" min="1">
+          </div>
+          <div class="field">
+            <label><span class="tooltip">Probe Down (coords)<span class="tip-icon">?</span><span class="tip">Maximum downward plunge depth for the center surface probe.</span></span></label>
+            <input type="number" id="outlineProbeDown" value="5" step="0.5" min="0.5">
           </div>
         </div>
         <div class="btn-row" style="margin-top:10px">
@@ -1552,6 +1584,7 @@
       <div class="panel" data-panel-key="outline-ctrl">
         <div class="box-title">Probing Control</div>
         <div class="btn-row">
+          <button class="btn" onclick="flashButton(this);runOutlineSurfaceProbe()">&#9660; Surface Probe</button>
           <button class="btn" onclick="flashButton(this);runOutlineScan()">&#9711; Run Outline Scan</button>
           <button class="btn" onclick="flashButton(this);runOutline360FaceProbe()">&#8635; 360 Face Probe</button>
           <button class="btn warn" onclick="flashButton(this);stopOutlineScan()">&#9646;&#9646; Stop</button>

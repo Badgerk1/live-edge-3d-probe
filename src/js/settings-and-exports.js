@@ -111,11 +111,19 @@ function getSettingsFromUI() {
     outlineY0:                   n('outlineY0'),
     outlineYLen:                 n('outlineYLen'),
     outlineYStep:                n('outlineYStep'),
-    outlineClearZ:               n('outlineClearZ'),
-    outlineProbeDown:            n('outlineProbeDown'),
+    outlineSurfaceZ:             n('outlineSurfaceZ'),
+    outlineFaceDepth:            n('outlineFaceDepth'),
+    outlineFaceFeed:             n('outlineFaceFeed'),
+    outlineRetractAbove:         n('outlineRetractAbove'),
+    outlineOvershoot:            n('outlineOvershoot'),
+    outlineApproachDist:         n('outlineApproachDist'),
+    outlineSafeTravelZ:          n('outlineSafeTravelZ'),
+    outlineZStepDepth:           n('outlineZStepDepth'),
     outlineProbeFeed:            n('outlineProbeFeed'),
     outlineFastFeed:             n('outlineFastFeed'),
-    outlineRetractFeed:          n('outlineRetractFeed')
+    outlineRetractFeed:          n('outlineRetractFeed'),
+    outlineClearZ:               n('outlineClearZ'),
+    outlineProbeDown:            n('outlineProbeDown')
   };
 }
 function saveSettings() {
@@ -271,11 +279,19 @@ function loadSettings() {
   if (data.outlineY0          != null) sv('outlineY0',          data.outlineY0);
   if (data.outlineYLen        != null) sv('outlineYLen',        data.outlineYLen);
   if (data.outlineYStep       != null) sv('outlineYStep',       data.outlineYStep);
-  if (data.outlineClearZ      != null) sv('outlineClearZ',      data.outlineClearZ);
-  if (data.outlineProbeDown   != null) sv('outlineProbeDown',   data.outlineProbeDown);
+  if (data.outlineSurfaceZ    != null) sv('outlineSurfaceZ',    data.outlineSurfaceZ);
+  if (data.outlineFaceDepth   != null) sv('outlineFaceDepth',   data.outlineFaceDepth);
+  if (data.outlineFaceFeed    != null) sv('outlineFaceFeed',    data.outlineFaceFeed);
+  if (data.outlineRetractAbove!= null) sv('outlineRetractAbove',data.outlineRetractAbove);
+  if (data.outlineOvershoot   != null) sv('outlineOvershoot',   data.outlineOvershoot);
+  if (data.outlineApproachDist!= null) sv('outlineApproachDist',data.outlineApproachDist);
+  if (data.outlineSafeTravelZ != null) sv('outlineSafeTravelZ', data.outlineSafeTravelZ);
+  if (data.outlineZStepDepth  != null) sv('outlineZStepDepth',  data.outlineZStepDepth);
   if (data.outlineProbeFeed   != null) sv('outlineProbeFeed',   data.outlineProbeFeed);
   if (data.outlineFastFeed    != null) sv('outlineFastFeed',    data.outlineFastFeed);
   if (data.outlineRetractFeed != null) sv('outlineRetractFeed', data.outlineRetractFeed);
+  if (data.outlineClearZ      != null) sv('outlineClearZ',      data.outlineClearZ);
+  if (data.outlineProbeDown   != null) sv('outlineProbeDown',   data.outlineProbeDown);
   // Trigger dependent previews
   try { refreshFinishBehaviorPreview(); } catch(e) {}
   try { refreshTravelRecoveryPreview(); } catch(e) {}
