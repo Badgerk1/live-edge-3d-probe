@@ -58,6 +58,12 @@ for 360 edge detection and face probing on live edge wood slabs.
 - **Root cause comparison:** The Probe tab (top-probe.js) NEVER moves Z downward with G1. It only uses G38.2 (smPlungeProbe) for downward probing. The outline code added `_outlineMoveToZ` which does blind G1.
 - **Fix:** Rewrite Phase 1 to reuse the same sm* functions as the Probe tab: `smSafeLateralMove` → `smPlungeProbe` → `smRetractToZ`. No custom motion functions needed for surface probing.
 
+### Bug 8: smSafeLateralMove hits soft limit ceiling after moveMachineZAbs(0)
+- **Problem:** After retracting to machine Z=0, `smSafeLateralMove` does a relative Z lift (`G91 G1 Z+clearanceZ`). Since Z is already at the absolute ceiling, this hits the soft limit → alarm.
+- **Also:** `cfg.probeDown` (default 5mm) is far too short when starting from machine Z=0 which could be 50-100mm above the wood surface.
+- **Fix:** Use `moveAbs(cx, null, null, feed)` for lateral travel after `moveMachineZAbs(0)` — no Z lift needed since we're at the ceiling. Use `getWorkPosition().z + 5` as probe distance to cover full Z travel range. G38.2 stops on contact so full-range probing is safe.
+- **Rule:** After `moveMachineZAbs(0)`, NEVER use functions that do relative Z lifts. Use `moveAbs` for lateral moves instead.
+
 ### Bug 7: Phase 1 lateral travel may clip wood when Z zero is below surface
 - **Problem:** Phase 1's purpose is to find the surface Z, so it's unknown at this point. If the user sets work Z zero on the spoilboard (below the wood), `safeTravelZ` and `clearZ` are in work coordinates relative to that zero — they may not clear the actual wood surface.
 - **Example:** Z zero on spoilboard, wood at Z=9.8, safeTravelZ=10 → only 0.2mm clearance during lateral travel to grid center.

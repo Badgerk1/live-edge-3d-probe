@@ -100,8 +100,6 @@ async function _outlineMoveToZ(targetZ, feed) {
 // ── Safety retract helper ─────────────────────────────────
 async function _outlineSafetyRetract() {
   try {
-    // Always retract to machine Z=0 first — guarantees clearance even if work Z zero
-    // is set below the wood surface and safeTravelZ wouldn't clear it.
     var safeFeed = Number((document.getElementById('outlineFastFeed') || {}).value) || 800;
     outlineAppendLog('SAFETY RETRACT: Z to machine Z=0');
     await moveMachineZAbs(0, safeFeed);
@@ -149,40 +147,57 @@ async function runOutlineSurfaceProbe() {
     outlineAppendLog('Phase 1: Surface Reference Probe');
     await requireStartupHomingPreflight('Outline Surface Probe');
 
-    await smEnsureProbeClear(cfg.clearZ, cfg.fastFeed);
-
-    // 1. Retract to machine Z=0 (top of travel) for guaranteed clearance
-    //    Surface Z is unknown — safeTravelZ/clearZ may be below the wood
+    // 1. Retract to machine Z=0 (absolute ceiling) — guarantees clearance
+    //    when surface Z is unknown and work Z zero may be below the wood.
     outlineAppendLog('RETRACT: Z to machine Z=0 (top of travel) for safe lateral move');
     await moveMachineZAbs(0, cfg.retractFeed);
     await sleep(50);
     await waitForIdleWithTimeout(30000);
 
-    // 2. Now safe to travel laterally to grid center
+    // 2. Move X then Y to grid center using moveAbs (NOT smSafeLateralMove
+    //    which would try a relative Z lift and hit the soft limit ceiling).
     var cx = cfg.x0 + cfg.xLen / 2;
     var cy = cfg.y0 + cfg.yLen / 2;
     outlineAppendLog('TRAVEL: moving to center X=' + cx.toFixed(3) + ' Y=' + cy.toFixed(3));
-    await smSafeLateralMove(cx, cy, cfg.fastFeed, cfg.clearZ);
+    await moveAbs(cx, null, null, cfg.fastFeed);
+    await moveAbs(null, cy, null, cfg.fastFeed);
 
-    // Temporarily set sm-clearanceZ so smPlungeProbe's internal smEnsureProbeClear uses the outline's value
-    var smClearEl    = document.getElementById('sm-clearanceZ');
-    var origClearVal = smClearEl ? smClearEl.value : '5';
-    if (smClearEl) smClearEl.value = String(cfg.clearZ);
+    // 3. Read current work Z — this is the full travel distance available
+    //    from machine ceiling to work zero. Probe the entire range so the
+    //    probe finds the surface no matter how far down it is.
+    var pos = await getWorkPosition();
+    var fullPlunge = pos.z + 5;  // +5mm margin below work Z=0
+    outlineAppendLog('PROBE: full Z plunge from Z=' + pos.z.toFixed(3) + ' distance=' + fullPlunge.toFixed(3));
 
-    var pos = await smPlungeProbe(cfg.probeDown, cfg.probeFeed);
+    // 4. G38.2 plunge — stops on contact, errors only if nothing touched
+    await sendCommand('G91 G38.2 Z-' + fullPlunge.toFixed(3) + ' F' + cfg.probeFeed.toFixed(0));
+    await sleep(50);
+    await waitForIdleWithTimeout(30000);
 
-    if (smClearEl) smClearEl.value = origClearVal;
+    var endPos = await getWorkPosition();
+    var pinTriggered = await smGetProbeTriggered();
+    var distTraveled = pos.z - endPos.z;
+    outlineAppendLog('PROBE RESULT: pinTriggered=' + pinTriggered +
+      ' startZ=' + pos.z.toFixed(3) + ' endZ=' + endPos.z.toFixed(3) + ' traveled=' + distTraveled.toFixed(3));
 
-    var surfZ = pos.z;
+    if (!pinTriggered && distTraveled >= (fullPlunge - 0.5)) {
+      throw new Error('Surface probe: No contact in full Z travel range (' + fullPlunge.toFixed(1) + 'mm)');
+    }
+
+    var surfZ = endPos.z;
     outlineAppendLog('Surface Z established: ' + surfZ.toFixed(4));
 
     _outlineSetSurfaceZField(surfZ);
     outlineSetProgress(50);
 
+    // 5. Retract to safeTravelZ (now meaningful since we know the surface)
+    outlineAppendLog('RETRACT: Z to safeTravelZ=' + cfg.safeTravelZ.toFixed(3) + ' at F' + cfg.retractFeed);
     await smRetractToZ(cfg.safeTravelZ, cfg.retractFeed);
 
+    // 6. Return to X0 Y0 using moveAbs (safeTravelZ is now valid)
     outlineAppendLog('TRAVEL: returning to X0 Y0 at F' + cfg.fastFeed);
-    await smSafeLateralMove(0, 0, cfg.fastFeed, cfg.clearZ);
+    await moveAbs(0, null, null, cfg.fastFeed);
+    await moveAbs(null, 0, null, cfg.fastFeed);
 
     outlineSetProgress(100);
     outlineSetStatus('Surface Z = ' + surfZ.toFixed(4) + ' \u2013 ready', 'good');
