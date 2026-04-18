@@ -2240,21 +2240,71 @@ function _vizDrawOutlineCanvas() {
     ctx.fill();
   });
 
-  // Bottom edge (blue) and top edge (red) dots
-  cols.forEach(function(c) {
-    if (c.hasBottom && c.yBottom !== null) {
-      ctx.fillStyle = '#4da6ff';
-      ctx.beginPath();
-      ctx.arc(cx(c.x), cy(c.yBottom), 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    if (c.hasTop && c.yTop !== null) {
-      ctx.fillStyle = '#e05555';
-      ctx.beginPath();
-      ctx.arc(cx(c.x), cy(c.yTop), 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
+  // Bottom edge (blue) polyline + dots
+  var bottomPts = cols.filter(function(c){ return c.hasBottom && c.yBottom !== null; }).sort(function(a,b){ return a.x - b.x; });
+  if (bottomPts.length > 1) {
+    ctx.strokeStyle = '#4da6ff';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(cx(bottomPts[0].x), cy(bottomPts[0].yBottom));
+    for (var bi = 1; bi < bottomPts.length; bi++) ctx.lineTo(cx(bottomPts[bi].x), cy(bottomPts[bi].yBottom));
+    ctx.stroke();
+  }
+  bottomPts.forEach(function(c) {
+    ctx.fillStyle = '#4da6ff';
+    ctx.beginPath();
+    ctx.arc(cx(c.x), cy(c.yBottom), 3, 0, Math.PI * 2);
+    ctx.fill();
   });
+
+  // Top edge (red) polyline + dots
+  var topPts = cols.filter(function(c){ return c.hasTop && c.yTop !== null; }).sort(function(a,b){ return a.x - b.x; });
+  if (topPts.length > 1) {
+    ctx.strokeStyle = '#e05555';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(cx(topPts[0].x), cy(topPts[0].yTop));
+    for (var ti = 1; ti < topPts.length; ti++) ctx.lineTo(cx(topPts[ti].x), cy(topPts[ti].yTop));
+    ctx.stroke();
+  }
+  topPts.forEach(function(c) {
+    ctx.fillStyle = '#e05555';
+    ctx.beginPath();
+    ctx.arc(cx(c.x), cy(c.yTop), 3, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // Closed outline polygon using all 4 edges:
+  // bottom (L→R), right (bottom→top), top (R→L), left (top→bottom)
+  if (leftPts.length > 0 && rightPts.length > 0 && bottomPts.length > 0 && topPts.length > 0) {
+    ctx.strokeStyle = '#4da6ff';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 2]);
+    ctx.beginPath();
+    ctx.moveTo(cx(bottomPts[0].x), cy(bottomPts[0].yBottom));
+    for (var bp = 1; bp < bottomPts.length; bp++) ctx.lineTo(cx(bottomPts[bp].x), cy(bottomPts[bp].yBottom));
+    rightPts.forEach(function(r) { ctx.lineTo(cx(r.xRight), cy(r.y)); });
+    var revTop = topPts.slice().reverse();
+    revTop.forEach(function(c) { ctx.lineTo(cx(c.x), cy(c.yTop)); });
+    var revLeft = leftPts.slice().reverse();
+    revLeft.forEach(function(r) { ctx.lineTo(cx(r.xLeft), cy(r.y)); });
+    ctx.closePath();
+    ctx.stroke();
+    ctx.setLineDash([]);
+  } else if (leftPts.length > 0 && rightPts.length > 0) {
+    // Fallback: only row edges available — straight-line top/bottom
+    ctx.strokeStyle = '#4da6ff';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 2]);
+    ctx.beginPath();
+    ctx.moveTo(cx(leftPts[0].xLeft), cy(leftPts[0].y));
+    for (var li = 1; li < leftPts.length; li++) ctx.lineTo(cx(leftPts[li].xLeft), cy(leftPts[li].y));
+    var revRight2 = rightPts.slice().reverse();
+    revRight2.forEach(function(r) { ctx.lineTo(cx(r.xRight), cy(r.y)); });
+    ctx.closePath();
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
 
   // Legend
   var legend = [
