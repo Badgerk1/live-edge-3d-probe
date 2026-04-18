@@ -10226,9 +10226,10 @@ async function runOutlineSurfaceProbe() {
     _outlineSetSurfaceZField(surfZ);
     outlineSetProgress(50);
 
-    // 5. Retract only to safeTravelZ — surface is known now, no need for machine Z=0
-    outlineAppendLog('RETRACT: Z to safeTravelZ=' + cfg.safeTravelZ.toFixed(3) + ' at F' + cfg.retractFeed);
-    await smRetractToZ(cfg.safeTravelZ, cfg.retractFeed);
+    // 5. Retract to surfZ + retractAbove — gives proper clearance for diagonal return
+    var retractZ = surfZ + cfg.retractAbove;
+    outlineAppendLog('RETRACT: Z to surfZ+retractAbove=' + retractZ.toFixed(3) + ' at F' + cfg.retractFeed);
+    await smRetractToZ(retractZ, cfg.retractFeed);
 
     // 6. Diagonal return to X0 Y0
     outlineAppendLog('TRAVEL: diagonal return to X0 Y0 at F' + cfg.fastFeed);
