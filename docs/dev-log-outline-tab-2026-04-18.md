@@ -58,6 +58,12 @@ for 360 edge detection and face probing on live edge wood slabs.
 - **Root cause comparison:** The Probe tab (top-probe.js) NEVER moves Z downward with G1. It only uses G38.2 (smPlungeProbe) for downward probing. The outline code added `_outlineMoveToZ` which does blind G1.
 - **Fix:** Rewrite Phase 1 to reuse the same sm* functions as the Probe tab: `smSafeLateralMove` → `smPlungeProbe` → `smRetractToZ`. No custom motion functions needed for surface probing.
 
+### Bug 7: Phase 1 lateral travel may clip wood when Z zero is below surface
+- **Problem:** Phase 1's purpose is to find the surface Z, so it's unknown at this point. If the user sets work Z zero on the spoilboard (below the wood), `safeTravelZ` and `clearZ` are in work coordinates relative to that zero — they may not clear the actual wood surface.
+- **Example:** Z zero on spoilboard, wood at Z=9.8, safeTravelZ=10 → only 0.2mm clearance during lateral travel to grid center.
+- **Fix:** Add `moveMachineZAbs(0, feed)` as the first action in Phase 1, before any lateral move. Machine Z=0 is always the top of travel (after homing), guaranteeing full clearance regardless of work coordinate Z zero placement.
+- **Rule:** When surface Z is unknown, always use machine coordinates (G53) for Z clearance, not work coordinates.
+
 ---
 
 ## How the Outline Scan Should Work
