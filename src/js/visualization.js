@@ -2139,3 +2139,141 @@ function renderCombinedViz() {
   }
 }
 
+
+// ── Outline Canvas Renderer ────────────────────────────────────────────────────
+function _vizDrawOutlineCanvas() {
+  var canvas = document.getElementById('outline-canvas');
+  if (!canvas) return;
+  var rows = (typeof outlineRowResults !== 'undefined') ? outlineRowResults : [];
+  var cols = (typeof outlineColResults !== 'undefined') ? outlineColResults : [];
+  if (rows.length === 0 && cols.length === 0) {
+    var ctx0 = canvas.getContext('2d');
+    if (ctx0) {
+      canvas.width  = canvas.offsetWidth  || 400;
+      canvas.height = canvas.offsetHeight || 200;
+      ctx0.fillStyle = '#0d111a';
+      ctx0.fillRect(0, 0, canvas.width, canvas.height);
+      ctx0.fillStyle = '#4a5568';
+      ctx0.font = '13px monospace';
+      ctx0.textAlign = 'center';
+      ctx0.fillText('No outline data — run Outline Scan first', canvas.width / 2, canvas.height / 2);
+    }
+    return;
+  }
+
+  // Determine world bounds
+  var allX = [], allY = [];
+  rows.forEach(function(r) {
+    if (r.hasLeft  && r.xLeft  !== null) { allX.push(r.xLeft);  allY.push(r.y); }
+    if (r.hasRight && r.xRight !== null) { allX.push(r.xRight); allY.push(r.y); }
+  });
+  cols.forEach(function(c) {
+    if (c.hasBottom && c.yBottom !== null) { allX.push(c.x); allY.push(c.yBottom); }
+    if (c.hasTop    && c.yTop    !== null) { allX.push(c.x); allY.push(c.yTop); }
+  });
+  if (allX.length === 0) return;
+
+  var xMin = Math.min.apply(null, allX);
+  var xMax = Math.max.apply(null, allX);
+  var yMin = Math.min.apply(null, allY);
+  var yMax = Math.max.apply(null, allY);
+  var xRange = Math.max(xMax - xMin, 1);
+  var yRange = Math.max(yMax - yMin, 1);
+
+  var w = canvas.offsetWidth || 400;
+  var h = Math.max(Math.round(w * yRange / xRange), 150);
+  canvas.width  = w;
+  canvas.height = h;
+
+  var pad = 28;
+  var scaleX = (w - 2 * pad) / xRange;
+  var scaleY = (h - 2 * pad) / yRange;
+
+  function cx(wx) { return pad + (wx - xMin) * scaleX; }
+  function cy(wy) { return h - pad - (wy - yMin) * scaleY; }  // flip Y
+
+  var ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#0d111a';
+  ctx.fillRect(0, 0, w, h);
+
+  // Search boundary
+  var cfg = (typeof _outlineSettings === 'function') ? _outlineSettings() : null;
+  if (cfg) {
+    ctx.strokeStyle = '#2d3748';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.strokeRect(cx(cfg.x0), cy(cfg.y0 + cfg.yLen), (cfg.xLen) * scaleX, (cfg.yLen) * scaleY);
+    ctx.setLineDash([]);
+  }
+
+  // Left edge (green)
+  var leftPts = rows.filter(function(r){ return r.hasLeft && r.xLeft !== null; }).sort(function(a,b){ return a.y - b.y; });
+  if (leftPts.length > 1) {
+    ctx.strokeStyle = '#44cc77';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(cx(leftPts[0].xLeft), cy(leftPts[0].y));
+    for (var i = 1; i < leftPts.length; i++) ctx.lineTo(cx(leftPts[i].xLeft), cy(leftPts[i].y));
+    ctx.stroke();
+  }
+  leftPts.forEach(function(r) {
+    ctx.fillStyle = '#44cc77';
+    ctx.beginPath();
+    ctx.arc(cx(r.xLeft), cy(r.y), 3, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // Right edge (orange)
+  var rightPts = rows.filter(function(r){ return r.hasRight && r.xRight !== null; }).sort(function(a,b){ return a.y - b.y; });
+  if (rightPts.length > 1) {
+    ctx.strokeStyle = '#ffaa33';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(cx(rightPts[0].xRight), cy(rightPts[0].y));
+    for (var j = 1; j < rightPts.length; j++) ctx.lineTo(cx(rightPts[j].xRight), cy(rightPts[j].y));
+    ctx.stroke();
+  }
+  rightPts.forEach(function(r) {
+    ctx.fillStyle = '#ffaa33';
+    ctx.beginPath();
+    ctx.arc(cx(r.xRight), cy(r.y), 3, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // Bottom edge (blue) and top edge (red) dots
+  cols.forEach(function(c) {
+    if (c.hasBottom && c.yBottom !== null) {
+      ctx.fillStyle = '#4da6ff';
+      ctx.beginPath();
+      ctx.arc(cx(c.x), cy(c.yBottom), 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (c.hasTop && c.yTop !== null) {
+      ctx.fillStyle = '#e05555';
+      ctx.beginPath();
+      ctx.arc(cx(c.x), cy(c.yTop), 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+
+  // Legend
+  var legend = [
+    { color: '#44cc77', label: 'Left edge' },
+    { color: '#ffaa33', label: 'Right edge' },
+    { color: '#4da6ff', label: 'Bottom edge' },
+    { color: '#e05555', label: 'Top edge' }
+  ];
+  ctx.font = '10px monospace';
+  legend.forEach(function(item, idx) {
+    var lx = pad + idx * 90;
+    var ly = h - 8;
+    ctx.fillStyle = item.color;
+    ctx.fillRect(lx, ly - 8, 10, 10);
+    ctx.fillStyle = '#c2d3f2';
+    ctx.fillText(item.label, lx + 13, ly);
+  });
+}
+
+// Register outline canvas renderer on the shared probeViz namespace
+if (!window.probeViz) window.probeViz = {};
+window.probeViz.drawOutlineCanvas = _vizDrawOutlineCanvas;
