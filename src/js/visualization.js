@@ -2206,130 +2206,80 @@ function _vizDrawOutlineCanvas() {
     ctx.setLineDash([]);
   }
 
-  // Left edge (green)
-  var leftPts = rows.filter(function(r){ return r.hasLeft && r.xLeft !== null; }).sort(function(a,b){ return a.y - b.y; });
-  if (leftPts.length > 1) {
-    ctx.strokeStyle = '#44cc77';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(cx(leftPts[0].xLeft), cy(leftPts[0].y));
-    for (var i = 1; i < leftPts.length; i++) ctx.lineTo(cx(leftPts[i].xLeft), cy(leftPts[i].y));
-    ctx.stroke();
-  }
-  leftPts.forEach(function(r) {
-    ctx.fillStyle = '#44cc77';
-    ctx.beginPath();
-    ctx.arc(cx(r.xLeft), cy(r.y), 3, 0, Math.PI * 2);
-    ctx.fill();
+  // Collect all edge points and sort clockwise for single black outline
+  var allPts = [];
+  rows.forEach(function(r) {
+    if (r.hasLeft  && r.xLeft  !== null) allPts.push([r.xLeft,  r.y]);
+    if (r.hasRight && r.xRight !== null) allPts.push([r.xRight, r.y]);
+  });
+  cols.forEach(function(c) {
+    if (c.hasBottom && c.yBottom !== null) allPts.push([c.x, c.yBottom]);
+    if (c.hasTop    && c.yTop    !== null) allPts.push([c.x, c.yTop]);
   });
 
-  // Right edge (orange)
-  var rightPts = rows.filter(function(r){ return r.hasRight && r.xRight !== null; }).sort(function(a,b){ return a.y - b.y; });
-  if (rightPts.length > 1) {
-    ctx.strokeStyle = '#ffaa33';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(cx(rightPts[0].xRight), cy(rightPts[0].y));
-    for (var j = 1; j < rightPts.length; j++) ctx.lineTo(cx(rightPts[j].xRight), cy(rightPts[j].y));
-    ctx.stroke();
-  }
-  rightPts.forEach(function(r) {
-    ctx.fillStyle = '#ffaa33';
-    ctx.beginPath();
-    ctx.arc(cx(r.xRight), cy(r.y), 3, 0, Math.PI * 2);
-    ctx.fill();
+  // Deduplicate points within 0.1mm
+  var dedupPts = [];
+  allPts.forEach(function(pt) {
+    var dup = dedupPts.some(function(p) {
+      return Math.abs(p[0] - pt[0]) < 0.1 && Math.abs(p[1] - pt[1]) < 0.1;
+    });
+    if (!dup) dedupPts.push(pt);
   });
 
-  // Bottom edge (blue) polyline + dots
-  var bottomPts = cols.filter(function(c){ return c.hasBottom && c.yBottom !== null; }).sort(function(a,b){ return a.x - b.x; });
-  if (bottomPts.length > 1) {
-    ctx.strokeStyle = '#4da6ff';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(cx(bottomPts[0].x), cy(bottomPts[0].yBottom));
-    for (var bi = 1; bi < bottomPts.length; bi++) ctx.lineTo(cx(bottomPts[bi].x), cy(bottomPts[bi].yBottom));
-    ctx.stroke();
-  }
-  bottomPts.forEach(function(c) {
-    ctx.fillStyle = '#4da6ff';
-    ctx.beginPath();
-    ctx.arc(cx(c.x), cy(c.yBottom), 3, 0, Math.PI * 2);
-    ctx.fill();
-  });
+  if (dedupPts.length > 2) {
+    var cxW = 0, cyW = 0;
+    dedupPts.forEach(function(p) { cxW += p[0]; cyW += p[1]; });
+    cxW /= dedupPts.length;
+    cyW /= dedupPts.length;
 
-  // Top edge (red) polyline + dots
-  var topPts = cols.filter(function(c){ return c.hasTop && c.yTop !== null; }).sort(function(a,b){ return a.x - b.x; });
-  if (topPts.length > 1) {
-    ctx.strokeStyle = '#e05555';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(cx(topPts[0].x), cy(topPts[0].yTop));
-    for (var ti = 1; ti < topPts.length; ti++) ctx.lineTo(cx(topPts[ti].x), cy(topPts[ti].yTop));
-    ctx.stroke();
-  }
-  topPts.forEach(function(c) {
-    ctx.fillStyle = '#e05555';
-    ctx.beginPath();
-    ctx.arc(cx(c.x), cy(c.yTop), 3, 0, Math.PI * 2);
-    ctx.fill();
-  });
+    // Find bottom-left point (lowest Y, then lowest X as tiebreaker)
+    var blIdx = 0;
+    dedupPts.forEach(function(p, i) {
+      var b = dedupPts[blIdx];
+      if (p[1] < b[1] || (p[1] === b[1] && p[0] < b[0])) blIdx = i;
+    });
+    var startAngle = Math.atan2(dedupPts[blIdx][1] - cyW, dedupPts[blIdx][0] - cxW);
 
-  // Closed outline polygon — ordered perimeter walk
-  // Segments: left↑ → top→ → right↓ → bottom← → close
-  var perimSegs = [
-    { arr: leftPts.slice().sort(function(a,b){ return a.y - b.y; }),   gx: function(p){ return p.xLeft;  }, gy: function(p){ return p.y;       } },
-    { arr: topPts.slice().sort(function(a,b){ return a.x - b.x; }),    gx: function(p){ return p.x;      }, gy: function(p){ return p.yTop;    } },
-    { arr: rightPts.slice().sort(function(a,b){ return b.y - a.y; }),  gx: function(p){ return p.xRight; }, gy: function(p){ return p.y;       } },
-    { arr: bottomPts.slice().sort(function(a,b){ return b.x - a.x; }), gx: function(p){ return p.x;      }, gy: function(p){ return p.yBottom; } }
-  ];
-  var perimPts = [];
-  perimSegs.forEach(function(seg) {
-    if (!seg.arr.length) return;
-    var startIdx = 0;
-    if (perimPts.length) {
-      var lx = perimPts[perimPts.length - 1][0], ly = perimPts[perimPts.length - 1][1];
-      var bestD = Infinity;
-      seg.arr.forEach(function(pt, i) {
-        var dx = seg.gx(pt) - lx, dy = seg.gy(pt) - ly;
-        var d = dx * dx + dy * dy;
-        if (d < bestD) { bestD = d; startIdx = i; }
-      });
-    }
-    for (var si = 0; si < seg.arr.length; si++) {
-      var pt = seg.arr[(startIdx + si) % seg.arr.length];
-      perimPts.push([seg.gx(pt), seg.gy(pt)]);
-    }
-  });
-  if (perimPts.length > 2) {
-    ctx.strokeStyle = '#4da6ff';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([3, 2]);
+    // Sort clockwise (descending atan2 angle) starting from bottom-left
+    dedupPts.sort(function(a, b) {
+      var aa = Math.atan2(a[1] - cyW, a[0] - cxW) - startAngle;
+      var ba = Math.atan2(b[1] - cyW, b[0] - cxW) - startAngle;
+      if (aa > Math.PI)  aa -= 2 * Math.PI;
+      if (aa < -Math.PI) aa += 2 * Math.PI;
+      if (ba > Math.PI)  ba -= 2 * Math.PI;
+      if (ba < -Math.PI) ba += 2 * Math.PI;
+      return ba - aa;
+    });
+
+    // Single black closed polyline
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([]);
     ctx.beginPath();
-    ctx.moveTo(cx(perimPts[0][0]), cy(perimPts[0][1]));
-    for (var k = 1; k < perimPts.length; k++) {
-      ctx.lineTo(cx(perimPts[k][0]), cy(perimPts[k][1]));
+    ctx.moveTo(cx(dedupPts[0][0]), cy(dedupPts[0][1]));
+    for (var k = 1; k < dedupPts.length; k++) {
+      ctx.lineTo(cx(dedupPts[k][0]), cy(dedupPts[k][1]));
     }
     ctx.closePath();
     ctx.stroke();
-    ctx.setLineDash([]);
+
+    // Small black dots at each point
+    ctx.fillStyle = '#000000';
+    dedupPts.forEach(function(pt) {
+      ctx.beginPath();
+      ctx.arc(cx(pt[0]), cy(pt[1]), 3, 0, Math.PI * 2);
+      ctx.fill();
+    });
   }
 
   // Legend
-  var legend = [
-    { color: '#44cc77', label: 'Left edge' },
-    { color: '#ffaa33', label: 'Right edge' },
-    { color: '#4da6ff', label: 'Bottom edge' },
-    { color: '#e05555', label: 'Top edge' }
-  ];
   ctx.font = '10px monospace';
-  legend.forEach(function(item, idx) {
-    var lx = pad + idx * 90;
-    var ly = h - 8;
-    ctx.fillStyle = item.color;
-    ctx.fillRect(lx, ly - 8, 10, 10);
-    ctx.fillStyle = '#c2d3f2';
-    ctx.fillText(item.label, lx + 13, ly);
-  });
+  var lx = pad;
+  var ly = h - 8;
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(lx, ly - 8, 10, 10);
+  ctx.fillStyle = '#c2d3f2';
+  ctx.fillText('Outline', lx + 13, ly);
 }
 
 // Register outline canvas renderer on the shared probeViz namespace
