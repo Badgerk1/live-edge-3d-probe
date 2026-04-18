@@ -2274,21 +2274,40 @@ function _vizDrawOutlineCanvas() {
     ctx.fill();
   });
 
-  // Closed outline polygon — convex hull of all edge points
-  var allEdgePts = [];
-  leftPts.forEach(function(r)   { allEdgePts.push([r.xLeft,  r.y]);       });
-  rightPts.forEach(function(r)  { allEdgePts.push([r.xRight, r.y]);       });
-  bottomPts.forEach(function(c) { allEdgePts.push([c.x,      c.yBottom]); });
-  topPts.forEach(function(c)    { allEdgePts.push([c.x,      c.yTop]);    });
-  var hull = convexHull(allEdgePts);
-  if (hull.length > 2) {
+  // Closed outline polygon — ordered perimeter walk
+  // Segments: left↑ → top→ → right↓ → bottom← → close
+  var perimSegs = [
+    { arr: leftPts.slice().sort(function(a,b){ return a.y - b.y; }),   gx: function(p){ return p.xLeft;  }, gy: function(p){ return p.y;       } },
+    { arr: topPts.slice().sort(function(a,b){ return a.x - b.x; }),    gx: function(p){ return p.x;      }, gy: function(p){ return p.yTop;    } },
+    { arr: rightPts.slice().sort(function(a,b){ return b.y - a.y; }),  gx: function(p){ return p.xRight; }, gy: function(p){ return p.y;       } },
+    { arr: bottomPts.slice().sort(function(a,b){ return b.x - a.x; }), gx: function(p){ return p.x;      }, gy: function(p){ return p.yBottom; } }
+  ];
+  var perimPts = [];
+  perimSegs.forEach(function(seg) {
+    if (!seg.arr.length) return;
+    var startIdx = 0;
+    if (perimPts.length) {
+      var lx = perimPts[perimPts.length - 1][0], ly = perimPts[perimPts.length - 1][1];
+      var bestD = Infinity;
+      seg.arr.forEach(function(pt, i) {
+        var dx = seg.gx(pt) - lx, dy = seg.gy(pt) - ly;
+        var d = dx * dx + dy * dy;
+        if (d < bestD) { bestD = d; startIdx = i; }
+      });
+    }
+    for (var si = 0; si < seg.arr.length; si++) {
+      var pt = seg.arr[(startIdx + si) % seg.arr.length];
+      perimPts.push([seg.gx(pt), seg.gy(pt)]);
+    }
+  });
+  if (perimPts.length > 2) {
     ctx.strokeStyle = '#4da6ff';
     ctx.lineWidth = 1;
     ctx.setLineDash([3, 2]);
     ctx.beginPath();
-    ctx.moveTo(cx(hull[0][0]), cy(hull[0][1]));
-    for (var k = 1; k < hull.length; k++) {
-      ctx.lineTo(cx(hull[k][0]), cy(hull[k][1]));
+    ctx.moveTo(cx(perimPts[0][0]), cy(perimPts[0][1]));
+    for (var k = 1; k < perimPts.length; k++) {
+      ctx.lineTo(cx(perimPts[k][0]), cy(perimPts[k][1]));
     }
     ctx.closePath();
     ctx.stroke();
