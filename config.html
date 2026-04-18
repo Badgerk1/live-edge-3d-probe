@@ -10332,7 +10332,7 @@ async function _runRowScan(cfg, surfZ) {
     // 1. Travel to approach position (outside bounds on -X side)
     var approachX = cfg.x0 - cfg.approachDist;
     outlineAppendLog('TRAVEL: approach X=' + approachX.toFixed(3) + ' Y=' + rowY.toFixed(3) + ' at F' + cfg.fastFeed);
-    await _outlineAbsTravel(approachX, rowY, cfg.safeTravelZ, cfg.fastFeed, cfg.retractFeed);
+    await _outlineAbsTravel(approachX, rowY, clearZ, cfg.fastFeed, cfg.retractFeed);
 
     // 2. Lower Z to face probe depth (below surface)
     outlineAppendLog('LOWER: Z to faceZ=' + faceZ.toFixed(3) + ' at F' + cfg.retractFeed);
@@ -10431,7 +10431,7 @@ async function _runRowScan(cfg, surfZ) {
   }
 
   outlineAppendLog('X-axis scan complete. ' + outlineRowResults.length + ' rows scanned. Returning to X0 Y0.');
-  await _outlineAbsTravel(0, 0, cfg.safeTravelZ, cfg.fastFeed, cfg.retractFeed);
+  await _outlineAbsTravel(0, 0, clearZ, cfg.fastFeed, cfg.retractFeed);
 }
 
 // ── Phase 3: Column scan (Y scanlines at fixed X) ─────────
@@ -10455,7 +10455,7 @@ async function _runColScan(cfg, surfZ) {
     // 1. Travel to approach position (outside bounds on -Y side)
     var approachY = cfg.y0 - cfg.approachDist;
     outlineAppendLog('TRAVEL: approach X=' + colX.toFixed(3) + ' Y=' + approachY.toFixed(3) + ' at F' + cfg.fastFeed);
-    await _outlineAbsTravel(colX, approachY, cfg.safeTravelZ, cfg.fastFeed, cfg.retractFeed);
+    await _outlineAbsTravel(colX, approachY, clearZ, cfg.fastFeed, cfg.retractFeed);
 
     // 2. Lower Z to face probe depth (below surface)
     outlineAppendLog('LOWER: Z to faceZ=' + faceZ.toFixed(3) + ' at F' + cfg.retractFeed);
@@ -10554,7 +10554,7 @@ async function _runColScan(cfg, surfZ) {
   }
 
   outlineAppendLog('Y-axis scan complete. ' + outlineColResults.length + ' cols scanned. Returning to X0 Y0.');
-  await _outlineAbsTravel(0, 0, cfg.safeTravelZ, cfg.fastFeed, cfg.retractFeed);
+  await _outlineAbsTravel(0, 0, clearZ, cfg.fastFeed, cfg.retractFeed);
 }
 
 // ── Main outline scan (Phases 2 + 3) ─────────────────────
@@ -10604,7 +10604,8 @@ async function runOutlineScan() {
 
     // Return home
     outlineCheckStop();
-    await _outlineAbsTravel(0, 0, cfg.safeTravelZ, cfg.fastFeed, cfg.retractFeed);
+    var clearZ = surfZ + cfg.retractAbove;
+    await _outlineAbsTravel(0, 0, clearZ, cfg.fastFeed, cfg.retractFeed);
 
     outlineSetProgress(100);
     outlineSetStatus('Done \u2013 ' + outlineRowResults.length + ' rows, ' + outlineColResults.length + ' cols', 'good');
