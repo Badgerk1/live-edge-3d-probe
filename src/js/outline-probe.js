@@ -145,53 +145,32 @@ async function runOutlineSurfaceProbe() {
     outlineAppendLog('Phase 1: Surface Reference Probe');
     await requireStartupHomingPreflight('Outline Surface Probe');
 
-    await smEnsureProbeClear(cfg.safeTravelZ, cfg.fastFeed);
+    await smEnsureProbeClear(cfg.clearZ, cfg.fastFeed);
 
     var cx = cfg.x0 + cfg.xLen / 2;
     var cy = cfg.y0 + cfg.yLen / 2;
-    outlineAppendLog('TRAVEL: moving to center X=' + cx.toFixed(3) + ' Y=' + cy.toFixed(3) + ' at F' + cfg.fastFeed);
-    await _outlineAbsTravel(cx, cy, cfg.safeTravelZ, cfg.fastFeed, cfg.retractFeed);
+    outlineAppendLog('TRAVEL: moving to center X=' + cx.toFixed(3) + ' Y=' + cy.toFixed(3));
+    await smSafeLateralMove(cx, cy, cfg.fastFeed, cfg.clearZ);
 
-    await _outlineMoveToZ(cfg.clearZ, cfg.retractFeed);
+    // Temporarily set sm-clearanceZ so smPlungeProbe's internal smEnsureProbeClear uses the outline's value
+    var smClearEl    = document.getElementById('sm-clearanceZ');
+    var origClearVal = smClearEl ? smClearEl.value : '5';
+    if (smClearEl) smClearEl.value = String(cfg.clearZ);
 
-    // Log probe pin state before plunge
-    var pinBefore = await smGetProbeTriggered();
-    outlineAppendLog('PROBE PIN STATE: triggered=' + pinBefore + ' before surface probe plunge');
-    if (pinBefore) {
-      outlineAppendLog('WARN: probe pin already triggered before plunge — ensuring clear first');
-      await smEnsureProbeClear(cfg.safeTravelZ, cfg.fastFeed);
-    }
+    var pos = await smPlungeProbe(cfg.probeDown, cfg.probeFeed);
 
-    // Direct G38.2 plunge using outline's own fields (NOT smPlungeProbe which reads the wrong tab's clearance)
-    var startPos = await getWorkPosition();
-    var startZ   = startPos.z;
-    outlineAppendLog('PROBE: G91 G38.2 Z-' + cfg.probeDown.toFixed(3) + ' F' + cfg.probeFeed + ' from Z=' + startZ.toFixed(3));
-    await sendCommand('G91 G38.2 Z-' + cfg.probeDown.toFixed(3) + ' F' + cfg.probeFeed.toFixed(0));
-    await sleep(50);
-    await waitForIdleWithTimeout(30000);
+    if (smClearEl) smClearEl.value = origClearVal;
 
-    var endPos        = await getWorkPosition();
-    var distTraveled  = startZ - endPos.z;
-    var stoppedShort  = distTraveled < (cfg.probeDown - 0.5);
-    var pinTriggered  = await smGetProbeTriggered();
-    outlineAppendLog('PROBE RESULT: pinTriggered=' + pinTriggered + ' stoppedShort=' + stoppedShort +
-      ' startZ=' + startZ.toFixed(3) + ' endZ=' + endPos.z.toFixed(3) + ' traveled=' + distTraveled.toFixed(3));
-
-    if (!pinTriggered && !stoppedShort) {
-      throw new Error('Surface probe: No contact within ' + cfg.probeDown.toFixed(1) + ' coords plunge depth');
-    }
-
-    var surfZ = endPos.z;
+    var surfZ = pos.z;
     outlineAppendLog('Surface Z established: ' + surfZ.toFixed(4));
 
     _outlineSetSurfaceZField(surfZ);
     outlineSetProgress(50);
 
-    outlineAppendLog('RETRACT: Z to safeTravelZ=' + cfg.safeTravelZ.toFixed(3) + ' at F' + cfg.retractFeed);
     await smRetractToZ(cfg.safeTravelZ, cfg.retractFeed);
 
     outlineAppendLog('TRAVEL: returning to X0 Y0 at F' + cfg.fastFeed);
-    await _outlineAbsTravel(0, 0, cfg.safeTravelZ, cfg.fastFeed, cfg.retractFeed);
+    await smSafeLateralMove(0, 0, cfg.fastFeed, cfg.clearZ);
 
     outlineSetProgress(100);
     outlineSetStatus('Surface Z = ' + surfZ.toFixed(4) + ' \u2013 ready', 'good');
