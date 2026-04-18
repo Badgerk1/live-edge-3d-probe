@@ -911,37 +911,24 @@ function exportOutlineSVG() {
     lines.push('  <path d="' + dTop + '" stroke="#e05555" />');
   }
 
-  // Closed outline polygon using all 4 edges:
-  // bottom (L→R), right (bottom→top), top (R→L), left (top→bottom)
-  if (leftPts.length > 0 && rightPts.length > 0 && bottomPts.length > 0 && topPts.length > 0) {
-    var dPoly = 'M ' + svgX(bottomPts[0].x) + ',' + svgY(bottomPts[0].yBottom);
-    for (var bp = 1; bp < bottomPts.length; bp++) {
-      dPoly += ' L ' + svgX(bottomPts[bp].x) + ',' + svgY(bottomPts[bp].yBottom);
+  // Closed outline polygon — collect all edge points then sort by angle from centroid
+  var allEdgePts = [];
+  leftPts.forEach(function(r)   { allEdgePts.push([r.xLeft,  r.y]);       });
+  rightPts.forEach(function(r)  { allEdgePts.push([r.xRight, r.y]);       });
+  bottomPts.forEach(function(c) { allEdgePts.push([c.x,      c.yBottom]); });
+  topPts.forEach(function(c)    { allEdgePts.push([c.x,      c.yTop]);    });
+  if (allEdgePts.length > 1) {
+    var centerX = allEdgePts.reduce(function(s, p) { return s + p[0]; }, 0) / allEdgePts.length;
+    var centerY = allEdgePts.reduce(function(s, p) { return s + p[1]; }, 0) / allEdgePts.length;
+    allEdgePts.sort(function(a, b) {
+      return Math.atan2(a[1] - centerY, a[0] - centerX) - Math.atan2(b[1] - centerY, b[0] - centerX);
+    });
+    var dPoly = 'M ' + svgX(allEdgePts[0][0]) + ',' + svgY(allEdgePts[0][1]);
+    for (var k = 1; k < allEdgePts.length; k++) {
+      dPoly += ' L ' + svgX(allEdgePts[k][0]) + ',' + svgY(allEdgePts[k][1]);
     }
-    rightPts.forEach(function(r) {
-      dPoly += ' L ' + svgX(r.xRight) + ',' + svgY(r.y);
-    });
-    var revTop = topPts.slice().reverse();
-    revTop.forEach(function(c) {
-      dPoly += ' L ' + svgX(c.x) + ',' + svgY(c.yTop);
-    });
-    var revLeft = leftPts.slice().reverse();
-    revLeft.forEach(function(r) {
-      dPoly += ' L ' + svgX(r.xLeft) + ',' + svgY(r.y);
-    });
     dPoly += ' Z';
     lines.push('  <path d="' + dPoly + '" stroke="#4da6ff" stroke-width="0.8" stroke-dasharray="2,1" />');
-  } else if (leftPts.length > 0 && rightPts.length > 0) {
-    // Fallback: only row edges available — straight-line top/bottom
-    var polyPts = leftPts.map(function(r){ return [r.xLeft, r.y]; });
-    var revRight = rightPts.slice().reverse();
-    revRight.forEach(function(r){ polyPts.push([r.xRight, r.y]); });
-    var dPoly2 = 'M ' + svgX(polyPts[0][0]) + ',' + svgY(polyPts[0][1]);
-    for (var k = 1; k < polyPts.length; k++) {
-      dPoly2 += ' L ' + svgX(polyPts[k][0]) + ',' + svgY(polyPts[k][1]);
-    }
-    dPoly2 += ' Z';
-    lines.push('  <path d="' + dPoly2 + '" stroke="#4da6ff" stroke-width="0.8" stroke-dasharray="2,1" />');
   }
 
   // Bottom / top edge points
