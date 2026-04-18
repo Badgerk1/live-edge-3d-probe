@@ -44,6 +44,20 @@ for 360 edge detection and face probing on live edge wood slabs.
   ```
 - **Fix:** Remove the outer log line, let `_outlineMoveToZ` handle logging.
 
+### Bug 6: Phase 1 blind G1 descent — probe keeps pushing through contact
+- **File:** `src/js/outline-probe.js` line 155
+- **Problem:** `_outlineMoveToZ(cfg.clearZ, cfg.retractFeed)` uses `G90 G1 Z5.000` — a blind move. G1 does NOT stop when probe pin triggers. Only G38.x commands stop on contact. When probe touched surface during descent, G1 kept pushing, nearly breaking stylus.
+- **Symptom:** Log shows `PROBE PIN STATE: triggered=true` immediately after `LOWER: Z to 5.000`. User had to E-stop.
+- **Log evidence:**
+  ```
+  [10:37:29.227] LOWER: Z to 5.000 at F600
+  [10:37:30.782] PROBE PIN STATE: triggered=true before surface probe plunge
+  [10:37:30.783] WARN: probe pin already triggered before plunge
+  [10:37:31.085] Stop requested.
+  ```
+- **Root cause comparison:** The Probe tab (top-probe.js) NEVER moves Z downward with G1. It only uses G38.2 (smPlungeProbe) for downward probing. The outline code added `_outlineMoveToZ` which does blind G1.
+- **Fix:** Rewrite Phase 1 to reuse the same sm* functions as the Probe tab: `smSafeLateralMove` → `smPlungeProbe` → `smRetractToZ`. No custom motion functions needed for surface probing.
+
 ---
 
 ## How the Outline Scan Should Work
@@ -113,6 +127,25 @@ Plus:
 
 ---
 
+## RULE: Always compare with Probe tab before writing outline motion code
+
+Before writing ANY new motion code for the outline tab, check how the Probe tab (top-probe.js) and Face Probe tab (face-probe.js) handle the equivalent operation:
+- Surface probing → see `runSurfaceProbing()` in top-probe.js
+- Face probing → see `runFaceProbe()` in face-probe.js
+- Combined mode → see combined-probe.js
+- Travel moves → see `smSafeLateralMove()` in top-probe.js
+- Z descent → see `smPlungeProbe()` (G38.2) and `moveAbs()` (G1 to known-safe Z)
+- Retract → see `smRetractToZ()`, `smRetractUp()`, `smRetractSmall()`
+
+Key rules learned:
+1. **Downward Z to unknown surface** → G38.2 only (smPlungeProbe). NEVER G1.
+2. **Downward Z to known-safe depth** → G1/moveAbs is OK (face probe does this)
+3. **Lateral travel** → G38.3 (smSafeLateralMove) with contact recovery
+4. **Upward retract** → G1 (smRetractToZ, smRetractUp) — always safe
+5. **Reuse sm* functions** — don't reinvent motion primitives
+
+---
+
 ## Related PRs
 - PR #211 — Initial Outline tab (merged, had bugs above)
 - Subsequent PR — Full rewrite with all fixes and UI fields (this session)
@@ -123,3 +156,4 @@ Plus:
 - `outline_log_2026-04-18_08-51-25.txt` — First alarm (smSafeLateralMove relative lift)
 - `outline_log_2026-04-18_10-16-22.txt` — Second alarm (same root cause, before fix)
 - `outline_log_2026-04-18_10-20-08.txt` — Successful surface probe after lowering Z manually
+- `outline_log_2026-04-18_10-37-39.txt` — Bug 6: blind G1 descent triggered probe, user E-stopped
