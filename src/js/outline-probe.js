@@ -154,13 +154,12 @@ async function runOutlineSurfaceProbe() {
     await sleep(50);
     await waitForIdleWithTimeout(30000);
 
-    // 2. Move X then Y to grid center using moveAbs (NOT smSafeLateralMove
-    //    which would try a relative Z lift and hit the soft limit ceiling).
+    // 2. Diagonal move to grid center — already at max Z so no lift needed.
+    //    Use moveAbs NOT smSafeLateralMove (which tries relative Z lift → soft limit alarm at ceiling).
     var cx = cfg.x0 + cfg.xLen / 2;
     var cy = cfg.y0 + cfg.yLen / 2;
-    outlineAppendLog('TRAVEL: moving to center X=' + cx.toFixed(3) + ' Y=' + cy.toFixed(3));
-    await moveAbs(cx, null, null, cfg.fastFeed);
-    await moveAbs(null, cy, null, cfg.fastFeed);
+    outlineAppendLog('TRAVEL: diagonal to center X=' + cx.toFixed(3) + ' Y=' + cy.toFixed(3) + ' at F' + cfg.fastFeed);
+    await moveAbs(cx, cy, null, cfg.fastFeed);
 
     // 3. Read current work Z — this is the full travel distance available
     //    from machine ceiling to work zero. Probe the entire range so the
@@ -190,14 +189,13 @@ async function runOutlineSurfaceProbe() {
     _outlineSetSurfaceZField(surfZ);
     outlineSetProgress(50);
 
-    // 5. Retract to safeTravelZ (now meaningful since we know the surface)
+    // 5. Retract only to safeTravelZ — surface is known now, no need for machine Z=0
     outlineAppendLog('RETRACT: Z to safeTravelZ=' + cfg.safeTravelZ.toFixed(3) + ' at F' + cfg.retractFeed);
     await smRetractToZ(cfg.safeTravelZ, cfg.retractFeed);
 
-    // 6. Return to X0 Y0 using moveAbs (safeTravelZ is now valid)
-    outlineAppendLog('TRAVEL: returning to X0 Y0 at F' + cfg.fastFeed);
-    await moveAbs(0, null, null, cfg.fastFeed);
-    await moveAbs(null, 0, null, cfg.fastFeed);
+    // 6. Diagonal return to X0 Y0
+    outlineAppendLog('TRAVEL: diagonal return to X0 Y0 at F' + cfg.fastFeed);
+    await moveAbs(0, 0, null, cfg.fastFeed);
 
     outlineSetProgress(100);
     outlineSetStatus('Surface Z = ' + surfZ.toFixed(4) + ' \u2013 ready', 'good');
