@@ -1609,9 +1609,22 @@
       <div class="panel" data-panel-key="outline-surface-grid">
         <div class="box-title">&#11835; Surface Grid Probe (Full Heightmap)</div>
         <div class="callout mini" style="margin-bottom:10px">
-          Probes a full surface heightmap over the Outline bounds and stores the result as the global surface mesh.
+          Probes a full surface heightmap and stores the result as the global surface mesh.
           After completion, DXF&nbsp;/&nbsp;OBJ&nbsp;/&nbsp;STL exports and Apply tab Z-compensation become available immediately without any extra steps.<br>
-          <em>Uses: X/Y bounds &amp; step sizes from <strong>Outline Search Bounds</strong>; Clear&nbsp;Z, Probe&nbsp;Down, Surface&nbsp;Probe&nbsp;Feed, Fast&nbsp;Feed from <strong>Probe Parameters</strong>.</em>
+          <em>Grid bounds default to the <strong>detected workpiece outline</strong> (run Outline Scan first), inset by the margin below. Falls back to <strong>Outline Search Bounds</strong> if no outline data exists. Step sizes and probe parameters from <strong>Probe Parameters</strong>.</em>
+        </div>
+        <div class="grid two" style="margin-bottom:8px">
+          <div class="field">
+            <label>Grid Source</label>
+            <select id="outlineGridSource">
+              <option value="detected">Detected Outline (auto-inset)</option>
+              <option value="bounds">Outline Search Bounds</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Inset Margin (mm)</label>
+            <input type="number" id="outlineGridMargin" value="2" step="0.1" min="0">
+          </div>
         </div>
         <div class="btn-row">
           <button id="outline-grid-run-btn" class="btn" onclick="flashButton(this);runOutlineSurfaceGridProbe()">&#9660;&#9660; Run Surface Grid Probe</button>

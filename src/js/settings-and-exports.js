@@ -123,7 +123,9 @@ function getSettingsFromUI() {
     outlineFastFeed:             n('outlineFastFeed'),
     outlineRetractFeed:          n('outlineRetractFeed'),
     outlineClearZ:               n('outlineClearZ'),
-    outlineProbeDown:            n('outlineProbeDown')
+    outlineProbeDown:            n('outlineProbeDown'),
+    outlineGridSource:           s('outlineGridSource'),
+    outlineGridMargin:           n('outlineGridMargin')
   };
 }
 function saveSettings() {
@@ -292,6 +294,8 @@ function loadSettings() {
   if (data.outlineRetractFeed != null) sv('outlineRetractFeed', data.outlineRetractFeed);
   if (data.outlineClearZ      != null) sv('outlineClearZ',      data.outlineClearZ);
   if (data.outlineProbeDown   != null) sv('outlineProbeDown',   data.outlineProbeDown);
+  if (data.outlineGridSource  != null) sv('outlineGridSource',  data.outlineGridSource);
+  if (data.outlineGridMargin  != null) sv('outlineGridMargin',  data.outlineGridMargin);
   // Trigger dependent previews
   try { refreshFinishBehaviorPreview(); } catch(e) {}
   try { refreshTravelRecoveryPreview(); } catch(e) {}
