@@ -861,110 +861,67 @@ function exportOutlineSVG() {
   lines.push('<?xml version="1.0" encoding="utf-8"?>');
   lines.push('<svg xmlns="http://www.w3.org/2000/svg" width="' + svgW + 'mm" height="' + svgH + 'mm" viewBox="0 0 ' + svgW + ' ' + svgH + '">');
   lines.push('  <title>Live Edge Outline \u2013 ' + tsForFilename() + '</title>');
-  lines.push('  <style>circle { fill-opacity:0.8; } path { fill:none; stroke-width:0.5; }</style>');
+  lines.push('  <style>path { fill:none; }</style>');
 
-  // Left edge polyline
-  var leftPts = outlineRowResults
-    .filter(function(r){ return r.hasLeft && r.xLeft !== null; })
-    .sort(function(a,b){ return a.y - b.y; });
-  if (leftPts.length > 0) {
-    var d = 'M ' + svgX(leftPts[0].xLeft) + ',' + svgY(leftPts[0].y);
-    for (var i = 1; i < leftPts.length; i++) {
-      d += ' L ' + svgX(leftPts[i].xLeft) + ',' + svgY(leftPts[i].y);
-    }
-    lines.push('  <path d="' + d + '" stroke="#44cc77" />');
-  }
-
-  // Right edge polyline
-  var rightPts = outlineRowResults
-    .filter(function(r){ return r.hasRight && r.xRight !== null; })
-    .sort(function(a,b){ return a.y - b.y; });
-  if (rightPts.length > 0) {
-    var d2 = 'M ' + svgX(rightPts[0].xRight) + ',' + svgY(rightPts[0].y);
-    for (var j = 1; j < rightPts.length; j++) {
-      d2 += ' L ' + svgX(rightPts[j].xRight) + ',' + svgY(rightPts[j].y);
-    }
-    lines.push('  <path d="' + d2 + '" stroke="#ffaa33" />');
-  }
-
-  // Bottom edge polyline (left to right)
-  var bottomPts = outlineColResults
-    .filter(function(c){ return c.hasBottom && c.yBottom !== null; })
-    .sort(function(a,b){ return a.x - b.x; });
-  if (bottomPts.length > 0) {
-    var dBottom = 'M ' + svgX(bottomPts[0].x) + ',' + svgY(bottomPts[0].yBottom);
-    for (var bi = 1; bi < bottomPts.length; bi++) {
-      dBottom += ' L ' + svgX(bottomPts[bi].x) + ',' + svgY(bottomPts[bi].yBottom);
-    }
-    lines.push('  <path d="' + dBottom + '" stroke="#4da6ff" />');
-  }
-
-  // Top edge polyline (left to right)
-  var topPts = outlineColResults
-    .filter(function(c){ return c.hasTop && c.yTop !== null; })
-    .sort(function(a,b){ return a.x - b.x; });
-  if (topPts.length > 0) {
-    var dTop = 'M ' + svgX(topPts[0].x) + ',' + svgY(topPts[0].yTop);
-    for (var ti = 1; ti < topPts.length; ti++) {
-      dTop += ' L ' + svgX(topPts[ti].x) + ',' + svgY(topPts[ti].yTop);
-    }
-    lines.push('  <path d="' + dTop + '" stroke="#e05555" />');
-  }
-
-  // Closed outline polygon — ordered perimeter walk
-  // Segments: left↑ → top→ → right↓ → bottom← → close
-  var perimSegs = [
-    { arr: leftPts.slice().sort(function(a,b){ return a.y - b.y; }),   gx: function(p){ return p.xLeft;  }, gy: function(p){ return p.y;       } },
-    { arr: topPts.slice().sort(function(a,b){ return a.x - b.x; }),    gx: function(p){ return p.x;      }, gy: function(p){ return p.yTop;    } },
-    { arr: rightPts.slice().sort(function(a,b){ return b.y - a.y; }),  gx: function(p){ return p.xRight; }, gy: function(p){ return p.y;       } },
-    { arr: bottomPts.slice().sort(function(a,b){ return b.x - a.x; }), gx: function(p){ return p.x;      }, gy: function(p){ return p.yBottom; } }
-  ];
-  var perimPts = [];
-  perimSegs.forEach(function(seg) {
-    if (!seg.arr.length) return;
-    var startIdx = 0;
-    if (perimPts.length) {
-      var lx = perimPts[perimPts.length - 1][0], ly = perimPts[perimPts.length - 1][1];
-      var bestD = Infinity;
-      seg.arr.forEach(function(pt, i) {
-        var dx = seg.gx(pt) - lx, dy = seg.gy(pt) - ly;
-        var d = dx * dx + dy * dy;
-        if (d < bestD) { bestD = d; startIdx = i; }
-      });
-    }
-    for (var si = 0; si < seg.arr.length; si++) {
-      var pt = seg.arr[(startIdx + si) % seg.arr.length];
-      perimPts.push([seg.gx(pt), seg.gy(pt)]);
-    }
+  // Collect all edge points
+  var allPts = [];
+  outlineRowResults.forEach(function(r) {
+    if (r.hasLeft  && r.xLeft  !== null) allPts.push([r.xLeft,  r.y]);
+    if (r.hasRight && r.xRight !== null) allPts.push([r.xRight, r.y]);
   });
-  if (perimPts.length > 2) {
-    var dPoly = 'M ' + svgX(perimPts[0][0]) + ',' + svgY(perimPts[0][1]);
-    for (var k = 1; k < perimPts.length; k++) {
-      dPoly += ' L ' + svgX(perimPts[k][0]) + ',' + svgY(perimPts[k][1]);
+  outlineColResults.forEach(function(c) {
+    if (c.hasBottom && c.yBottom !== null) allPts.push([c.x, c.yBottom]);
+    if (c.hasTop    && c.yTop    !== null) allPts.push([c.x, c.yTop]);
+  });
+
+  // Deduplicate points within 0.1mm
+  var dedupPts = [];
+  allPts.forEach(function(pt) {
+    var dup = dedupPts.some(function(p) {
+      return Math.abs(p[0] - pt[0]) < 0.1 && Math.abs(p[1] - pt[1]) < 0.1;
+    });
+    if (!dup) dedupPts.push(pt);
+  });
+
+  if (dedupPts.length > 2) {
+    // Centroid
+    var cxW = 0, cyW = 0;
+    dedupPts.forEach(function(p) { cxW += p[0]; cyW += p[1]; });
+    cxW /= dedupPts.length;
+    cyW /= dedupPts.length;
+
+    // Find bottom-left point (lowest Y, then lowest X as tiebreaker)
+    var blIdx = 0;
+    dedupPts.forEach(function(p, i) {
+      var b = dedupPts[blIdx];
+      if (p[1] < b[1] || (p[1] === b[1] && p[0] < b[0])) blIdx = i;
+    });
+    var startAngle = Math.atan2(dedupPts[blIdx][1] - cyW, dedupPts[blIdx][0] - cxW);
+
+    // Sort clockwise (descending atan2 angle) starting from bottom-left
+    dedupPts.sort(function(a, b) {
+      var aa = Math.atan2(a[1] - cyW, a[0] - cxW) - startAngle;
+      var ba = Math.atan2(b[1] - cyW, b[0] - cxW) - startAngle;
+      if (aa > Math.PI)  aa -= 2 * Math.PI;
+      if (aa < -Math.PI) aa += 2 * Math.PI;
+      if (ba > Math.PI)  ba -= 2 * Math.PI;
+      if (ba < -Math.PI) ba += 2 * Math.PI;
+      return ba - aa;
+    });
+
+    // Single black closed polyline
+    var dPoly = 'M ' + svgX(dedupPts[0][0]) + ',' + svgY(dedupPts[0][1]);
+    for (var k = 1; k < dedupPts.length; k++) {
+      dPoly += ' L ' + svgX(dedupPts[k][0]) + ',' + svgY(dedupPts[k][1]);
     }
     dPoly += ' Z';
-    lines.push('  <path d="' + dPoly + '" stroke="#4da6ff" stroke-width="0.8" stroke-dasharray="2,1" />');
+    lines.push('  <path d="' + dPoly + '" stroke="#000000" stroke-width="0.8" />');
+
+    // Small black dot at each point
+    dedupPts.forEach(function(pt) {
+      lines.push('  <circle cx="' + svgX(pt[0]) + '" cy="' + svgY(pt[1]) + '" r="0.6" fill="#000000" />');
+    });
   }
-
-  // Bottom / top edge points
-  outlineColResults.forEach(function(col) {
-    if (col.hasBottom && col.yBottom !== null) {
-      lines.push('  <circle cx="' + svgX(col.x) + '" cy="' + svgY(col.yBottom) + '" r="0.8" fill="#4da6ff" />');
-    }
-    if (col.hasTop && col.yTop !== null) {
-      lines.push('  <circle cx="' + svgX(col.x) + '" cy="' + svgY(col.yTop) + '" r="0.8" fill="#e05555" />');
-    }
-  });
-
-  // Row edge points
-  outlineRowResults.forEach(function(row) {
-    if (row.hasLeft && row.xLeft !== null) {
-      lines.push('  <circle cx="' + svgX(row.xLeft) + '" cy="' + svgY(row.y) + '" r="0.6" fill="#44cc77" />');
-    }
-    if (row.hasRight && row.xRight !== null) {
-      lines.push('  <circle cx="' + svgX(row.xRight) + '" cy="' + svgY(row.y) + '" r="0.6" fill="#ffaa33" />');
-    }
-  });
 
   lines.push('</svg>');
 
