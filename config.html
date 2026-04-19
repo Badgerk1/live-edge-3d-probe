@@ -11082,8 +11082,18 @@ async function runOutlineSurfaceGridProbe() {
     if (cfg.xStep <= 0) cfg.xStep = 5;
     if (cfg.yStep <= 0) cfg.yStep = 5;
 
-    var clearanceZ = cfg.clearZ;
-    var maxPlunge  = cfg.probeDown;
+    // Surface Z must be known before probing — either from running ▼ Surface Probe or
+    // entered manually.  The clearance height and plunge depth are computed relative to
+    // the measured surface so the probe always starts safely above the wood regardless
+    // of where the machine's work Z=0 is set.
+    var surfZ = _outlineGetSurfaceZ();
+    if (surfZ === null) {
+      throw new Error('Surface Z not set. Run \u25bc Surface Probe first or enter a value in the Surface Z field.');
+    }
+    outlineSurfaceZ = surfZ;
+
+    var clearanceZ = surfZ + cfg.retractAbove;          // absolute work Z above the known surface
+    var maxPlunge  = cfg.retractAbove + cfg.probeDown;  // relative plunge: clear above + search below surface
     var probeFeed  = cfg.probeFeed;
     var travelFeed = cfg.fastFeed;
 
@@ -11154,15 +11164,16 @@ async function runOutlineSurfaceGridProbe() {
     outlineAppendLog('Grid: ' + gridCfg.colCount + 'x' + gridCfg.rowCount + ' = ' + totalPoints + ' points');
     outlineAppendLog('Bounds: X' + gridCfg.minX.toFixed(3) + '\u2192' + gridCfg.maxX.toFixed(3) +
       '  Y' + gridCfg.minY.toFixed(3) + '\u2192' + gridCfg.maxY.toFixed(3));
-    outlineAppendLog('Settings: clearanceZ=' + clearanceZ + ' maxPlunge=' + maxPlunge +
-      ' probeFeed=' + probeFeed + ' travelFeed=' + travelFeed);
+    outlineAppendLog('Surface Z: ' + surfZ.toFixed(3) + ' (from Surface Probe) \u2192 clearanceZ=' + clearanceZ.toFixed(3) +
+      ' maxPlunge=' + maxPlunge.toFixed(3));
+    outlineAppendLog('Settings: probeFeed=' + probeFeed + ' travelFeed=' + travelFeed);
 
     await requireStartupHomingPreflight('Outline Surface Grid Probe');
 
-    // Move Z to exactly clearanceZ (absolute) before the first lateral travel.
-    // Using an absolute target rather than a relative lift prevents Z accumulating on top of
-    // whatever height the outline scan left the machine at (e.g. safeTravelZ >> clearanceZ),
-    // which would push Z past the soft limit and alarm the controller.
+    // Move Z to clearanceZ (= surfZ + retractAbove) before the first lateral travel.
+    // Using an absolute target ensures the machine is safely above the surface regardless
+    // of where the outline scan left it.  clearanceZ is computed from the measured surface
+    // Z so it is always the correct absolute height, not a raw field value.
     outlineAppendLog('INITIAL RETRACT: Z to clearanceZ=' + clearanceZ.toFixed(3));
     await sendCommand('G90 G1 Z' + clearanceZ.toFixed(3) + ' F' + travelFeed);
     await sleep(50);
@@ -11179,17 +11190,17 @@ async function runOutlineSurfaceGridProbe() {
         var colX = gridCfg.minX + col * gridCfg.colSpacing;
         outlineAppendLog('Probing [' + row + ',' + col + '] X' + colX.toFixed(3) + ' Y' + rowY.toFixed(3));
 
-        // Lateral travel to next probe point:
+        // Lateral travel to next probe point using absolute-retract-then-XY pattern:
         // - row=0, step=0: machine is already at clearanceZ from the absolute retract above;
-        //   use a plain XY move to avoid smSafeLateralMove's extra relative Z lift, which
-        //   would push Z above clearanceZ and risk a soft-limit alarm.
-        // - row>0, step=0: row-transition smSafeLateralMove already positioned the machine here.
-        // - all other points: coming from a probe contact (Z < clearanceZ); smSafeLateralMove
-        //   correctly lifts relative before moving.
+        //   use a plain XY move (no extra Z needed).
+        // - row>0, step=0: row-transition _outlineAbsTravel already positioned the machine here.
+        // - all other points: coming from a probe contact (Z ≈ surfZ); _outlineAbsTravel
+        //   raises to clearanceZ (absolute) before moving laterally, matching the outline
+        //   edge scan pattern and avoiding the relative-lift overshoot of smSafeLateralMove.
         if (row === 0 && step === 0) {
           await moveAbs(colX, rowY, null, travelFeed);
         } else if (!(step === 0 && row > 0)) {
-          await smSafeLateralMove(colX, rowY, travelFeed, clearanceZ);
+          await _outlineAbsTravel(colX, rowY, clearanceZ, travelFeed, travelFeed);
         }
 
         // Ensure probe pin is not already triggered before plunging
@@ -11210,7 +11221,7 @@ async function runOutlineSurfaceGridProbe() {
         var nextStartX = reversed ? gridCfg.minX : gridCfg.maxX;
         outlineAppendLog('ROW TRANSITION: row ' + row + ' done; moving to start of row ' + (row + 1) +
           ' X=' + nextStartX.toFixed(3) + ' Y=' + nextY.toFixed(3));
-        await smSafeLateralMove(nextStartX, nextY, travelFeed, clearanceZ);
+        await _outlineAbsTravel(nextStartX, nextY, clearanceZ, travelFeed, travelFeed);
         await smEnsureProbeClear(clearanceZ, travelFeed);
       }
     }
