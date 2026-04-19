@@ -909,44 +909,44 @@ function exportOutlineSVG() {
       return ba - aa;
     });
 
-    // Smooth closed centripetal Catmull-Rom spline (alpha=0.5, Barry-Goldman).
-    // Parameterises each knot interval by sqrt(chord length) so probe points at
-    // non-uniform spacings never produce cusps or kinks.  Each segment is then
-    // subdivided into SUBDIVISIONS steps for a visually seamless curve.
-    var SUBDIVISIONS = 12;
-    function crPoint(p0, p1, p2, p3, t) {
-      // knot interval = (chord_length)^alpha, alpha=0.5
+    // Smooth closed centripetal Catmull-Rom spline (alpha=0.5).
+    // Converts each segment directly to an exact cubic bezier ('C' SVG command)
+    // using the centripetal-CR tangent formula — no polyline subdivision needed,
+    // giving a mathematically perfect smooth curve in the exported SVG.
+    function crBezier(p0, p1, p2, p3) {
+      // knot interval = (chord_length)^0.5 (centripetal, alpha=0.5)
       function knot(a, b) {
         var dx = b[0]-a[0], dy = b[1]-a[1];
-        return Math.pow(dx*dx + dy*dy, 0.25); // = dist^0.5
+        return Math.pow(dx*dx + dy*dy, 0.25);
       }
       var t0 = 0;
       var t1 = t0 + Math.max(knot(p0, p1), 1e-4);
       var t2 = t1 + Math.max(knot(p1, p2), 1e-4);
       var t3 = t2 + Math.max(knot(p2, p3), 1e-4);
-      var u  = t1 + t * (t2 - t1); // map [0,1] → [t1,t2]
-      function lp(a, b, ta, tb) {  // linear interp at u
-        var r = (u - ta) / (tb - ta);
-        return [a[0] + r*(b[0]-a[0]), a[1] + r*(b[1]-a[1])];
-      }
-      // Barry-Goldman pyramid
-      var a1 = lp(p0,p1,t0,t1), a2 = lp(p1,p2,t1,t2), a3 = lp(p2,p3,t2,t3);
-      var b1 = lp(a1,a2,t0,t2), b2 = lp(a2,a3,t1,t3);
-      return lp(b1,b2,t1,t2);
+      var dt = t2 - t1;
+      // Centripetal CR derivative at p1 and p2 (w.r.t. knot parameter t)
+      var T1x = (p1[0]-p0[0])/(t1-t0) - (p2[0]-p0[0])/(t2-t0) + (p2[0]-p1[0])/dt;
+      var T1y = (p1[1]-p0[1])/(t1-t0) - (p2[1]-p0[1])/(t2-t0) + (p2[1]-p1[1])/dt;
+      var T2x = (p2[0]-p1[0])/dt - (p3[0]-p1[0])/(t3-t1) + (p3[0]-p2[0])/(t3-t2);
+      var T2y = (p2[1]-p1[1])/dt - (p3[1]-p1[1])/(t3-t1) + (p3[1]-p2[1])/(t3-t2);
+      // Cubic bezier control points: cp1 = p1 + T1*dt/3,  cp2 = p2 - T2*dt/3
+      return [
+        [p1[0] + T1x*dt/3, p1[1] + T1y*dt/3],
+        [p2[0] - T2x*dt/3, p2[1] - T2y*dt/3]
+      ];
     }
     var n = dedupPts.length;
     function wIdx(i) { return ((i % n) + n) % n; } // wrap index for closed loop
-    var first = crPoint(dedupPts[wIdx(-1)], dedupPts[0], dedupPts[wIdx(1)], dedupPts[wIdx(2)], 0);
-    var dPoly = 'M ' + svgX(first[0]) + ',' + svgY(first[1]);
+    var dPoly = 'M ' + svgX(dedupPts[0][0]) + ',' + svgY(dedupPts[0][1]);
     for (var k = 0; k < n; k++) {
       var p0 = dedupPts[wIdx(k - 1)];
       var p1 = dedupPts[wIdx(k)];
       var p2 = dedupPts[wIdx(k + 1)];
       var p3 = dedupPts[wIdx(k + 2)];
-      for (var s = 1; s <= SUBDIVISIONS; s++) {
-        var pt = crPoint(p0, p1, p2, p3, s / SUBDIVISIONS);
-        dPoly += ' L ' + svgX(pt[0]) + ',' + svgY(pt[1]);
-      }
+      var bz = crBezier(p0, p1, p2, p3);
+      dPoly += ' C ' + svgX(bz[0][0]) + ',' + svgY(bz[0][1]) +
+               ' '   + svgX(bz[1][0]) + ',' + svgY(bz[1][1]) +
+               ' '   + svgX(p2[0])    + ',' + svgY(p2[1]);
     }
     dPoly += ' Z';
     lines.push('  <path d="' + dPoly + '" stroke="#000000" stroke-width="0.8" />');
