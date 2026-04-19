@@ -1605,6 +1605,20 @@
         <div id="outline-status" class="status-line mini mt4 mb8">Ready</div>
       </div>
 
+      <!-- Outline Surface Grid Probe (full heightmap) -->
+      <div class="panel" data-panel-key="outline-surface-grid">
+        <div class="box-title">&#11835; Surface Grid Probe (Full Heightmap)</div>
+        <div class="callout mini" style="margin-bottom:10px">
+          Probes a full surface heightmap over the Outline bounds and stores the result as the global surface mesh.
+          After completion, DXF&nbsp;/&nbsp;OBJ&nbsp;/&nbsp;STL exports and Apply tab Z-compensation become available immediately without any extra steps.<br>
+          <em>Uses: X/Y bounds &amp; step sizes from <strong>Outline Search Bounds</strong>; Clear&nbsp;Z, Probe&nbsp;Down, Surface&nbsp;Probe&nbsp;Feed, Fast&nbsp;Feed from <strong>Probe Parameters</strong>.</em>
+        </div>
+        <div class="btn-row">
+          <button id="outline-grid-run-btn" class="btn" onclick="flashButton(this);runOutlineSurfaceGridProbe()">&#9660;&#9660; Run Surface Grid Probe</button>
+          <button id="outline-grid-stop-btn" class="btn warn" onclick="flashButton(this);stopOutlineScan()" disabled>&#9646;&#9646; Stop</button>
+        </div>
+      </div>
+
       <!-- Outline Results Summary -->
       <div class="panel" data-panel-key="outline-results">
         <div class="box-title">Outline Results Summary</div>

@@ -1832,6 +1832,20 @@
         <div id="outline-status" class="status-line mini mt4 mb8">Ready</div>
       </div>
 
+      <!-- Outline Surface Grid Probe (full heightmap) -->
+      <div class="panel" data-panel-key="outline-surface-grid">
+        <div class="box-title">&#11835; Surface Grid Probe (Full Heightmap)</div>
+        <div class="callout mini" style="margin-bottom:10px">
+          Probes a full surface heightmap over the Outline bounds and stores the result as the global surface mesh.
+          After completion, DXF&nbsp;/&nbsp;OBJ&nbsp;/&nbsp;STL exports and Apply tab Z-compensation become available immediately without any extra steps.<br>
+          <em>Uses: X/Y bounds &amp; step sizes from <strong>Outline Search Bounds</strong>; Clear&nbsp;Z, Probe&nbsp;Down, Surface&nbsp;Probe&nbsp;Feed, Fast&nbsp;Feed from <strong>Probe Parameters</strong>.</em>
+        </div>
+        <div class="btn-row">
+          <button id="outline-grid-run-btn" class="btn" onclick="flashButton(this);runOutlineSurfaceGridProbe()">&#9660;&#9660; Run Surface Grid Probe</button>
+          <button id="outline-grid-stop-btn" class="btn warn" onclick="flashButton(this);stopOutlineScan()" disabled>&#9646;&#9646; Stop</button>
+        </div>
+      </div>
+
       <!-- Outline Results Summary -->
       <div class="panel" data-panel-key="outline-results">
         <div class="box-title">Outline Results Summary</div>
@@ -11029,6 +11043,164 @@ async function runOutline360FaceProbe() {
     _outlineRunning  = false;
     _outlineStopFlag = false;
     _running         = false;
+  }
+}
+
+// ── Outline Surface Grid Probe (full heightmap over outline bounds) ────────────
+async function runOutlineSurfaceGridProbe() {
+  if (_outlineRunning) { outlineAppendLog('Already running.'); return; }
+  _outlineRunning  = true;
+  _outlineStopFlag = false;
+  _stopRequested   = false;
+  _running         = true;
+
+  var runBtn  = document.getElementById('outline-grid-run-btn');
+  var stopBtn = document.getElementById('outline-grid-stop-btn');
+  if (runBtn)  runBtn.disabled  = true;
+  if (stopBtn) stopBtn.disabled = false;
+
+  clearLog('outline');
+  outlineSetProgress(0);
+  outlineSetStatus('Surface grid probe running\u2026', '');
+  setFooterStatus('Outline surface grid probe running\u2026', '');
+
+  try {
+    var cfg = _outlineSettings();
+    if (cfg.xLen <= 0 || cfg.yLen <= 0) throw new Error('Outline bounds invalid (XLen/YLen must be > 0)');
+    if (cfg.xStep <= 0) cfg.xStep = 5;
+    if (cfg.yStep <= 0) cfg.yStep = 5;
+
+    var clearanceZ = cfg.clearZ;
+    var maxPlunge  = cfg.probeDown;
+    var probeFeed  = cfg.probeFeed;
+    var travelFeed = cfg.fastFeed;
+
+    // Sync meshSubdivisionSpacing from UI before using it
+    meshSubdivisionSpacing = (function() {
+      var el = document.getElementById('meshSubdivisionSpacing');
+      return el ? (Number(el.value) || meshSubdivisionSpacing) : meshSubdivisionSpacing;
+    })();
+
+    var gridCfg = {
+      minX:       cfg.x0,
+      maxX:       cfg.x0 + cfg.xLen,
+      colSpacing: cfg.xStep,
+      minY:       cfg.y0,
+      maxY:       cfg.y0 + cfg.yLen,
+      rowSpacing: cfg.yStep,
+      colCount:   Math.floor(cfg.xLen / cfg.xStep) + 1,
+      rowCount:   Math.floor(cfg.yLen / cfg.yStep) + 1
+    };
+
+    var totalPoints = gridCfg.colCount * gridCfg.rowCount;
+    var probed = 0;
+    var result = [];
+    for (var ri = 0; ri < gridCfg.rowCount; ri++) {
+      result.push([]);
+      for (var ci = 0; ci < gridCfg.colCount; ci++) result[ri].push(null);
+    }
+
+    outlineAppendLog('=== Outline Surface Grid Probe ===');
+    outlineAppendLog('Grid: ' + gridCfg.colCount + 'x' + gridCfg.rowCount + ' = ' + totalPoints + ' points');
+    outlineAppendLog('Bounds: X' + gridCfg.minX.toFixed(3) + '\u2192' + gridCfg.maxX.toFixed(3) +
+      '  Y' + gridCfg.minY.toFixed(3) + '\u2192' + gridCfg.maxY.toFixed(3));
+    outlineAppendLog('Settings: clearanceZ=' + clearanceZ + ' maxPlunge=' + maxPlunge +
+      ' probeFeed=' + probeFeed + ' travelFeed=' + travelFeed);
+
+    await requireStartupHomingPreflight('Outline Surface Grid Probe');
+
+    // Initial clearance lift (relative) before first probe point
+    outlineAppendLog('INITIAL LIFT: raising Z by ' + clearanceZ.toFixed(3) + ' coords relative');
+    await sendCommand('G91 G1 Z' + clearanceZ.toFixed(3) + ' F' + travelFeed);
+    await sleep(50);
+    await waitForIdleWithTimeout();
+    await sendCommand('G90');
+    await waitForIdleWithTimeout();
+
+    for (var row = 0; row < gridCfg.rowCount; row++) {
+      outlineCheckStop();
+      var rowY = gridCfg.minY + row * gridCfg.rowSpacing;
+      var reversed = (row % 2 !== 0);
+
+      for (var step = 0; step < gridCfg.colCount; step++) {
+        outlineCheckStop();
+        var col = reversed ? (gridCfg.colCount - 1 - step) : step;
+        var colX = gridCfg.minX + col * gridCfg.colSpacing;
+        outlineAppendLog('Probing [' + row + ',' + col + '] X' + colX.toFixed(3) + ' Y' + rowY.toFixed(3));
+
+        // Safe lateral move: lift Z, travel X/Y with travel-contact recovery
+        // Skip only the first step of row 1+ — row transition already placed machine there
+        if (!(step === 0 && row > 0)) {
+          await smSafeLateralMove(colX, rowY, travelFeed, clearanceZ);
+        }
+
+        // Ensure probe pin is not already triggered before plunging
+        await smEnsureProbeClear(clearanceZ, travelFeed);
+
+        // Plunge probe
+        var pos = await smPlungeProbe(maxPlunge, probeFeed);
+        result[row][col] = pos.z;
+        probed++;
+        outlineSetProgress(probed / totalPoints * 100);
+        outlineAppendLog('  -> Z=' + pos.z.toFixed(4));
+      }
+
+      // Row transition: position at start of next row
+      if (row + 1 < gridCfg.rowCount) {
+        outlineCheckStop();
+        var nextY = gridCfg.minY + (row + 1) * gridCfg.rowSpacing;
+        var nextStartX = reversed ? gridCfg.minX : gridCfg.maxX;
+        outlineAppendLog('ROW TRANSITION: row ' + row + ' done; moving to start of row ' + (row + 1) +
+          ' X=' + nextStartX.toFixed(3) + ' Y=' + nextY.toFixed(3));
+        await smSafeLateralMove(nextStartX, nextY, travelFeed, clearanceZ);
+        await smEnsureProbeClear(clearanceZ, travelFeed);
+      }
+    }
+
+    // Store results in the global surface mesh variables (same as Probe tab)
+    smMeshDataRaw   = result;
+    smGridConfigRaw = gridCfg;
+    var subdivided  = subdivideSurfaceMesh(result, gridCfg, meshSubdivisionSpacing);
+    smMeshData      = subdivided.grid;
+    smGridConfig    = subdivided.config;
+
+    outlineSetProgress(100);
+    outlineAppendLog('Surface grid probe complete! ' + probed + ' points captured.');
+    outlineSetStatus('Grid probe done \u2013 ' + probed + ' points', 'good');
+    setFooterStatus('Outline surface grid probe complete', 'good');
+
+    // Finish motion: retract Z and optionally return to X0 Y0
+    await finishRunMotion('outline');
+
+    // Persist mesh and refresh UI (enables DXF/OBJ/STL exports and Apply tab)
+    smSaveMeshToStorage();
+    try { updateSurfaceMeshUI(); }    catch(e) { console.warn('updateSurfaceMeshUI error (non-fatal):', e); }
+    try { populateSurfaceResults(); } catch(e) { console.warn('populateSurfaceResults error (non-fatal):', e); }
+
+  } catch(e) {
+    var msg;
+    if (e && e.message) { msg = e.message; }
+    else if (e == null)  { msg = 'Unknown error'; }
+    else                 { msg = String(e); }
+    if (msg === 'STOP_REQUESTED' || msg === 'Stopped by user') {
+      outlineAppendLog('Stopped by user.');
+      outlineSetStatus('Stopped', 'warn');
+      setFooterStatus('Outline grid probe stopped', 'warn');
+    } else {
+      outlineAppendLog('ERROR: ' + msg);
+      outlineSetStatus('Error: ' + msg, 'error');
+      setFooterStatus('Outline grid probe error: ' + msg, 'error');
+      console.error('Outline surface grid probe error:', e);
+    }
+    await _outlineSafetyRetract();
+  } finally {
+    _outlineRunning  = false;
+    _outlineStopFlag = false;
+    _running         = false;
+    var runBtnF  = document.getElementById('outline-grid-run-btn');
+    var stopBtnF = document.getElementById('outline-grid-stop-btn');
+    if (runBtnF)  runBtnF.disabled  = false;
+    if (stopBtnF) stopBtnF.disabled = true;
   }
 }
 
