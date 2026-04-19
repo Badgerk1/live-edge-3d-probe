@@ -842,6 +842,49 @@ function drawOutlineCanvas() {
   }
 }
 
+// ── Set WCS zero to absolute centre of outline ────────────
+async function setWCSToCentre() {
+  if (outlineRowResults.length === 0 && outlineColResults.length === 0) {
+    outlineAppendLog('No outline data — run Outline Scan first.');
+    outlineSetStatus('No outline data – run Outline Scan first', 'warn');
+    return;
+  }
+
+  var allX = [], allY = [];
+  outlineRowResults.forEach(function(r) {
+    if (r.hasLeft  && r.xLeft  !== null) { allX.push(r.xLeft);  allY.push(r.y); }
+    if (r.hasRight && r.xRight !== null) { allX.push(r.xRight); allY.push(r.y); }
+  });
+  outlineColResults.forEach(function(c) {
+    if (c.hasBottom && c.yBottom !== null) { allX.push(c.x); allY.push(c.yBottom); }
+    if (c.hasTop    && c.yTop    !== null) { allX.push(c.x); allY.push(c.yTop); }
+  });
+
+  if (allX.length === 0) {
+    outlineAppendLog('No valid edge points to compute centre.');
+    return;
+  }
+
+  var xMin = Math.min.apply(null, allX);
+  var xMax = Math.max.apply(null, allX);
+  var yMin = Math.min.apply(null, allY);
+  var yMax = Math.max.apply(null, allY);
+  var cx = (xMin + xMax) / 2;
+  var cy = (yMin + yMax) / 2;
+
+  var cmd = 'G10 L20 P1 X' + cx.toFixed(3) + ' Y' + cy.toFixed(3);
+  outlineAppendLog('Set WCS zero to outline centre: ' + cmd);
+  try {
+    await sendCommand(cmd);
+    outlineAppendLog('WCS X/Y zeroed at centre X=' + cx.toFixed(3) + ' Y=' + cy.toFixed(3));
+    outlineSetStatus('WCS zeroed at centre X=' + cx.toFixed(3) + ' Y=' + cy.toFixed(3), 'good');
+    setFooterStatus('WCS X/Y set to outline centre', 'good');
+  } catch(e) {
+    outlineAppendLog('ERROR setting WCS: ' + e.message);
+    outlineSetStatus('Error setting WCS: ' + e.message, 'error');
+  }
+}
+
 // ── Export SVG ────────────────────────────────────────────
 function exportOutlineSVG() {
   if (outlineRowResults.length === 0 && outlineColResults.length === 0) {

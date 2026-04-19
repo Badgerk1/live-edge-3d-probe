@@ -809,6 +809,42 @@ function _outlineUpdateResultsSummary() {
   if (s2) s2.textContent = msg;
   var panel = document.getElementById('res-outline-panel');
   if (panel) panel.style.display = (rows > 0 || cols > 0) ? '' : 'none';
+
+  // Compute and display bounding-box absolute centre from probed edge points
+  var centreEl = document.getElementById('outline-centre-display');
+  var centreBtn = document.getElementById('btn-outline-set-wcs-centre');
+  if (rows > 0 || cols > 0) {
+    var allX = [], allY = [];
+    if (typeof outlineRowResults !== 'undefined') {
+      outlineRowResults.forEach(function(r) {
+        if (r.hasLeft  && r.xLeft  !== null) { allX.push(r.xLeft);  allY.push(r.y); }
+        if (r.hasRight && r.xRight !== null) { allX.push(r.xRight); allY.push(r.y); }
+      });
+    }
+    if (typeof outlineColResults !== 'undefined') {
+      outlineColResults.forEach(function(c) {
+        if (c.hasBottom && c.yBottom !== null) { allX.push(c.x); allY.push(c.yBottom); }
+        if (c.hasTop    && c.yTop    !== null) { allX.push(c.x); allY.push(c.yTop); }
+      });
+    }
+    if (allX.length > 0) {
+      var xMin = Math.min.apply(null, allX);
+      var xMax = Math.max.apply(null, allX);
+      var yMin = Math.min.apply(null, allY);
+      var yMax = Math.max.apply(null, allY);
+      var cx = (xMin + xMax) / 2;
+      var cy = (yMin + yMax) / 2;
+      if (centreEl) {
+        centreEl.textContent = 'Centre  X=' + cx.toFixed(3) + '  Y=' + cy.toFixed(3) +
+          '   (Width=' + (xMax - xMin).toFixed(3) + '  Height=' + (yMax - yMin).toFixed(3) + ')';
+        centreEl.style.color = 'var(--accent2)';
+      }
+      if (centreBtn) centreBtn.style.display = '';
+    }
+  } else {
+    if (centreEl) { centreEl.textContent = ''; }
+    if (centreBtn) centreBtn.style.display = 'none';
+  }
 }
 
 function updateOutlineProbeCenter() {
