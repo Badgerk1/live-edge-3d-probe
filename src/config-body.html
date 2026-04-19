@@ -1574,6 +1574,12 @@
             <label><span class="tooltip">Probe Down (coords)<span class="tip-icon">?</span><span class="tip">Maximum downward plunge depth for the center surface probe.</span></span></label>
             <input type="number" id="outlineProbeDown" value="5" step="0.5" min="0.5">
           </div>
+          <div class="field" style="grid-column:1 / -1">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+              <input type="checkbox" id="outlineSkipSurfaceProbe" style="width:auto;margin:0">
+              <span><span class="tooltip">Skip Surface Probe<span class="tip-icon">?</span><span class="tip">When enabled, skips the surface step-probe phase after finding the first (near) edge. Instead the scan travels directly to the far end of the row/column and back-probes to find the opposing edge. Faster for workpieces with predictable far-edge positions. Overshoot, Z Step Probe Depth and Surface Probe Feed are not used in this mode.</span></span></span>
+            </label>
+          </div>
         </div>
         <div class="btn-row" style="margin-top:10px">
           <button class="btn ghost" onclick="flashSaveButton(this);saveSettings()">&#128190; Save Settings</button>

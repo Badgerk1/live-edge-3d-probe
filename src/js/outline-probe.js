@@ -53,25 +53,27 @@ function recoverOutlineLog() {
 // ── Read outline settings ─────────────────────────────────
 function _outlineSettings() {
   function gn(id, def) { var el = document.getElementById(id); if (!el) return def; var v = Number(el.value); return isNaN(v) ? def : v; }
+  function gb(id) { var el = document.getElementById(id); return el ? el.checked : false; }
   return {
-    x0:           gn('outlineX0',          0),
-    xLen:         gn('outlineXLen',        100),
-    y0:           gn('outlineY0',          0),
-    yLen:         gn('outlineYLen',        100),
-    yStep:        gn('outlineYStep',       5),
-    xStep:        gn('outlineXStep',       5),
-    faceDepth:    gn('outlineFaceDepth',   3),
-    faceFeed:     gn('outlineFaceFeed',    200),
-    retractAbove: gn('outlineRetractAbove',2),
-    overshoot:    gn('outlineOvershoot',   2),
-    approachDist: gn('outlineApproachDist',10),
-    safeTravelZ:  gn('outlineSafeTravelZ', 10),
-    zStepDepth:   gn('outlineZStepDepth',  5),
-    probeFeed:    gn('outlineProbeFeed',   200),
-    fastFeed:     gn('outlineFastFeed',    800),
-    retractFeed:  gn('outlineRetractFeed', 600),
-    clearZ:       gn('outlineClearZ',      5),
-    probeDown:    gn('outlineProbeDown',   5)
+    x0:                gn('outlineX0',               0),
+    xLen:              gn('outlineXLen',             100),
+    y0:                gn('outlineY0',               0),
+    yLen:              gn('outlineYLen',             100),
+    yStep:             gn('outlineYStep',            5),
+    xStep:             gn('outlineXStep',            5),
+    faceDepth:         gn('outlineFaceDepth',        3),
+    faceFeed:          gn('outlineFaceFeed',         200),
+    retractAbove:      gn('outlineRetractAbove',     2),
+    overshoot:         gn('outlineOvershoot',        2),
+    approachDist:      gn('outlineApproachDist',     10),
+    safeTravelZ:       gn('outlineSafeTravelZ',      10),
+    zStepDepth:        gn('outlineZStepDepth',       5),
+    probeFeed:         gn('outlineProbeFeed',        200),
+    fastFeed:          gn('outlineFastFeed',         800),
+    retractFeed:       gn('outlineRetractFeed',      600),
+    clearZ:            gn('outlineClearZ',           5),
+    probeDown:         gn('outlineProbeDown',        5),
+    skipSurfaceProbe:  gb('outlineSkipSurfaceProbe')
   };
 }
 
@@ -324,76 +326,105 @@ async function _runRowScan(cfg, surfZ) {
     var xLeft = edgePos.x;
     outlineAppendLog('Row Y=' + rowY.toFixed(3) + ' Left edge TRIGGERED at X=' + xLeft.toFixed(3) + ' Z=' + edgePos.z.toFixed(3));
 
-    // 4. Back off -X from trigger
-    var backoffX = xLeft - 2;
-    outlineAppendLog('TRAVEL: backoff -X to X=' + backoffX.toFixed(3) + ' at F' + cfg.fastFeed);
-    await sendCommand('G90 G1 X' + backoffX.toFixed(3) + ' F' + cfg.fastFeed.toFixed(0));
-    await sleep(50);
-    await waitForIdleWithTimeout(30000);
+    var xRight = null;
 
-    // 5. Retract Z above surface
-    outlineAppendLog('RETRACT: Z to clearZ=' + clearZ.toFixed(3) + ' at F' + cfg.retractFeed);
-    await smRetractToZ(clearZ, cfg.retractFeed);
+    if (cfg.skipSurfaceProbe) {
+      // ── Skip Surface Probe mode ──────────────────────────────────────────────
+      // Retract to safe travel Z, go directly to the far end of the row, lower,
+      // then back-probe -X to find the opposing (right) edge.
+      outlineAppendLog('SKIP SURFACE PROBE: retracting to safeTravelZ=' + safeTravelZ.toFixed(3) + ' and travelling to row far end.');
+      await smRetractToZ(safeTravelZ, cfg.retractFeed);
 
-    // 6. Move +X past trigger by overshoot (now on top of wood)
-    var overshootX = xLeft + cfg.overshoot;
-    outlineAppendLog('TRAVEL: overshoot to X=' + overshootX.toFixed(3) + ' Y=' + rowY.toFixed(3) + ' at F' + cfg.fastFeed);
-    await _outlineAbsTravel(overshootX, rowY, clearZ, cfg.fastFeed, cfg.retractFeed);
+      var skipReverseX = cfg.x0 + cfg.xLen + cfg.approachDist;
+      outlineAppendLog('SKIP SURFACE PROBE: TRAVEL to X=' + skipReverseX.toFixed(3) + ' Y=' + rowY.toFixed(3) + ' at F' + cfg.fastFeed);
+      await _outlineAbsTravel(skipReverseX, rowY, safeTravelZ, cfg.fastFeed, cfg.retractFeed);
 
-    // 7. Step +X across surface, plunge Z at each step until 2 consecutive misses
-    var xRight    = null;
-    var missCount = 0;
-    var scanX     = overshootX;
-    var scanStep  = Math.max(1, cfg.xStep / 2);
-    var lastHitX  = overshootX;
-    outlineAppendLog('Row Y=' + rowY.toFixed(3) + ' stepping +X from X=' + scanX.toFixed(3) + ' step=' + scanStep.toFixed(3));
+      outlineAppendLog('SKIP SURFACE PROBE: LOWER Z to faceZ=' + faceZ.toFixed(3) + ' at F' + cfg.retractFeed);
+      await _outlineMoveToZ(faceZ, cfg.retractFeed);
 
-    while (scanX <= cfg.x0 + cfg.xLen + cfg.approachDist + 1e-9) {
-      outlineCheckStop();
-      outlineAppendLog('TRAVEL: step to X=' + scanX.toFixed(3) + ' Y=' + rowY.toFixed(3) + ' at F' + cfg.fastFeed);
-      await _outlineAbsTravel(scanX, rowY, clearZ, cfg.fastFeed, cfg.retractFeed);
+      var skipRightEdgePos = await _probeHorizEdge('X', xLeft - 1, cfg.faceFeed, safeTravelZ);
+      if (skipRightEdgePos.probeTriggered) {
+        xRight = skipRightEdgePos.x;
+        outlineAppendLog('SKIP SURFACE PROBE: Row Y=' + rowY.toFixed(3) + ' Right edge TRIGGERED at X=' + xRight.toFixed(3) + ' Z=' + skipRightEdgePos.z.toFixed(3));
+      } else {
+        outlineAppendLog('SKIP SURFACE PROBE: Row Y=' + rowY.toFixed(3) + ' Right edge not found from far end.');
+      }
 
-      var stepResult = await _surfStepProbe(cfg.retractAbove + cfg.zStepDepth, cfg.probeFeed);
-      outlineAppendLog('Row Y=' + rowY.toFixed(3) + ' surface step X=' + scanX.toFixed(3) +
-        ' Z=' + stepResult.z.toFixed(3) + ' triggered=' + stepResult.triggered);
+      outlineAppendLog('RETRACT: Z to safeTravelZ=' + safeTravelZ.toFixed(3) + ' at F' + cfg.retractFeed);
+      await smRetractToZ(safeTravelZ, cfg.retractFeed);
 
+    } else {
+      // ── Standard surface step mode ───────────────────────────────────────────
+      // 4. Back off -X from trigger
+      var backoffX = xLeft - 2;
+      outlineAppendLog('TRAVEL: backoff -X to X=' + backoffX.toFixed(3) + ' at F' + cfg.fastFeed);
+      await sendCommand('G90 G1 X' + backoffX.toFixed(3) + ' F' + cfg.fastFeed.toFixed(0));
+      await sleep(50);
+      await waitForIdleWithTimeout(30000);
+
+      // 5. Retract Z above surface
       outlineAppendLog('RETRACT: Z to clearZ=' + clearZ.toFixed(3) + ' at F' + cfg.retractFeed);
       await smRetractToZ(clearZ, cfg.retractFeed);
 
-      if (stepResult.triggered) {
-        missCount = 0;
-        lastHitX  = scanX;
-      } else {
-        missCount++;
-        outlineAppendLog('Row Y=' + rowY.toFixed(3) + ' miss #' + missCount + ' at X=' + scanX.toFixed(3));
-        if (missCount >= 2) {
-          outlineAppendLog('Row Y=' + rowY.toFixed(3) + ' off-part confirmed. Last hit X=' + lastHitX.toFixed(3));
-          break;
+      // 6. Move +X past trigger by overshoot (now on top of wood)
+      var overshootX = xLeft + cfg.overshoot;
+      outlineAppendLog('TRAVEL: overshoot to X=' + overshootX.toFixed(3) + ' Y=' + rowY.toFixed(3) + ' at F' + cfg.fastFeed);
+      await _outlineAbsTravel(overshootX, rowY, clearZ, cfg.fastFeed, cfg.retractFeed);
+
+      // 7. Step +X across surface, plunge Z at each step until 2 consecutive misses
+      var missCount = 0;
+      var scanX     = overshootX;
+      var scanStep  = Math.max(1, cfg.xStep / 2);
+      var lastHitX  = overshootX;
+      outlineAppendLog('Row Y=' + rowY.toFixed(3) + ' stepping +X from X=' + scanX.toFixed(3) + ' step=' + scanStep.toFixed(3));
+
+      while (scanX <= cfg.x0 + cfg.xLen + cfg.approachDist + 1e-9) {
+        outlineCheckStop();
+        outlineAppendLog('TRAVEL: step to X=' + scanX.toFixed(3) + ' Y=' + rowY.toFixed(3) + ' at F' + cfg.fastFeed);
+        await _outlineAbsTravel(scanX, rowY, clearZ, cfg.fastFeed, cfg.retractFeed);
+
+        var stepResult = await _surfStepProbe(cfg.retractAbove + cfg.zStepDepth, cfg.probeFeed);
+        outlineAppendLog('Row Y=' + rowY.toFixed(3) + ' surface step X=' + scanX.toFixed(3) +
+          ' Z=' + stepResult.z.toFixed(3) + ' triggered=' + stepResult.triggered);
+
+        outlineAppendLog('RETRACT: Z to clearZ=' + clearZ.toFixed(3) + ' at F' + cfg.retractFeed);
+        await smRetractToZ(clearZ, cfg.retractFeed);
+
+        if (stepResult.triggered) {
+          missCount = 0;
+          lastHitX  = scanX;
+        } else {
+          missCount++;
+          outlineAppendLog('Row Y=' + rowY.toFixed(3) + ' miss #' + missCount + ' at X=' + scanX.toFixed(3));
+          if (missCount >= 2) {
+            outlineAppendLog('Row Y=' + rowY.toFixed(3) + ' off-part confirmed. Last hit X=' + lastHitX.toFixed(3));
+            break;
+          }
         }
+        scanX += scanStep;
       }
-      scanX += scanStep;
+
+      // 8. Reverse probe -X for exact right edge
+      var reverseStartX = Math.min(lastHitX + scanStep * 2, cfg.x0 + cfg.xLen + cfg.approachDist);
+      outlineAppendLog('TRAVEL: reverse probe start X=' + reverseStartX.toFixed(3) + ' at F' + cfg.fastFeed);
+      await _outlineAbsTravel(reverseStartX, rowY, safeTravelZ, cfg.fastFeed, cfg.retractFeed);
+
+      outlineAppendLog('LOWER: Z to faceZ=' + faceZ.toFixed(3) + ' at F' + cfg.retractFeed);
+      await _outlineMoveToZ(faceZ, cfg.retractFeed);
+
+      var rightEdgePos = await _probeHorizEdge('X', xLeft - 1, cfg.faceFeed, safeTravelZ);
+      if (rightEdgePos.probeTriggered) {
+        xRight = rightEdgePos.x;
+        outlineAppendLog('Row Y=' + rowY.toFixed(3) + ' Right edge TRIGGERED at X=' + xRight.toFixed(3) + ' Z=' + rightEdgePos.z.toFixed(3));
+      } else {
+        xRight = lastHitX;
+        outlineAppendLog('Row Y=' + rowY.toFixed(3) + ' Right edge not confirmed, using lastHitX=' + xRight.toFixed(3));
+      }
+
+      // 9. Retract to safeTravelZ
+      outlineAppendLog('RETRACT: Z to safeTravelZ=' + safeTravelZ.toFixed(3) + ' at F' + cfg.retractFeed);
+      await smRetractToZ(safeTravelZ, cfg.retractFeed);
     }
-
-    // 8. Reverse probe -X for exact right edge
-    var reverseStartX = Math.min(lastHitX + scanStep * 2, cfg.x0 + cfg.xLen + cfg.approachDist);
-    outlineAppendLog('TRAVEL: reverse probe start X=' + reverseStartX.toFixed(3) + ' at F' + cfg.fastFeed);
-    await _outlineAbsTravel(reverseStartX, rowY, safeTravelZ, cfg.fastFeed, cfg.retractFeed);
-
-    outlineAppendLog('LOWER: Z to faceZ=' + faceZ.toFixed(3) + ' at F' + cfg.retractFeed);
-    await _outlineMoveToZ(faceZ, cfg.retractFeed);
-
-    var rightEdgePos = await _probeHorizEdge('X', xLeft - 1, cfg.faceFeed, safeTravelZ);
-    if (rightEdgePos.probeTriggered) {
-      xRight = rightEdgePos.x;
-      outlineAppendLog('Row Y=' + rowY.toFixed(3) + ' Right edge TRIGGERED at X=' + xRight.toFixed(3) + ' Z=' + rightEdgePos.z.toFixed(3));
-    } else {
-      xRight = lastHitX;
-      outlineAppendLog('Row Y=' + rowY.toFixed(3) + ' Right edge not confirmed, using lastHitX=' + xRight.toFixed(3));
-    }
-
-    // 9. Retract to safeTravelZ
-    outlineAppendLog('RETRACT: Z to safeTravelZ=' + safeTravelZ.toFixed(3) + ' at F' + cfg.retractFeed);
-    await smRetractToZ(safeTravelZ, cfg.retractFeed);
 
     outlineRowResults.push({ y: rowY, xLeft: xLeft, xRight: xRight, hasLeft: true, hasRight: xRight !== null });
     var rowMs = Date.now() - rowStart;
@@ -451,76 +482,105 @@ async function _runColScan(cfg, surfZ) {
     var yBottom = edgePos.y;
     outlineAppendLog('Col X=' + colX.toFixed(3) + ' Bottom edge TRIGGERED at Y=' + yBottom.toFixed(3) + ' Z=' + edgePos.z.toFixed(3));
 
-    // 4. Back off -Y from trigger
-    var backoffY = yBottom - 2;
-    outlineAppendLog('TRAVEL: backoff -Y to Y=' + backoffY.toFixed(3) + ' at F' + cfg.fastFeed);
-    await sendCommand('G90 G1 Y' + backoffY.toFixed(3) + ' F' + cfg.fastFeed.toFixed(0));
-    await sleep(50);
-    await waitForIdleWithTimeout(30000);
+    var yTop = null;
 
-    // 5. Retract Z above surface
-    outlineAppendLog('RETRACT: Z to clearZ=' + clearZ.toFixed(3) + ' at F' + cfg.retractFeed);
-    await smRetractToZ(clearZ, cfg.retractFeed);
+    if (cfg.skipSurfaceProbe) {
+      // ── Skip Surface Probe mode ──────────────────────────────────────────────
+      // Retract to safe travel Z, go directly to the far end of the column, lower,
+      // then back-probe -Y to find the opposing (top) edge.
+      outlineAppendLog('SKIP SURFACE PROBE: retracting to safeTravelZ=' + safeTravelZ.toFixed(3) + ' and travelling to col far end.');
+      await smRetractToZ(safeTravelZ, cfg.retractFeed);
 
-    // 6. Move +Y past bottom edge by overshoot
-    var overshootY = yBottom + cfg.overshoot;
-    outlineAppendLog('TRAVEL: overshoot to X=' + colX.toFixed(3) + ' Y=' + overshootY.toFixed(3) + ' at F' + cfg.fastFeed);
-    await _outlineAbsTravel(colX, overshootY, clearZ, cfg.fastFeed, cfg.retractFeed);
+      var skipReverseY = cfg.y0 + cfg.yLen + cfg.approachDist;
+      outlineAppendLog('SKIP SURFACE PROBE: TRAVEL to X=' + colX.toFixed(3) + ' Y=' + skipReverseY.toFixed(3) + ' at F' + cfg.fastFeed);
+      await _outlineAbsTravel(colX, skipReverseY, safeTravelZ, cfg.fastFeed, cfg.retractFeed);
 
-    // 7. Step +Y across surface, plunge Z at each step until 2 consecutive misses
-    var yTop      = null;
-    var missCount = 0;
-    var scanY     = overshootY;
-    var scanStep  = Math.max(1, cfg.yStep / 2);
-    var lastHitY  = overshootY;
-    outlineAppendLog('Col X=' + colX.toFixed(3) + ' stepping +Y from Y=' + scanY.toFixed(3) + ' step=' + scanStep.toFixed(3));
+      outlineAppendLog('SKIP SURFACE PROBE: LOWER Z to faceZ=' + faceZ.toFixed(3) + ' at F' + cfg.retractFeed);
+      await _outlineMoveToZ(faceZ, cfg.retractFeed);
 
-    while (scanY <= cfg.y0 + cfg.yLen + cfg.approachDist + 1e-9) {
-      outlineCheckStop();
-      outlineAppendLog('TRAVEL: step to X=' + colX.toFixed(3) + ' Y=' + scanY.toFixed(3) + ' at F' + cfg.fastFeed);
-      await _outlineAbsTravel(colX, scanY, clearZ, cfg.fastFeed, cfg.retractFeed);
+      var skipTopEdgePos = await _probeHorizEdge('Y', yBottom - 1, cfg.faceFeed, safeTravelZ);
+      if (skipTopEdgePos.probeTriggered) {
+        yTop = skipTopEdgePos.y;
+        outlineAppendLog('SKIP SURFACE PROBE: Col X=' + colX.toFixed(3) + ' Top edge TRIGGERED at Y=' + yTop.toFixed(3) + ' Z=' + skipTopEdgePos.z.toFixed(3));
+      } else {
+        outlineAppendLog('SKIP SURFACE PROBE: Col X=' + colX.toFixed(3) + ' Top edge not found from far end.');
+      }
 
-      var stepResult = await _surfStepProbe(cfg.retractAbove + cfg.zStepDepth, cfg.probeFeed);
-      outlineAppendLog('Col X=' + colX.toFixed(3) + ' surface step Y=' + scanY.toFixed(3) +
-        ' Z=' + stepResult.z.toFixed(3) + ' triggered=' + stepResult.triggered);
+      outlineAppendLog('RETRACT: Z to safeTravelZ=' + safeTravelZ.toFixed(3) + ' at F' + cfg.retractFeed);
+      await smRetractToZ(safeTravelZ, cfg.retractFeed);
 
+    } else {
+      // ── Standard surface step mode ───────────────────────────────────────────
+      // 4. Back off -Y from trigger
+      var backoffY = yBottom - 2;
+      outlineAppendLog('TRAVEL: backoff -Y to Y=' + backoffY.toFixed(3) + ' at F' + cfg.fastFeed);
+      await sendCommand('G90 G1 Y' + backoffY.toFixed(3) + ' F' + cfg.fastFeed.toFixed(0));
+      await sleep(50);
+      await waitForIdleWithTimeout(30000);
+
+      // 5. Retract Z above surface
       outlineAppendLog('RETRACT: Z to clearZ=' + clearZ.toFixed(3) + ' at F' + cfg.retractFeed);
       await smRetractToZ(clearZ, cfg.retractFeed);
 
-      if (stepResult.triggered) {
-        missCount = 0;
-        lastHitY  = scanY;
-      } else {
-        missCount++;
-        outlineAppendLog('Col X=' + colX.toFixed(3) + ' miss #' + missCount + ' at Y=' + scanY.toFixed(3));
-        if (missCount >= 2) {
-          outlineAppendLog('Col X=' + colX.toFixed(3) + ' off-part confirmed. Last hit Y=' + lastHitY.toFixed(3));
-          break;
+      // 6. Move +Y past bottom edge by overshoot
+      var overshootY = yBottom + cfg.overshoot;
+      outlineAppendLog('TRAVEL: overshoot to X=' + colX.toFixed(3) + ' Y=' + overshootY.toFixed(3) + ' at F' + cfg.fastFeed);
+      await _outlineAbsTravel(colX, overshootY, clearZ, cfg.fastFeed, cfg.retractFeed);
+
+      // 7. Step +Y across surface, plunge Z at each step until 2 consecutive misses
+      var missCount = 0;
+      var scanY     = overshootY;
+      var scanStep  = Math.max(1, cfg.yStep / 2);
+      var lastHitY  = overshootY;
+      outlineAppendLog('Col X=' + colX.toFixed(3) + ' stepping +Y from Y=' + scanY.toFixed(3) + ' step=' + scanStep.toFixed(3));
+
+      while (scanY <= cfg.y0 + cfg.yLen + cfg.approachDist + 1e-9) {
+        outlineCheckStop();
+        outlineAppendLog('TRAVEL: step to X=' + colX.toFixed(3) + ' Y=' + scanY.toFixed(3) + ' at F' + cfg.fastFeed);
+        await _outlineAbsTravel(colX, scanY, clearZ, cfg.fastFeed, cfg.retractFeed);
+
+        var stepResult = await _surfStepProbe(cfg.retractAbove + cfg.zStepDepth, cfg.probeFeed);
+        outlineAppendLog('Col X=' + colX.toFixed(3) + ' surface step Y=' + scanY.toFixed(3) +
+          ' Z=' + stepResult.z.toFixed(3) + ' triggered=' + stepResult.triggered);
+
+        outlineAppendLog('RETRACT: Z to clearZ=' + clearZ.toFixed(3) + ' at F' + cfg.retractFeed);
+        await smRetractToZ(clearZ, cfg.retractFeed);
+
+        if (stepResult.triggered) {
+          missCount = 0;
+          lastHitY  = scanY;
+        } else {
+          missCount++;
+          outlineAppendLog('Col X=' + colX.toFixed(3) + ' miss #' + missCount + ' at Y=' + scanY.toFixed(3));
+          if (missCount >= 2) {
+            outlineAppendLog('Col X=' + colX.toFixed(3) + ' off-part confirmed. Last hit Y=' + lastHitY.toFixed(3));
+            break;
+          }
         }
+        scanY += scanStep;
       }
-      scanY += scanStep;
+
+      // 8. Reverse probe -Y for exact top edge
+      var reverseStartY = Math.min(lastHitY + scanStep * 2, cfg.y0 + cfg.yLen + cfg.approachDist);
+      outlineAppendLog('TRAVEL: reverse probe start Y=' + reverseStartY.toFixed(3) + ' at F' + cfg.fastFeed);
+      await _outlineAbsTravel(colX, reverseStartY, safeTravelZ, cfg.fastFeed, cfg.retractFeed);
+
+      outlineAppendLog('LOWER: Z to faceZ=' + faceZ.toFixed(3) + ' at F' + cfg.retractFeed);
+      await _outlineMoveToZ(faceZ, cfg.retractFeed);
+
+      var topEdgePos = await _probeHorizEdge('Y', yBottom - 1, cfg.faceFeed, safeTravelZ);
+      if (topEdgePos.probeTriggered) {
+        yTop = topEdgePos.y;
+        outlineAppendLog('Col X=' + colX.toFixed(3) + ' Top edge TRIGGERED at Y=' + yTop.toFixed(3) + ' Z=' + topEdgePos.z.toFixed(3));
+      } else {
+        yTop = lastHitY;
+        outlineAppendLog('Col X=' + colX.toFixed(3) + ' Top edge not confirmed, using lastHitY=' + yTop.toFixed(3));
+      }
+
+      // 9. Retract to safeTravelZ
+      outlineAppendLog('RETRACT: Z to safeTravelZ=' + safeTravelZ.toFixed(3) + ' at F' + cfg.retractFeed);
+      await smRetractToZ(safeTravelZ, cfg.retractFeed);
     }
-
-    // 8. Reverse probe -Y for exact top edge
-    var reverseStartY = Math.min(lastHitY + scanStep * 2, cfg.y0 + cfg.yLen + cfg.approachDist);
-    outlineAppendLog('TRAVEL: reverse probe start Y=' + reverseStartY.toFixed(3) + ' at F' + cfg.fastFeed);
-    await _outlineAbsTravel(colX, reverseStartY, safeTravelZ, cfg.fastFeed, cfg.retractFeed);
-
-    outlineAppendLog('LOWER: Z to faceZ=' + faceZ.toFixed(3) + ' at F' + cfg.retractFeed);
-    await _outlineMoveToZ(faceZ, cfg.retractFeed);
-
-    var topEdgePos = await _probeHorizEdge('Y', yBottom - 1, cfg.faceFeed, safeTravelZ);
-    if (topEdgePos.probeTriggered) {
-      yTop = topEdgePos.y;
-      outlineAppendLog('Col X=' + colX.toFixed(3) + ' Top edge TRIGGERED at Y=' + yTop.toFixed(3) + ' Z=' + topEdgePos.z.toFixed(3));
-    } else {
-      yTop = lastHitY;
-      outlineAppendLog('Col X=' + colX.toFixed(3) + ' Top edge not confirmed, using lastHitY=' + yTop.toFixed(3));
-    }
-
-    // 9. Retract to safeTravelZ
-    outlineAppendLog('RETRACT: Z to safeTravelZ=' + safeTravelZ.toFixed(3) + ' at F' + cfg.retractFeed);
-    await smRetractToZ(safeTravelZ, cfg.retractFeed);
 
     outlineColResults.push({ x: colX, yBottom: yBottom, yTop: yTop, hasBottom: true, hasTop: yTop !== null });
     var colMs = Date.now() - colStart;
