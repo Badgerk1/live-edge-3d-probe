@@ -1599,6 +1599,17 @@
         <div id="outline-status" class="status-line mini mt4 mb8">Ready</div>
       </div>
 
+      <!-- Outline Results Summary -->
+      <div class="panel" data-panel-key="outline-results">
+        <div class="box-title">Outline Results Summary</div>
+        <div class="mini" id="outline-results-summary" style="color:var(--muted)">No outline data yet. Run Outline Scan first.</div>
+        <div class="mini mt4" id="outline-centre-display" style="font-weight:600"></div>
+        <div class="btn-row" style="margin-top:10px">
+          <button id="btn-outline-move-centre" class="btn ghost" style="display:none" onclick="flashButton(this);moveToCentre()">&#8982; Move to Centre</button>
+          <button id="btn-outline-set-wcs-centre" class="btn" style="display:none" onclick="flashButton(this);setWCSToCentre()">&#8853; Set WCS Zero to Centre</button>
+        </div>
+      </div>
+
       <!-- Outline Preview Canvas -->
       <div class="panel" data-panel-key="outline-preview">
         <div class="box-title">Outline Preview</div>
@@ -1618,16 +1629,6 @@
           <button class="btn ghost" onclick="flashButton(this);recoverOutlineLog()">&#128269; Recover Last Log</button>
         </div>
         <div id="outline-log" class="log-area mono"></div>
-      </div>
-
-      <!-- Outline Results Summary -->
-      <div class="panel" data-panel-key="outline-results">
-        <div class="box-title">Outline Results Summary</div>
-        <div class="mini" id="outline-results-summary" style="color:var(--muted)">No outline data yet. Run Outline Scan first.</div>
-        <div class="mini mt4" id="outline-centre-display" style="font-weight:600"></div>
-        <div class="btn-row" style="margin-top:10px">
-          <button id="btn-outline-set-wcs-centre" class="btn" style="display:none" onclick="flashButton(this);setWCSToCentre()">&#8853; Set WCS Zero to Centre</button>
-        </div>
       </div>
 
     </div><!-- /pane-outline -->

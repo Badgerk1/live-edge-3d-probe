@@ -842,6 +842,52 @@ function drawOutlineCanvas() {
   }
 }
 
+// ── Move probe to absolute centre of outline ──────────────
+async function moveToCentre() {
+  if (outlineRowResults.length === 0 && outlineColResults.length === 0) {
+    outlineAppendLog('No outline data — run Outline Scan first.');
+    outlineSetStatus('No outline data – run Outline Scan first', 'warn');
+    return;
+  }
+
+  var allX = [], allY = [];
+  outlineRowResults.forEach(function(r) {
+    if (r.hasLeft  && r.xLeft  !== null) { allX.push(r.xLeft);  allY.push(r.y); }
+    if (r.hasRight && r.xRight !== null) { allX.push(r.xRight); allY.push(r.y); }
+  });
+  outlineColResults.forEach(function(c) {
+    if (c.hasBottom && c.yBottom !== null) { allX.push(c.x); allY.push(c.yBottom); }
+    if (c.hasTop    && c.yTop    !== null) { allX.push(c.x); allY.push(c.yTop); }
+  });
+
+  if (allX.length === 0) {
+    outlineAppendLog('No valid edge points to compute centre.');
+    return;
+  }
+
+  var xMin = Math.min.apply(null, allX);
+  var xMax = Math.max.apply(null, allX);
+  var yMin = Math.min.apply(null, allY);
+  var yMax = Math.max.apply(null, allY);
+  var cx = (xMin + xMax) / 2;
+  var cy = (yMin + yMax) / 2;
+
+  var cfg = _outlineSettings();
+  var surfZ = (typeof outlineSurfaceZ !== 'undefined' && outlineSurfaceZ !== null) ? outlineSurfaceZ : 0;
+  var safeTravelZ = surfZ + cfg.safeTravelZ;
+
+  outlineAppendLog('MOVE TO CENTRE: X=' + cx.toFixed(3) + ' Y=' + cy.toFixed(3) + ' via safeTravelZ=' + safeTravelZ.toFixed(3));
+  try {
+    await _outlineAbsTravel(cx, cy, safeTravelZ, cfg.fastFeed, cfg.retractFeed);
+    outlineAppendLog('Arrived at outline centre X=' + cx.toFixed(3) + ' Y=' + cy.toFixed(3));
+    outlineSetStatus('At centre X=' + cx.toFixed(3) + ' Y=' + cy.toFixed(3), 'good');
+    setFooterStatus('Probe moved to outline centre', 'good');
+  } catch(e) {
+    outlineAppendLog('ERROR moving to centre: ' + e.message);
+    outlineSetStatus('Error moving to centre: ' + e.message, 'error');
+  }
+}
+
 // ── Set WCS zero to absolute centre of outline ────────────
 async function setWCSToCentre() {
   if (outlineRowResults.length === 0 && outlineColResults.length === 0) {
