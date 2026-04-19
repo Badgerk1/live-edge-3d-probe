@@ -995,12 +995,13 @@ async function runOutlineSurfaceGridProbe() {
 
     await requireStartupHomingPreflight('Outline Surface Grid Probe');
 
-    // Initial clearance lift (relative) before first probe point
-    outlineAppendLog('INITIAL LIFT: raising Z by ' + clearanceZ.toFixed(3) + ' coords relative');
-    await sendCommand('G91 G1 Z' + clearanceZ.toFixed(3) + ' F' + travelFeed);
+    // Move Z to exactly clearanceZ (absolute) before the first lateral travel.
+    // Using an absolute target rather than a relative lift prevents Z accumulating on top of
+    // whatever height the outline scan left the machine at (e.g. safeTravelZ >> clearanceZ),
+    // which would push Z past the soft limit and alarm the controller.
+    outlineAppendLog('INITIAL RETRACT: Z to clearanceZ=' + clearanceZ.toFixed(3));
+    await sendCommand('G90 G1 Z' + clearanceZ.toFixed(3) + ' F' + travelFeed);
     await sleep(50);
-    await waitForIdleWithTimeout();
-    await sendCommand('G90');
     await waitForIdleWithTimeout();
 
     for (var row = 0; row < gridCfg.rowCount; row++) {
@@ -1014,9 +1015,16 @@ async function runOutlineSurfaceGridProbe() {
         var colX = gridCfg.minX + col * gridCfg.colSpacing;
         outlineAppendLog('Probing [' + row + ',' + col + '] X' + colX.toFixed(3) + ' Y' + rowY.toFixed(3));
 
-        // Safe lateral move: lift Z, travel X/Y with travel-contact recovery
-        // Skip only the first step of row 1+ — row transition already placed machine there
-        if (!(step === 0 && row > 0)) {
+        // Lateral travel to next probe point:
+        // - row=0, step=0: machine is already at clearanceZ from the absolute retract above;
+        //   use a plain XY move to avoid smSafeLateralMove's extra relative Z lift, which
+        //   would push Z above clearanceZ and risk a soft-limit alarm.
+        // - row>0, step=0: row-transition smSafeLateralMove already positioned the machine here.
+        // - all other points: coming from a probe contact (Z < clearanceZ); smSafeLateralMove
+        //   correctly lifts relative before moving.
+        if (row === 0 && step === 0) {
+          await moveAbs(colX, rowY, null, travelFeed);
+        } else if (!(step === 0 && row > 0)) {
           await smSafeLateralMove(colX, rowY, travelFeed, clearanceZ);
         }
 
