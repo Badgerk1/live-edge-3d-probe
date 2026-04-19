@@ -141,15 +141,21 @@ The **Outline tab** automates a full perimeter scan of the workpiece in four pha
 - Compiles all detected edge points from Phases 2 and 3 into a grid and runs the face probe at each edge location, building a full 3D perimeter mesh.
 
 #### SVG Export
-- Generates a single smooth closed vector path using **Catmull-Rom → cubic Bézier** spline interpolation.
-- Each segment P[i]→P[i+1] on the closed polygon uses control points:
-  - CP1 = P[i] + (P[i+1] − P[i−1]) / 6
-  - CP2 = P[i+1] − (P[i+2] − P[i]) / 6
+- Generates a single smooth closed vector path using **centripetal Catmull-Rom (α = 0.5) → exact cubic Bézier** conversion.
+- Centripetal parameterisation weights each knot interval by `(chord length)^0.5`, eliminating the kinks that appear with uniform CR when probe points are unevenly spaced around the perimeter.
+- Each segment is converted analytically to an exact cubic Bézier using the Barry-Goldman tangent formula — no polyline subdivision needed, producing a mathematically smooth curve with no chord faceting.
 - SVG uses `C` (cubic Bézier) commands — no `<circle>` or marker elements — so Aspire v12 and VCarve import a single clean `<path>` with no stray objects.
-- Curve is subdivided into multiple intermediate points per segment to eliminate visible kinks at sparse probe locations.
 
 #### Canvas Preview
-- Real-time outline visualisation on the in-UI canvas matches the SVG output — same Catmull-Rom spline rendered via `bezierCurveTo()`.
+- Real-time outline visualisation on the in-UI canvas matches the SVG output — same centripetal Catmull-Rom spline rendered in white via `bezierCurveTo()` so it is visible on the dark UI background.
+
+#### Results Summary
+- After scanning, a **Results Summary** panel appears showing the computed bounding-box centre and overall dimensions:
+  ```
+  Centre  X=142.500  Y=87.250   (Width=85.000  Height=62.500)
+  ```
+- **Set WCS Zero to Centre** button issues `G10 L20 P1 X… Y…` to zero the work coordinate system at the detected slab centre — one click to set up your WCS from the outline scan.
+- **Move to Centre** button jogs the probe to the computed slab centre using `safeTravelZ` clearance, useful for visual confirmation or centred operations.
 
 #### JSON Export
 - Raw outline scan data (all row/column results plus config snapshot) exported as JSON for offline analysis or re-import.
@@ -167,6 +173,7 @@ The **Outline tab** automates a full perimeter scan of the workpiece in four pha
 | Face Probe Feed | Feed rate for horizontal G38.2 probes |
 | Surface Probe Feed | Feed rate for Z-axis plunge probes |
 | Fast Feed / Travel | Feed rate for rapid travel moves |
+| **Skip Surface Probe** | When enabled, bypasses the surface step-probe phase after finding the near edge. The scan travels directly to the far end and back-probes for the opposing edge. Faster for workpieces with predictable far-edge positions; Overshoot, Z Step Probe Depth, and Surface Probe Feed are unused in this mode. |
 
 #### Crash Recovery
 - Every log line is auto-saved to `localStorage`. The **Recover Last Log** button reloads the log after an E-stop or browser crash so diagnostics are never lost.

@@ -161,7 +161,68 @@ for 360 edge detection and face probing on live edge wood slabs.
   3. Apply three levels of linear interpolation (Barry-Goldman pyramid) using the remapped parameter
   - This guarantees the curve passes through each probe point with a C1-continuous tangent that is proportional to the local spacing — no cusps, no kinks regardless of how unevenly the probe points are distributed around the perimeter
 - **SUBDIVISIONS** kept at 12 per segment (sufficient with centripetal CR)
-- **PR:** Follow-up to #236 (2026-04-19)
+- **PR:** #239 (merged 2026-04-19)
+
+### Bug 15: Centripetal CR subdivision still shows subtle flat spots / chord faceting (PR #240)
+- **Files:** `src/js/outline-probe.js` (SVG export), `src/js/visualization.js` (canvas preview)
+- **Problem:** Even after centripetal CR (#239), the outline still showed subtle flat spots and kinks, especially at the top and bottom of wide oval shapes. Root cause: the curve was represented as a 12-segment polyline per probe interval — chord linearisation leaves visible faceting between widely-spaced control points regardless of spline parameterisation quality.
+- **Fix:** Replaced `crPoint` + 12× `lineTo`/`L` loop with `crBezier`, which analytically derives the exact cubic Bézier control points from the centripetal CR tangent formula:
+  ```js
+  T1 = (p1-p0)/(t1-t0) - (p2-p0)/(t2-t0) + (p2-p1)/dt
+  T2 = (p2-p1)/dt      - (p3-p1)/(t3-t1) + (p3-p2)/(t3-t2)
+  cp1 = p1 + T1·dt/3
+  cp2 = p2 - T2·dt/3
+  ```
+  A single `C cp1 cp2 p2` (SVG) / `bezierCurveTo(cp1, cp2, p2)` (canvas) per segment gives an exact cubic curve — no polyline approximation, no faceting.
+- **PR:** #240 (merged 2026-04-19)
+
+### Bug 16: Outline canvas preview invisible on dark background (PR #241)
+- **Files:** `src/js/visualization.js` — `_vizDrawOutlineCanvas()`
+- **Problem:** The outline spline, edge point dots, and legend swatch were all drawn in `#000000` (black), making them invisible against the dark plugin UI background.
+- **Fix:** Changed all three from `#000000` to `#ffffff` (white).
+- **PR:** #241 (merged 2026-04-19)
+
+### Bug 17: Centroid-angle sort misordered outline points near top of wide ovals (PR #242)
+- **Files:** `src/js/visualization.js`, `src/js/outline-probe.js`
+- **Problem:** The `atan2`-based clockwise sort failed when row-scan edge points and column-scan edge points cluster at similar centroid angles — e.g. near the top of a wide oval, multiple points from different phases shared nearly identical angles and were placed adjacently in sort order despite being on opposite sides of the perimeter. This produced a visible flat or mis-ordered segment in the rendered outline.
+- **Fix:** Replaced centroid-angle sort with a **greedy nearest-neighbour traversal**:
+  1. Start from the bottom-left point (min Y, then min X as tiebreak)
+  2. At each step, pick the physically closest unvisited point
+  3. A signed-area (shoelace) check enforces clockwise winding
+  This produces the correct perimeter order regardless of centroid geometry.
+- **PR:** #242 (merged 2026-04-19)
+
+### Feature: Compute absolute centre and add Set WCS Zero to Centre (PR #243)
+- **Files:** `src/js/ui-helpers.js`, `src/js/outline-probe.js`
+- **New capability:** After scanning, the plugin now computes and displays the bounding-box centre and overall dimensions of the scanned slab:
+  ```
+  Centre  X=142.500  Y=87.250   (Width=85.000  Height=62.500)
+  ```
+  rendered in the `#outline-centre-display` element inside the Results Summary panel.
+- **Set WCS Zero to Centre button** — issues `G10 L20 P1 X<centreX> Y<centreY>` to zero the WCS at the detected slab centre. Button is hidden until scan data is present.
+- **Implementation:** `_outlineUpdateResultsSummary()` (in `ui-helpers.js`) computes centre from all probed edge points (xLeft/xRight from rows + yBottom/yTop from columns). `setWCSToCentre()` (in `outline-probe.js`) recomputes the same centre and issues the G10 command.
+- **PR:** #243 (merged 2026-04-19)
+
+### Feature: Move to Centre jog button and Results Summary panel promotion (PR #244)
+- **Files:** `src/js/outline-probe.js`, `src/js/ui-helpers.js`
+- **New capability:** A **Move to Centre** button (`btn-outline-move-centre`) appears alongside the Set WCS Zero to Centre button after scanning. Clicking it:
+  1. Computes bounding-box centre from current scan results
+  2. Reads `safeTravelZ` and `fastFeed` from outline settings
+  3. Delegates to `_outlineAbsTravel()` — Z-retract first, then XY move to centre
+  4. Logs travel intent and final position; errors surface via `outlineSetStatus`/`outlineAppendLog`
+- **Panel promotion:** The Results Summary panel was moved up in the Outline tab to appear immediately below the scan controls rather than below the preview and log panels, so centre/dimension data is visible right after a scan without scrolling.
+- `_outlineUpdateResultsSummary()` now tracks `btn-outline-move-centre` alongside `btn-outline-set-wcs-centre` — both appear/hide together based on scan data presence.
+- **PR:** #244 (merged 2026-04-19)
+
+### Feature: Skip Surface Probe toggle (PR #245 + #246)
+- **Files:** `src/config-body.html`, `src/js/outline-probe.js`, `config.html`
+- **Problem:** The surface step-probe phase (repeated Z plunges across the workpiece top to locate the far edge) is slow and unnecessary for workpieces where the far edge position is predictable.
+- **New capability:** A **Skip Surface Probe** checkbox (`id="outlineSkipSurfaceProbe"`) at the bottom of the Probe Parameters grid enables a faster scan path:
+  - **OFF (default):** Normal behaviour — after finding the near edge the probe steps across the top surface probing Z to locate the far edge.
+  - **ON:** After finding the near edge, the probe retracts to `safeTravelZ`, travels directly to the far end of the row/column, lowers, and back-probes to find the opposing edge. The Overshoot, Z Step Probe Depth, and Surface Probe Feed fields are unused in this mode.
+- **Implementation:** `_outlineSettings()` gains a `gb()` boolean helper that reads the checkbox. `_runRowScan()` and `_runColScan()` branch on `skipSurfaceProbe` after finding the near edge.
+- **Build note:** PR #246 rebuilt `config.html` after #245 because the build artifact was not regenerated at merge time.
+- **PRs:** #245 (source), #246 (rebuild, merged 2026-04-19)
 
 ---
 
@@ -234,7 +295,9 @@ Plus:
 
 6. **Diagonal travel between rows/cols** — use single `moveAbs(x, y, null, feed)` for simultaneous X+Y movement instead of separate axis moves. (Bug 10 fix)
 
-7. **Single black outline polygon** — all edge points (left, right, bottom, top) rendered as one closed polyline sorted clockwise by angle around centroid. No separate colored edge lines. (Bug 12 fix, PR #234)
+7. **Single white outline polygon using nearest-neighbour traversal** — all edge points (left, right, bottom, top) rendered as one smooth closed centripetal CR spline in white. Point ordering uses greedy nearest-neighbour traversal (starting bottom-left) with a signed-area clockwise check — not centroid-angle sort, which fails when points cluster at similar angles. (Bug 12 fix PR #234, colour fix PR #241, ordering fix PR #242)
+
+8. **Exact cubic Bézier per segment** — centripetal Catmull-Rom tangents are converted analytically to a single cubic Bézier per segment (`crBezier`), not approximated as a polyline. This eliminates chord faceting regardless of control-point spacing. (PR #240)
 
 ---
 
