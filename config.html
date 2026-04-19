@@ -1851,6 +1851,10 @@
       <div class="panel" data-panel-key="outline-results">
         <div class="box-title">Outline Results Summary</div>
         <div class="mini" id="outline-results-summary" style="color:var(--muted)">No outline data yet. Run Outline Scan first.</div>
+        <div class="mini mt4" id="outline-centre-display" style="font-weight:600"></div>
+        <div class="btn-row" style="margin-top:10px">
+          <button id="btn-outline-set-wcs-centre" class="btn" style="display:none" onclick="flashButton(this);setWCSToCentre()">&#8853; Set WCS Zero to Centre</button>
+        </div>
       </div>
 
     </div><!-- /pane-outline -->
@@ -3862,6 +3866,42 @@ function _outlineUpdateResultsSummary() {
   if (s2) s2.textContent = msg;
   var panel = document.getElementById('res-outline-panel');
   if (panel) panel.style.display = (rows > 0 || cols > 0) ? '' : 'none';
+
+  // Compute and display bounding-box absolute centre from probed edge points
+  var centreEl = document.getElementById('outline-centre-display');
+  var centreBtn = document.getElementById('btn-outline-set-wcs-centre');
+  if (rows > 0 || cols > 0) {
+    var allX = [], allY = [];
+    if (typeof outlineRowResults !== 'undefined') {
+      outlineRowResults.forEach(function(r) {
+        if (r.hasLeft  && r.xLeft  !== null) { allX.push(r.xLeft);  allY.push(r.y); }
+        if (r.hasRight && r.xRight !== null) { allX.push(r.xRight); allY.push(r.y); }
+      });
+    }
+    if (typeof outlineColResults !== 'undefined') {
+      outlineColResults.forEach(function(c) {
+        if (c.hasBottom && c.yBottom !== null) { allX.push(c.x); allY.push(c.yBottom); }
+        if (c.hasTop    && c.yTop    !== null) { allX.push(c.x); allY.push(c.yTop); }
+      });
+    }
+    if (allX.length > 0) {
+      var xMin = Math.min.apply(null, allX);
+      var xMax = Math.max.apply(null, allX);
+      var yMin = Math.min.apply(null, allY);
+      var yMax = Math.max.apply(null, allY);
+      var cx = (xMin + xMax) / 2;
+      var cy = (yMin + yMax) / 2;
+      if (centreEl) {
+        centreEl.textContent = 'Centre  X=' + cx.toFixed(3) + '  Y=' + cy.toFixed(3) +
+          '   (Width=' + (xMax - xMin).toFixed(3) + '  Height=' + (yMax - yMin).toFixed(3) + ')';
+        centreEl.style.color = 'var(--accent2)';
+      }
+      if (centreBtn) centreBtn.style.display = '';
+    }
+  } else {
+    if (centreEl) { centreEl.textContent = ''; }
+    if (centreBtn) centreBtn.style.display = 'none';
+  }
 }
 
 function updateOutlineProbeCenter() {
@@ -10926,6 +10966,49 @@ async function runOutline360FaceProbe() {
 function drawOutlineCanvas() {
   if (window.probeViz && typeof window.probeViz.drawOutlineCanvas === 'function') {
     window.probeViz.drawOutlineCanvas();
+  }
+}
+
+// ── Set WCS zero to absolute centre of outline ────────────
+async function setWCSToCentre() {
+  if (outlineRowResults.length === 0 && outlineColResults.length === 0) {
+    outlineAppendLog('No outline data — run Outline Scan first.');
+    outlineSetStatus('No outline data – run Outline Scan first', 'warn');
+    return;
+  }
+
+  var allX = [], allY = [];
+  outlineRowResults.forEach(function(r) {
+    if (r.hasLeft  && r.xLeft  !== null) { allX.push(r.xLeft);  allY.push(r.y); }
+    if (r.hasRight && r.xRight !== null) { allX.push(r.xRight); allY.push(r.y); }
+  });
+  outlineColResults.forEach(function(c) {
+    if (c.hasBottom && c.yBottom !== null) { allX.push(c.x); allY.push(c.yBottom); }
+    if (c.hasTop    && c.yTop    !== null) { allX.push(c.x); allY.push(c.yTop); }
+  });
+
+  if (allX.length === 0) {
+    outlineAppendLog('No valid edge points to compute centre.');
+    return;
+  }
+
+  var xMin = Math.min.apply(null, allX);
+  var xMax = Math.max.apply(null, allX);
+  var yMin = Math.min.apply(null, allY);
+  var yMax = Math.max.apply(null, allY);
+  var cx = (xMin + xMax) / 2;
+  var cy = (yMin + yMax) / 2;
+
+  var cmd = 'G10 L20 P1 X' + cx.toFixed(3) + ' Y' + cy.toFixed(3);
+  outlineAppendLog('Set WCS zero to outline centre: ' + cmd);
+  try {
+    await sendCommand(cmd);
+    outlineAppendLog('WCS X/Y zeroed at centre X=' + cx.toFixed(3) + ' Y=' + cy.toFixed(3));
+    outlineSetStatus('WCS zeroed at centre X=' + cx.toFixed(3) + ' Y=' + cy.toFixed(3), 'good');
+    setFooterStatus('WCS X/Y set to outline centre', 'good');
+  } catch(e) {
+    outlineAppendLog('ERROR setting WCS: ' + e.message);
+    outlineSetStatus('Error setting WCS: ' + e.message, 'error');
   }
 }
 
