@@ -155,13 +155,28 @@ for 360 edge detection and face probing on live edge wood slabs.
 - **Problem:** PR #236 added subdivision (12 steps per segment) but still produced visible kinks/corners at probe point locations. Root cause: **uniform Catmull-Rom** assumes equally-spaced control points. When probe points are non-uniformly spaced (e.g. corner vs. edge points of a live-edge slab vary widely in arc-length), the tangent vectors at each point are dominated by the longer neighbouring chord, bending the curve sharply at that point rather than passing through smoothly.
 - **Image evidence:** Screenshot after PR #236 shows ~8–12 sharp kinks at probe positions even with 12 subdivisions per segment. Kinks match exactly the locations of probe contact dots.
 - **Root cause comparison:** `visualization.js` already has `_chordHermite()` (chord-length-parameterised Hermite) for the surface mesh for exactly this reason — uniform splines on non-uniform grids produce creases. The outline code was using the simpler uniform CR formula.
-- **Fix:** Replaced the uniform Catmull-Rom `crPoint` function in both `outline-probe.js` and `visualization.js` with **centripetal Catmull-Rom (alpha=0.5)** using the Barry-Goldman algorithm:
+- **Fix (PR #239):** Replaced the uniform Catmull-Rom `crPoint` function in both `outline-probe.js` and `visualization.js` with **centripetal Catmull-Rom (alpha=0.5)** using the Barry-Goldman algorithm:
   1. Compute knot intervals as `(chord_length)^0.5` between each pair of consecutive control points
   2. Map the local parameter `t ∈ [0,1]` to the actual knot span `[t1, t2]` (the current segment)
   3. Apply three levels of linear interpolation (Barry-Goldman pyramid) using the remapped parameter
   - This guarantees the curve passes through each probe point with a C1-continuous tangent that is proportional to the local spacing — no cusps, no kinks regardless of how unevenly the probe points are distributed around the perimeter
-- **SUBDIVISIONS** kept at 12 per segment (sufficient with centripetal CR)
-- **PR:** Follow-up to #236 (2026-04-19)
+- **SUBDIVISIONS** kept at 12 per segment after PR #239
+- **PR:** #239 (merged 2026-04-19)
+
+### Bug 15: Centripetal CR still shows subtle flat spots/kinks from polyline chord linearisation (follow-up to PR #239)
+- **Files:** `src/js/outline-probe.js` (SVG export), `src/js/visualization.js` (canvas preview)
+- **Problem:** Even with centripetal CR (alpha=0.5) from PR #239, the outline still showed subtle flat spots and kinks visible at the top and bottom of the slab. Root cause: the curve was approximated as a 12-segment polyline per probe interval. Chord linearisation leaves visible faceting between widely-spaced control points regardless of how good the spline parameterisation is.
+- **Fix (PR #240):** Replaced `crPoint` + 12× `lineTo`/`L` loop with `crBezier`, which analytically derives **exact cubic Bézier control points** from the centripetal CR tangent formula:
+  ```
+  T1 = (p1-p0)/(t1-t0) - (p2-p0)/(t2-t0) + (p2-p1)/dt
+  T2 = (p2-p1)/dt      - (p3-p1)/(t3-t1) + (p3-p2)/(t3-t2)
+  cp1 = p1 + T1·dt/3
+  cp2 = p2 - T2·dt/3
+  ```
+  - Canvas renderer: one `bezierCurveTo(cp1, cp2, p2)` per segment — no polyline subdivision at all
+  - SVG export: one `C cp1 cp2 p2` command per segment — mathematically perfect curve in the exported file
+  - `SUBDIVISIONS` variable and `crPoint` function removed entirely
+- **PR:** #240 (merged 2026-04-19)
 
 ---
 

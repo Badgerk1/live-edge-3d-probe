@@ -69,7 +69,7 @@ The plugin automates the full probing workflow: it physically measures the surfa
 | **JSON** | Full mesh snapshot — grid config, all probe results, plugin version, ISO timestamp. Schema version `1.7.0`. |
 | **CSV** | Tabular surface probe results for import into Excel, MATLAB, or any spreadsheet. |
 | **OBJ** | Triangulated 3D mesh of the face-probe surface for CAD or 3D-printing previews. |
-| **SVG** | Single smooth closed vector outline of workpiece edge — Catmull-Rom spline interpolated, Aspire/VCarve compatible. |
+| **SVG** | Single smooth closed vector outline of workpiece edge — centripetal Catmull-Rom → exact cubic Bézier (one `C` command per segment, no polyline approximation), Aspire/VCarve compatible. |
 
 ### 9 · Workflow Management & Logging
 
@@ -141,15 +141,16 @@ The **Outline tab** automates a full perimeter scan of the workpiece in four pha
 - Compiles all detected edge points from Phases 2 and 3 into a grid and runs the face probe at each edge location, building a full 3D perimeter mesh.
 
 #### SVG Export
-- Generates a single smooth closed vector path using **Catmull-Rom → cubic Bézier** spline interpolation.
-- Each segment P[i]→P[i+1] on the closed polygon uses control points:
-  - CP1 = P[i] + (P[i+1] − P[i−1]) / 6
-  - CP2 = P[i+1] − (P[i+2] − P[i]) / 6
-- SVG uses `C` (cubic Bézier) commands — no `<circle>` or marker elements — so Aspire v12 and VCarve import a single clean `<path>` with no stray objects.
-- Curve is subdivided into multiple intermediate points per segment to eliminate visible kinks at sparse probe locations.
+- Generates a single smooth closed vector path using **centripetal Catmull-Rom → exact cubic Bézier** spline interpolation (alpha = 0.5).
+- Knot intervals are weighted by `(chord_length)^0.5` so the curve stays smooth and kink-free even when probe points are non-uniformly spaced around the perimeter.
+- Each segment P1→P2 uses the centripetal CR tangent formula to derive exact cubic Bézier control points analytically — no polyline subdivision:
+  - T1 = (P1−P0)/(t1−t0) − (P2−P0)/(t2−t0) + (P2−P1)/dt
+  - T2 = (P2−P1)/dt − (P3−P1)/(t3−t1) + (P3−P2)/(t3−t2)
+  - CP1 = P1 + T1·dt/3 &nbsp;&nbsp; CP2 = P2 − T2·dt/3
+- SVG uses one `C cp1 cp2 P2` command per segment — no `<circle>` or marker elements — so Aspire v12 and VCarve import a single clean `<path>` with no stray objects.
 
 #### Canvas Preview
-- Real-time outline visualisation on the in-UI canvas matches the SVG output — same Catmull-Rom spline rendered via `bezierCurveTo()`.
+- Real-time outline visualisation on the in-UI canvas matches the SVG output exactly — one `bezierCurveTo(cp1, cp2, P2)` call per segment using the same centripetal CR control points.
 
 #### JSON Export
 - Raw outline scan data (all row/column results plus config snapshot) exported as JSON for offline analysis or re-import.
