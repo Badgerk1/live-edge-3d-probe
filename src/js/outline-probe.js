@@ -915,7 +915,6 @@ async function runOutlineSurfaceGridProbe() {
 
   try {
     var cfg = _outlineSettings();
-    if (cfg.xLen <= 0 || cfg.yLen <= 0) throw new Error('Outline bounds invalid (XLen/YLen must be > 0)');
     if (cfg.xStep <= 0) cfg.xStep = 5;
     if (cfg.yStep <= 0) cfg.yStep = 5;
 
@@ -930,15 +929,53 @@ async function runOutlineSurfaceGridProbe() {
       return el ? (Number(el.value) || meshSubdivisionSpacing) : meshSubdivisionSpacing;
     })();
 
+    // Determine grid bounds: from detected outline (inset by margin) or fallback to search bounds
+    var gridSource = (function() { var el = document.getElementById('outlineGridSource'); return el ? el.value : 'detected'; })();
+    var gridMargin = (function() { var el = document.getElementById('outlineGridMargin'); return el ? (Number(el.value) || 2) : 2; })();
+    var hasOutlineData = (outlineRowResults.length > 0 || outlineColResults.length > 0);
+
+    var gridMinX, gridMaxX, gridMinY, gridMaxY;
+
+    if (gridSource === 'detected' && hasOutlineData) {
+      // Compute bounds from actual measured edge points and row/col coordinates
+      var allX = [], allY = [];
+      outlineRowResults.forEach(function(r) {
+        if (r.hasLeft  && r.xLeft  !== null) { allX.push(r.xLeft);  allY.push(r.y); }
+        if (r.hasRight && r.xRight !== null) { allX.push(r.xRight); allY.push(r.y); }
+      });
+      outlineColResults.forEach(function(c) {
+        if (c.hasBottom && c.yBottom !== null) { allX.push(c.x); allY.push(c.yBottom); }
+        if (c.hasTop    && c.yTop    !== null) { allX.push(c.x); allY.push(c.yTop); }
+      });
+      if (allX.length === 0 || allY.length === 0) throw new Error('Outline scan data present but no valid edge points found');
+      gridMinX = Math.min.apply(null, allX) + gridMargin;
+      gridMaxX = Math.max.apply(null, allX) - gridMargin;
+      gridMinY = Math.min.apply(null, allY) + gridMargin;
+      gridMaxY = Math.max.apply(null, allY) - gridMargin;
+      if (gridMinX >= gridMaxX) throw new Error('Outline X bounds too narrow after applying ' + gridMargin + 'mm margin (minX=' + gridMinX.toFixed(3) + ' maxX=' + gridMaxX.toFixed(3) + ')');
+      if (gridMinY >= gridMaxY) throw new Error('Outline Y bounds too narrow after applying ' + gridMargin + 'mm margin (minY=' + gridMinY.toFixed(3) + ' maxY=' + gridMaxY.toFixed(3) + ')');
+      outlineAppendLog('Grid bounds from detected outline (margin=' + gridMargin + 'mm): X' + gridMinX.toFixed(3) + '\u2192' + gridMaxX.toFixed(3) + '  Y' + gridMinY.toFixed(3) + '\u2192' + gridMaxY.toFixed(3));
+    } else {
+      if (gridSource === 'detected') outlineAppendLog('No outline scan data \u2014 falling back to Outline Search Bounds.');
+      if (cfg.xLen <= 0 || cfg.yLen <= 0) throw new Error('Outline bounds invalid (XLen/YLen must be > 0)');
+      gridMinX = cfg.x0;
+      gridMaxX = cfg.x0 + cfg.xLen;
+      gridMinY = cfg.y0;
+      gridMaxY = cfg.y0 + cfg.yLen;
+    }
+
+    var xLen = gridMaxX - gridMinX;
+    var yLen = gridMaxY - gridMinY;
+
     var gridCfg = {
-      minX:       cfg.x0,
-      maxX:       cfg.x0 + cfg.xLen,
+      minX:       gridMinX,
+      maxX:       gridMaxX,
       colSpacing: cfg.xStep,
-      minY:       cfg.y0,
-      maxY:       cfg.y0 + cfg.yLen,
+      minY:       gridMinY,
+      maxY:       gridMaxY,
       rowSpacing: cfg.yStep,
-      colCount:   Math.floor(cfg.xLen / cfg.xStep) + 1,
-      rowCount:   Math.floor(cfg.yLen / cfg.yStep) + 1
+      colCount:   Math.floor(xLen / cfg.xStep) + 1,
+      rowCount:   Math.floor(yLen / cfg.yStep) + 1
     };
 
     var totalPoints = gridCfg.colCount * gridCfg.rowCount;
@@ -1018,8 +1055,10 @@ async function runOutlineSurfaceGridProbe() {
     outlineSetStatus('Grid probe done \u2013 ' + probed + ' points', 'good');
     setFooterStatus('Outline surface grid probe complete', 'good');
 
-    // Finish motion: retract Z and optionally return to X0 Y0
+    // Finish motion: retract Z, then always return to work origin X0 Y0
     await finishRunMotion('outline');
+    outlineAppendLog('Returning to work origin X0 Y0\u2026');
+    await moveAbs(0, 0, null, travelFeed);
 
     // Persist mesh and refresh UI (enables DXF/OBJ/STL exports and Apply tab)
     smSaveMeshToStorage();
