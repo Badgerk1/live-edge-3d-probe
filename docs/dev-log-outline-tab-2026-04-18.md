@@ -139,6 +139,23 @@ for 360 edge detection and face probing on live edge wood slabs.
 - **PR:** #234 (merged to `main` 2026-04-19)
 - **Note:** After merge, user must run `bash build.sh` to rebuild `config.html`.
 
+### Bug 13 / Feature: Catmull-Rom spline smoothing for outline (PR #236)
+- **Files:** `src/js/outline-probe.js` (SVG export), `src/js/visualization.js` (canvas preview)
+- **Problem:** Outline probe points were connected with straight-line segments (`L` in SVG, `lineTo` on canvas), producing a jagged polygon that didn't represent the natural wood slab contour.
+- **Fix:** Replaced straight segments with Catmull-Rom → cubic Bézier curves. For each segment P[i]→P[i+1] on the closed polygon, control points are computed as:
+  - CP1 = P[i] + (P[i+1] − P[i−1]) / 6
+  - CP2 = P[i+1] − (P[i+2] − P[i]) / 6
+- SVG uses `C` (cubic Bézier) commands; canvas uses `bezierCurveTo()`
+- Removed `<circle>` marker elements from SVG so Aspire v12 imports one clean `<path>`
+- **PR:** #236 (merged 2026-04-19)
+- **Files changed:** `src/js/outline-probe.js`, `src/js/visualization.js`, `config.html` (+62 −22)
+
+### Bug 14: Catmull-Rom spline still shows visible kinks at probe points (follow-up to PR #236)
+- **Files:** `src/js/outline-probe.js` (SVG export), `src/js/visualization.js` (canvas preview)
+- **Problem:** With only ~10–20 probe points around the perimeter, the single Bézier per segment approach from PR #236 still produced visible jagged corners and poor blending at probe point locations. The curve looked like a polygon with slightly rounded corners rather than a smooth organic outline.
+- **Fix (in progress):** Subdivide each Catmull-Rom segment into multiple intermediate points (8–16 subdivisions per segment) using the standard Catmull-Rom evaluation formula, then connect the densely subdivided points. This eliminates visible kinks because the curve passes smoothly through many interpolated positions between each probe point.
+- **PR:** In progress (follow-up to #236)
+
 ---
 
 ## How the Outline Scan Should Work
@@ -251,6 +268,8 @@ Key rules learned:
 - PR #225 — safeTravelZ surface-relative fix (superseded by #226)
 - PR #226 — safeTravelZ surface-relative fix + explicit G-code retract for no-edges case (preferred)
 - PR #234 — Bug 12: Replace outline visualization with single black clockwise polyline (removed colored edges + convex hull, merged 2026-04-19)
+- PR #236 — Catmull-Rom spline smoothing for outline SVG export and canvas preview (merged 2026-04-19)
+- PR #TBD — Subdivided Catmull-Rom spline refinement: eliminate kinks by evaluating 8–16 intermediate points per segment (in progress)
 - Subsequent PR — Full rewrite with all fixes and UI fields (this session)
 
 ---
@@ -260,13 +279,13 @@ Key rules learned:
 2. **Phase 2** — X-axis row scanning finds left/right edges correctly
 3. **Phase 3** — Y-axis column scanning finds bottom/top edges correctly
 4. **Phase 4** — 360 face probe runs from outline edge grid
-5. **SVG export** — Single black closed polygon with clockwise point ordering (PR #234)
-6. **Canvas visualization** — Matches SVG: single black outline with black dots (PR #234)
+5. **SVG export** — Single smooth closed vector path using Catmull-Rom → cubic Bézier spline smoothing (PR #236); no stray `<circle>` elements; Aspire/VCarve compatible
+6. **Canvas visualization** — Matches SVG: smooth spline curves rendered via `bezierCurveTo()` (PR #236)
 7. **Log recovery** — localStorage auto-save + "Recover Last Log" button
 8. **safeTravelZ** — Correctly computed as surfZ + offset in all scan functions
 
 ### What's broken / in progress:
-1. **Bug 12 visual quality** — The clockwise angular sort (PR #234) may still produce crossing lines on highly irregular slabs. If so, a nearest-neighbor chain or concave hull approach may be needed. User needs to test with real probe data.
+1. **Bug 14 — Catmull-Rom spline kinks** — Single Bézier per segment (PR #236) still shows visible kinks at probe points when the perimeter has only ~10–20 points. Fix in progress: subdivide each segment into 8–16 intermediate points using the Catmull-Rom evaluation formula before drawing.
 2. **config.html rebuild** — Copilot agent cannot run `build.sh`. User must rebuild locally after any source change. Current `config.html` may or may not have latest source changes bundled.
 
 ---
