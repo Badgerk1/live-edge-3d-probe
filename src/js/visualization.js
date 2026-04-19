@@ -2251,16 +2251,28 @@ function _vizDrawOutlineCanvas() {
       return ba - aa;
     });
 
-    // Smooth closed Catmull-Rom spline on canvas — each segment is subdivided
-    // into SUBDIVISIONS steps so the dense lineto points produce a visually
-    // seamless curve with no kinks at probe positions.
+    // Smooth closed centripetal Catmull-Rom spline on canvas (alpha=0.5, Barry-Goldman).
+    // Parameterises each knot interval by sqrt(chord length) so probe points at
+    // non-uniform spacings never produce cusps or kinks.  Each segment is then
+    // subdivided into SUBDIVISIONS steps for a visually seamless curve.
     var SUBDIVISIONS = 12;
     function crPoint(p0, p1, p2, p3, t) {
-      var t2 = t * t, t3 = t2 * t;
-      return [
-        0.5 * (2*p1[0] + (-p0[0]+p2[0])*t + (2*p0[0]-5*p1[0]+4*p2[0]-p3[0])*t2 + (-p0[0]+3*p1[0]-3*p2[0]+p3[0])*t3),
-        0.5 * (2*p1[1] + (-p0[1]+p2[1])*t + (2*p0[1]-5*p1[1]+4*p2[1]-p3[1])*t2 + (-p0[1]+3*p1[1]-3*p2[1]+p3[1])*t3)
-      ];
+      function knot(a, b) {
+        var dx = b[0]-a[0], dy = b[1]-a[1];
+        return Math.pow(dx*dx + dy*dy, 0.25); // = dist^0.5
+      }
+      var t0 = 0;
+      var t1 = t0 + Math.max(knot(p0, p1), 1e-4);
+      var t2 = t1 + Math.max(knot(p1, p2), 1e-4);
+      var t3 = t2 + Math.max(knot(p2, p3), 1e-4);
+      var u  = t1 + t * (t2 - t1);
+      function lp(a, b, ta, tb) {
+        var r = (u - ta) / (tb - ta);
+        return [a[0] + r*(b[0]-a[0]), a[1] + r*(b[1]-a[1])];
+      }
+      var a1 = lp(p0,p1,t0,t1), a2 = lp(p1,p2,t1,t2), a3 = lp(p2,p3,t2,t3);
+      var b1 = lp(a1,a2,t0,t2), b2 = lp(a2,a3,t1,t3);
+      return lp(b1,b2,t1,t2);
     }
     var n = dedupPts.length;
     function wIdx(i) { return ((i % n) + n) % n; }

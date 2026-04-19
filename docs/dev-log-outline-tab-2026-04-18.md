@@ -152,9 +152,16 @@ for 360 edge detection and face probing on live edge wood slabs.
 
 ### Bug 14: Catmull-Rom spline still shows visible kinks at probe points (follow-up to PR #236)
 - **Files:** `src/js/outline-probe.js` (SVG export), `src/js/visualization.js` (canvas preview)
-- **Problem:** With only ~10–20 probe points around the perimeter, the single Bézier per segment approach from PR #236 still produced visible jagged corners and poor blending at probe point locations. The curve looked like a polygon with slightly rounded corners rather than a smooth organic outline.
-- **Fix (in progress):** Subdivide each Catmull-Rom segment into multiple intermediate points (8–16 subdivisions per segment) using the standard Catmull-Rom evaluation formula, then connect the densely subdivided points. This eliminates visible kinks because the curve passes smoothly through many interpolated positions between each probe point.
-- **PR:** In progress (follow-up to #236)
+- **Problem:** PR #236 added subdivision (12 steps per segment) but still produced visible kinks/corners at probe point locations. Root cause: **uniform Catmull-Rom** assumes equally-spaced control points. When probe points are non-uniformly spaced (e.g. corner vs. edge points of a live-edge slab vary widely in arc-length), the tangent vectors at each point are dominated by the longer neighbouring chord, bending the curve sharply at that point rather than passing through smoothly.
+- **Image evidence:** Screenshot after PR #236 shows ~8–12 sharp kinks at probe positions even with 12 subdivisions per segment. Kinks match exactly the locations of probe contact dots.
+- **Root cause comparison:** `visualization.js` already has `_chordHermite()` (chord-length-parameterised Hermite) for the surface mesh for exactly this reason — uniform splines on non-uniform grids produce creases. The outline code was using the simpler uniform CR formula.
+- **Fix:** Replaced the uniform Catmull-Rom `crPoint` function in both `outline-probe.js` and `visualization.js` with **centripetal Catmull-Rom (alpha=0.5)** using the Barry-Goldman algorithm:
+  1. Compute knot intervals as `(chord_length)^0.5` between each pair of consecutive control points
+  2. Map the local parameter `t ∈ [0,1]` to the actual knot span `[t1, t2]` (the current segment)
+  3. Apply three levels of linear interpolation (Barry-Goldman pyramid) using the remapped parameter
+  - This guarantees the curve passes through each probe point with a C1-continuous tangent that is proportional to the local spacing — no cusps, no kinks regardless of how unevenly the probe points are distributed around the perimeter
+- **SUBDIVISIONS** kept at 12 per segment (sufficient with centripetal CR)
+- **PR:** Follow-up to #236 (2026-04-19)
 
 ---
 
@@ -279,14 +286,13 @@ Key rules learned:
 2. **Phase 2** — X-axis row scanning finds left/right edges correctly
 3. **Phase 3** — Y-axis column scanning finds bottom/top edges correctly
 4. **Phase 4** — 360 face probe runs from outline edge grid
-5. **SVG export** — Single smooth closed vector path using Catmull-Rom → cubic Bézier spline smoothing (PR #236); no stray `<circle>` elements; Aspire/VCarve compatible
-6. **Canvas visualization** — Matches SVG: smooth spline curves rendered via `bezierCurveTo()` (PR #236)
+5. **SVG export** — Single smooth closed vector path using centripetal Catmull-Rom (alpha=0.5, Barry-Goldman, 12 subdivisions/segment); no stray `<circle>` elements; Aspire/VCarve compatible
+6. **Canvas visualization** — Matches SVG: smooth centripetal Catmull-Rom spline; no kinks at probe points
 7. **Log recovery** — localStorage auto-save + "Recover Last Log" button
 8. **safeTravelZ** — Correctly computed as surfZ + offset in all scan functions
 
 ### What's broken / in progress:
-1. **Bug 14 — Catmull-Rom spline kinks** — Single Bézier per segment (PR #236) still shows visible kinks at probe points when the perimeter has only ~10–20 points. Fix in progress: subdivide each segment into 8–16 intermediate points using the Catmull-Rom evaluation formula before drawing.
-2. **config.html rebuild** — Copilot agent cannot run `build.sh`. User must rebuild locally after any source change. Current `config.html` may or may not have latest source changes bundled.
+1. **config.html rebuild** — Copilot agent CAN run `build.sh` (already done). After any future source change in `src/`, run `bash build.sh` before testing.
 
 ---
 
