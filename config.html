@@ -7752,24 +7752,34 @@ function _vizDrawOutlineCanvas() {
       return ba - aa;
     });
 
-    // Smooth closed Catmull-Rom spline on canvas
+    // Smooth closed Catmull-Rom spline on canvas — each segment is subdivided
+    // into SUBDIVISIONS steps so the dense lineto points produce a visually
+    // seamless curve with no kinks at probe positions.
+    var SUBDIVISIONS = 12;
+    function crPoint(p0, p1, p2, p3, t) {
+      var t2 = t * t, t3 = t2 * t;
+      return [
+        0.5 * (2*p1[0] + (-p0[0]+p2[0])*t + (2*p0[0]-5*p1[0]+4*p2[0]-p3[0])*t2 + (-p0[0]+3*p1[0]-3*p2[0]+p3[0])*t3),
+        0.5 * (2*p1[1] + (-p0[1]+p2[1])*t + (2*p0[1]-5*p1[1]+4*p2[1]-p3[1])*t2 + (-p0[1]+3*p1[1]-3*p2[1]+p3[1])*t3)
+      ];
+    }
     var n = dedupPts.length;
     function wIdx(i) { return ((i % n) + n) % n; }
     ctx.strokeStyle = '#000000';
     ctx.lineWidth = 1.5;
     ctx.setLineDash([]);
     ctx.beginPath();
-    ctx.moveTo(cx(dedupPts[0][0]), cy(dedupPts[0][1]));
+    var firstPt = crPoint(dedupPts[wIdx(-1)], dedupPts[0], dedupPts[wIdx(1)], dedupPts[wIdx(2)], 0);
+    ctx.moveTo(cx(firstPt[0]), cy(firstPt[1]));
     for (var k = 0; k < n; k++) {
       var p0 = dedupPts[wIdx(k - 1)];
       var p1 = dedupPts[wIdx(k)];
       var p2 = dedupPts[wIdx(k + 1)];
       var p3 = dedupPts[wIdx(k + 2)];
-      var cp1x = p1[0] + (p2[0] - p0[0]) / 6;
-      var cp1y = p1[1] + (p2[1] - p0[1]) / 6;
-      var cp2x = p2[0] - (p3[0] - p1[0]) / 6;
-      var cp2y = p2[1] - (p3[1] - p1[1]) / 6;
-      ctx.bezierCurveTo(cx(cp1x), cy(cp1y), cx(cp2x), cy(cp2y), cx(p2[0]), cy(p2[1]));
+      for (var s = 1; s <= SUBDIVISIONS; s++) {
+        var pt = crPoint(p0, p1, p2, p3, s / SUBDIVISIONS);
+        ctx.lineTo(cx(pt[0]), cy(pt[1]));
+      }
     }
     ctx.closePath();
     ctx.stroke();
@@ -10959,25 +10969,30 @@ function exportOutlineSVG() {
       return ba - aa;
     });
 
-    // Smooth closed Catmull-Rom spline (converted to cubic Bézier curves).
-    // For each segment P[i]→P[i+1] the Bézier control points are:
-    //   CP1 = P[i]   + (P[i+1] - P[i-1]) / 6
-    //   CP2 = P[i+1] - (P[i+2] - P[i])   / 6
+    // Smooth closed Catmull-Rom spline — each segment is subdivided into
+    // SUBDIVISIONS steps so the dense lineto points produce a visually
+    // seamless curve with no kinks at probe positions.
+    var SUBDIVISIONS = 12;
+    function crPoint(p0, p1, p2, p3, t) {
+      var t2 = t * t, t3 = t2 * t;
+      return [
+        0.5 * (2*p1[0] + (-p0[0]+p2[0])*t + (2*p0[0]-5*p1[0]+4*p2[0]-p3[0])*t2 + (-p0[0]+3*p1[0]-3*p2[0]+p3[0])*t3),
+        0.5 * (2*p1[1] + (-p0[1]+p2[1])*t + (2*p0[1]-5*p1[1]+4*p2[1]-p3[1])*t2 + (-p0[1]+3*p1[1]-3*p2[1]+p3[1])*t3)
+      ];
+    }
     var n = dedupPts.length;
     function wIdx(i) { return ((i % n) + n) % n; } // wrap index for closed loop
-    var dPoly = 'M ' + svgX(dedupPts[0][0]) + ',' + svgY(dedupPts[0][1]);
+    var first = crPoint(dedupPts[wIdx(-1)], dedupPts[0], dedupPts[wIdx(1)], dedupPts[wIdx(2)], 0);
+    var dPoly = 'M ' + svgX(first[0]) + ',' + svgY(first[1]);
     for (var k = 0; k < n; k++) {
       var p0 = dedupPts[wIdx(k - 1)];
       var p1 = dedupPts[wIdx(k)];
       var p2 = dedupPts[wIdx(k + 1)];
       var p3 = dedupPts[wIdx(k + 2)];
-      var cp1x = p1[0] + (p2[0] - p0[0]) / 6;
-      var cp1y = p1[1] + (p2[1] - p0[1]) / 6;
-      var cp2x = p2[0] - (p3[0] - p1[0]) / 6;
-      var cp2y = p2[1] - (p3[1] - p1[1]) / 6;
-      dPoly += ' C ' + svgX(cp1x) + ',' + svgY(cp1y)
-             + ' '  + svgX(cp2x) + ',' + svgY(cp2y)
-             + ' '  + svgX(p2[0]) + ',' + svgY(p2[1]);
+      for (var s = 1; s <= SUBDIVISIONS; s++) {
+        var pt = crPoint(p0, p1, p2, p3, s / SUBDIVISIONS);
+        dPoly += ' L ' + svgX(pt[0]) + ',' + svgY(pt[1]);
+      }
     }
     dPoly += ' Z';
     lines.push('  <path d="' + dPoly + '" stroke="#000000" stroke-width="0.8" />');
