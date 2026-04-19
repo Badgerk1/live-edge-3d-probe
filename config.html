@@ -10956,11 +10956,6 @@ function exportOutlineSVG() {
     }
     dPoly += ' Z';
     lines.push('  <path d="' + dPoly + '" stroke="#000000" stroke-width="0.8" />');
-
-    // Small black dot at each point
-    dedupPts.forEach(function(pt) {
-      lines.push('  <circle cx="' + svgX(pt[0]) + '" cy="' + svgY(pt[1]) + '" r="0.6" fill="#000000" />');
-    });
   }
 
   lines.push('</svg>');
