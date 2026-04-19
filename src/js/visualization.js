@@ -2227,29 +2227,45 @@ function _vizDrawOutlineCanvas() {
   });
 
   if (dedupPts.length > 2) {
-    var cxW = 0, cyW = 0;
-    dedupPts.forEach(function(p) { cxW += p[0]; cyW += p[1]; });
-    cxW /= dedupPts.length;
-    cyW /= dedupPts.length;
-
-    // Find bottom-left point (lowest Y, then lowest X as tiebreaker)
+    // Find bottom-left point (lowest Y, then lowest X as tiebreaker) as the start.
     var blIdx = 0;
     dedupPts.forEach(function(p, i) {
       var b = dedupPts[blIdx];
       if (p[1] < b[1] || (p[1] === b[1] && p[0] < b[0])) blIdx = i;
     });
-    var startAngle = Math.atan2(dedupPts[blIdx][1] - cyW, dedupPts[blIdx][0] - cxW);
 
-    // Sort clockwise (descending atan2 angle) starting from bottom-left
-    dedupPts.sort(function(a, b) {
-      var aa = Math.atan2(a[1] - cyW, a[0] - cxW) - startAngle;
-      var ba = Math.atan2(b[1] - cyW, b[0] - cxW) - startAngle;
-      if (aa > Math.PI)  aa -= 2 * Math.PI;
-      if (aa < -Math.PI) aa += 2 * Math.PI;
-      if (ba > Math.PI)  ba -= 2 * Math.PI;
-      if (ba < -Math.PI) ba += 2 * Math.PI;
-      return ba - aa;
-    });
+    // Order points using greedy nearest-neighbour traversal starting from blIdx.
+    // This is more robust than a pure angular sort when probe points cluster at
+    // similar centroid angles (e.g. row-scan and column-scan points mixing near
+    // the top of a wide oval), since it always picks the physically closest
+    // unvisited point rather than relying on angle from a distant centroid.
+    var nnOrdered = [];
+    var nnUsed = new Array(dedupPts.length).fill(false);
+    var nnCur = blIdx;
+    nnUsed[nnCur] = true;
+    nnOrdered.push(dedupPts[nnCur]);
+    while (nnOrdered.length < dedupPts.length) {
+      var nnBest = -1, nnBestD = Infinity;
+      for (var j = 0; j < dedupPts.length; j++) {
+        if (nnUsed[j]) continue;
+        var ddx = dedupPts[j][0] - dedupPts[nnCur][0];
+        var ddy = dedupPts[j][1] - dedupPts[nnCur][1];
+        var d2 = ddx * ddx + ddy * ddy;
+        if (d2 < nnBestD) { nnBestD = d2; nnBest = j; }
+      }
+      if (nnBest === -1) break;
+      nnUsed[nnBest] = true;
+      nnCur = nnBest;
+      nnOrdered.push(dedupPts[nnCur]);
+    }
+    // Ensure clockwise winding (negative signed area in world Y-up coords).
+    var nnArea = 0;
+    for (var i = 0; i < nnOrdered.length; i++) {
+      var j2 = (i + 1) % nnOrdered.length;
+      nnArea += nnOrdered[i][0] * nnOrdered[j2][1] - nnOrdered[j2][0] * nnOrdered[i][1];
+    }
+    if (nnArea > 0) nnOrdered.reverse(); // CCW → flip to CW
+    dedupPts = nnOrdered;
 
     // Smooth closed centripetal Catmull-Rom spline on canvas (alpha=0.5).
     // Converts each segment directly to an exact cubic bezier via the centripetal-CR
