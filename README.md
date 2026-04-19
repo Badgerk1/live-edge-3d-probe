@@ -69,6 +69,7 @@ The plugin automates the full probing workflow: it physically measures the surfa
 | **JSON** | Full mesh snapshot — grid config, all probe results, plugin version, ISO timestamp. Schema version `1.7.0`. |
 | **CSV** | Tabular surface probe results for import into Excel, MATLAB, or any spreadsheet. |
 | **OBJ** | Triangulated 3D mesh of the face-probe surface for CAD or 3D-printing previews. |
+| **SVG** | Single smooth closed vector outline of workpiece edge — Catmull-Rom spline interpolated, Aspire/VCarve compatible. |
 
 ### 9 · Workflow Management & Logging
 
@@ -116,6 +117,62 @@ Each tab's panels can be dragged into any order you like, and the order is remem
 
 ---
 
+### 11 · Outline Tab — 360° Edge Detection & SVG Export
+
+The **Outline tab** automates a full perimeter scan of the workpiece in four phases, producing a smooth closed vector outline that can be exported directly to Aspire/VCarve.
+
+#### Scanning Phases
+
+**Phase 1 — Surface Reference Probe**
+- Travels to the centre of the configured outline grid bounds and runs a single Z-axis G38.2 probe to find the surface Z at that location.
+- The result is stored in the `outlineSurfaceZ` field and used as the Z reference for all subsequent travel and face-probe moves.
+- The field can also be typed manually to skip the probe step entirely.
+- Probe retracts to machine Z=0 before any lateral travel so clearance is always guaranteed regardless of work-coordinate origin.
+
+**Phase 2 — X-Axis Edge Scan (row by row)**
+- Steps through each Y row from Y origin to Y origin + Y length in `yStep` increments.
+- For each row, a face-first horizontal G38.2 probe (+X direction) finds the **left edge**; the probe then steps across the top surface and a reverse −X probe finds the **right edge**.
+- Travel between rows uses absolute (G90) diagonal moves at `surfaceZ + safeTravelZ` to guarantee clearance above the measured surface.
+
+**Phase 3 — Y-Axis Edge Scan (column by column)**
+- Identical to Phase 2 but rotated 90°: steps through X columns probing +Y and −Y to find **bottom** and **top** edges.
+
+**Phase 4 — 360° Face Probe from Edge Grid**
+- Compiles all detected edge points from Phases 2 and 3 into a grid and runs the face probe at each edge location, building a full 3D perimeter mesh.
+
+#### SVG Export
+- Generates a single smooth closed vector path using **Catmull-Rom → cubic Bézier** spline interpolation.
+- Each segment P[i]→P[i+1] on the closed polygon uses control points:
+  - CP1 = P[i] + (P[i+1] − P[i−1]) / 6
+  - CP2 = P[i+1] − (P[i+2] − P[i]) / 6
+- SVG uses `C` (cubic Bézier) commands — no `<circle>` or marker elements — so Aspire v12 and VCarve import a single clean `<path>` with no stray objects.
+- Curve is subdivided into multiple intermediate points per segment to eliminate visible kinks at sparse probe locations.
+
+#### Canvas Preview
+- Real-time outline visualisation on the in-UI canvas matches the SVG output — same Catmull-Rom spline rendered via `bezierCurveTo()`.
+
+#### JSON Export
+- Raw outline scan data (all row/column results plus config snapshot) exported as JSON for offline analysis or re-import.
+
+#### Configurable Parameters
+
+| Field | Purpose |
+|-------|---------|
+| Grid origin / length / step (X & Y) | Defines the rectangular search area |
+| Face Probe Depth Below Surface | Z depth for horizontal edge probing |
+| Retract Above Surface | Z retract height after face contact |
+| Overshoot Past Trigger | Distance past trigger onto wood before surface stepping |
+| Approach Distance | How far outside the expected edge to start each probe |
+| Safe Travel Z | **Offset** added to `surfaceZ` for inter-row travel height |
+| Face Probe Feed | Feed rate for horizontal G38.2 probes |
+| Surface Probe Feed | Feed rate for Z-axis plunge probes |
+| Fast Feed / Travel | Feed rate for rapid travel moves |
+
+#### Crash Recovery
+- Every log line is auto-saved to `localStorage`. The **Recover Last Log** button reloads the log after an E-stop or browser crash so diagnostics are never lost.
+
+---
+
 ## Architecture
 
 ```
@@ -132,7 +189,15 @@ ncSender (host application)
     ├── Probe tab      — run surface probe, face probe, live log
     ├── Results tab    — per-point result table
     ├── Mesh Data tab  — save / load / export mesh
-    └── Apply tab      — G-code bounds analysis + apply Z compensation
+    ├── Apply tab      — G-code bounds analysis + apply Z compensation
+    └── Outline tab    — 360° edge detection, SVG/JSON export
+                         src/js/outline-probe.js handles:
+                           • Phase 1 surface reference probe
+                           • Phase 2 X-axis row edge scan
+                           • Phase 3 Y-axis column edge scan
+                           • Phase 4 360° face probe from edge grid
+                           • SVG export (Catmull-Rom spline, single <path>)
+                           • JSON export of raw scan data
 ```
 
 `config.html` is generated from source partials in `src/` — see [Contributing / Editing the UI](#contributing--editing-the-ui) below.
@@ -208,6 +273,7 @@ ncSender (host application)
 | `src/js/finish-motion.js` | Post-probe motion sequencing |
 | `src/js/settings-and-exports.js` | Settings save/load/reset, CSV/DXF/OBJ export, workflow management |
 | `src/js/diagnostics.js` | Non-destructive UI field and function audit |
+| `src/js/outline-probe.js` | 360° outline edge scanning (Phases 1–4), SVG/JSON export |
 | `src/config-footer.html` | Closing `</script>`, `</body>`, `</html>` |
 
 ### Probe image asset (`probe.png`)
