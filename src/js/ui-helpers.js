@@ -811,8 +811,9 @@ function _outlineUpdateResultsSummary() {
   if (panel) panel.style.display = (rows > 0 || cols > 0) ? '' : 'none';
 
   // Compute and display bounding-box absolute centre from probed edge points
-  var centreEl = document.getElementById('outline-centre-display');
+  var centreEl  = document.getElementById('outline-centre-display');
   var centreBtn = document.getElementById('btn-outline-set-wcs-centre');
+  var moveBtn   = document.getElementById('btn-outline-move-centre');
   if (rows > 0 || cols > 0) {
     var allX = [], allY = [];
     if (typeof outlineRowResults !== 'undefined') {
@@ -840,10 +841,12 @@ function _outlineUpdateResultsSummary() {
         centreEl.style.color = 'var(--accent2)';
       }
       if (centreBtn) centreBtn.style.display = '';
+      if (moveBtn)   moveBtn.style.display   = '';
     }
   } else {
-    if (centreEl) { centreEl.textContent = ''; }
+    if (centreEl)  { centreEl.textContent = ''; }
     if (centreBtn) centreBtn.style.display = 'none';
+    if (moveBtn)   moveBtn.style.display   = 'none';
   }
 }
 

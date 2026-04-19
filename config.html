@@ -1826,6 +1826,17 @@
         <div id="outline-status" class="status-line mini mt4 mb8">Ready</div>
       </div>
 
+      <!-- Outline Results Summary -->
+      <div class="panel" data-panel-key="outline-results">
+        <div class="box-title">Outline Results Summary</div>
+        <div class="mini" id="outline-results-summary" style="color:var(--muted)">No outline data yet. Run Outline Scan first.</div>
+        <div class="mini mt4" id="outline-centre-display" style="font-weight:600"></div>
+        <div class="btn-row" style="margin-top:10px">
+          <button id="btn-outline-move-centre" class="btn ghost" style="display:none" onclick="flashButton(this);moveToCentre()">&#8982; Move to Centre</button>
+          <button id="btn-outline-set-wcs-centre" class="btn" style="display:none" onclick="flashButton(this);setWCSToCentre()">&#8853; Set WCS Zero to Centre</button>
+        </div>
+      </div>
+
       <!-- Outline Preview Canvas -->
       <div class="panel" data-panel-key="outline-preview">
         <div class="box-title">Outline Preview</div>
@@ -1845,16 +1856,6 @@
           <button class="btn ghost" onclick="flashButton(this);recoverOutlineLog()">&#128269; Recover Last Log</button>
         </div>
         <div id="outline-log" class="log-area mono"></div>
-      </div>
-
-      <!-- Outline Results Summary -->
-      <div class="panel" data-panel-key="outline-results">
-        <div class="box-title">Outline Results Summary</div>
-        <div class="mini" id="outline-results-summary" style="color:var(--muted)">No outline data yet. Run Outline Scan first.</div>
-        <div class="mini mt4" id="outline-centre-display" style="font-weight:600"></div>
-        <div class="btn-row" style="margin-top:10px">
-          <button id="btn-outline-set-wcs-centre" class="btn" style="display:none" onclick="flashButton(this);setWCSToCentre()">&#8853; Set WCS Zero to Centre</button>
-        </div>
       </div>
 
     </div><!-- /pane-outline -->
@@ -3868,8 +3869,9 @@ function _outlineUpdateResultsSummary() {
   if (panel) panel.style.display = (rows > 0 || cols > 0) ? '' : 'none';
 
   // Compute and display bounding-box absolute centre from probed edge points
-  var centreEl = document.getElementById('outline-centre-display');
+  var centreEl  = document.getElementById('outline-centre-display');
   var centreBtn = document.getElementById('btn-outline-set-wcs-centre');
+  var moveBtn   = document.getElementById('btn-outline-move-centre');
   if (rows > 0 || cols > 0) {
     var allX = [], allY = [];
     if (typeof outlineRowResults !== 'undefined') {
@@ -3897,10 +3899,12 @@ function _outlineUpdateResultsSummary() {
         centreEl.style.color = 'var(--accent2)';
       }
       if (centreBtn) centreBtn.style.display = '';
+      if (moveBtn)   moveBtn.style.display   = '';
     }
   } else {
-    if (centreEl) { centreEl.textContent = ''; }
+    if (centreEl)  { centreEl.textContent = ''; }
     if (centreBtn) centreBtn.style.display = 'none';
+    if (moveBtn)   moveBtn.style.display   = 'none';
   }
 }
 
@@ -10966,6 +10970,52 @@ async function runOutline360FaceProbe() {
 function drawOutlineCanvas() {
   if (window.probeViz && typeof window.probeViz.drawOutlineCanvas === 'function') {
     window.probeViz.drawOutlineCanvas();
+  }
+}
+
+// ── Move probe to absolute centre of outline ──────────────
+async function moveToCentre() {
+  if (outlineRowResults.length === 0 && outlineColResults.length === 0) {
+    outlineAppendLog('No outline data — run Outline Scan first.');
+    outlineSetStatus('No outline data – run Outline Scan first', 'warn');
+    return;
+  }
+
+  var allX = [], allY = [];
+  outlineRowResults.forEach(function(r) {
+    if (r.hasLeft  && r.xLeft  !== null) { allX.push(r.xLeft);  allY.push(r.y); }
+    if (r.hasRight && r.xRight !== null) { allX.push(r.xRight); allY.push(r.y); }
+  });
+  outlineColResults.forEach(function(c) {
+    if (c.hasBottom && c.yBottom !== null) { allX.push(c.x); allY.push(c.yBottom); }
+    if (c.hasTop    && c.yTop    !== null) { allX.push(c.x); allY.push(c.yTop); }
+  });
+
+  if (allX.length === 0) {
+    outlineAppendLog('No valid edge points to compute centre.');
+    return;
+  }
+
+  var xMin = Math.min.apply(null, allX);
+  var xMax = Math.max.apply(null, allX);
+  var yMin = Math.min.apply(null, allY);
+  var yMax = Math.max.apply(null, allY);
+  var cx = (xMin + xMax) / 2;
+  var cy = (yMin + yMax) / 2;
+
+  var cfg = _outlineSettings();
+  var surfZ = (typeof outlineSurfaceZ !== 'undefined' && outlineSurfaceZ !== null) ? outlineSurfaceZ : 0;
+  var safeTravelZ = surfZ + cfg.safeTravelZ;
+
+  outlineAppendLog('MOVE TO CENTRE: X=' + cx.toFixed(3) + ' Y=' + cy.toFixed(3) + ' via safeTravelZ=' + safeTravelZ.toFixed(3));
+  try {
+    await _outlineAbsTravel(cx, cy, safeTravelZ, cfg.fastFeed, cfg.retractFeed);
+    outlineAppendLog('Arrived at outline centre X=' + cx.toFixed(3) + ' Y=' + cy.toFixed(3));
+    outlineSetStatus('At centre X=' + cx.toFixed(3) + ' Y=' + cy.toFixed(3), 'good');
+    setFooterStatus('Probe moved to outline centre', 'good');
+  } catch(e) {
+    outlineAppendLog('ERROR moving to centre: ' + e.message);
+    outlineSetStatus('Error moving to centre: ' + e.message, 'error');
   }
 }
 
