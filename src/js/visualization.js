@@ -2251,14 +2251,24 @@ function _vizDrawOutlineCanvas() {
       return ba - aa;
     });
 
-    // Single black closed polyline
+    // Smooth closed Catmull-Rom spline on canvas
+    var n = dedupPts.length;
+    function wIdx(i) { return ((i % n) + n) % n; }
     ctx.strokeStyle = '#000000';
     ctx.lineWidth = 1.5;
     ctx.setLineDash([]);
     ctx.beginPath();
     ctx.moveTo(cx(dedupPts[0][0]), cy(dedupPts[0][1]));
-    for (var k = 1; k < dedupPts.length; k++) {
-      ctx.lineTo(cx(dedupPts[k][0]), cy(dedupPts[k][1]));
+    for (var k = 0; k < n; k++) {
+      var p0 = dedupPts[wIdx(k - 1)];
+      var p1 = dedupPts[wIdx(k)];
+      var p2 = dedupPts[wIdx(k + 1)];
+      var p3 = dedupPts[wIdx(k + 2)];
+      var cp1x = p1[0] + (p2[0] - p0[0]) / 6;
+      var cp1y = p1[1] + (p2[1] - p0[1]) / 6;
+      var cp2x = p2[0] - (p3[0] - p1[0]) / 6;
+      var cp2y = p2[1] - (p3[1] - p1[1]) / 6;
+      ctx.bezierCurveTo(cx(cp1x), cy(cp1y), cx(cp2x), cy(cp2y), cx(p2[0]), cy(p2[1]));
     }
     ctx.closePath();
     ctx.stroke();
