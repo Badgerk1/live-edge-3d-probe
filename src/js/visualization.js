@@ -2278,7 +2278,7 @@ function _vizDrawOutlineCanvas() {
     }
     var n = dedupPts.length;
     function wIdx(i) { return ((i % n) + n) % n; }
-    ctx.strokeStyle = '#000000';
+    ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 1.5;
     ctx.setLineDash([]);
     ctx.beginPath();
@@ -2294,8 +2294,8 @@ function _vizDrawOutlineCanvas() {
     ctx.closePath();
     ctx.stroke();
 
-    // Small black dots at each point
-    ctx.fillStyle = '#000000';
+    // Small white dots at each point
+    ctx.fillStyle = '#ffffff';
     dedupPts.forEach(function(pt) {
       ctx.beginPath();
       ctx.arc(cx(pt[0]), cy(pt[1]), 3, 0, Math.PI * 2);
@@ -2307,7 +2307,7 @@ function _vizDrawOutlineCanvas() {
   ctx.font = '10px monospace';
   var lx = pad;
   var ly = h - 8;
-  ctx.fillStyle = '#000000';
+  ctx.fillStyle = '#ffffff';
   ctx.fillRect(lx, ly - 8, 10, 10);
   ctx.fillStyle = '#c2d3f2';
   ctx.fillText('Outline', lx + 13, ly);
