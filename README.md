@@ -157,6 +157,17 @@ The **Outline tab** automates a full perimeter scan of the workpiece in four pha
 - **Set WCS Zero to Centre** button issues `G10 L20 P1 X… Y…` to zero the work coordinate system at the detected slab centre — one click to set up your WCS from the outline scan.
 - **Move to Centre** button jogs the probe to the computed slab centre using `safeTravelZ` clearance, useful for visual confirmation or centred operations.
 
+#### Surface Grid Probe (Full Heightmap)
+
+After completing an Outline Scan, the **Surface Grid Probe** panel lets you probe a full surface heightmap whose bounds are derived automatically from the measured workpiece outline.
+
+| Field | Purpose |
+|-------|---------|
+| **Grid Source** | `Detected Outline (auto-inset)` — derives grid bounds from actual measured edge points; falls back to Outline Search Bounds if no scan data exists. `Outline Search Bounds` — always uses the raw X/Y bounds rectangle. |
+| **Inset Margin (mm)** | How far (in mm) to shrink the detected outline bounds on all four sides before generating the grid (default 2.0 mm). Prevents the outermost grid columns/rows from probing at the very edge of the workpiece. |
+
+On completion the probe always returns to work origin **X0 Y0**, and the resulting height map is stored as the global surface mesh so DXF / OBJ / STL exports and Apply-tab Z-compensation become available immediately.
+
 #### JSON Export
 - Raw outline scan data (all row/column results plus config snapshot) exported as JSON for offline analysis or re-import.
 

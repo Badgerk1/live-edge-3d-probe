@@ -299,6 +299,8 @@ Plus:
 
 8. **Exact cubic Bézier per segment** — centripetal Catmull-Rom tangents are converted analytically to a single cubic Bézier per segment (`crBezier`), not approximated as a polyline. This eliminates chord faceting regardless of control-point spacing. (PR #240)
 
+9. **Surface Grid Probe uses detected outline bounds with inset margin** — `runOutlineSurfaceGridProbe()` now derives grid extents from `outlineRowResults`/`outlineColResults` edge points when outline scan data exists, insets by a configurable margin (default 2 mm), and always returns to work origin X0 Y0 on completion. Falls back to Outline Search Bounds if no scan data is available. New UI fields: **Grid Source** selector and **Inset Margin (mm)** input, both persisted via `getSettingsFromUI()` / `loadSettings()`. (PR #249)
+
 ---
 
 ## RULE: Always compare with Probe tab before writing outline motion code
@@ -341,6 +343,7 @@ Key rules learned:
 - PR #236 — Catmull-Rom spline smoothing for outline SVG export and canvas preview (merged 2026-04-19)
 - PR #TBD — Subdivided Catmull-Rom spline refinement: eliminate kinks by evaluating 8–16 intermediate points per segment (in progress)
 - Subsequent PR — Full rewrite with all fixes and UI fields (this session)
+- PR #249 — Surface Grid Probe: use detected outline bounds with inset margin, always return to X0 Y0 (merged 2026-04-19)
 
 ---
 
@@ -353,6 +356,7 @@ Key rules learned:
 6. **Canvas visualization** — Matches SVG: smooth centripetal Catmull-Rom spline; no kinks at probe points
 7. **Log recovery** — localStorage auto-save + "Recover Last Log" button
 8. **safeTravelZ** — Correctly computed as surfZ + offset in all scan functions
+9. **Surface Grid Probe** — Uses detected outline bounds (inset by configurable margin, default 2 mm) when outline scan data is present; falls back to Outline Search Bounds; always returns to X0 Y0 on completion (PR #249)
 
 ### What's broken / in progress:
 1. **config.html rebuild** — Copilot agent CAN run `build.sh` (already done). After any future source change in `src/`, run `bash build.sh` before testing.
