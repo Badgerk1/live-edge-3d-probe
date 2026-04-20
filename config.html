@@ -11105,6 +11105,195 @@ async function _outlinePlungeProbe(maxPlunge, probeFeed, clearanceZ) {
   return endPos;
 }
 
+// ── Outline-local Z plunge probe (G38.3 — no alarm on miss) ──────────────────
+// Variant of _outlinePlungeProbe that uses G38.3 so a "no contact" result does
+// not cause a controller ALARM.  Returns the end position on contact, or null
+// if no contact occurred within maxPlunge.  The caller is responsible for
+// retracting to clearanceZ when null is returned.
+async function _outlinePlungeProbeG383(maxPlunge, probeFeed, clearanceZ) {
+  var startPos = await getWorkPosition();
+  var startZ   = startPos.z;
+  var pinBefore = await smGetProbeTriggered();
+  outlineAppendLog('PROBE PIN STATE: triggered=' + pinBefore +
+    ' before grid Z plunge at X=' + startPos.x.toFixed(3) + ' Y=' + startPos.y.toFixed(3));
+  if (pinBefore) {
+    throw new Error('Probe pin already triggered before plunge at X=' + startPos.x.toFixed(3) +
+      ' Y=' + startPos.y.toFixed(3) + ' \u2014 smEnsureProbeClear should have cleared this');
+  }
+
+  var probeTimeMs = Math.ceil((maxPlunge / probeFeed) * 60000) + 10000;
+  outlineAppendLog('PROBE: G91 G38.3 Z-' + maxPlunge.toFixed(4) +
+    ' F' + probeFeed.toFixed(0) + ' timeout=' + probeTimeMs + 'ms' +
+    ' (clearanceZ=' + clearanceZ.toFixed(3) + ')');
+
+  await sendCommand('G91 G38.3 Z-' + maxPlunge.toFixed(4) + ' F' + probeFeed.toFixed(0), probeTimeMs);
+  await sleep(50);
+  await waitForIdleWithTimeout(probeTimeMs);
+
+  var endPos   = await getWorkPosition();
+  var traveled = startZ - endPos.z;
+  var probeContactTolerance = 0.5;
+  var stoppedShort = traveled < (maxPlunge - probeContactTolerance);
+  var pinAfter = await smGetProbeTriggered();
+
+  outlineAppendLog('PROBE RESULT: pinAfter=' + pinAfter + ' stoppedShort=' + stoppedShort +
+    ' startZ=' + startZ.toFixed(3) + ' endZ=' + endPos.z.toFixed(3) +
+    ' traveled=' + traveled.toFixed(3) + '/' + maxPlunge.toFixed(3));
+
+  if (!pinAfter && !stoppedShort) {
+    // No contact — return null; caller must retract
+    return null;
+  }
+  return endPos;
+}
+
+// ── Build ordered outline polygon from scan results ───────────────────────────
+// Collects edge points from outlineRowResults / outlineColResults, deduplicates
+// within 0.1 mm, orders with greedy nearest-neighbour traversal (same as SVG
+// export), and enforces CW winding (negative signed area in world Y-up coords).
+// Returns an array of [x, y] pairs, or null if fewer than 3 points are available.
+function _buildOutlinePolygon() {
+  var allPts = [];
+  outlineRowResults.forEach(function(r) {
+    if (r.hasLeft  && r.xLeft  !== null) allPts.push([r.xLeft,  r.y]);
+    if (r.hasRight && r.xRight !== null) allPts.push([r.xRight, r.y]);
+  });
+  outlineColResults.forEach(function(c) {
+    if (c.hasBottom && c.yBottom !== null) allPts.push([c.x, c.yBottom]);
+    if (c.hasTop    && c.yTop    !== null) allPts.push([c.x, c.yTop]);
+  });
+
+  var dedupPts = [];
+  allPts.forEach(function(pt) {
+    var dup = dedupPts.some(function(p) {
+      return Math.abs(p[0] - pt[0]) < 0.1 && Math.abs(p[1] - pt[1]) < 0.1;
+    });
+    if (!dup) dedupPts.push(pt);
+  });
+
+  if (dedupPts.length < 3) return null;
+
+  // Start from the bottom-left point (lowest Y, then lowest X as tiebreaker)
+  var blIdx = 0;
+  dedupPts.forEach(function(p, i) {
+    var b = dedupPts[blIdx];
+    if (p[1] < b[1] || (p[1] === b[1] && p[0] < b[0])) blIdx = i;
+  });
+
+  // Greedy nearest-neighbour traversal
+  var nnOrdered = [];
+  var nnUsed = new Array(dedupPts.length).fill(false);
+  var nnCur = blIdx;
+  nnUsed[nnCur] = true;
+  nnOrdered.push(dedupPts[nnCur]);
+  while (nnOrdered.length < dedupPts.length) {
+    var nnBest = -1, nnBestD = Infinity;
+    for (var j = 0; j < dedupPts.length; j++) {
+      if (nnUsed[j]) continue;
+      var ddx = dedupPts[j][0] - dedupPts[nnCur][0];
+      var ddy = dedupPts[j][1] - dedupPts[nnCur][1];
+      var d2 = ddx * ddx + ddy * ddy;
+      if (d2 < nnBestD) { nnBestD = d2; nnBest = j; }
+    }
+    if (nnBest === -1) break;
+    nnUsed[nnBest] = true;
+    nnCur = nnBest;
+    nnOrdered.push(dedupPts[nnCur]);
+  }
+
+  // Ensure CW winding (negative signed area in world Y-up coords)
+  var area = 0;
+  for (var i = 0; i < nnOrdered.length; i++) {
+    var j2 = (i + 1) % nnOrdered.length;
+    area += nnOrdered[i][0] * nnOrdered[j2][1] - nnOrdered[j2][0] * nnOrdered[i][1];
+  }
+  if (area > 0) nnOrdered.reverse();
+
+  return nnOrdered;
+}
+
+// ── Inset a closed polygon by a uniform margin ────────────────────────────────
+// For each edge of a CW polygon the inward normal is the right-of-edge vector.
+// The inset vertex at each corner is the intersection of the two adjacent
+// offset lines (edge-normal offset by margin), with a miter-limit clamp so
+// sharp convex spikes don't overshoot.  Throws if the result collapses to less
+// than 1 mm² (margin too large for the polygon).
+function _insetPolygon(poly, margin) {
+  var n = poly.length;
+  if (n < 3) throw new Error('Polygon must have at least 3 vertices');
+  if (margin <= 0) return poly.slice();
+
+  // For each edge compute the offset line (point + direction) displaced inward
+  // by margin.  For CW polygon in Y-up coords, inward = right-of-edge:
+  // right normal of edge P1→P2 = (dy/len, -dx/len).
+  var offLines = [];
+  for (var i = 0; i < n; i++) {
+    var p1 = poly[i];
+    var p2 = poly[(i + 1) % n];
+    var edx = p2[0] - p1[0];
+    var edy = p2[1] - p1[1];
+    var len = Math.sqrt(edx * edx + edy * edy);
+    if (len < 1e-10) len = 1e-10;
+    var nx = edy / len;
+    var ny = -edx / len;
+    offLines.push({ ax: p1[0] + nx * margin, ay: p1[1] + ny * margin, dx: edx, dy: edy });
+  }
+
+  // Intersect consecutive offset lines to find inset vertices.
+  // Miter limit: if the intersection is more than 4× margin from the original
+  // vertex, fall back to the start of the second offset line (conservative).
+  var MITER_LIMIT = margin * 4;
+  var inset = [];
+  for (var i = 0; i < n; i++) {
+    var prev = (i - 1 + n) % n;
+    var L1 = offLines[prev];
+    var L2 = offLines[i];
+    var det = L1.dx * (-L2.dy) - (-L2.dx) * L1.dy;
+    var vx, vy;
+    if (Math.abs(det) < 1e-8) {
+      // Parallel edges — use start of second offset line
+      vx = L2.ax; vy = L2.ay;
+    } else {
+      var rx = L2.ax - L1.ax, ry = L2.ay - L1.ay;
+      var t = (rx * (-L2.dy) - ry * (-L2.dx)) / det;
+      vx = L1.ax + t * L1.dx;
+      vy = L1.ay + t * L1.dy;
+      var dist = Math.sqrt(Math.pow(vx - poly[i][0], 2) + Math.pow(vy - poly[i][1], 2));
+      if (dist > MITER_LIMIT) { vx = L2.ax; vy = L2.ay; }
+    }
+    inset.push([vx, vy]);
+  }
+
+  // Validate: area must remain positive (polygon not collapsed)
+  var insetArea = 0;
+  for (var i = 0; i < inset.length; i++) {
+    var j2 = (i + 1) % inset.length;
+    insetArea += inset[i][0] * inset[j2][1] - inset[j2][0] * inset[i][1];
+  }
+  insetArea = Math.abs(insetArea) / 2;
+  if (insetArea < 1.0) {
+    throw new Error('Polygon inset by ' + margin + 'mm collapsed to ' + insetArea.toFixed(2) +
+      ' mm\u00b2 \u2014 reduce Inset Margin or re-run Outline Scan');
+  }
+
+  return inset;
+}
+
+// ── Ray-casting point-in-polygon test ─────────────────────────────────────────
+// Works for CW and CCW simple polygons.  Returns true if (x, y) is inside poly.
+function _pointInPolygon(poly, x, y) {
+  var n = poly.length;
+  var inside = false;
+  for (var i = 0, j = n - 1; i < n; j = i++) {
+    var xi = poly[i][0], yi = poly[i][1];
+    var xj = poly[j][0], yj = poly[j][1];
+    if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
 // ── Outline Surface Grid Probe (full heightmap over outline bounds) ────────────
 async function runOutlineSurfaceGridProbe() {
   if (_outlineRunning) { outlineAppendLog('Already running.'); return; }
@@ -11156,29 +11345,38 @@ async function runOutlineSurfaceGridProbe() {
 
     var gridMinX, gridMaxX, gridMinY, gridMaxY;
     var gridSourceUsed; // 'detected' or 'fallback' — recorded for summary log
+    var gridInsetPoly = null; // set when using detected-outline vector boundary mode
 
     if (gridSource === 'detected' && hasOutlineData) {
-      // Compute bounds from actual measured edge points and row/col coordinates
-      var allX = [], allY = [];
-      outlineRowResults.forEach(function(r) {
-        if (r.hasLeft  && r.xLeft  !== null) { allX.push(r.xLeft);  allY.push(r.y); }
-        if (r.hasRight && r.xRight !== null) { allX.push(r.xRight); allY.push(r.y); }
+      // Build the actual outline polygon (same algorithm as SVG export / visualization)
+      // then inset it by gridMargin and use the inset polygon for both bounding-box
+      // grid generation and per-point inside/outside filtering.
+      var outlinePoly = _buildOutlinePolygon();
+      if (!outlinePoly || outlinePoly.length < 3) {
+        throw new Error('Could not build outline polygon from scan data \u2014 too few valid edge points');
+      }
+      try {
+        gridInsetPoly = _insetPolygon(outlinePoly, gridMargin);
+      } catch (insetErr) {
+        throw new Error('Inset margin ' + gridMargin + 'mm failed: ' + insetErr.message +
+          ' \u2014 reduce Inset Margin or re-run Outline Scan');
+      }
+      // Bounding box of the inset polygon
+      gridMinX = Infinity; gridMaxX = -Infinity;
+      gridMinY = Infinity; gridMaxY = -Infinity;
+      gridInsetPoly.forEach(function(p) {
+        if (p[0] < gridMinX) gridMinX = p[0];
+        if (p[0] > gridMaxX) gridMaxX = p[0];
+        if (p[1] < gridMinY) gridMinY = p[1];
+        if (p[1] > gridMaxY) gridMaxY = p[1];
       });
-      outlineColResults.forEach(function(c) {
-        if (c.hasBottom && c.yBottom !== null) { allX.push(c.x); allY.push(c.yBottom); }
-        if (c.hasTop    && c.yTop    !== null) { allX.push(c.x); allY.push(c.yTop); }
-      });
-      if (allX.length === 0 || allY.length === 0) throw new Error('Outline scan data present but no valid edge points found');
-      gridMinX = Math.min.apply(null, allX) + gridMargin;
-      gridMaxX = Math.max.apply(null, allX) - gridMargin;
-      gridMinY = Math.min.apply(null, allY) + gridMargin;
-      gridMaxY = Math.max.apply(null, allY) - gridMargin;
-      if (gridMinX >= gridMaxX) throw new Error('Outline X bounds too narrow after applying ' + gridMargin + 'mm margin (minX=' + gridMinX.toFixed(3) + ' maxX=' + gridMaxX.toFixed(3) + ')');
-      if (gridMinY >= gridMaxY) throw new Error('Outline Y bounds too narrow after applying ' + gridMargin + 'mm margin (minY=' + gridMinY.toFixed(3) + ' maxY=' + gridMaxY.toFixed(3) + ')');
+      if (gridMinX >= gridMaxX) throw new Error('Inset polygon X span is zero after ' + gridMargin + 'mm inset \u2014 reduce Inset Margin');
+      if (gridMinY >= gridMaxY) throw new Error('Inset polygon Y span is zero after ' + gridMargin + 'mm inset \u2014 reduce Inset Margin');
       gridSourceUsed = 'detected';
-      outlineAppendLog('Grid source: DETECTED OUTLINE (margin=' + gridMargin + 'mm) \u2014 ' +
-        allX.length + ' edge points from ' + outlineRowResults.length + ' rows / ' + outlineColResults.length + ' cols');
-      outlineAppendLog('Grid bounds from detected outline: X' + gridMinX.toFixed(3) + '\u2192' + gridMaxX.toFixed(3) + '  Y' + gridMinY.toFixed(3) + '\u2192' + gridMaxY.toFixed(3));
+      outlineAppendLog('Grid source: Detected Outline vector boundary (inset ' + gridMargin + 'mm) \u2014 ' +
+        outlinePoly.length + ' polygon vertices from ' + outlineRowResults.length + ' rows / ' + outlineColResults.length + ' cols');
+      outlineAppendLog('Grid bounds from inset polygon: X' + gridMinX.toFixed(3) + '\u2192' + gridMaxX.toFixed(3) +
+        '  Y' + gridMinY.toFixed(3) + '\u2192' + gridMaxY.toFixed(3));
     } else {
       if (gridSource === 'detected') outlineAppendLog('Grid source: DETECTED OUTLINE requested but no outline scan data present \u2014 falling back to Outline Search Bounds.');
       else outlineAppendLog('Grid source: OUTLINE SEARCH BOUNDS (user-selected).');
@@ -11207,6 +11405,7 @@ async function runOutlineSurfaceGridProbe() {
 
     var totalPoints = gridCfg.colCount * gridCfg.rowCount;
     var probed = 0;
+    var skipped = 0;
     var result = [];
     for (var ri = 0; ri < gridCfg.rowCount; ri++) {
       result.push([]);
@@ -11214,7 +11413,7 @@ async function runOutlineSurfaceGridProbe() {
     }
 
     outlineAppendLog('=== Outline Surface Grid Probe ===');
-    outlineAppendLog('Bounds source: ' + (gridSourceUsed === 'detected' ? 'DETECTED OUTLINE (auto-inset ' + gridMargin + 'mm)' : 'OUTLINE SEARCH BOUNDS (fallback)'));
+    outlineAppendLog('Bounds source: ' + (gridSourceUsed === 'detected' ? 'Detected Outline vector boundary (inset ' + gridMargin + 'mm)' : 'OUTLINE SEARCH BOUNDS (fallback)'));
     outlineAppendLog('Grid: ' + gridCfg.colCount + 'x' + gridCfg.rowCount + ' = ' + totalPoints + ' points');
     outlineAppendLog('Bounds: X' + gridCfg.minX.toFixed(3) + '\u2192' + gridCfg.maxX.toFixed(3) +
       '  Y' + gridCfg.minY.toFixed(3) + '\u2192' + gridCfg.maxY.toFixed(3));
@@ -11243,6 +11442,17 @@ async function runOutlineSurfaceGridProbe() {
         outlineCheckStop();
         var col = reversed ? (gridCfg.colCount - 1 - step) : step;
         var colX = gridCfg.minX + col * gridCfg.colSpacing;
+
+        // Point-in-polygon check: skip grid points that fall outside the inset
+        // outline boundary.  result[row][col] stays null (already initialised).
+        if (gridInsetPoly !== null && !_pointInPolygon(gridInsetPoly, colX, rowY)) {
+          outlineAppendLog('SKIP [' + row + ',' + col + '] X' + colX.toFixed(3) + ' Y' + rowY.toFixed(3) +
+            ' \u2014 outside inset outline boundary');
+          skipped++;
+          outlineSetProgress((probed + skipped) / totalPoints * 100);
+          continue;
+        }
+
         outlineAppendLog('Probing [' + row + ',' + col + '] X' + colX.toFixed(3) + ' Y' + rowY.toFixed(3));
 
         // Lateral travel to next probe point using absolute-retract-then-XY pattern:
@@ -11261,12 +11471,24 @@ async function runOutlineSurfaceGridProbe() {
         // Ensure probe pin is not already triggered before plunging; retries up to 3× if stuck
         await smEnsureProbeClear(clearanceZ, travelFeed);
 
-        // Outline-local plunge probe — uses G38.2 with Outline-derived settings only.
-        // Never reads Surface Probe tab DOM fields (sm-clearanceZ, travelRecoveryLiftFeedRate, etc.)
-        var pos = await _outlinePlungeProbe(maxPlunge, probeFeed, clearanceZ);
+        // Grid Z plunge uses G38.3 (no error on miss) so an unexpected void/air gap
+        // near the outline edge does not ALARM the controller.
+        // null return = no contact within maxPlunge → store null, retract, continue.
+        var pos = await _outlinePlungeProbeG383(maxPlunge, probeFeed, clearanceZ);
+        if (pos === null) {
+          // No contact — machine stopped at bottom of travel; retract to clearanceZ
+          await sendCommand('G90 G1 Z' + clearanceZ.toFixed(3) + ' F' + travelFeed);
+          await sleep(50);
+          await waitForIdleWithTimeout(30000);
+          result[row][col] = null;
+          skipped++;
+          outlineSetProgress((probed + skipped) / totalPoints * 100);
+          outlineAppendLog('  -> no contact (G38.3 miss) \u2014 stored null');
+          continue;
+        }
         result[row][col] = pos.z;
         probed++;
-        outlineSetProgress(probed / totalPoints * 100);
+        outlineSetProgress((probed + skipped) / totalPoints * 100);
         outlineAppendLog('  -> Z=' + pos.z.toFixed(4));
       }
 
@@ -11290,8 +11512,8 @@ async function runOutlineSurfaceGridProbe() {
     smGridConfig    = subdivided.config;
 
     outlineSetProgress(100);
-    outlineAppendLog('Surface grid probe complete! ' + probed + ' points captured.');
-    outlineSetStatus('Grid probe done \u2013 ' + probed + ' points', 'good');
+    outlineAppendLog('Surface grid probe complete! ' + probed + ' probed, ' + skipped + ' skipped (outside boundary or no contact), ' + totalPoints + ' total grid points.');
+    outlineSetStatus('Grid probe done \u2013 ' + probed + ' probed / ' + skipped + ' skipped', 'good');
     setFooterStatus('Outline surface grid probe complete', 'good');
 
     // Finish motion: retract Z, then always return to work origin X0 Y0
