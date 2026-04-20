@@ -11059,6 +11059,52 @@ async function runOutline360FaceProbe() {
   }
 }
 
+// ── Outline-local Z plunge probe (G38.2 — errors on no contact) ──────────────
+// Safe alternative to smPlungeProbe for outline operations.
+// Reads only parameters computed from Outline settings — never touches Surface
+// Probe tab DOM fields (e.g. sm-clearanceZ) that would corrupt clearance logic.
+//   maxPlunge  – total relative downward travel from current Z (retractAbove + probeDown)
+//   probeFeed  – probe feed rate mm/min from Outline settings
+//   clearanceZ – absolute work-Z clearance height (surfZ + retractAbove), for logging only
+async function _outlinePlungeProbe(maxPlunge, probeFeed, clearanceZ) {
+  var startPos = await getWorkPosition();
+  var startZ   = startPos.z;
+  var pinBefore = await smGetProbeTriggered();
+  outlineAppendLog('PROBE PIN STATE: triggered=' + pinBefore +
+    ' before grid Z plunge at X=' + startPos.x.toFixed(3) + ' Y=' + startPos.y.toFixed(3));
+  if (pinBefore) {
+    throw new Error('Probe pin already triggered before plunge at X=' + startPos.x.toFixed(3) +
+      ' Y=' + startPos.y.toFixed(3) + ' — smEnsureProbeClear should have cleared this');
+  }
+
+  // Timeout: travel time (distance mm / feed mm·min⁻¹ × 60000 ms·min⁻¹) + 10 s buffer
+  var probeTimeMs = Math.ceil((maxPlunge / probeFeed) * 60000) + 10000;
+  outlineAppendLog('PROBE: G91 G38.2 Z-' + maxPlunge.toFixed(4) +
+    ' F' + probeFeed.toFixed(0) + ' timeout=' + probeTimeMs + 'ms' +
+    ' (clearanceZ=' + clearanceZ.toFixed(3) + ')');
+
+  await sendCommand('G91 G38.2 Z-' + maxPlunge.toFixed(4) + ' F' + probeFeed.toFixed(0), probeTimeMs);
+  await sleep(50);
+  await waitForIdleWithTimeout(probeTimeMs);
+
+  var endPos   = await getWorkPosition();
+  var traveled = startZ - endPos.z;
+  var probeContactTolerance = 0.5; // mm; machine must stop at least this far short to count as contact
+  var stoppedShort = traveled < (maxPlunge - probeContactTolerance);
+  var pinAfter = await smGetProbeTriggered();
+
+  outlineAppendLog('PROBE RESULT: pinAfter=' + pinAfter + ' stoppedShort=' + stoppedShort +
+    ' startZ=' + startZ.toFixed(3) + ' endZ=' + endPos.z.toFixed(3) +
+    ' traveled=' + traveled.toFixed(3) + '/' + maxPlunge.toFixed(3));
+
+  if (!pinAfter && !stoppedShort) {
+    throw new Error('No contact within max plunge ' + maxPlunge.toFixed(3) +
+      'mm at X=' + endPos.x.toFixed(3) + ' Y=' + endPos.y.toFixed(3));
+  }
+
+  return endPos;
+}
+
 // ── Outline Surface Grid Probe (full heightmap over outline bounds) ────────────
 async function runOutlineSurfaceGridProbe() {
   if (_outlineRunning) { outlineAppendLog('Already running.'); return; }
@@ -11109,6 +11155,7 @@ async function runOutlineSurfaceGridProbe() {
     var hasOutlineData = (outlineRowResults.length > 0 || outlineColResults.length > 0);
 
     var gridMinX, gridMaxX, gridMinY, gridMaxY;
+    var gridSourceUsed; // 'detected' or 'fallback' — recorded for summary log
 
     if (gridSource === 'detected' && hasOutlineData) {
       // Compute bounds from actual measured edge points and row/col coordinates
@@ -11128,14 +11175,20 @@ async function runOutlineSurfaceGridProbe() {
       gridMaxY = Math.max.apply(null, allY) - gridMargin;
       if (gridMinX >= gridMaxX) throw new Error('Outline X bounds too narrow after applying ' + gridMargin + 'mm margin (minX=' + gridMinX.toFixed(3) + ' maxX=' + gridMaxX.toFixed(3) + ')');
       if (gridMinY >= gridMaxY) throw new Error('Outline Y bounds too narrow after applying ' + gridMargin + 'mm margin (minY=' + gridMinY.toFixed(3) + ' maxY=' + gridMaxY.toFixed(3) + ')');
-      outlineAppendLog('Grid bounds from detected outline (margin=' + gridMargin + 'mm): X' + gridMinX.toFixed(3) + '\u2192' + gridMaxX.toFixed(3) + '  Y' + gridMinY.toFixed(3) + '\u2192' + gridMaxY.toFixed(3));
+      gridSourceUsed = 'detected';
+      outlineAppendLog('Grid source: DETECTED OUTLINE (margin=' + gridMargin + 'mm) \u2014 ' +
+        allX.length + ' edge points from ' + outlineRowResults.length + ' rows / ' + outlineColResults.length + ' cols');
+      outlineAppendLog('Grid bounds from detected outline: X' + gridMinX.toFixed(3) + '\u2192' + gridMaxX.toFixed(3) + '  Y' + gridMinY.toFixed(3) + '\u2192' + gridMaxY.toFixed(3));
     } else {
-      if (gridSource === 'detected') outlineAppendLog('No outline scan data \u2014 falling back to Outline Search Bounds.');
+      if (gridSource === 'detected') outlineAppendLog('Grid source: DETECTED OUTLINE requested but no outline scan data present \u2014 falling back to Outline Search Bounds.');
+      else outlineAppendLog('Grid source: OUTLINE SEARCH BOUNDS (user-selected).');
       if (cfg.xLen <= 0 || cfg.yLen <= 0) throw new Error('Outline bounds invalid (XLen/YLen must be > 0)');
       gridMinX = cfg.x0;
       gridMaxX = cfg.x0 + cfg.xLen;
       gridMinY = cfg.y0;
       gridMaxY = cfg.y0 + cfg.yLen;
+      gridSourceUsed = 'fallback';
+      outlineAppendLog('Grid bounds from Outline Search Bounds: X' + gridMinX.toFixed(3) + '\u2192' + gridMaxX.toFixed(3) + '  Y' + gridMinY.toFixed(3) + '\u2192' + gridMaxY.toFixed(3));
     }
 
     var xLen = gridMaxX - gridMinX;
@@ -11161,12 +11214,14 @@ async function runOutlineSurfaceGridProbe() {
     }
 
     outlineAppendLog('=== Outline Surface Grid Probe ===');
+    outlineAppendLog('Bounds source: ' + (gridSourceUsed === 'detected' ? 'DETECTED OUTLINE (auto-inset ' + gridMargin + 'mm)' : 'OUTLINE SEARCH BOUNDS (fallback)'));
     outlineAppendLog('Grid: ' + gridCfg.colCount + 'x' + gridCfg.rowCount + ' = ' + totalPoints + ' points');
     outlineAppendLog('Bounds: X' + gridCfg.minX.toFixed(3) + '\u2192' + gridCfg.maxX.toFixed(3) +
       '  Y' + gridCfg.minY.toFixed(3) + '\u2192' + gridCfg.maxY.toFixed(3));
-    outlineAppendLog('Surface Z: ' + surfZ.toFixed(3) + ' (from Surface Probe) \u2192 clearanceZ=' + clearanceZ.toFixed(3) +
-      ' maxPlunge=' + maxPlunge.toFixed(3));
-    outlineAppendLog('Settings: probeFeed=' + probeFeed + ' travelFeed=' + travelFeed);
+    outlineAppendLog('Surface Z: ' + surfZ.toFixed(3) + ' \u2192 clearanceZ=' + clearanceZ.toFixed(3) +
+      ' (surfZ + retractAbove=' + cfg.retractAbove.toFixed(3) + ')');
+    outlineAppendLog('maxPlunge=' + maxPlunge.toFixed(3) + ' (retractAbove + probeDown=' + cfg.probeDown.toFixed(3) +
+      ')  probeFeed=' + probeFeed + '  travelFeed=' + travelFeed);
 
     await requireStartupHomingPreflight('Outline Surface Grid Probe');
 
@@ -11203,11 +11258,12 @@ async function runOutlineSurfaceGridProbe() {
           await _outlineAbsTravel(colX, rowY, clearanceZ, travelFeed, travelFeed);
         }
 
-        // Ensure probe pin is not already triggered before plunging
+        // Ensure probe pin is not already triggered before plunging; retries up to 3× if stuck
         await smEnsureProbeClear(clearanceZ, travelFeed);
 
-        // Plunge probe
-        var pos = await smPlungeProbe(maxPlunge, probeFeed);
+        // Outline-local plunge probe — uses G38.2 with Outline-derived settings only.
+        // Never reads Surface Probe tab DOM fields (sm-clearanceZ, travelRecoveryLiftFeedRate, etc.)
+        var pos = await _outlinePlungeProbe(maxPlunge, probeFeed, clearanceZ);
         result[row][col] = pos.z;
         probed++;
         outlineSetProgress(probed / totalPoints * 100);
