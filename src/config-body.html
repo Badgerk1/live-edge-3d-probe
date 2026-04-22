@@ -1649,6 +1649,12 @@
           <button class="btn ghost" id="btn-outline-export-surf-obj" title="Export surface mesh as OBJ">&#129518; Export OBJ</button>
           <button class="btn ghost" id="btn-outline-export-surf-stl" title="Export surface mesh as binary STL (recommended for Aspire v12)">&#128230; Export STL</button>
         </div>
+        <div class="btn-row" style="margin-top:6px">
+          <button class="btn" id="btn-outline-export-surf-stl-smooth" title="Export STL whose XY boundary follows the smooth outline curve — no stair-step edge in Aspire">&#10024; Export STL (Smooth Outline)</button>
+        </div>
+        <div class="callout mini" style="margin-top:6px">
+          <strong>Smooth Outline STL</strong> — boundary follows the detected outline curve (densified to the subdivision spacing), interior filled with probe grid points. Imports into Aspire with a smooth curved silhouette instead of a blocky grid edge.
+        </div>
       </div>
 
       <!-- Outline Results Summary -->

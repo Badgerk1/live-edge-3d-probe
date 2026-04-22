@@ -1406,6 +1406,7 @@ async function runOutlineSurfaceGridProbe() {
     // Store results in the global surface mesh variables (same as Probe tab)
     smMeshDataRaw   = result;
     smGridConfigRaw = gridCfg;
+    smLastInsetPolygon = gridInsetPoly; // null when using fallback bounds (no detected outline)
     var subdivided  = subdivideSurfaceMesh(result, gridCfg, meshSubdivisionSpacing);
     smMeshData      = subdivided.grid;
     smGridConfig    = subdivided.config;
@@ -1476,9 +1477,11 @@ function _showOutlineSurfExportPanel() {
     var dxfBtn = document.getElementById('btn-outline-export-surf-dxf');
     var objBtn = document.getElementById('btn-outline-export-surf-obj');
     var stlBtn = document.getElementById('btn-outline-export-surf-stl');
+    var stlSmoothBtn = document.getElementById('btn-outline-export-surf-stl-smooth');
     if (dxfBtn) dxfBtn.addEventListener('click', function() { flashButton(this); exportSurfaceDXF(); });
     if (objBtn) objBtn.addEventListener('click', function() { flashButton(this); exportSurfaceOBJ(); });
     if (stlBtn) stlBtn.addEventListener('click', function() { flashButton(this); exportSurfaceSTL(); });
+    if (stlSmoothBtn) stlSmoothBtn.addEventListener('click', function() { flashButton(this); exportSurfaceSTLSmooth(); });
     // Show panel if mesh data is already present (e.g. after page reload with saved mesh)
     if (typeof smMeshData !== 'undefined' && smMeshData) _showOutlineSurfExportPanel();
   }

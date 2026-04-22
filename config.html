@@ -1876,6 +1876,12 @@
           <button class="btn ghost" id="btn-outline-export-surf-obj" title="Export surface mesh as OBJ">&#129518; Export OBJ</button>
           <button class="btn ghost" id="btn-outline-export-surf-stl" title="Export surface mesh as binary STL (recommended for Aspire v12)">&#128230; Export STL</button>
         </div>
+        <div class="btn-row" style="margin-top:6px">
+          <button class="btn" id="btn-outline-export-surf-stl-smooth" title="Export STL whose XY boundary follows the smooth outline curve — no stair-step edge in Aspire">&#10024; Export STL (Smooth Outline)</button>
+        </div>
+        <div class="callout mini" style="margin-top:6px">
+          <strong>Smooth Outline STL</strong> — boundary follows the detected outline curve (densified to the subdivision spacing), interior filled with probe grid points. Imports into Aspire with a smooth curved silhouette instead of a blocky grid edge.
+        </div>
       </div>
 
       <!-- Outline Results Summary -->
@@ -2705,6 +2711,7 @@ var smMeshData = null;
 var smGridConfig = null;
 var smMeshDataRaw = null;    // original sparse surface grid (pre-subdivision)
 var smGridConfigRaw = null;  // original grid config (pre-subdivision)
+var smLastInsetPolygon = null; // inset polygon used by the last Outline Surface Grid Probe run
 var smOriginalGcode = null;
 var smCompensatedGcode = null;
 var smStopFlag = false;
@@ -11589,6 +11596,7 @@ async function runOutlineSurfaceGridProbe() {
     // Store results in the global surface mesh variables (same as Probe tab)
     smMeshDataRaw   = result;
     smGridConfigRaw = gridCfg;
+    smLastInsetPolygon = gridInsetPoly; // null when using fallback bounds (no detected outline)
     var subdivided  = subdivideSurfaceMesh(result, gridCfg, meshSubdivisionSpacing);
     smMeshData      = subdivided.grid;
     smGridConfig    = subdivided.config;
@@ -11659,9 +11667,11 @@ function _showOutlineSurfExportPanel() {
     var dxfBtn = document.getElementById('btn-outline-export-surf-dxf');
     var objBtn = document.getElementById('btn-outline-export-surf-obj');
     var stlBtn = document.getElementById('btn-outline-export-surf-stl');
+    var stlSmoothBtn = document.getElementById('btn-outline-export-surf-stl-smooth');
     if (dxfBtn) dxfBtn.addEventListener('click', function() { flashButton(this); exportSurfaceDXF(); });
     if (objBtn) objBtn.addEventListener('click', function() { flashButton(this); exportSurfaceOBJ(); });
     if (stlBtn) stlBtn.addEventListener('click', function() { flashButton(this); exportSurfaceSTL(); });
+    if (stlSmoothBtn) stlSmoothBtn.addEventListener('click', function() { flashButton(this); exportSurfaceSTLSmooth(); });
     // Show panel if mesh data is already present (e.g. after page reload with saved mesh)
     if (typeof smMeshData !== 'undefined' && smMeshData) _showOutlineSurfExportPanel();
   }
@@ -13327,7 +13337,201 @@ function exportSurfaceSTL() {
   pluginDebug('exportSurfaceSTL: exported ' + allVerts.length + ' vertices, ' + allTris.length + ' triangles');
   setFooterStatus('Exported surface mesh to STL (' + allVerts.length + ' vertices, C2 spline subdivision ' + subSpacing + 'mm).', 'good');
 }
-// ── Face DXF export ───────────────────────────────────────────────────────────
+// ── Smooth-outline STL helpers ────────────────────────────────────────────────
+
+// Densify a closed polygon so no edge is longer than maxSegLen.
+// Returns a new array of [x,y] vertices (does NOT close with a repeated first vertex).
+function _densifyPolygon(poly, maxSegLen) {
+  if (!poly || poly.length < 2) return poly ? poly.slice() : [];
+  var out = [];
+  var n = poly.length;
+  for (var i = 0; i < n; i++) {
+    var p1 = poly[i];
+    var p2 = poly[(i + 1) % n];
+    out.push(p1);
+    var dx = p2[0] - p1[0], dy = p2[1] - p1[1];
+    var len = Math.sqrt(dx * dx + dy * dy);
+    if (len > maxSegLen) {
+      var segs = Math.ceil(len / maxSegLen);
+      for (var k = 1; k < segs; k++) {
+        var t = k / segs;
+        out.push([p1[0] + dx * t, p1[1] + dy * t]);
+      }
+    }
+  }
+  return out;
+}
+
+// Null-aware bilinear interpolation: returns a number or null.
+// Unlike bilinearInterpolateZ, treats missing grid cells as absent rather than 0.
+function _bilinearZNullAware(grid, cfg, qx, qy) {
+  var col = (qx - cfg.minX) / cfg.colSpacing;
+  var row = (qy - cfg.minY) / cfg.rowSpacing;
+  var col0 = Math.floor(col);
+  var row0 = Math.floor(row);
+  col0 = Math.max(0, Math.min(cfg.colCount - 2, col0));
+  row0 = Math.max(0, Math.min(cfg.rowCount - 2, row0));
+  var col1 = col0 + 1;
+  var row1 = row0 + 1;
+  var z00 = grid[row0] && grid[row0][col0] != null ? grid[row0][col0] : null;
+  var z10 = grid[row0] && grid[row0][col1] != null ? grid[row0][col1] : null;
+  var z01 = grid[row1] && grid[row1][col0] != null ? grid[row1][col0] : null;
+  var z11 = grid[row1] && grid[row1][col1] != null ? grid[row1][col1] : null;
+  if (z00 === null || z10 === null || z01 === null || z11 === null) return null;
+  var fx = Math.max(0, Math.min(1, col - col0));
+  var fy = Math.max(0, Math.min(1, row - row0));
+  return z00 * (1 - fx) * (1 - fy) + z10 * fx * (1 - fy) +
+         z01 * (1 - fx) * fy       + z11 * fx * fy;
+}
+
+// Z-method B: clamp to nearest valid grid sample when bilinear interpolation
+// is unavailable (null surrounding cells or point outside grid).
+// validPts: [{x, y, z}, ...] — pre-built list of all valid grid samples.
+function _nearestValidZ(x, y, validPts) {
+  if (!validPts || validPts.length === 0) return 0;
+  var bestZ = validPts[0].z, bestD2 = Infinity;
+  for (var k = 0; k < validPts.length; k++) {
+    var dx = validPts[k].x - x, dy = validPts[k].y - y;
+    var d2 = dx * dx + dy * dy;
+    if (d2 < bestD2) { bestD2 = d2; bestZ = validPts[k].z; }
+  }
+  return bestZ;
+}
+
+// ── Export STL (Smooth Outline) ───────────────────────────────────────────────
+// Builds a surface mesh whose XY boundary follows the outline SVG curve rather
+// than the blocky rectangular grid.  Algorithm:
+//   1. Obtain the boundary polygon (inset outline or grid bounding rect fallback).
+//   2. Densify the boundary to at most surfOBJSubdivision mm per segment.
+//   3. Collect all valid interior grid sample points that lie inside the polygon.
+//   4. Delaunay-triangulate all vertices (boundary + interior).
+//   5. Discard triangles whose centroid falls outside the polygon.
+//   6. Assign Z via null-aware bilinear interpolation; fall back to nearest-valid
+//      sample (Z method B) when interpolation is not possible.
+//   7. Export binary STL.
+function exportSurfaceSTLSmooth() {
+  pluginDebug('exportSurfaceSTLSmooth ENTER');
+  if (!smMeshData || !smGridConfig) {
+    pluginDebug('exportSurfaceSTLSmooth: no data');
+    alert('No surface mesh data. Run a surface probe first.');
+    return;
+  }
+
+  var grid = smMeshData, cfg = smGridConfig;
+
+  // Max segment length for boundary densification (reuses subdivision control).
+  var maxSeg = Number((document.getElementById('surfOBJSubdivision') || {}).value);
+  if (!isFinite(maxSeg) || maxSeg <= 0) maxSeg = 0.5;
+  maxSeg = Math.max(0.1, maxSeg);
+
+  // ── 1. Obtain boundary polygon ────────────────────────────────────────────
+  var boundaryPoly = null;
+  var polySource = '';
+
+  // Priority A: polygon cached from the last Outline Surface Grid Probe run.
+  if (typeof smLastInsetPolygon !== 'undefined' && smLastInsetPolygon && smLastInsetPolygon.length >= 3) {
+    boundaryPoly = smLastInsetPolygon;
+    polySource = 'detected outline inset (from last Outline Surface Grid Probe run), ' + boundaryPoly.length + ' vertices';
+  }
+  // Priority B: build from current outline scan data and inset by gridMargin.
+  if (!boundaryPoly) {
+    try {
+      var rawPoly = (typeof _buildOutlinePolygon === 'function') ? _buildOutlinePolygon() : null;
+      if (rawPoly && rawPoly.length >= 3) {
+        var margin = Number((document.getElementById('outlineGridMargin') || {}).value) || 2;
+        boundaryPoly = _insetPolygon(rawPoly, margin);
+        polySource = 'detected outline from scan data (inset ' + margin + 'mm), ' + boundaryPoly.length + ' raw vertices';
+      }
+    } catch (e) {
+      pluginDebug('exportSurfaceSTLSmooth: could not build/inset outline polygon — ' + e.message);
+    }
+  }
+  // Priority C: fallback — bounding rect of the surface grid (gives smooth boundary
+  // from the grid edge, not from the outline curve, but always works).
+  if (!boundaryPoly) {
+    var minX = cfg.minX, maxX = cfg.minX + (cfg.colCount - 1) * cfg.colSpacing;
+    var minY = cfg.minY, maxY = cfg.minY + (cfg.rowCount - 1) * cfg.rowSpacing;
+    boundaryPoly = [[minX, minY], [maxX, minY], [maxX, maxY], [minX, maxY]];
+    polySource = 'grid bounding rectangle (no outline scan data available)';
+  }
+
+  pluginDebug('exportSurfaceSTLSmooth: boundary polygon source — ' + polySource);
+
+  // ── 2. Densify boundary ───────────────────────────────────────────────────
+  var denseBoundary = _densifyPolygon(boundaryPoly, maxSeg);
+  pluginDebug('exportSurfaceSTLSmooth: boundary densified — ' + boundaryPoly.length +
+    ' vertices → ' + denseBoundary.length + ' after densification (maxSeg=' + maxSeg + 'mm)');
+
+  // ── 3. Collect valid interior grid points inside the polygon ──────────────
+  var validPts = []; // [{x, y, z}] — all valid grid samples (for nearest-neighbor fallback)
+  var interiorPts = []; // subset that lies inside the boundary polygon
+  for (var ri = 0; ri < cfg.rowCount; ri++) {
+    for (var ci = 0; ci < cfg.colCount; ci++) {
+      var gz = grid[ri] && grid[ri][ci] != null ? grid[ri][ci] : null;
+      if (gz === null) continue;
+      var gx = cfg.minX + ci * cfg.colSpacing;
+      var gy = cfg.minY + ri * cfg.rowSpacing;
+      validPts.push({ x: gx, y: gy, z: gz });
+      if (_pointInPolygon(boundaryPoly, gx, gy)) interiorPts.push({ x: gx, y: gy });
+    }
+  }
+  pluginDebug('exportSurfaceSTLSmooth: ' + validPts.length + ' valid grid samples; ' +
+    interiorPts.length + ' interior points inside polygon');
+
+  // ── 4. Build combined 2-D point set (boundary ring + interior samples) ────
+  // De-duplicate: avoid placing grid points too close to a boundary vertex.
+  var DEDUP_DIST = maxSeg * 0.5;
+  var allPts2d = denseBoundary.map(function(p) { return { x: p[0], y: p[1] }; });
+  var boundaryCount = allPts2d.length;
+
+  interiorPts.forEach(function(ip) {
+    var tooClose = false;
+    for (var k = 0; k < allPts2d.length && !tooClose; k++) {
+      var ddx = allPts2d[k].x - ip.x, ddy = allPts2d[k].y - ip.y;
+      if (ddx * ddx + ddy * ddy < DEDUP_DIST * DEDUP_DIST) tooClose = true;
+    }
+    if (!tooClose) allPts2d.push({ x: ip.x, y: ip.y });
+  });
+  pluginDebug('exportSurfaceSTLSmooth: combined point count for triangulation = ' + allPts2d.length +
+    ' (' + boundaryCount + ' boundary + ' + (allPts2d.length - boundaryCount) + ' interior)');
+
+  if (allPts2d.length < 3) {
+    alert('Not enough valid points to build a smooth outline mesh. Run Outline Surface Grid Probe first.');
+    return;
+  }
+
+  // ── 5. Delaunay triangulate ───────────────────────────────────────────────
+  var rawTris = _delaunayTriangulate(allPts2d);
+  pluginDebug('exportSurfaceSTLSmooth: Delaunay produced ' + rawTris.length + ' raw triangles');
+
+  // Discard triangles whose centroid falls outside the boundary polygon.
+  var filteredTris = rawTris.filter(function(t) {
+    var cx = (allPts2d[t[0]].x + allPts2d[t[1]].x + allPts2d[t[2]].x) / 3;
+    var cy = (allPts2d[t[0]].y + allPts2d[t[1]].y + allPts2d[t[2]].y) / 3;
+    return _pointInPolygon(boundaryPoly, cx, cy);
+  });
+  pluginDebug('exportSurfaceSTLSmooth: ' + filteredTris.length + ' triangles after polygon clip');
+
+  if (filteredTris.length === 0) {
+    alert('No triangles inside boundary polygon. Check outline scan data and margin.');
+    return;
+  }
+
+  // ── 6. Compute Z for each vertex ──────────────────────────────────────────
+  var allVerts = allPts2d.map(function(p) {
+    var z = _bilinearZNullAware(grid, cfg, p.x, p.y);
+    if (z === null) z = _nearestValidZ(p.x, p.y, validPts);
+    return { x: p.x, y: p.y, z: z };
+  });
+
+  // ── 7. Export binary STL ──────────────────────────────────────────────────
+  _stlDownload(allVerts, filteredTris, 'surface_smooth_outline_' + Date.now() + '.stl');
+  pluginDebug('exportSurfaceSTLSmooth: exported ' + allVerts.length + ' vertices, ' +
+    filteredTris.length + ' triangles — boundary: ' + polySource);
+  setFooterStatus('Exported smooth-outline STL (' + allVerts.length + ' vertices, ' +
+    filteredTris.length + ' triangles, boundary: ' + polySource + ').', 'good');
+}
+
 function exportFaceDXF() {
   pluginDebug('exportFaceDXF ENTER');
   var data = getFaceMeshData();
@@ -14157,7 +14361,7 @@ var FUNCTIONS_TO_CHECK = [
   'runFaceProbe', 'stopAll',
   'saveLog', 'clearLog', 'saveAllLogs',
   'exportCSV', 'exportFaceCSV', 'exportFaceDXF', 'exportFaceOBJ', 'exportFaceSTL',
-  'exportSurfaceMeshCSV', 'exportSurfaceDXF', 'exportSurfaceOBJ', 'exportSurfaceSTL',
+  'exportSurfaceMeshCSV', 'exportSurfaceDXF', 'exportSurfaceOBJ', 'exportSurfaceSTL', 'exportSurfaceSTLSmooth',
   'exportSurfaceMesh', 'loadSurfaceMesh', 'saveSurfaceMesh', 'clearSurfaceMesh',
   'exportCombinedMeshCSV', 'exportCombinedMeshJSON',
   'exportCombinedOBJWatertight', 'exportCombinedSTLWatertight',
