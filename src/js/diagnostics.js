@@ -122,7 +122,7 @@ var FUNCTIONS_TO_CHECK = [
   'runFaceProbe', 'stopAll',
   'saveLog', 'clearLog', 'saveAllLogs',
   'exportCSV', 'exportFaceCSV', 'exportFaceDXF', 'exportFaceOBJ', 'exportFaceSTL',
-  'exportSurfaceMeshCSV', 'exportSurfaceDXF', 'exportSurfaceOBJ', 'exportSurfaceSTL',
+  'exportSurfaceMeshCSV', 'exportSurfaceDXF', 'exportSurfaceOBJ', 'exportSurfaceSTL', 'exportSurfaceSTLSmooth',
   'exportSurfaceMesh', 'loadSurfaceMesh', 'saveSurfaceMesh', 'clearSurfaceMesh',
   'exportCombinedMeshCSV', 'exportCombinedMeshJSON',
   'exportCombinedOBJWatertight', 'exportCombinedSTLWatertight',
