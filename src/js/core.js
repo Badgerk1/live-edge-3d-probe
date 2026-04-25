@@ -218,6 +218,7 @@ async function stopNowAndSafeHome(reason) {
 
   // 3. Poll until status is Hold (up to 1 s).
   pluginDebug(label + ': waiting for Hold state\u2026');
+  var _detectedAlarm = false;
   var holdDeadline = Date.now() + 1000;
   while (Date.now() < holdDeadline) {
     await sleep(100);
@@ -225,10 +226,18 @@ async function stopNowAndSafeHome(reason) {
       var _st = await _getState();
       var _ms = _machineStateFrom(_st);
       var _status = String(_ms.status || '').toLowerCase();
+      if (_status.indexOf('alarm') >= 0) { _detectedAlarm = true; break; }
       if (_status.indexOf('hold') >= 0 || _status === 'idle') break;
     } catch(_e) {}
   }
   pluginDebug(label + ': Hold poll done');
+  if (_detectedAlarm) {
+    _stopLog('STOP (outline): ALARM detected \u2014 safety moves skipped until alarm clears');
+    setFooterStatus(label + ': ALARM \u2014 use Soft Reset (0x18) then Retry Safety Moves', 'bad');
+    pluginDebug(label + ': ALARM detected in initial Hold poll; showing alarm panel');
+    _showAlarmWarning(true);
+    return;
+  }
 
   // 4. Try to cancel queued motion via ncSender-compatible safe-stop endpoints.
   //    Order: /api/gcode-job/stop → /api/probe/stop → /api/gcode/stop.
@@ -254,8 +263,16 @@ async function stopNowAndSafeHome(reason) {
       var _st2 = await _getState();
       var _ms2 = _machineStateFrom(_st2);
       var _st2s = String(_ms2.status || '').toLowerCase();
+      if (_st2s.indexOf('alarm') >= 0) { _detectedAlarm = true; break; }
       if (_st2s.indexOf('hold') < 0) { leftHold = true; break; }
     } catch(_e2) {}
+  }
+  if (_detectedAlarm) {
+    _stopLog('STOP (outline): ALARM detected \u2014 safety moves skipped until alarm clears');
+    setFooterStatus(label + ': ALARM \u2014 use Soft Reset (0x18) then Retry Safety Moves', 'bad');
+    pluginDebug(label + ': ALARM detected in exit-Hold poll; showing alarm panel');
+    _showAlarmWarning(true);
+    return;
   }
 
   if (!leftHold) {
@@ -275,10 +292,18 @@ async function stopNowAndSafeHome(reason) {
         var _st3 = await _getState();
         var _ms3 = _machineStateFrom(_st3);
         var _st3s = String(_ms3.status || '').toLowerCase();
+        if (_st3s.indexOf('alarm') >= 0) { _detectedAlarm = true; break; }
         if (_st3s.indexOf('hold') < 0) { leftHold = true; break; }
       } catch(_e3) {}
     }
-    if (leftHold) {
+    if (_detectedAlarm) {
+      _showResumeButtonWarning(false);
+      _stopLog('STOP (outline): ALARM detected \u2014 safety moves skipped until alarm clears');
+      setFooterStatus(label + ': ALARM \u2014 use Soft Reset (0x18) then Retry Safety Moves', 'bad');
+      pluginDebug(label + ': ALARM detected in hold-warning poll; showing alarm panel');
+      _showAlarmWarning(true);
+      return;
+    } else if (leftHold) {
       // Hold cleared — hide the warning panel and proceed with safety moves.
       _showResumeButtonWarning(false);
     } else {
@@ -291,6 +316,21 @@ async function stopNowAndSafeHome(reason) {
   }
 
   pluginDebug(label + ': controller left Hold; starting safety moves');
+
+  // Final ALARM check before starting safety moves.
+  try {
+    var _preMoveState = await _getState();
+    var _preMoveMs = _machineStateFrom(_preMoveState);
+    var _preMoveStatus = String(_preMoveMs.status || '').toLowerCase();
+    if (_preMoveStatus.indexOf('alarm') >= 0) { _detectedAlarm = true; }
+  } catch(_preErr) {}
+  if (_detectedAlarm) {
+    _stopLog('STOP (outline): ALARM detected \u2014 safety moves skipped until alarm clears');
+    setFooterStatus(label + ': ALARM \u2014 use Soft Reset (0x18) then Retry Safety Moves', 'bad');
+    pluginDebug(label + ': ALARM detected before safety moves; showing alarm panel');
+    _showAlarmWarning(true);
+    return;
+  }
 
   // 6. Set safetyMoveActive so checkStop() will NOT abort the retract/home.
   _safetyMoveActive = true;
@@ -318,6 +358,12 @@ async function stopNowAndSafeHome(reason) {
         await sendCommand('G90');
       }
     } catch(e) {
+      if (e.message === 'Machine in alarm state') {
+        _stopLog('STOP (outline): ALARM detected during safety moves \u2014 stopping');
+        setFooterStatus(label + ': ALARM during safety moves \u2014 use Soft Reset (0x18) then Retry', 'bad');
+        _showAlarmWarning(true);
+        return;
+      }
       pluginDebug(label + ': Z retract error (ignored): ' + e.message);
     }
 
@@ -330,6 +376,12 @@ async function stopNowAndSafeHome(reason) {
       await sleep(100);
       await _waitForIdleOrStop(30000);
     } catch(e) {
+      if (e.message === 'Machine in alarm state') {
+        _stopLog('STOP (outline): ALARM detected during safety moves \u2014 stopping');
+        setFooterStatus(label + ': ALARM during safety moves \u2014 use Soft Reset (0x18) then Retry', 'bad');
+        _showAlarmWarning(true);
+        return;
+      }
       pluginDebug(label + ': XY home error (ignored): ' + e.message);
     }
   } finally {
@@ -356,6 +408,114 @@ async function stopNowAndSafeHome(reason) {
 function _showResumeButtonWarning(visible) {
   var el = document.getElementById('plugin-hold-warning');
   if (el) el.style.display = visible ? '' : 'none';
+}
+
+/**
+ * _showAlarmWarning(visible)
+ * Show or hide the ALARM warning panel (under Outline → Probing Control).
+ * Shown when the controller enters ALARM during a stop sequence.
+ */
+function _showAlarmWarning(visible) {
+  var el = document.getElementById('plugin-alarm-warning');
+  if (el) el.style.display = visible ? '' : 'none';
+}
+
+/**
+ * sendSoftResetCommand()
+ * Sends the realtime Soft Reset byte (0x18) to the controller.
+ * Called by the Soft Reset button in the ALARM warning panel.
+ */
+async function sendSoftResetCommand() {
+  try {
+    await sendCommand('\x18');
+    pluginDebug('ALARM: soft reset (0x18) sent');
+    setFooterStatus('ALARM: soft reset (0x18) sent', 'warn');
+    try { var after = await getMachineSnapshot(); updateMachineHelperUI(after); } catch(_e) {}
+  } catch(e) {
+    setFooterStatus('Soft reset failed: ' + e.message, 'bad');
+  }
+}
+
+/**
+ * retrySafetyMoves()
+ * Re-runs the safety retract/home sequence after ALARM has been cleared.
+ * Called by the Retry Safety Moves button in the ALARM warning panel.
+ * Checks that the controller is no longer in ALARM or Hold before proceeding.
+ */
+async function retrySafetyMoves() {
+  pluginDebug('ALARM: retrying safety moves\u2026');
+  try {
+    var _retryState = await _getState();
+    var _retryMs = _machineStateFrom(_retryState);
+    var _retryStatus = String(_retryMs.status || '').toLowerCase();
+    if (_retryStatus.indexOf('alarm') >= 0) {
+      pluginDebug('retrySafetyMoves: still in ALARM \u2014 cannot retry yet');
+      setFooterStatus('ALARM: still in alarm \u2014 send Soft Reset (0x18) first', 'bad');
+      return;
+    }
+    if (_retryStatus.indexOf('hold') >= 0) {
+      pluginDebug('retrySafetyMoves: still in Hold \u2014 cannot retry yet');
+      setFooterStatus('ALARM: still in Hold \u2014 clear Hold first', 'bad');
+      return;
+    }
+  } catch(e) {
+    setFooterStatus('retrySafetyMoves: state check failed: ' + e.message, 'bad');
+    return;
+  }
+
+  _showAlarmWarning(false);
+  _safetyMoveActive = true;
+
+  try {
+    var cfg = getSettingsFromUI();
+    var retractFeed = Math.max(100, cfg.travelFeedRate || 600);
+
+    setFooterStatus('ALARM: retracting Z\u2026', 'warn');
+    pluginDebug('ALARM: retrying safety moves \u2014 retracting Z');
+
+    try {
+      var _retryMachineSafeZ = isFinite(Number(cfg.machineSafeTopZ)) ? Number(cfg.machineSafeTopZ) : null;
+      if (_retryMachineSafeZ !== null) {
+        await sendCommand('G53 G1 Z' + _retryMachineSafeZ.toFixed(3) + ' F' + retractFeed.toFixed(0));
+        await sleep(100);
+        await _waitForIdleOrStop(15000);
+      } else {
+        await sendCommand('G91 G1 Z10 F' + retractFeed.toFixed(0));
+        await sleep(100);
+        await _waitForIdleOrStop(15000);
+        await sendCommand('G90');
+      }
+    } catch(e) {
+      pluginDebug('retrySafetyMoves: Z retract error: ' + e.message);
+      if (e.message === 'Machine in alarm state') {
+        setFooterStatus('ALARM: alarm re-entered during retry \u2014 reset and try again', 'bad');
+        _showAlarmWarning(true);
+        return;
+      }
+    }
+
+    setFooterStatus('ALARM: returning to X0 Y0\u2026', 'warn');
+    pluginDebug('ALARM: retrying safety moves \u2014 returning to X0 Y0');
+
+    try {
+      await sendCommand('G90 G1 X0.000 Y0.000 F' + retractFeed.toFixed(0));
+      await sleep(100);
+      await _waitForIdleOrStop(30000);
+    } catch(e) {
+      pluginDebug('retrySafetyMoves: XY home error: ' + e.message);
+      if (e.message === 'Machine in alarm state') {
+        setFooterStatus('ALARM: alarm re-entered during retry \u2014 reset and try again', 'bad');
+        _showAlarmWarning(true);
+        return;
+      }
+    }
+
+    setFooterStatus('ALARM: safety moves complete', 'ok');
+    pluginDebug('ALARM: retry safety moves complete');
+    try { var after = await getMachineSnapshot(); updateMachineHelperUI(after); } catch(_e) {}
+  } finally {
+    _safetyMoveActive = false;
+  }
 }
 
 /**
