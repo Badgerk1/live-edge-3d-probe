@@ -1843,11 +1843,15 @@
         <div class="callout" style="background:rgba(255,160,0,0.15);border:1px solid var(--warn,#e8a020);border-radius:6px;padding:8px 12px">
           <div style="color:var(--warn,#e8a020);font-weight:600;margin-bottom:6px">&#9888; Controller still in Hold</div>
           <div class="mini" style="margin-bottom:8px">
-            Use <strong>Stop</strong> (or Clear Hold) in ncSender to release the controller without resuming buffered motion.
+            The controller is in Hold and the motion queue may still contain buffered moves.
+            Click <strong>Clear Hold (Stop)</strong> below to cancel the queue via ncSender&rsquo;s stop endpoint without resuming buffered motion.
             Once Hold clears, the plugin will automatically retract to safe Z and return to X0&nbsp;Y0.<br>
-            <em>If ncSender's Stop is not available, the Resume&nbsp;(~) button below is a fallback &mdash; it will resume any queued move before the safety retract runs.</em>
+            <em>&#9888; <strong>Resume&nbsp;(~) &mdash; UNSAFE fallback</strong> will resume any queued move before the safety retract runs. Only use it if Clear Hold (Stop) is unavailable.</em>
           </div>
-          <button class="btn warn" style="padding:3px 14px;font-size:12px" onclick="sendResumeCommand()">&#9654; Resume (~) fallback</button>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn warn" style="padding:3px 14px;font-size:12px" onclick="sendClearHoldCommand()">&#9632; Clear Hold (Stop)</button>
+            <button class="btn" style="padding:3px 14px;font-size:12px;opacity:0.7" onclick="sendResumeCommand()">&#9654; Resume&nbsp;(~) &mdash; UNSAFE fallback</button>
+          </div>
         </div>
       </div>
 
@@ -2069,15 +2073,63 @@ function clearAllVisuals() {
 // ── Stop ──────────────────────────────────────────────────────────────────────
 
 /**
+ * _trySafeStopEndpoints(label)
+ *
+ * Tries ncSender-compatible safe-stop endpoints in best-practice order:
+ *   1. POST /api/gcode-job/stop  — ncSender job stop (clears queue, no resume)
+ *   2. POST /api/probe/stop      — probe-op stop (safe no-op if 404)
+ *   3. POST /api/gcode/stop      — legacy / backward-compat fallback
+ *
+ * Returns true if any endpoint responded with 2xx (Hold/queue should be cleared).
+ * Logs each attempt result via pluginDebug.
+ */
+async function _trySafeStopEndpoints(label) {
+  var endpoints = [
+    '/api/gcode-job/stop',
+    '/api/probe/stop',
+    '/api/gcode/stop'
+  ];
+  for (var _i = 0; _i < endpoints.length; _i++) {
+    var _ep = endpoints[_i];
+    try {
+      var _ctrl = new AbortController();
+      var _tmr  = setTimeout(function(){ _ctrl.abort(); }, 3000);
+      var _resp = await fetch(_ep, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        signal: _ctrl.signal
+      });
+      clearTimeout(_tmr);
+      if (_resp.ok) {
+        pluginDebug(label + ': safe stop succeeded via ' + _ep);
+        return true;
+      } else if (_resp.status === 404) {
+        pluginDebug(label + ': ' + _ep + ' returned 404 (not supported), trying next');
+      } else {
+        pluginDebug(label + ': ' + _ep + ' returned ' + _resp.status + ', trying next');
+      }
+    } catch(_err) {
+      pluginDebug(label + ': ' + _ep + ' not available (' + _err.message + '), trying next');
+    }
+  }
+  return false;
+}
+
+/**
  * stopNowAndSafeHome(reason)
  *
  * Unified immediate-stop for all probe/outline routines:
  *  1. Sets all stop flags so no new commands are queued.
  *  2. Sends real-time Feed Hold (!) to halt motion ASAP.
  *  3. Polls until machineState.status is Hold (up to 1 s).
- *  4. Sends real-time Resume (~) to release the controller from Hold.
+ *  4. Tries ncSender safe-stop endpoints to cancel queued motion without resuming.
+ *     Order: /api/gcode-job/stop → /api/probe/stop → /api/gcode/stop.
+ *     Does NOT automatically send ~ regardless of whether an endpoint succeeds.
  *  5. Polls until machineState.status is no longer Hold (up to 4 s).
- *     If still in Hold, shows a visible warning and exposes the manual Resume button.
+ *     If still in Hold, shows the Hold Warning panel and keeps polling (up to 10 min)
+ *     at a low frequency until Hold clears or the user navigates away.
+ *     The panel provides a "Clear Hold (Stop)" button (calls safe-stop endpoints)
+ *     and a clearly-labelled "Resume (~) — UNSAFE fallback" button.
  *  6. Sets _safetyMoveActive so checkStop() does NOT abort safety moves.
  *  7. Retracts Z to machineSafeTopZ (G53) at a controlled feed.
  *  8. Returns to work X0 Y0 at a controlled feed.
@@ -2085,6 +2137,7 @@ function clearAllVisuals() {
  *
  * Does NOT require controller unlock or re-home.
  * Does NOT require the user to switch to ncSender.
+ * Never auto-sends ~; ~ is only sent when the user explicitly clicks the fallback button.
  */
 async function stopNowAndSafeHome(reason) {
   // Guard: prevent overlapping stop sequences from double-clicking Stop.
@@ -2137,43 +2190,18 @@ async function stopNowAndSafeHome(reason) {
   }
   pluginDebug(label + ': Hold poll done');
 
-  // 4. Try to cancel queued motion via ncSender's gcode-stop endpoint (clears the
-  //    motion buffer without resuming buffered travel).  Fall back to Resume (~)
-  //    if the endpoint is not available.
+  // 4. Try to cancel queued motion via ncSender-compatible safe-stop endpoints.
+  //    Order: /api/gcode-job/stop → /api/probe/stop → /api/gcode/stop.
+  //    We do NOT automatically send ~ regardless of outcome — that would resume
+  //    buffered moves.  ~ is only sent when the user explicitly clicks the button.
   _stopLog(label + ': clearing hold/queue (safe stop)');
-  pluginDebug(label + ': attempting safe hold clear without resuming buffered motion');
-  var _usedSafeStop = false;
-  try {
-    var _stopCtrl = new AbortController();
-    var _stopTimer = setTimeout(function(){ _stopCtrl.abort(); }, 3000);
-    var _stopResp = await fetch('/api/gcode/stop', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({}),
-      signal: _stopCtrl.signal
-    });
-    clearTimeout(_stopTimer);
-    if (_stopResp.ok) {
-      _usedSafeStop = true;
-      pluginDebug(label + ': /api/gcode/stop succeeded — buffer cleared without resuming');
-    } else {
-      pluginDebug(label + ': /api/gcode/stop returned ' + _stopResp.status + ', falling back to ~');
-    }
-  } catch(_stopErr) {
-    pluginDebug(label + ': /api/gcode/stop not available (' + _stopErr.message + '), falling back to ~');
-  }
-
-  if (!_usedSafeStop) {
-    // Fallback: Resume (~) releases the controller from Hold so our safety moves
-    // can execute.  Note: this may briefly resume any buffered move; the
-    // retract/home commands that follow will override to a safe position.
-    _stopLog(label + ': releasing hold (~) so safety moves can run');
-    pluginDebug(label + ': sending resume (~)');
-    try {
-      await sendCommand('~');
-    } catch(e) {
-      pluginDebug(label + ': resume send error (ignored): ' + e.message);
-    }
+  pluginDebug(label + ': attempting safe hold clear via ncSender-compatible endpoints');
+  var _usedSafeStop = await _trySafeStopEndpoints(label);
+  if (_usedSafeStop) {
+    _stopLog(label + ': safe stop endpoint succeeded — Hold/queue should be cleared');
+  } else {
+    _stopLog(label + ': no safe-stop endpoint available; showing hold-warning panel for manual action');
+    pluginDebug(label + ': all safe-stop endpoints failed; user must manually clear Hold via panel buttons');
   }
 
   // 5. Poll until no longer in Hold (up to 4 s).
@@ -2192,12 +2220,15 @@ async function stopNowAndSafeHome(reason) {
 
   if (!leftHold) {
     // Controller is still in Hold — warn the user and show the manual action panel.
-    _stopLog(label + ': WARNING — controller still in Hold. Use Stop/Clear Hold in ncSender to release, or press Resume (~) as a fallback; safety moves will continue once Hold clears.');
-    setFooterStatus(label + ': controller still in Hold — use Stop/Clear Hold in ncSender', 'warn');
-    pluginDebug(label + ': controller still in Hold after 4s; showing hold-warning panel');
+    // Keep the panel visible and poll at a low frequency until Hold clears or the
+    // user navigates away (no forced timeout — user must act via the panel buttons).
+    _stopLog(label + ': WARNING — controller still in Hold. Use "Clear Hold (Stop)" in the panel to cancel the queue via ncSender, or press "Resume (~) — UNSAFE fallback" only if Stop is unavailable; safety moves will continue once Hold clears.');
+    setFooterStatus(label + ': controller still in Hold — use Clear Hold (Stop) in the panel', 'warn');
+    pluginDebug(label + ': controller still in Hold after 4s; showing hold-warning panel (polling until cleared)');
     _showResumeButtonWarning(true);
-    // Wait for the user to manually send ~ (poll for up to 30 s).
-    var manualDeadline = Date.now() + 30000;
+    // Poll at low frequency (every 500 ms) for up to 10 minutes; panel stays
+    // visible the whole time so the user can act via the panel buttons.
+    var manualDeadline = Date.now() + 600000;
     while (Date.now() < manualDeadline) {
       await sleep(500);
       try {
@@ -2207,8 +2238,12 @@ async function stopNowAndSafeHome(reason) {
         if (_st3s.indexOf('hold') < 0) { leftHold = true; break; }
       } catch(_e3) {}
     }
-    _showResumeButtonWarning(false);
-    if (!leftHold) {
+    if (leftHold) {
+      // Hold cleared — hide the warning panel and proceed with safety moves.
+      _showResumeButtonWarning(false);
+    } else {
+      // Still in Hold after 10 minutes — abort safety moves but leave the panel
+      // visible so the user can still use the buttons.
       _stopLog(label + ': aborting safety moves — controller did not leave Hold');
       setFooterStatus(label + ': safety moves skipped (still in Hold)', 'bad');
       return;
@@ -2299,7 +2334,27 @@ async function sendResumeCommand() {
 }
 
 /**
- * _waitForIdleOrStop(timeoutMs)
+ * sendClearHoldCommand()
+ * Calls the ncSender-compatible safe-stop endpoints to cancel queued motion and
+ * clear Hold without resuming buffered moves.  Called by the "Clear Hold (Stop)"
+ * button in the Hold Warning panel.
+ */
+async function sendClearHoldCommand() {
+  try {
+    setFooterStatus('Clear Hold (Stop): trying safe-stop endpoints\u2026', 'warn');
+    var ok = await _trySafeStopEndpoints('Clear Hold (Stop)');
+    if (ok) {
+      setFooterStatus('Clear Hold (Stop): succeeded — Hold should be cleared.', 'ok');
+    } else {
+      setFooterStatus('Clear Hold (Stop): no endpoint available. Try ncSender Stop manually.', 'bad');
+    }
+    try { var after = await getMachineSnapshot(); updateMachineHelperUI(after); } catch(_e) {}
+  } catch(e) {
+    setFooterStatus('Clear Hold (Stop) failed: ' + e.message, 'bad');
+  }
+}
+
+/**
  *
  * Like waitForIdleWithTimeout() but:
  * - When _stopRequested is true AND _safetyMoveActive is false, treats
