@@ -437,6 +437,38 @@ async function sendSoftResetCommand() {
 }
 
 /**
+ * sendUnlockCommand()
+ * Sends the $X unlock command to clear the ALARM latch.
+ * Called by the Unlock ($X) button in the ALARM warning panel.
+ */
+async function sendUnlockCommand() {
+  try {
+    await sendCommand('$X');
+    pluginDebug('ALARM: unlock ($X) sent');
+    setFooterStatus('ALARM: unlock ($X) sent \u2014 controller should be unlocked', 'warn');
+    try { var after = await getMachineSnapshot(); updateMachineHelperUI(after); } catch(_e) {}
+  } catch(e) {
+    setFooterStatus('Unlock ($X) failed: ' + e.message, 'bad');
+  }
+}
+
+/**
+ * sendHomeCommand()
+ * Sends the $H home command to home the machine.
+ * Called by the Home ($H) button in the ALARM warning panel.
+ */
+async function sendHomeCommand() {
+  try {
+    await sendCommand('$H');
+    pluginDebug('ALARM: home ($H) sent');
+    setFooterStatus('ALARM: home ($H) sent \u2014 waiting for homing to complete', 'warn');
+    try { var after = await getMachineSnapshot(); updateMachineHelperUI(after); } catch(_e) {}
+  } catch(e) {
+    setFooterStatus('Home ($H) failed: ' + e.message, 'bad');
+  }
+}
+
+/**
  * retrySafetyMoves()
  * Re-runs the safety retract/home sequence after ALARM has been cleared.
  * Called by the Retry Safety Moves button in the ALARM warning panel.
@@ -450,7 +482,7 @@ async function retrySafetyMoves() {
     var _retryStatus = String(_retryMs.status || '').toLowerCase();
     if (_retryStatus.indexOf('alarm') >= 0) {
       pluginDebug('retrySafetyMoves: still in ALARM \u2014 cannot retry yet');
-      setFooterStatus('ALARM: still in alarm \u2014 send Soft Reset (0x18) first', 'bad');
+      setFooterStatus('ALARM: still in alarm \u2014 press Unlock ($X) first', 'bad');
       return;
     }
     if (_retryStatus.indexOf('hold') >= 0) {
