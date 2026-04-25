@@ -1606,6 +1606,12 @@
         <div id="outline-override-callout" class="mini" style="display:none;color:var(--muted);margin-top:5px"></div>
         <div class="progress-track" style="margin-top:8px"><div class="progress-fill" id="outline-progressBar" style="width:0%"></div></div>
         <div id="outline-status" class="status-line mini mt4 mb8">Ready</div>
+        <div class="field" style="margin-top:6px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px">
+            <input type="checkbox" id="autoHideStatusPanel">
+            <span>Auto-hide status panel</span>
+          </label>
+        </div>
       </div>
 
       <!-- Hold Warning: shown when stop handler cannot automatically clear Hold -->
@@ -1626,22 +1632,20 @@
         </div>
       </div>
 
-      <!-- ALARM Warning: shown when controller enters ALARM during a stop sequence -->
-      <div class="panel" data-panel-key="outline-alarm-warning" id="plugin-alarm-warning" style="display:none">
-        <div class="box-title">&#9888; Controller in ALARM</div>
-        <div class="callout" style="background:rgba(220,50,50,0.12);border:1px solid var(--bad,#d03030);border-radius:6px;padding:8px 12px">
-          <div style="color:var(--bad,#d03030);font-weight:600;margin-bottom:6px">&#9888; Controller in ALARM &mdash; motion locked out</div>
-          <div class="mini" style="margin-bottom:8px">
-            The controller has entered ALARM state (e.g.&nbsp;ALARM:3). Motion commands are locked out and the
-            safety retract / home moves have been skipped to avoid repeated errors.<br>
-            To recover: click <strong>Unlock ($X)</strong> to clear the alarm latch (and <strong>Home ($H)</strong> if your machine requires homing),
-            then click <strong>Retry Safety Moves</strong> to retract to safe Z and return to X0&nbsp;Y0.
+      <!-- Machine Status Panel: always visible; shows ALARM state or OK status.
+           Auto-hide mode (checkbox above) collapses the panel when status is normal. -->
+      <div class="panel" data-panel-key="outline-alarm-warning" id="plugin-alarm-warning">
+        <div class="box-title">&#128268; Machine Status</div>
+        <div class="callout" id="plugin-alarm-callout" style="background:rgba(30,150,50,0.08);border:1px solid var(--ok,#209020);border-radius:6px;padding:8px 12px">
+          <div id="plugin-alarm-status-text" style="color:var(--ok,#209020);font-weight:600;margin-bottom:6px">&#10003; Status: OK &mdash; No ALARM</div>
+          <div class="mini" id="plugin-alarm-detail-text" style="margin-bottom:8px">
+            Machine is operating normally. Alarm recovery buttons below are disabled until an ALARM is detected.
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn bad" style="padding:3px 14px;font-size:12px" onclick="sendUnlockCommand()">&#128275; Unlock ($X)</button>
-            <button class="btn warn" style="padding:3px 14px;font-size:12px" onclick="sendHomeCommand()">&#8962; Home ($H)</button>
-            <button class="btn warn" style="padding:3px 14px;font-size:12px" onclick="sendSoftResetCommand()">&#8635; Soft Reset (0x18)</button>
-            <button class="btn" style="padding:3px 14px;font-size:12px" onclick="retrySafetyMoves()">&#8617; Retry Safety Moves</button>
+            <button id="btn-unlock-x" class="btn bad" style="padding:3px 14px;font-size:12px" onclick="sendUnlockCommand()" disabled>&#128275; Unlock ($X)</button>
+            <button id="btn-home-h" class="btn warn" style="padding:3px 14px;font-size:12px" onclick="sendHomeCommand()" disabled>&#8962; Home ($H)</button>
+            <button id="btn-soft-reset" class="btn warn" style="padding:3px 14px;font-size:12px" onclick="sendSoftResetCommand()" disabled>&#8635; Soft Reset (0x18)</button>
+            <button id="btn-retry-safety" class="btn" style="padding:3px 14px;font-size:12px" onclick="retrySafetyMoves()" disabled>&#8617; Retry Safety Moves</button>
           </div>
         </div>
       </div>

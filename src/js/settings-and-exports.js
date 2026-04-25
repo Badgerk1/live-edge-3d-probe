@@ -128,7 +128,8 @@ function getSettingsFromUI() {
     outlineGridMargin:           n('outlineGridMargin'),
     outlineGridXStep:            n('outlineGridXStep'),
     outlineGridYStep:            n('outlineGridYStep'),
-    outlineSkipSurfaceProbe:     chk('outlineSkipSurfaceProbe')
+    outlineSkipSurfaceProbe:     chk('outlineSkipSurfaceProbe'),
+    autoHideStatusPanel:         chk('autoHideStatusPanel')
   };
 }
 function saveSettings() {
@@ -302,6 +303,7 @@ function loadSettings() {
   if (data.outlineGridXStep        != null) sv('outlineGridXStep',        data.outlineGridXStep);
   if (data.outlineGridYStep        != null) sv('outlineGridYStep',        data.outlineGridYStep);
   if (data.outlineSkipSurfaceProbe != null) sc('outlineSkipSurfaceProbe', data.outlineSkipSurfaceProbe);
+  if (data.autoHideStatusPanel != null) sc('autoHideStatusPanel', data.autoHideStatusPanel);
   // Trigger dependent previews
   try { refreshFinishBehaviorPreview(); } catch(e) {}
   try { refreshTravelRecoveryPreview(); } catch(e) {}
@@ -343,7 +345,8 @@ function resetSettings() {
     // Apply tab
     applyRefZ: 0, applySubdivide: true, applyFaceRefPos: 0, applyFaceAxis: 'Y', applyFaceUniform: true,
     // Outline tab
-    outlineSkipSurfaceProbe: false
+    outlineSkipSurfaceProbe: false,
+    autoHideStatusPanel: false
   };
   function sv(id, val) { var el = document.getElementById(id); if (el) el.value = val; }
   function sc(id, val) { var el = document.getElementById(id); if (el) el.checked = !!val; }
@@ -439,6 +442,7 @@ function resetSettings() {
   sc('apply-face-uniform',         defaults.applyFaceUniform);
   // Outline tab
   sc('outlineSkipSurfaceProbe',    defaults.outlineSkipSurfaceProbe);
+  sc('autoHideStatusPanel',        defaults.autoHideStatusPanel);
   try { refreshFinishBehaviorPreview(); } catch(e) {}
   try { refreshTravelRecoveryPreview(); } catch(e) {}
   try { calcProbeAutoTotalLength(); } catch(e) {}

@@ -412,13 +412,94 @@ function _showResumeButtonWarning(visible) {
 }
 
 /**
+ * _updateStatusPanel(isAlarm)
+ * Update the Machine Status panel (#plugin-alarm-warning) to reflect whether the
+ * controller is in ALARM or in a normal / OK state.
+ *
+ * When isAlarm is true  → red styling, recovery buttons enabled.
+ * When isAlarm is false → green styling, buttons disabled, "Status: OK" shown.
+ *
+ * Panel visibility:
+ *   • Auto-hide OFF (default): panel is always visible.
+ *   • Auto-hide ON:  panel is hidden when OK, shown when in ALARM.
+ *
+ * The "Retry Safety Moves" button is only enabled when the machine is NOT in
+ * ALARM and NOT in Hold (i.e. it is safe to attempt motion).  The optional
+ * `motionSafe` argument lets callers pass that knowledge directly; if omitted
+ * the function enables Retry whenever isAlarm is false.
+ */
+function _updateStatusPanel(isAlarm, motionSafe) {
+  var panel = document.getElementById('plugin-alarm-warning');
+  if (!panel) return;
+
+  // Determine whether auto-hide is enabled
+  var autoHideEl = document.getElementById('autoHideStatusPanel');
+  var autoHideOn = autoHideEl ? autoHideEl.checked : false;
+
+  // Show / hide the panel
+  if (autoHideOn) {
+    panel.style.display = isAlarm ? '' : 'none';
+  } else {
+    panel.style.display = '';
+  }
+
+  // Update callout box styling
+  var callout = document.getElementById('plugin-alarm-callout');
+  var statusText = document.getElementById('plugin-alarm-status-text');
+  var detailText = document.getElementById('plugin-alarm-detail-text');
+
+  if (isAlarm) {
+    if (callout) {
+      callout.style.background = 'rgba(220,50,50,0.12)';
+      callout.style.borderColor = 'var(--bad,#d03030)';
+    }
+    if (statusText) {
+      statusText.style.color = 'var(--bad,#d03030)';
+      statusText.textContent = '\u26A0 Controller in ALARM \u2014 motion locked out';
+    }
+    if (detailText) {
+      detailText.innerHTML = 'The controller has entered ALARM state (e.g.\u00a0ALARM:3). Motion commands are locked out and the '
+        + 'safety retract\u00a0/\u00a0home moves have been skipped to avoid repeated errors.<br>'
+        + 'To recover: click <strong>Unlock ($X)</strong> to clear the alarm latch (and <strong>Home ($H)</strong> if your machine requires homing), '
+        + 'then click <strong>Retry Safety Moves</strong> to retract to safe Z and return to X0\u00a0Y0.';
+    }
+  } else {
+    if (callout) {
+      callout.style.background = 'rgba(30,150,50,0.08)';
+      callout.style.borderColor = 'var(--ok,#209020)';
+    }
+    if (statusText) {
+      statusText.style.color = 'var(--ok,#209020)';
+      statusText.textContent = '\u2713 Status: OK \u2014 No ALARM';
+    }
+    if (detailText) {
+      detailText.textContent = 'Machine is operating normally. Alarm recovery buttons below are disabled until an ALARM is detected.';
+    }
+  }
+
+  // Enable / disable action buttons
+  var canRetry = (motionSafe !== undefined) ? !!motionSafe : !isAlarm;
+
+  var btnUnlock    = document.getElementById('btn-unlock-x');
+  var btnHome      = document.getElementById('btn-home-h');
+  var btnSoftReset = document.getElementById('btn-soft-reset');
+  var btnRetry     = document.getElementById('btn-retry-safety');
+
+  if (btnUnlock)    btnUnlock.disabled    = !isAlarm;
+  if (btnHome)      btnHome.disabled      = !isAlarm;
+  if (btnSoftReset) btnSoftReset.disabled = !isAlarm;
+  if (btnRetry)     btnRetry.disabled     = !canRetry;
+}
+
+/**
  * _showAlarmWarning(visible)
  * Show or hide the ALARM warning panel (under Outline → Probing Control).
  * Shown when the controller enters ALARM during a stop sequence.
+ * @deprecated Use _updateStatusPanel(isAlarm) directly; this wrapper is kept
+ *             for backwards-compatibility with existing call-sites.
  */
 function _showAlarmWarning(visible) {
-  var el = document.getElementById('plugin-alarm-warning');
-  if (el) el.style.display = visible ? '' : 'none';
+  _updateStatusPanel(!!visible);
 }
 
 /**
@@ -428,6 +509,7 @@ function _showAlarmWarning(visible) {
  */
 async function sendSoftResetCommand() {
   try {
+    console.log('[' + tsMs() + '] CMD: soft reset (0x18) — explicit button click');
     await sendCommand('\x18');
     pluginDebug('ALARM: soft reset (0x18) sent');
     setFooterStatus('ALARM: soft reset (0x18) sent', 'warn');
@@ -458,6 +540,7 @@ async function sendUnlockCommand() {
   }
   _unlockPollActive = true;
   try {
+    console.log('[' + tsMs() + '] CMD: unlock ($X) — explicit button click');
     await sendCommand('$X');
     pluginDebug('ALARM: unlock ($X) sent');
     setFooterStatus('ALARM: unlock ($X) sent', 'warn');
@@ -504,6 +587,7 @@ async function sendUnlockCommand() {
  */
 async function sendHomeCommand() {
   try {
+    console.log('[' + tsMs() + '] CMD: home ($H) — explicit button click');
     await sendCommand('$H');
     pluginDebug('ALARM: home ($H) sent');
     setFooterStatus('ALARM: home ($H) sent', 'warn');
@@ -809,6 +893,13 @@ function updateMachineHelperUI(info){
   if(probeEl) probeEl.value = info.probeTriggered ? 'Triggered' : 'Open';
   updateCurrentPositionUI(info);
   updateOverrideCallouts(info);
+  // Keep the Machine Status panel in sync with the current machine state.
+  var _uiStatus = String(info.status || '').toLowerCase();
+  var _uiIsAlarm = _uiStatus.indexOf('alarm') >= 0;
+  var _uiIsHold  = _uiStatus.indexOf('hold')  >= 0;
+  // Motion is safe only when not in ALARM and not in Hold (Idle or other non-blocking state)
+  var _uiMotionSafe = !_uiIsAlarm && !_uiIsHold;
+  _updateStatusPanel(_uiIsAlarm, _uiMotionSafe);
 }
 
 function updateCurrentPositionUI(pos){
@@ -1800,6 +1891,13 @@ function pluginCleanupOnClose() {
   } catch(e) {}
 }
 
-window.addEventListener('beforeunload', pluginCleanupOnClose);
+// NOTE: pluginCleanupOnClose() does NOT send any machine commands.
+// It only clears in-memory data, localStorage probe results, and Three.js
+// GPU resources.  We intentionally do NOT attach this to 'beforeunload'
+// because some plugin host environments (e.g. ncSender) interpret a
+// beforeunload event from the plugin panel as a full disconnect/reset,
+// which can clear the controller's homed state even when the user only
+// closed the UI panel after successfully unlocking with $X.
+// Cleanup is triggered explicitly by the plugin host via index.js onUnload.
 
 
