@@ -82,7 +82,7 @@ function buildSurfaceGridConfig() {
 }
 
 function smCheckStop() {
-  if (smStopFlag) throw new Error('Stopped by user');
+  if (smStopFlag && !_safetyMoveActive) throw new Error('Stopped by user');
 }
 function smSleep(ms) { return new Promise(function(resolve) { setTimeout(resolve, ms); }); }
 
