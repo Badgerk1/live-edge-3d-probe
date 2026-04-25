@@ -213,6 +213,8 @@
     #surface-edge-mesh-root .le3dp-drag-handle::before{content:'\2807\2807';font-size:14px;letter-spacing:2px;color:var(--accent);opacity:.8}
     /* Make draggable children position:relative so the handle sits correctly */
     #surface-edge-mesh-root.layout-edit-active .tab-panel > [data-panel-key]{position:relative;cursor:grab;transition:box-shadow .15s,opacity .15s}
+    /* Show hidden panels (e.g. hold-warning) while layout edit is active so they can be dragged */
+    #surface-edge-mesh-root.layout-edit-active #plugin-hold-warning{display:block!important}
     /* Being dragged */
     #surface-edge-mesh-root .layout-dragging{opacity:.45!important;box-shadow:0 0 0 2px var(--accent) inset}
     /* Drop target indicators */

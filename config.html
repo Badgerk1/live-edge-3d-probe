@@ -218,6 +218,8 @@
     #surface-edge-mesh-root .le3dp-drag-handle::before{content:'\2807\2807';font-size:14px;letter-spacing:2px;color:var(--accent);opacity:.8}
     /* Make draggable children position:relative so the handle sits correctly */
     #surface-edge-mesh-root.layout-edit-active .tab-panel > [data-panel-key]{position:relative;cursor:grab;transition:box-shadow .15s,opacity .15s}
+    /* Show hidden panels (e.g. hold-warning) while layout edit is active so they can be dragged */
+    #surface-edge-mesh-root.layout-edit-active #plugin-hold-warning{display:block!important}
     /* Being dragged */
     #surface-edge-mesh-root .layout-dragging{opacity:.45!important;box-shadow:0 0 0 2px var(--accent) inset}
     /* Drop target indicators */
@@ -1837,6 +1839,7 @@
 
       <!-- Hold Warning: shown when stop handler cannot automatically clear Hold -->
       <div class="panel" data-panel-key="outline-hold-warning" id="plugin-hold-warning" style="display:none">
+        <div class="box-title">&#9888; Hold Warning</div>
         <div class="callout" style="background:rgba(255,160,0,0.15);border:1px solid var(--warn,#e8a020);border-radius:6px;padding:8px 12px">
           <div style="color:var(--warn,#e8a020);font-weight:600;margin-bottom:6px">&#9888; Controller still in Hold</div>
           <div class="mini" style="margin-bottom:8px">
@@ -12533,7 +12536,8 @@ function getSettingsFromUI() {
     outlineGridSource:           s('outlineGridSource'),
     outlineGridMargin:           n('outlineGridMargin'),
     outlineGridXStep:            n('outlineGridXStep'),
-    outlineGridYStep:            n('outlineGridYStep')
+    outlineGridYStep:            n('outlineGridYStep'),
+    outlineSkipSurfaceProbe:     chk('outlineSkipSurfaceProbe')
   };
 }
 function saveSettings() {
@@ -12704,8 +12708,9 @@ function loadSettings() {
   if (data.outlineProbeDown   != null) sv('outlineProbeDown',   data.outlineProbeDown);
   if (data.outlineGridSource  != null) sv('outlineGridSource',  data.outlineGridSource);
   if (data.outlineGridMargin  != null) sv('outlineGridMargin',  data.outlineGridMargin);
-  if (data.outlineGridXStep   != null) sv('outlineGridXStep',   data.outlineGridXStep);
-  if (data.outlineGridYStep   != null) sv('outlineGridYStep',   data.outlineGridYStep);
+  if (data.outlineGridXStep        != null) sv('outlineGridXStep',        data.outlineGridXStep);
+  if (data.outlineGridYStep        != null) sv('outlineGridYStep',        data.outlineGridYStep);
+  if (data.outlineSkipSurfaceProbe != null) sc('outlineSkipSurfaceProbe', data.outlineSkipSurfaceProbe);
   // Trigger dependent previews
   try { refreshFinishBehaviorPreview(); } catch(e) {}
   try { refreshTravelRecoveryPreview(); } catch(e) {}
@@ -12745,7 +12750,9 @@ function resetSettings() {
     // Combined export
     combinedBottomZ: -20, combinedOBJSubdivision: 0.5,
     // Apply tab
-    applyRefZ: 0, applySubdivide: true, applyFaceRefPos: 0, applyFaceAxis: 'Y', applyFaceUniform: true
+    applyRefZ: 0, applySubdivide: true, applyFaceRefPos: 0, applyFaceAxis: 'Y', applyFaceUniform: true,
+    // Outline tab
+    outlineSkipSurfaceProbe: false
   };
   function sv(id, val) { var el = document.getElementById(id); if (el) el.value = val; }
   function sc(id, val) { var el = document.getElementById(id); if (el) el.checked = !!val; }
@@ -12839,6 +12846,8 @@ function resetSettings() {
   sv('apply-face-refPos',          defaults.applyFaceRefPos);
   sv('apply-face-axis',            defaults.applyFaceAxis);
   sc('apply-face-uniform',         defaults.applyFaceUniform);
+  // Outline tab
+  sc('outlineSkipSurfaceProbe',    defaults.outlineSkipSurfaceProbe);
   try { refreshFinishBehaviorPreview(); } catch(e) {}
   try { refreshTravelRecoveryPreview(); } catch(e) {}
   try { calcProbeAutoTotalLength(); } catch(e) {}

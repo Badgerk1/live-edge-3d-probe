@@ -127,7 +127,8 @@ function getSettingsFromUI() {
     outlineGridSource:           s('outlineGridSource'),
     outlineGridMargin:           n('outlineGridMargin'),
     outlineGridXStep:            n('outlineGridXStep'),
-    outlineGridYStep:            n('outlineGridYStep')
+    outlineGridYStep:            n('outlineGridYStep'),
+    outlineSkipSurfaceProbe:     chk('outlineSkipSurfaceProbe')
   };
 }
 function saveSettings() {
@@ -298,8 +299,9 @@ function loadSettings() {
   if (data.outlineProbeDown   != null) sv('outlineProbeDown',   data.outlineProbeDown);
   if (data.outlineGridSource  != null) sv('outlineGridSource',  data.outlineGridSource);
   if (data.outlineGridMargin  != null) sv('outlineGridMargin',  data.outlineGridMargin);
-  if (data.outlineGridXStep   != null) sv('outlineGridXStep',   data.outlineGridXStep);
-  if (data.outlineGridYStep   != null) sv('outlineGridYStep',   data.outlineGridYStep);
+  if (data.outlineGridXStep        != null) sv('outlineGridXStep',        data.outlineGridXStep);
+  if (data.outlineGridYStep        != null) sv('outlineGridYStep',        data.outlineGridYStep);
+  if (data.outlineSkipSurfaceProbe != null) sc('outlineSkipSurfaceProbe', data.outlineSkipSurfaceProbe);
   // Trigger dependent previews
   try { refreshFinishBehaviorPreview(); } catch(e) {}
   try { refreshTravelRecoveryPreview(); } catch(e) {}
@@ -339,7 +341,9 @@ function resetSettings() {
     // Combined export
     combinedBottomZ: -20, combinedOBJSubdivision: 0.5,
     // Apply tab
-    applyRefZ: 0, applySubdivide: true, applyFaceRefPos: 0, applyFaceAxis: 'Y', applyFaceUniform: true
+    applyRefZ: 0, applySubdivide: true, applyFaceRefPos: 0, applyFaceAxis: 'Y', applyFaceUniform: true,
+    // Outline tab
+    outlineSkipSurfaceProbe: false
   };
   function sv(id, val) { var el = document.getElementById(id); if (el) el.value = val; }
   function sc(id, val) { var el = document.getElementById(id); if (el) el.checked = !!val; }
@@ -433,6 +437,8 @@ function resetSettings() {
   sv('apply-face-refPos',          defaults.applyFaceRefPos);
   sv('apply-face-axis',            defaults.applyFaceAxis);
   sc('apply-face-uniform',         defaults.applyFaceUniform);
+  // Outline tab
+  sc('outlineSkipSurfaceProbe',    defaults.outlineSkipSurfaceProbe);
   try { refreshFinishBehaviorPreview(); } catch(e) {}
   try { refreshTravelRecoveryPreview(); } catch(e) {}
   try { calcProbeAutoTotalLength(); } catch(e) {}
