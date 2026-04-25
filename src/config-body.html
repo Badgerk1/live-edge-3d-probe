@@ -1634,11 +1634,12 @@
           <div class="mini" style="margin-bottom:8px">
             The controller has entered ALARM state (e.g.&nbsp;ALARM:3). Motion commands are locked out and the
             safety retract / home moves have been skipped to avoid repeated errors.<br>
-            To recover: click <strong>Soft Reset (0x18)</strong> to reset the controller, then click
-            <strong>Retry Safety Moves</strong> once the controller is back to Idle to retract to safe Z and return to X0&nbsp;Y0.<br>
-            <em>Note: if your machine requires homing after a reset, home via ncSender before clicking Retry Safety Moves.</em>
+            To recover: click <strong>Unlock ($X)</strong> to clear the alarm latch (and <strong>Home ($H)</strong> if your machine requires homing),
+            then click <strong>Retry Safety Moves</strong> to retract to safe Z and return to X0&nbsp;Y0.
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn bad" style="padding:3px 14px;font-size:12px" onclick="sendUnlockCommand()">&#128275; Unlock ($X)</button>
+            <button class="btn warn" style="padding:3px 14px;font-size:12px" onclick="sendHomeCommand()">&#8962; Home ($H)</button>
             <button class="btn warn" style="padding:3px 14px;font-size:12px" onclick="sendSoftResetCommand()">&#8635; Soft Reset (0x18)</button>
             <button class="btn" style="padding:3px 14px;font-size:12px" onclick="retrySafetyMoves()">&#8617; Retry Safety Moves</button>
           </div>
