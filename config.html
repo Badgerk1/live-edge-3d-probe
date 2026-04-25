@@ -1873,8 +1873,6 @@
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button id="btn-unlock-x" class="btn bad" style="padding:3px 14px;font-size:12px" onclick="sendUnlockCommand()" disabled>&#128275; Unlock ($X)</button>
             <button id="btn-home-h" class="btn warn" style="padding:3px 14px;font-size:12px" onclick="sendHomeCommand()" disabled>&#8962; Home ($H)</button>
-            <button id="btn-soft-reset" class="btn warn" style="padding:3px 14px;font-size:12px" onclick="sendSoftResetCommand()" disabled>&#8635; Soft Reset (0x18)</button>
-            <button id="btn-retry-safety" class="btn" style="padding:3px 14px;font-size:12px" onclick="retrySafetyMoves()" disabled>&#8617; Retry Safety Moves</button>
           </div>
         </div>
       </div>
@@ -2218,7 +2216,7 @@ async function stopNowAndSafeHome(reason) {
   pluginDebug(label + ': Hold poll done');
   if (_detectedAlarm) {
     _stopLog('STOP (outline): ALARM detected \u2014 safety moves skipped until alarm clears');
-    setFooterStatus(label + ': ALARM \u2014 use Soft Reset (0x18) then Retry Safety Moves', 'bad');
+    setFooterStatus(label + ': ALARM \u2014 click Unlock ($X) to recover', 'bad');
     pluginDebug(label + ': ALARM detected in initial Hold poll; showing alarm panel');
     _showAlarmWarning(true);
     return;
@@ -2254,7 +2252,7 @@ async function stopNowAndSafeHome(reason) {
   }
   if (_detectedAlarm) {
     _stopLog('STOP (outline): ALARM detected \u2014 safety moves skipped until alarm clears');
-    setFooterStatus(label + ': ALARM \u2014 use Soft Reset (0x18) then Retry Safety Moves', 'bad');
+    setFooterStatus(label + ': ALARM \u2014 click Unlock ($X) to recover', 'bad');
     pluginDebug(label + ': ALARM detected in exit-Hold poll; showing alarm panel');
     _showAlarmWarning(true);
     return;
@@ -2284,7 +2282,7 @@ async function stopNowAndSafeHome(reason) {
     if (_detectedAlarm) {
       _showResumeButtonWarning(false);
       _stopLog('STOP (outline): ALARM detected \u2014 safety moves skipped until alarm clears');
-      setFooterStatus(label + ': ALARM \u2014 use Soft Reset (0x18) then Retry Safety Moves', 'bad');
+      setFooterStatus(label + ': ALARM \u2014 click Unlock ($X) to recover', 'bad');
       pluginDebug(label + ': ALARM detected in hold-warning poll; showing alarm panel');
       _showAlarmWarning(true);
       return;
@@ -2311,7 +2309,7 @@ async function stopNowAndSafeHome(reason) {
   } catch(_preErr) {}
   if (_detectedAlarm) {
     _stopLog('STOP (outline): ALARM detected \u2014 safety moves skipped until alarm clears');
-    setFooterStatus(label + ': ALARM \u2014 use Soft Reset (0x18) then Retry Safety Moves', 'bad');
+    setFooterStatus(label + ': ALARM \u2014 click Unlock ($X) to recover', 'bad');
     pluginDebug(label + ': ALARM detected before safety moves; showing alarm panel');
     _showAlarmWarning(true);
     return;
@@ -2345,7 +2343,7 @@ async function stopNowAndSafeHome(reason) {
     } catch(e) {
       if (e.message === 'Machine in alarm state') {
         _stopLog('STOP (outline): ALARM detected during safety moves \u2014 stopping');
-        setFooterStatus(label + ': ALARM during safety moves \u2014 use Soft Reset (0x18) then Retry', 'bad');
+        setFooterStatus(label + ': ALARM during safety moves \u2014 click Unlock ($X) to recover', 'bad');
         _showAlarmWarning(true);
         return;
       }
@@ -2363,7 +2361,7 @@ async function stopNowAndSafeHome(reason) {
     } catch(e) {
       if (e.message === 'Machine in alarm state') {
         _stopLog('STOP (outline): ALARM detected during safety moves \u2014 stopping');
-        setFooterStatus(label + ': ALARM during safety moves \u2014 use Soft Reset (0x18) then Retry', 'bad');
+        setFooterStatus(label + ': ALARM during safety moves \u2014 click Unlock ($X) to recover', 'bad');
         _showAlarmWarning(true);
         return;
       }
@@ -2407,12 +2405,8 @@ function _showResumeButtonWarning(visible) {
  *   • Auto-hide OFF (default): panel is always visible.
  *   • Auto-hide ON:  panel is hidden when OK, shown when in ALARM.
  *
- * The "Retry Safety Moves" button is only enabled when the machine is NOT in
- * ALARM and NOT in Hold (i.e. it is safe to attempt motion).  The optional
- * `motionSafe` argument lets callers pass that knowledge directly; if omitted
- * the function enables Retry whenever isAlarm is false.
  */
-function _updateStatusPanel(isAlarm, motionSafe) {
+function _updateStatusPanel(isAlarm) {
   var panel = document.getElementById('plugin-alarm-warning');
   if (!panel) return;
 
@@ -2444,8 +2438,7 @@ function _updateStatusPanel(isAlarm, motionSafe) {
     if (detailText) {
       detailText.innerHTML = 'The controller has entered ALARM state (e.g.\u00a0ALARM:3). Motion commands are locked out and the '
         + 'safety retract\u00a0/\u00a0home moves have been skipped to avoid repeated errors.<br>'
-        + 'To recover: click <strong>Unlock ($X)</strong> to clear the alarm latch (and <strong>Home ($H)</strong> if your machine requires homing), '
-        + 'then click <strong>Retry Safety Moves</strong> to retract to safe Z and return to X0\u00a0Y0.';
+        + 'To recover: click <strong>Unlock ($X)</strong> to clear the alarm latch, then <strong>Home ($H)</strong> if your machine requires homing.';
     }
   } else {
     if (callout) {
@@ -2462,17 +2455,11 @@ function _updateStatusPanel(isAlarm, motionSafe) {
   }
 
   // Enable / disable action buttons
-  var canRetry = (motionSafe !== undefined) ? !!motionSafe : !isAlarm;
-
   var btnUnlock    = document.getElementById('btn-unlock-x');
   var btnHome      = document.getElementById('btn-home-h');
-  var btnSoftReset = document.getElementById('btn-soft-reset');
-  var btnRetry     = document.getElementById('btn-retry-safety');
 
   if (btnUnlock)    btnUnlock.disabled    = !isAlarm;
   if (btnHome)      btnHome.disabled      = !isAlarm;
-  if (btnSoftReset) btnSoftReset.disabled = !isAlarm;
-  if (btnRetry)     btnRetry.disabled     = !canRetry;
 }
 
 /**
@@ -2484,23 +2471,6 @@ function _updateStatusPanel(isAlarm, motionSafe) {
  */
 function _showAlarmWarning(visible) {
   _updateStatusPanel(!!visible);
-}
-
-/**
- * sendSoftResetCommand()
- * Sends the realtime Soft Reset byte (0x18) to the controller.
- * Called by the Soft Reset button in the ALARM warning panel.
- */
-async function sendSoftResetCommand() {
-  try {
-    console.log('[' + tsMs() + '] CMD: soft reset (0x18) — explicit button click');
-    await sendCommand('\x18');
-    pluginDebug('ALARM: soft reset (0x18) sent');
-    setFooterStatus('ALARM: soft reset (0x18) sent', 'warn');
-    try { var after = await getMachineSnapshot(); updateMachineHelperUI(after); } catch(_e) {}
-  } catch(e) {
-    setFooterStatus('Soft reset failed: ' + e.message, 'bad');
-  }
 }
 
 // Constants for post-unlock idle polling
@@ -2553,7 +2523,7 @@ async function sendUnlockCommand() {
       await retrySafetyMoves();
     } else {
       pluginDebug('ALARM: controller not ready after timeout \u2014 manual retry required');
-      setFooterStatus('ALARM: not ready \u2014 click Home ($H) or Retry Safety Moves manually', 'bad');
+      setFooterStatus('ALARM: not ready \u2014 click Home ($H) if required', 'bad');
       _showAlarmWarning(true);
       try { var after = await getMachineSnapshot(); updateMachineHelperUI(after); } catch(_e) {}
     }
@@ -2584,7 +2554,7 @@ async function sendHomeCommand() {
 /**
  * retrySafetyMoves()
  * Re-runs the safety retract/home sequence after ALARM has been cleared.
- * Called by the Retry Safety Moves button in the ALARM warning panel.
+ * Called automatically after sendUnlockCommand() polls the controller to Idle.
  * Checks that the controller is no longer in ALARM or Hold before proceeding.
  */
 async function retrySafetyMoves() {
