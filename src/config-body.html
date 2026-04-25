@@ -679,6 +679,7 @@
       <button class="btn" id="sm-btn-run-probe" onclick="flashButton(this);startProbeByType()">&#9654; Run Surface Probe</button>
       <button class="btn warn" id="sm-btn-stop-probe" disabled onclick="flashButton(this);stopSurfaceProbing()">&#9646;&#9646; Stop</button>
     </div>
+    <div id="top-override-callout" class="mini" style="display:none;color:var(--muted);margin-top:5px"></div>
     <div class="progress-track" id="sm-probeProgressTrack" style="margin-top:8px;display:none"><div class="progress-fill" id="sm-probeProgressBar"></div></div>
     <div class="mini" id="sm-probeStatus" style="margin-top:6px">Ready</div>
   </div>
@@ -692,6 +693,7 @@
       <button class="btn" id="btn-face-y">&#9654; Probe Y Face</button>
       <button class="btn warn" id="btn-stop-face" disabled>&#9646;&#9646; Stop</button>
     </div>
+    <div id="face-override-callout" class="mini" style="display:none;color:var(--muted);margin-top:5px"></div>
   </div>
 
   <!-- ── Surface Mesh Section ───────────────────────────────────────── -->
@@ -1601,6 +1603,7 @@
           <button class="btn" onclick="flashButton(this);runOutline360FaceProbe()">&#8635; 360 Face Probe</button>
           <button class="btn warn" onclick="flashButton(this);stopOutlineScan()">&#9646;&#9646; Stop</button>
         </div>
+        <div id="outline-override-callout" class="mini" style="display:none;color:var(--muted);margin-top:5px"></div>
         <div class="progress-track" style="margin-top:8px"><div class="progress-fill" id="outline-progressBar" style="width:0%"></div></div>
         <div id="outline-status" class="status-line mini mt4 mb8">Ready</div>
       </div>
@@ -1694,11 +1697,19 @@
   <!-- ── FOOTER ─────────────────────────────────────────────────────────── -->
   <div class="footer">
     <div id="footer-status" class="status-line" style="margin-top:0">Ready</div>
-    <label class="mini" style="display:flex;align-items:center;gap:5px;cursor:pointer;user-select:none" title="Show [PLUGIN DEBUG] entries in probe logs and browser console">
-      <input type="checkbox" id="chk-plugin-debug" onchange="_pluginDebugMode=this.checked;pluginDebug('Debug logging '+(this.checked?'ENABLED':'DISABLED'));">
-      <span>Debug Log</span>
-    </label>
-    <div class="mini">3D Live Edge Mesh V21.0</div>
+    <!-- Hold-warning callout: shown when stop handler cannot clear Hold automatically -->
+    <div id="plugin-hold-warning" style="display:none;background:rgba(255,160,0,0.15);border:1px solid var(--warn,#e8a020);border-radius:6px;padding:6px 10px;margin:4px 0">
+      <span style="color:var(--warn,#e8a020);font-weight:600;font-size:12px">&#9888; Controller still in Hold &mdash; press Resume to release:</span>
+      <button class="btn warn" style="margin-left:8px;padding:3px 12px;font-size:12px" onclick="sendResumeCommand()">&#9654; Resume (~)</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px">
+      <button class="btn ghost" style="padding:3px 12px;font-size:12px" title="Send real-time resume / cycle-start (~) to release controller from Hold" onclick="sendResumeCommand()">&#9654; Resume (~)</button>
+      <label class="mini" style="display:flex;align-items:center;gap:5px;cursor:pointer;user-select:none" title="Show [PLUGIN DEBUG] entries in probe logs and browser console">
+        <input type="checkbox" id="chk-plugin-debug" onchange="_pluginDebugMode=this.checked;pluginDebug('Debug logging '+(this.checked?'ENABLED':'DISABLED'));">
+        <span>Debug Log</span>
+      </label>
+      <div class="mini">3D Live Edge Mesh V21.0</div>
+    </div>
   </div>
 
 </div><!-- /app -->

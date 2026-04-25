@@ -2,6 +2,7 @@ var SM_VERSION = 'V21.0';
 // ── State ─────────────────────────────────────────────────────────────────────
 var _running = false;
 var _stopRequested = false;
+var _safetyMoveActive = false; // set true during stop handler's retract/home phase
 var _faceSurfRefZ = null; // surface reference Z in WORK coords captured by Surface Reference Probe button
 var topResults = [];
 var faceResults = [];
@@ -63,7 +64,11 @@ function tsMs(){
 }
 function escHtml(v){ return String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-function checkStop(){ if(_stopRequested) throw new Error('User stop requested'); }
+function checkStop(){
+  // During the stop handler's safety retract/home phase, do not throw — let
+  // the motion commands execute so the machine reaches a safe position.
+  if(_stopRequested && !_safetyMoveActive) throw new Error('User stop requested');
+}
 
 // ── Visual reset on plugin restart ────────────────────────────────────────────
 // Clear all canvases and Three.js scenes to prevent stale visuals on restart
@@ -111,9 +116,14 @@ function clearAllVisuals() {
  * Unified immediate-stop for all probe/outline routines:
  *  1. Sets all stop flags so no new commands are queued.
  *  2. Sends real-time Feed Hold (!) to halt motion ASAP.
- *  3. After a brief pause, sends Resume (~) so follow-up moves are accepted.
- *  4. Retracts Z to machineSafeTopZ (G53) at a controlled feed.
- *  5. Returns to work X0 Y0 at a controlled feed.
+ *  3. Polls until machineState.status is Hold (up to 1 s).
+ *  4. Sends real-time Resume (~) to release the controller from Hold.
+ *  5. Polls until machineState.status is no longer Hold (up to 4 s).
+ *     If still in Hold, shows a visible warning and exposes the manual Resume button.
+ *  6. Sets _safetyMoveActive so checkStop() does NOT abort safety moves.
+ *  7. Retracts Z to machineSafeTopZ (G53) at a controlled feed.
+ *  8. Returns to work X0 Y0 at a controlled feed.
+ *  9. Clears _safetyMoveActive.
  *
  * Does NOT require controller unlock or re-home.
  * Does NOT require the user to switch to ncSender.
@@ -125,7 +135,7 @@ async function stopNowAndSafeHome(reason) {
   _outlineStopFlag = true;
 
   var label = reason ? ('STOP (' + reason + ')') : 'STOP';
-  setFooterStatus(label + ': feed hold…', 'warn');
+  setFooterStatus(label + ': feed hold\u2026', 'warn');
 
   // Helper: write a line to every visible probe log.
   function _stopLog(msg) {
@@ -135,64 +145,122 @@ async function stopNowAndSafeHome(reason) {
     try { smLogProbe(msg); } catch(_e) {}
   }
 
+  // 2. Feed Hold — halts motion as quickly as the controller allows.
   _stopLog(label + ': feed hold sent (!)');
-
+  pluginDebug(label + ': sending feed hold (!)');
   try {
-    // 2. Feed Hold — halts motion as quickly as the controller allows.
     await sendCommand('!');
   } catch(e) {
-    pluginDebug('stopNowAndSafeHome: feed-hold send error (ignored): ' + e.message);
+    pluginDebug(label + ': feed-hold send error (ignored): ' + e.message);
   }
 
-  // Wait for the controller to decelerate and enter Hold state.
-  await sleep(300);
+  // 3. Poll until status is Hold (up to 1 s).
+  pluginDebug(label + ': waiting for Hold state\u2026');
+  var holdDeadline = Date.now() + 1000;
+  while (Date.now() < holdDeadline) {
+    await sleep(100);
+    try {
+      var _st = await _getState();
+      var _ms = _machineStateFrom(_st);
+      var _status = String(_ms.status || '').toLowerCase();
+      if (_status.indexOf('hold') >= 0 || _status === 'idle') break;
+    } catch(_e) {}
+  }
+  pluginDebug(label + ': Hold poll done');
 
+  // 4. Send Resume (~) to release Hold so subsequent motion commands are accepted.
+  _stopLog(label + ': releasing hold (~) so safety moves can run');
+  pluginDebug(label + ': sending resume (~)');
   try {
-    // 3. Resume so the controller will accept new motion commands.
     await sendCommand('~');
   } catch(e) {
-    pluginDebug('stopNowAndSafeHome: resume send error (ignored): ' + e.message);
+    pluginDebug(label + ': resume send error (ignored): ' + e.message);
   }
 
-  // Brief pause after resume to let the controller transition back to Idle.
-  await sleep(200);
+  // 5. Poll until no longer in Hold (up to 4 s).
+  pluginDebug(label + ': waiting for controller to leave Hold\u2026');
+  var idleDeadline = Date.now() + 4000;
+  var leftHold = false;
+  while (Date.now() < idleDeadline) {
+    await sleep(150);
+    try {
+      var _st2 = await _getState();
+      var _ms2 = _machineStateFrom(_st2);
+      var _st2s = String(_ms2.status || '').toLowerCase();
+      if (_st2s.indexOf('hold') < 0) { leftHold = true; break; }
+    } catch(_e2) {}
+  }
 
-  // 4. Retract Z to machine safe top.
-  var cfg = getSettingsFromUI();
-  var retractFeed = Math.max(100, cfg.travelFeedRate || 600);
-
-  _stopLog(label + ': retracting to machine safe top Z');
-  setFooterStatus(label + ': retracting Z…', 'warn');
-
-  try {
-    var machineSafeZ = isFinite(Number(cfg.machineSafeTopZ)) ? Number(cfg.machineSafeTopZ) : null;
-    if (machineSafeZ !== null) {
-      // G53 machine-coordinate retract (same as jogRaiseToMachineSafeTop but without homed check).
-      await sendCommand('G53 G1 Z' + machineSafeZ.toFixed(3) + ' F' + retractFeed.toFixed(0));
-      await sleep(100);
-      // Wait for Idle, tolerating Hold during stop.
-      await _waitForIdleOrStop(15000);
-    } else {
-      // Fallback: relative lift of 10 mm in work coords.
-      await sendCommand('G91 G1 Z10 F' + retractFeed.toFixed(0));
-      await sleep(100);
-      await _waitForIdleOrStop(15000);
-      await sendCommand('G90');
+  if (!leftHold) {
+    // Controller is still in Hold — warn the user and show the manual Resume button.
+    _stopLog(label + ': WARNING — controller still in Hold. Use the Resume button to release, then safety moves will continue.');
+    setFooterStatus(label + ': controller still in Hold — press Resume (~) to continue', 'warn');
+    pluginDebug(label + ': controller still in Hold after 4s; showing resume button');
+    _showResumeButtonWarning(true);
+    // Wait for the user to manually send ~ (poll for up to 30 s).
+    var manualDeadline = Date.now() + 30000;
+    while (Date.now() < manualDeadline) {
+      await sleep(500);
+      try {
+        var _st3 = await _getState();
+        var _ms3 = _machineStateFrom(_st3);
+        var _st3s = String(_ms3.status || '').toLowerCase();
+        if (_st3s.indexOf('hold') < 0) { leftHold = true; break; }
+      } catch(_e3) {}
     }
-  } catch(e) {
-    pluginDebug('stopNowAndSafeHome: Z retract error (ignored): ' + e.message);
+    _showResumeButtonWarning(false);
+    if (!leftHold) {
+      _stopLog(label + ': aborting safety moves — controller did not leave Hold');
+      setFooterStatus(label + ': safety moves skipped (still in Hold)', 'bad');
+      return;
+    }
   }
 
-  // 5. Return to work X0 Y0 at controlled feed.
-  _stopLog(label + ': returning to X0 Y0');
-  setFooterStatus(label + ': returning to X0 Y0…', 'warn');
+  pluginDebug(label + ': controller left Hold; starting safety moves');
+
+  // 6. Set safetyMoveActive so checkStop() will NOT abort the retract/home.
+  _safetyMoveActive = true;
 
   try {
-    await sendCommand('G90 G1 X0.000 Y0.000 F' + retractFeed.toFixed(0));
-    await sleep(100);
-    await _waitForIdleOrStop(30000);
-  } catch(e) {
-    pluginDebug('stopNowAndSafeHome: XY home error (ignored): ' + e.message);
+    // 7. Retract Z to machine safe top.
+    var cfg = getSettingsFromUI();
+    var retractFeed = Math.max(100, cfg.travelFeedRate || 600);
+
+    _stopLog(label + ': retracting to machine safe top Z');
+    setFooterStatus(label + ': retracting Z\u2026', 'warn');
+
+    try {
+      var machineSafeZ = isFinite(Number(cfg.machineSafeTopZ)) ? Number(cfg.machineSafeTopZ) : null;
+      if (machineSafeZ !== null) {
+        // G53 machine-coordinate retract (same as jogRaiseToMachineSafeTop but without homed check).
+        await sendCommand('G53 G1 Z' + machineSafeZ.toFixed(3) + ' F' + retractFeed.toFixed(0));
+        await sleep(100);
+        await _waitForIdleOrStop(15000);
+      } else {
+        // Fallback: relative lift of 10 mm in work coords.
+        await sendCommand('G91 G1 Z10 F' + retractFeed.toFixed(0));
+        await sleep(100);
+        await _waitForIdleOrStop(15000);
+        await sendCommand('G90');
+      }
+    } catch(e) {
+      pluginDebug(label + ': Z retract error (ignored): ' + e.message);
+    }
+
+    // 8. Return to work X0 Y0 at controlled feed.
+    _stopLog(label + ': returning to X0 Y0');
+    setFooterStatus(label + ': returning to X0 Y0\u2026', 'warn');
+
+    try {
+      await sendCommand('G90 G1 X0.000 Y0.000 F' + retractFeed.toFixed(0));
+      await sleep(100);
+      await _waitForIdleOrStop(30000);
+    } catch(e) {
+      pluginDebug(label + ': XY home error (ignored): ' + e.message);
+    }
+  } finally {
+    // 9. Always clear safetyMoveActive when done.
+    _safetyMoveActive = false;
   }
 
   _stopLog(label + ': complete');
@@ -202,11 +270,38 @@ async function stopNowAndSafeHome(reason) {
 }
 
 /**
+ * _showResumeButtonWarning(visible)
+ * Show or hide the "still in Hold" warning callout in the footer area.
+ * The callout contains the manual Resume button and is normally hidden.
+ */
+function _showResumeButtonWarning(visible) {
+  var el = document.getElementById('plugin-hold-warning');
+  if (el) el.style.display = visible ? '' : 'none';
+}
+
+/**
+ * sendResumeCommand()
+ * Send the real-time cycle-start / resume character (~).
+ * Called by the in-plugin Resume button.
+ */
+async function sendResumeCommand() {
+  try {
+    await sendCommand('~');
+    setFooterStatus('Resume (~) sent.', 'ok');
+    try { var after = await getMachineSnapshot(); updateMachineHelperUI(after); } catch(_e) {}
+  } catch(e) {
+    setFooterStatus('Resume failed: ' + e.message, 'bad');
+  }
+}
+
+/**
  * _waitForIdleOrStop(timeoutMs)
  *
- * Like waitForIdleWithTimeout() but when _stopRequested is true, treats
- * Hold or Idle as an acceptable "done" state so routines exit cleanly
- * without spurious 30-second timeouts.
+ * Like waitForIdleWithTimeout() but:
+ * - When _stopRequested is true AND _safetyMoveActive is false, treats
+ *   Hold or Idle as an acceptable "done" state so routines exit cleanly.
+ * - When _safetyMoveActive is true (safety retract/home in progress), waits
+ *   for Idle only — Hold is NOT acceptable because safety moves must complete.
  */
 async function _waitForIdleOrStop(timeoutMs) {
   var deadline = Date.now() + (timeoutMs || 15000);
@@ -218,7 +313,8 @@ async function _waitForIdleOrStop(timeoutMs) {
       var ms = _machineStateFrom(state);
       var status = String(ms.status || '').toLowerCase();
       if (status === 'idle') return;
-      if (_stopRequested && (status.indexOf('hold') >= 0 || status === 'idle')) return;
+      // If stop was requested but we're NOT in a safety move, accept Hold as done.
+      if (_stopRequested && !_safetyMoveActive && (status.indexOf('hold') >= 0 || status === 'idle')) return;
       if (status === 'alarm') throw new Error('Machine in alarm state');
     } catch(e) {
       if (e.message === 'Machine in alarm state') throw e;
@@ -376,6 +472,7 @@ function updateMachineHelperUI(info){
   if(machineEl) machineEl.value = info.status || 'Unknown';
   if(probeEl) probeEl.value = info.probeTriggered ? 'Triggered' : 'Open';
   updateCurrentPositionUI(info);
+  updateOverrideCallouts(info);
 }
 
 function updateCurrentPositionUI(pos){
@@ -386,6 +483,40 @@ function updateCurrentPositionUI(pos){
   if(xEl && isFinite(Number(pos.x))) xEl.value = Number(pos.x).toFixed(3);
   if(yEl && isFinite(Number(pos.y))) yEl.value = Number(pos.y).toFixed(3);
   if(zEl && isFinite(Number(pos.z))) zEl.value = Number(pos.z).toFixed(3);
+}
+
+/**
+ * updateOverrideCallouts(snap)
+ * Update the "Overrides: Feed X%  Rapid X%  Spindle X%" callouts near Run buttons.
+ * Called automatically by updateMachineHelperUI on every snapshot refresh.
+ */
+function updateOverrideCallouts(snap) {
+  var feedPct    = (snap && snap.feedOverridePct    != null) ? snap.feedOverridePct    : null;
+  var rapidPct   = (snap && snap.rapidOverridePct   != null) ? snap.rapidOverridePct   : null;
+  var spindlePct = (snap && snap.spindleOverridePct != null) ? snap.spindleOverridePct : null;
+
+  var ids = ['outline-override-callout', 'top-override-callout', 'face-override-callout'];
+  var hasAny = feedPct !== null || rapidPct !== null || spindlePct !== null;
+  var parts = [];
+  if (feedPct    !== null) parts.push('Feed '    + feedPct    + '%');
+  if (rapidPct   !== null) parts.push('Rapid '   + rapidPct   + '%');
+  if (spindlePct !== null) parts.push('Spindle ' + spindlePct + '%');
+  var text = hasAny ? ('Overrides: ' + parts.join('\u2002 ')) : '';
+
+  // Highlight non-100% overrides in amber so they catch the eye.
+  var isNonDefault = hasAny && (feedPct !== 100 || rapidPct !== 100 || spindlePct !== 100);
+
+  for (var i = 0; i < ids.length; i++) {
+    var el = document.getElementById(ids[i]);
+    if (!el) continue;
+    if (!hasAny) {
+      el.style.display = 'none';
+    } else {
+      el.textContent = text;
+      el.style.display = '';
+      el.style.color = isNonDefault ? 'var(--warn,#e8a020)' : 'var(--muted)';
+    }
+  }
 }
 
 async function refreshCurrentPosition(){
@@ -635,9 +766,9 @@ async function waitForIdle(){
       pluginDebug('waitForIdle: status changed to "' + status + '" (poll #' + i + ')');
       lastStatus = status;
     }
-    // When a stop has been requested, treat Hold as an acceptable done state
-    // so routines exit cleanly instead of spinning until a 30-second timeout.
-    if(_stopRequested && status.indexOf('hold') >= 0){
+    // When a stop has been requested AND we are NOT in a safety move, treat Hold
+    // as an acceptable done state so routines exit cleanly without spinning.
+    if(_stopRequested && !_safetyMoveActive && status.indexOf('hold') >= 0){
       pluginDebug('waitForIdle EXIT (stop requested, hold): returning null');
       return null;
     }
