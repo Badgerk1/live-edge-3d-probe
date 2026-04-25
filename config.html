@@ -1985,6 +1985,7 @@ var _stopRequested = false;
 var _safetyMoveActive = false; // set true during stop handler's retract/home phase
 var _runGeneration = 0;        // incremented on each stop; async ops compare to detect stale work
 var _stopInProgress = false;   // guard against overlapping stop sequences (double-click)
+var _unlockPollActive = false; // guard against concurrent unlock+auto-safety-move polls
 var _faceSurfRefZ = null; // surface reference Z in WORK coords captured by Surface Reference Probe button
 var topResults = [];
 var faceResults = [];
@@ -2416,19 +2417,63 @@ async function sendSoftResetCommand() {
   }
 }
 
+// Constants for post-unlock idle polling
+var UNLOCK_POLL_TIMEOUT_MS = 5000;
+var UNLOCK_POLL_INTERVAL_MS = 250;
+
 /**
  * sendUnlockCommand()
  * Sends the $X unlock command to clear the ALARM latch.
+ * After sending $X, polls server-state until the controller becomes Idle
+ * (not alarm, not hold) and then automatically runs retrySafetyMoves().
+ * If the controller is not ready within UNLOCK_POLL_TIMEOUT_MS, logs a message
+ * and keeps the ALARM panel visible for manual retry.
+ * A guard flag (_unlockPollActive) prevents concurrent polls on double-click.
  * Called by the Unlock ($X) button in the ALARM warning panel.
  */
 async function sendUnlockCommand() {
+  if (_unlockPollActive) {
+    pluginDebug('ALARM: unlock already in progress — ignoring duplicate click');
+    return;
+  }
+  _unlockPollActive = true;
   try {
     await sendCommand('$X');
     pluginDebug('ALARM: unlock ($X) sent');
     setFooterStatus('ALARM: unlock ($X) sent', 'warn');
-    try { var after = await getMachineSnapshot(); updateMachineHelperUI(after); } catch(_e) {}
+
+    pluginDebug('ALARM: waiting for controller to become Idle before safety moves\u2026');
+    setFooterStatus('ALARM: waiting for controller to become Idle\u2026', 'warn');
+
+    var deadline = Date.now() + UNLOCK_POLL_TIMEOUT_MS;
+    var becameIdle = false;
+    while (Date.now() < deadline) {
+      await sleep(UNLOCK_POLL_INTERVAL_MS);
+      try {
+        var _ulState = await _getState();
+        var _ulMs = _machineStateFrom(_ulState);
+        var _ulStatus = String(_ulMs.status || '').toLowerCase();
+        if (_ulStatus.indexOf('alarm') < 0 && _ulStatus.indexOf('hold') < 0 && _ulStatus.indexOf('idle') >= 0) {
+          becameIdle = true;
+          break;
+        }
+      } catch(_e) { /* transient fetch error — keep polling */ }
+    }
+
+    if (becameIdle) {
+      pluginDebug('ALARM: controller ready \u2014 auto-running safety moves');
+      setFooterStatus('ALARM: controller ready \u2014 auto-running safety moves', 'warn');
+      await retrySafetyMoves();
+    } else {
+      pluginDebug('ALARM: controller not ready after timeout \u2014 manual retry required');
+      setFooterStatus('ALARM: not ready \u2014 click Home ($H) or Retry Safety Moves manually', 'bad');
+      _showAlarmWarning(true);
+      try { var after = await getMachineSnapshot(); updateMachineHelperUI(after); } catch(_e) {}
+    }
   } catch(e) {
     setFooterStatus('Unlock failed: ' + e.message, 'bad');
+  } finally {
+    _unlockPollActive = false;
   }
 }
 
