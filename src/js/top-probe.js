@@ -583,5 +583,8 @@ function runSurfaceProbing() {
 function stopSurfaceProbing() {
   smStopFlag = true;
   smLogProbe('Stop requested by user.');
+  stopNowAndSafeHome('surface').catch(function(e){
+    pluginDebug('stopSurfaceProbing: stopNowAndSafeHome error: ' + e.message);
+  });
 }
 

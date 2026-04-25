@@ -26,6 +26,9 @@ function stopOutlineScan() {
   outlineAppendLog('Stop requested.');
   outlineSetStatus('Stopping\u2026', 'warn');
   setFooterStatus('Stopping\u2026', 'warn');
+  stopNowAndSafeHome('outline').catch(function(e){
+    pluginDebug('stopOutlineScan: stopNowAndSafeHome error: ' + e.message);
+  });
 }
 
 // ── Log backup / recovery ─────────────────────────────────

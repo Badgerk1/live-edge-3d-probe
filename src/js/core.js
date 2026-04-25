@@ -104,9 +104,133 @@ function clearAllVisuals() {
 }
 
 // ── Stop ──────────────────────────────────────────────────────────────────────
+
+/**
+ * stopNowAndSafeHome(reason)
+ *
+ * Unified immediate-stop for all probe/outline routines:
+ *  1. Sets all stop flags so no new commands are queued.
+ *  2. Sends real-time Feed Hold (!) to halt motion ASAP.
+ *  3. After a brief pause, sends Resume (~) so follow-up moves are accepted.
+ *  4. Retracts Z to machineSafeTopZ (G53) at a controlled feed.
+ *  5. Returns to work X0 Y0 at a controlled feed.
+ *
+ * Does NOT require controller unlock or re-home.
+ * Does NOT require the user to switch to ncSender.
+ */
+async function stopNowAndSafeHome(reason) {
+  // 1. Set all stop flags immediately so running routines queue no more commands.
+  _stopRequested   = true;
+  smStopFlag       = true;
+  _outlineStopFlag = true;
+
+  var label = reason ? ('STOP (' + reason + ')') : 'STOP';
+  setFooterStatus(label + ': feed hold…', 'warn');
+
+  // Helper: write a line to every visible probe log.
+  function _stopLog(msg) {
+    try { logLine('top', msg); } catch(_e) {}
+    try { logLine('face', msg); } catch(_e) {}
+    try { if (typeof outlineAppendLog === 'function') outlineAppendLog(msg); } catch(_e) {}
+    try { smLogProbe(msg); } catch(_e) {}
+  }
+
+  _stopLog(label + ': feed hold sent (!)');
+
+  try {
+    // 2. Feed Hold — halts motion as quickly as the controller allows.
+    await sendCommand('!');
+  } catch(e) {
+    pluginDebug('stopNowAndSafeHome: feed-hold send error (ignored): ' + e.message);
+  }
+
+  // Wait for the controller to decelerate and enter Hold state.
+  await sleep(300);
+
+  try {
+    // 3. Resume so the controller will accept new motion commands.
+    await sendCommand('~');
+  } catch(e) {
+    pluginDebug('stopNowAndSafeHome: resume send error (ignored): ' + e.message);
+  }
+
+  // Brief pause after resume to let the controller transition back to Idle.
+  await sleep(200);
+
+  // 4. Retract Z to machine safe top.
+  var cfg = getSettingsFromUI();
+  var retractFeed = Math.max(100, cfg.travelFeedRate || 600);
+
+  _stopLog(label + ': retracting to machine safe top Z');
+  setFooterStatus(label + ': retracting Z…', 'warn');
+
+  try {
+    var machineSafeZ = isFinite(Number(cfg.machineSafeTopZ)) ? Number(cfg.machineSafeTopZ) : null;
+    if (machineSafeZ !== null) {
+      // G53 machine-coordinate retract (same as jogRaiseToMachineSafeTop but without homed check).
+      await sendCommand('G53 G1 Z' + machineSafeZ.toFixed(3) + ' F' + retractFeed.toFixed(0));
+      await sleep(100);
+      // Wait for Idle, tolerating Hold during stop.
+      await _waitForIdleOrStop(15000);
+    } else {
+      // Fallback: relative lift of 10 mm in work coords.
+      await sendCommand('G91 G1 Z10 F' + retractFeed.toFixed(0));
+      await sleep(100);
+      await _waitForIdleOrStop(15000);
+      await sendCommand('G90');
+    }
+  } catch(e) {
+    pluginDebug('stopNowAndSafeHome: Z retract error (ignored): ' + e.message);
+  }
+
+  // 5. Return to work X0 Y0 at controlled feed.
+  _stopLog(label + ': returning to X0 Y0');
+  setFooterStatus(label + ': returning to X0 Y0…', 'warn');
+
+  try {
+    await sendCommand('G90 G1 X0.000 Y0.000 F' + retractFeed.toFixed(0));
+    await sleep(100);
+    await _waitForIdleOrStop(30000);
+  } catch(e) {
+    pluginDebug('stopNowAndSafeHome: XY home error (ignored): ' + e.message);
+  }
+
+  _stopLog(label + ': complete');
+  setFooterStatus(label + ': complete', 'warn');
+
+  try { var after = await getMachineSnapshot(); updateMachineHelperUI(after); } catch(_e) {}
+}
+
+/**
+ * _waitForIdleOrStop(timeoutMs)
+ *
+ * Like waitForIdleWithTimeout() but when _stopRequested is true, treats
+ * Hold or Idle as an acceptable "done" state so routines exit cleanly
+ * without spurious 30-second timeouts.
+ */
+async function _waitForIdleOrStop(timeoutMs) {
+  var deadline = Date.now() + (timeoutMs || 15000);
+  var pollInterval = 50;
+  while (Date.now() < deadline) {
+    await sleep(pollInterval);
+    try {
+      var state = await _getState();
+      var ms = _machineStateFrom(state);
+      var status = String(ms.status || '').toLowerCase();
+      if (status === 'idle') return;
+      if (_stopRequested && (status.indexOf('hold') >= 0 || status === 'idle')) return;
+      if (status === 'alarm') throw new Error('Machine in alarm state');
+    } catch(e) {
+      if (e.message === 'Machine in alarm state') throw e;
+      // Transient fetch error — keep polling.
+    }
+  }
+}
+
 function stopAll(){
-  _stopRequested = true;
-  setFooterStatus('Stop requested — halting after current move…', 'warn');
+  stopNowAndSafeHome('user').catch(function(e){
+    pluginDebug('stopAll: stopNowAndSafeHome error: ' + e.message);
+  });
 }
 
 // ── ncSender API bridge (fetch-based) ─────────────────────────────────────────
@@ -510,6 +634,12 @@ async function waitForIdle(){
     if(status !== lastStatus){
       pluginDebug('waitForIdle: status changed to "' + status + '" (poll #' + i + ')');
       lastStatus = status;
+    }
+    // When a stop has been requested, treat Hold as an acceptable done state
+    // so routines exit cleanly instead of spinning until a 30-second timeout.
+    if(_stopRequested && status.indexOf('hold') >= 0){
+      pluginDebug('waitForIdle EXIT (stop requested, hold): returning null');
+      return null;
     }
     if(status === 'idle'){
       pluginDebug('waitForIdle EXIT: idle confirmed after ' + pollCount + ' polls');
