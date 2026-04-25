@@ -1614,11 +1614,15 @@
         <div class="callout" style="background:rgba(255,160,0,0.15);border:1px solid var(--warn,#e8a020);border-radius:6px;padding:8px 12px">
           <div style="color:var(--warn,#e8a020);font-weight:600;margin-bottom:6px">&#9888; Controller still in Hold</div>
           <div class="mini" style="margin-bottom:8px">
-            Use <strong>Stop</strong> (or Clear Hold) in ncSender to release the controller without resuming buffered motion.
+            The controller is in Hold and the motion queue may still contain buffered moves.
+            Click <strong>Clear Hold (Stop)</strong> below to cancel the queue via ncSender&rsquo;s stop endpoint without resuming buffered motion.
             Once Hold clears, the plugin will automatically retract to safe Z and return to X0&nbsp;Y0.<br>
-            <em>If ncSender's Stop is not available, the Resume&nbsp;(~) button below is a fallback &mdash; it will resume any queued move before the safety retract runs.</em>
+            <em>&#9888; <strong>Resume&nbsp;(~) &mdash; UNSAFE fallback</strong> will resume any queued move before the safety retract runs. Only use it if Clear Hold (Stop) is unavailable.</em>
           </div>
-          <button class="btn warn" style="padding:3px 14px;font-size:12px" onclick="sendResumeCommand()">&#9654; Resume (~) fallback</button>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn warn" style="padding:3px 14px;font-size:12px" onclick="sendClearHoldCommand()">&#9632; Clear Hold (Stop)</button>
+            <button class="btn" style="padding:3px 14px;font-size:12px;opacity:0.7" onclick="sendResumeCommand()">&#9654; Resume&nbsp;(~) &mdash; UNSAFE fallback</button>
+          </div>
         </div>
       </div>
 
