@@ -1626,6 +1626,25 @@
         </div>
       </div>
 
+      <!-- ALARM Warning: shown when controller enters ALARM during a stop sequence -->
+      <div class="panel" data-panel-key="outline-alarm-warning" id="plugin-alarm-warning" style="display:none">
+        <div class="box-title">&#9888; Controller in ALARM</div>
+        <div class="callout" style="background:rgba(220,50,50,0.12);border:1px solid var(--bad,#d03030);border-radius:6px;padding:8px 12px">
+          <div style="color:var(--bad,#d03030);font-weight:600;margin-bottom:6px">&#9888; Controller in ALARM &mdash; motion locked out</div>
+          <div class="mini" style="margin-bottom:8px">
+            The controller has entered ALARM state (e.g.&nbsp;ALARM:3). Motion commands are locked out and the
+            safety retract / home moves have been skipped to avoid repeated errors.<br>
+            To recover: click <strong>Soft Reset (0x18)</strong> to reset the controller, then click
+            <strong>Retry Safety Moves</strong> once the controller is back to Idle to retract to safe Z and return to X0&nbsp;Y0.<br>
+            <em>Note: if your machine requires homing after a reset, home via ncSender before clicking Retry Safety Moves.</em>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn warn" style="padding:3px 14px;font-size:12px" onclick="sendSoftResetCommand()">&#8635; Soft Reset (0x18)</button>
+            <button class="btn" style="padding:3px 14px;font-size:12px" onclick="retrySafetyMoves()">&#8617; Retry Safety Moves</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Outline Surface Grid Probe (full heightmap) -->
       <div class="panel" data-panel-key="outline-surface-grid">
         <div class="box-title">&#11835; Surface Grid Probe (Full Heightmap)</div>
