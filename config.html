@@ -2110,6 +2110,9 @@ async function getMachineSnapshot(){
   var m = _parsePos(ms.MPos);
   var wco = _parsePos(ms.WCO);
   var machine = m ? {x:m.x, y:m.y, z:m.z} : (wco ? {x:pos.x + wco.x, y:pos.y + wco.y, z:pos.z + wco.z} : null);
+  var _feedOvr    = ms.feedrateOverride  != null ? Number(ms.feedrateOverride)  : NaN;
+  var _rapidOvr   = ms.rapidOverride     != null ? Number(ms.rapidOverride)     : NaN;
+  var _spindleOvr = ms.spindleOverride   != null ? Number(ms.spindleOverride)   : NaN;
   var snap = {
     x: pos.x,
     y: pos.y,
@@ -2120,9 +2123,12 @@ async function getMachineSnapshot(){
     status: pos.status || ms.status || 'Unknown',
     probeTriggered: !!pos.probeTriggered,
     homed: _detectHomed(ms, state),
+    feedOverridePct:    isFinite(_feedOvr)    ? _feedOvr    : null,
+    rapidOverridePct:   isFinite(_rapidOvr)   ? _rapidOvr   : null,
+    spindleOverridePct: isFinite(_spindleOvr) ? _spindleOvr : null,
     raw: ms
   };
-  pluginDebug('getMachineSnapshot EXIT: status=' + snap.status + ' pos=X' + snap.x + ' Y' + snap.y + ' Z' + snap.z + ' homed=' + snap.homed + ' probe=' + snap.probeTriggered);
+  pluginDebug('getMachineSnapshot EXIT: status=' + snap.status + ' pos=X' + snap.x + ' Y' + snap.y + ' Z' + snap.z + ' homed=' + snap.homed + ' probe=' + snap.probeTriggered + ' feedOvr=' + snap.feedOverridePct + '% rapidOvr=' + snap.rapidOverridePct + '% spindleOvr=' + snap.spindleOverridePct + '%');
   return snap;
 }
 
@@ -2150,6 +2156,25 @@ async function requireStartupHomingPreflight(runLabel){
   pluginDebug('requireStartupHomingPreflight OK: status=' + info.status + ' homed=true probe=open');
   logLine('top', 'Preflight OK: machine homed, status=' + (info.status || 'Unknown') + ', probe=open');
   logLine('face', 'Preflight OK: machine homed, status=' + (info.status || 'Unknown') + ', probe=open');
+  // Non-blocking override warnings
+  var _overrideWarns = [];
+  if(typeof info.feedOverridePct === 'number' && info.feedOverridePct !== 100){
+    _overrideWarns.push('Feed override is ' + info.feedOverridePct + '% \u2014 travel will be slower than commanded.');
+  }
+  if(typeof info.rapidOverridePct === 'number' && info.rapidOverridePct !== 100){
+    _overrideWarns.push('Rapid override is ' + info.rapidOverridePct + '%.');
+  }
+  if(typeof info.spindleOverridePct === 'number' && info.spindleOverridePct !== 100){
+    _overrideWarns.push('Spindle override is ' + info.spindleOverridePct + '%.');
+  }
+  if(_overrideWarns.length > 0){
+    var _warnMsg = 'WARNING: ' + _overrideWarns.join(' ');
+    pluginDebug('requireStartupHomingPreflight OVERRIDE WARNING: ' + _warnMsg);
+    logLine('top', _warnMsg);
+    logLine('face', _warnMsg);
+    if(typeof outlineAppendLog === 'function') outlineAppendLog(_warnMsg);
+    setFooterStatus(_warnMsg, 'warn');
+  }
   return info;
 }
 function updateMachineHelperUI(info){
