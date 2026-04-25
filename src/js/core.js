@@ -3,6 +3,8 @@ var SM_VERSION = 'V21.0';
 var _running = false;
 var _stopRequested = false;
 var _safetyMoveActive = false; // set true during stop handler's retract/home phase
+var _runGeneration = 0;        // incremented on each stop; async ops compare to detect stale work
+var _stopInProgress = false;   // guard against overlapping stop sequences (double-click)
 var _faceSurfRefZ = null; // surface reference Z in WORK coords captured by Surface Reference Probe button
 var topResults = [];
 var faceResults = [];
@@ -129,10 +131,21 @@ function clearAllVisuals() {
  * Does NOT require the user to switch to ncSender.
  */
 async function stopNowAndSafeHome(reason) {
+  // Guard: prevent overlapping stop sequences from double-clicking Stop.
+  if (_stopInProgress) {
+    pluginDebug('stopNowAndSafeHome: already in progress, ignoring duplicate call');
+    return;
+  }
+  _stopInProgress = true;
+
+  try {
   // 1. Set all stop flags immediately so running routines queue no more commands.
+  //    Increment _runGeneration so any in-flight async probe/travel can detect
+  //    that a stop has been issued and skip stale results.
   _stopRequested   = true;
   smStopFlag       = true;
   _outlineStopFlag = true;
+  _runGeneration++;
 
   var label = reason ? ('STOP (' + reason + ')') : 'STOP';
   setFooterStatus(label + ': feed hold\u2026', 'warn');
@@ -168,13 +181,43 @@ async function stopNowAndSafeHome(reason) {
   }
   pluginDebug(label + ': Hold poll done');
 
-  // 4. Send Resume (~) to release Hold so subsequent motion commands are accepted.
-  _stopLog(label + ': releasing hold (~) so safety moves can run');
-  pluginDebug(label + ': sending resume (~)');
+  // 4. Try to cancel queued motion via ncSender's gcode-stop endpoint (clears the
+  //    motion buffer without resuming buffered travel).  Fall back to Resume (~)
+  //    if the endpoint is not available.
+  _stopLog(label + ': clearing hold/queue (safe stop)');
+  pluginDebug(label + ': attempting safe hold clear without resuming buffered motion');
+  var _usedSafeStop = false;
   try {
-    await sendCommand('~');
-  } catch(e) {
-    pluginDebug(label + ': resume send error (ignored): ' + e.message);
+    var _stopCtrl = new AbortController();
+    var _stopTimer = setTimeout(function(){ _stopCtrl.abort(); }, 3000);
+    var _stopResp = await fetch('/api/gcode/stop', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({}),
+      signal: _stopCtrl.signal
+    });
+    clearTimeout(_stopTimer);
+    if (_stopResp.ok) {
+      _usedSafeStop = true;
+      pluginDebug(label + ': /api/gcode/stop succeeded — buffer cleared without resuming');
+    } else {
+      pluginDebug(label + ': /api/gcode/stop returned ' + _stopResp.status + ', falling back to ~');
+    }
+  } catch(_stopErr) {
+    pluginDebug(label + ': /api/gcode/stop not available (' + _stopErr.message + '), falling back to ~');
+  }
+
+  if (!_usedSafeStop) {
+    // Fallback: Resume (~) releases the controller from Hold so our safety moves
+    // can execute.  Note: this may briefly resume any buffered move; the
+    // retract/home commands that follow will override to a safe position.
+    _stopLog(label + ': releasing hold (~) so safety moves can run');
+    pluginDebug(label + ': sending resume (~)');
+    try {
+      await sendCommand('~');
+    } catch(e) {
+      pluginDebug(label + ': resume send error (ignored): ' + e.message);
+    }
   }
 
   // 5. Poll until no longer in Hold (up to 4 s).
@@ -192,10 +235,10 @@ async function stopNowAndSafeHome(reason) {
   }
 
   if (!leftHold) {
-    // Controller is still in Hold — warn the user and show the manual Resume button.
-    _stopLog(label + ': WARNING — controller still in Hold. Use the Resume button to release, then safety moves will continue.');
-    setFooterStatus(label + ': controller still in Hold — press Resume (~) to continue', 'warn');
-    pluginDebug(label + ': controller still in Hold after 4s; showing resume button');
+    // Controller is still in Hold — warn the user and show the manual action panel.
+    _stopLog(label + ': WARNING — controller still in Hold. Use Stop/Clear Hold in ncSender to release, or press Resume (~) as a fallback; safety moves will continue once Hold clears.');
+    setFooterStatus(label + ': controller still in Hold — use Stop/Clear Hold in ncSender', 'warn');
+    pluginDebug(label + ': controller still in Hold after 4s; showing hold-warning panel');
     _showResumeButtonWarning(true);
     // Wait for the user to manually send ~ (poll for up to 30 s).
     var manualDeadline = Date.now() + 30000;
@@ -267,12 +310,17 @@ async function stopNowAndSafeHome(reason) {
   setFooterStatus(label + ': complete', 'warn');
 
   try { var after = await getMachineSnapshot(); updateMachineHelperUI(after); } catch(_e) {}
+
+  } finally {
+    // Outer finally: always release the double-stop guard.
+    _stopInProgress = false;
+  }
 }
 
 /**
  * _showResumeButtonWarning(visible)
- * Show or hide the "still in Hold" warning callout in the footer area.
- * The callout contains the manual Resume button and is normally hidden.
+ * Show or hide the "still in Hold" warning panel (under Outline → Probing Control).
+ * The panel contains the manual Resume button and is normally hidden.
  */
 function _showResumeButtonWarning(visible) {
   var el = document.getElementById('plugin-hold-warning');

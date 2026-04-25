@@ -1608,6 +1608,19 @@
         <div id="outline-status" class="status-line mini mt4 mb8">Ready</div>
       </div>
 
+      <!-- Hold Warning: shown when stop handler cannot automatically clear Hold -->
+      <div class="panel" data-panel-key="outline-hold-warning" id="plugin-hold-warning" style="display:none">
+        <div class="callout" style="background:rgba(255,160,0,0.15);border:1px solid var(--warn,#e8a020);border-radius:6px;padding:8px 12px">
+          <div style="color:var(--warn,#e8a020);font-weight:600;margin-bottom:6px">&#9888; Controller still in Hold</div>
+          <div class="mini" style="margin-bottom:8px">
+            Use <strong>Stop</strong> (or Clear Hold) in ncSender to release the controller without resuming buffered motion.
+            Once Hold clears, the plugin will automatically retract to safe Z and return to X0&nbsp;Y0.<br>
+            <em>If ncSender's Stop is not available, the Resume&nbsp;(~) button below is a fallback &mdash; it will resume any queued move before the safety retract runs.</em>
+          </div>
+          <button class="btn warn" style="padding:3px 14px;font-size:12px" onclick="sendResumeCommand()">&#9654; Resume (~) fallback</button>
+        </div>
+      </div>
+
       <!-- Outline Surface Grid Probe (full heightmap) -->
       <div class="panel" data-panel-key="outline-surface-grid">
         <div class="box-title">&#11835; Surface Grid Probe (Full Heightmap)</div>
@@ -1697,11 +1710,6 @@
   <!-- ── FOOTER ─────────────────────────────────────────────────────────── -->
   <div class="footer">
     <div id="footer-status" class="status-line" style="margin-top:0">Ready</div>
-    <!-- Hold-warning callout: shown when stop handler cannot clear Hold automatically -->
-    <div id="plugin-hold-warning" style="display:none;background:rgba(255,160,0,0.15);border:1px solid var(--warn,#e8a020);border-radius:6px;padding:6px 10px;margin:4px 0">
-      <span style="color:var(--warn,#e8a020);font-weight:600;font-size:12px">&#9888; Controller still in Hold &mdash; press Resume to release:</span>
-      <button class="btn warn" style="margin-left:8px;padding:3px 12px;font-size:12px" onclick="sendResumeCommand()">&#9654; Resume (~)</button>
-    </div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px">
       <button class="btn ghost" style="padding:3px 12px;font-size:12px" title="Send real-time resume / cycle-start (~) to release controller from Hold" onclick="sendResumeCommand()">&#9654; Resume (~)</button>
       <label class="mini" style="display:flex;align-items:center;gap:5px;cursor:pointer;user-select:none" title="Show [PLUGIN DEBUG] entries in probe logs and browser console">

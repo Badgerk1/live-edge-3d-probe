@@ -136,6 +136,7 @@ async function runOutlineSurfaceProbe() {
   _outlineRunning  = true;
   _outlineStopFlag = false;
   _stopRequested   = false;
+  smStopFlag       = false;
   _running         = true;
 
   clearLog('outline');
@@ -212,12 +213,13 @@ async function runOutlineSurfaceProbe() {
       outlineAppendLog('Stopped by user.');
       outlineSetStatus('Stopped', 'warn');
       setFooterStatus('Outline stopped', 'warn');
+      // Safety retract/home is handled by stopNowAndSafeHome — do not call here.
     } else {
       outlineAppendLog('ERROR: ' + e.message);
       outlineSetStatus('Error: ' + e.message, 'error');
       setFooterStatus('Outline error: ' + e.message, 'error');
+      await _outlineSafetyRetract();
     }
-    await _outlineSafetyRetract();
   } finally {
     _outlineRunning  = false;
     _outlineStopFlag = false;
@@ -242,6 +244,7 @@ async function _probeHorizEdge(axis, targetCoord, feed, safeTravelZ) {
   await sendCommand('G90 G38.3 ' + axis + targetCoord.toFixed(3) + ' F' + feed.toFixed(0), probeTimeMs);
   await sleep(50);
   await waitForIdleWithTimeout(probeTimeMs);
+  outlineCheckStop(); // Cancel stale probe result if stop was pressed while waiting
 
   var pos = await getWorkPosition();
   var pinAfter = await smGetProbeTriggered();
@@ -273,6 +276,7 @@ async function _surfStepProbe(probeDown, probeFeed) {
   await sendCommand('G91 G38.3 Z-' + Math.abs(probeDown).toFixed(4) + ' F' + probeFeed.toFixed(0));
   await sleep(50);
   await waitForIdleWithTimeout(30000);
+  outlineCheckStop(); // Cancel stale probe result if stop was pressed while waiting
   var pos = await getWorkPosition();
   var distanceTraveled = startZ - pos.z;
   var stoppedShort = distanceTraveled < (probeDown - 0.5);
@@ -602,6 +606,7 @@ async function runOutlineScan() {
   _outlineRunning   = true;
   _outlineStopFlag  = false;
   _stopRequested    = false;
+  smStopFlag        = false;
   _running          = true;
   outlineRowResults = [];
   outlineColResults = [];
@@ -658,12 +663,13 @@ async function runOutlineScan() {
       outlineAppendLog('Stopped by user.');
       outlineSetStatus('Stopped', 'warn');
       setFooterStatus('Outline stopped', 'warn');
+      // Safety retract/home is handled by stopNowAndSafeHome — do not call here.
     } else {
       outlineAppendLog('ERROR: ' + e.message);
       outlineSetStatus('Error: ' + e.message, 'error');
       setFooterStatus('Outline error: ' + e.message, 'error');
+      await _outlineSafetyRetract();
     }
-    await _outlineSafetyRetract();
   } finally {
     _outlineRunning  = false;
     _outlineStopFlag = false;
@@ -684,6 +690,7 @@ async function runOutline360FaceProbe() {
   _outlineRunning  = true;
   _outlineStopFlag = false;
   _stopRequested   = false;
+  smStopFlag       = false;
   _running         = true;
   faceResults      = [];
 
@@ -730,6 +737,7 @@ async function runOutline360FaceProbe() {
         await sendCommand('G90 G38.2 X' + _lTarget.toFixed(3) + ' F' + feed.toFixed(0), _lProbeTimeMs);
         await sleep(50);
         var lpos = await waitForIdleWithTimeout(_lProbeTimeMs);
+        outlineCheckStop(); // Cancel stale probe result if stop was pressed
         if (!lpos) lpos = await getWorkPosition();
         var _lEndX = Number(lpos.x);
         var _lDist = Math.abs(_lTarget - _lStartX);
@@ -769,6 +777,7 @@ async function runOutline360FaceProbe() {
         await sendCommand('G90 G38.2 X' + _rTarget.toFixed(3) + ' F' + feed.toFixed(0), _rProbeTimeMs);
         await sleep(50);
         var rpos = await waitForIdleWithTimeout(_rProbeTimeMs);
+        outlineCheckStop(); // Cancel stale probe result if stop was pressed
         if (!rpos) rpos = await getWorkPosition();
         var _rEndX = Number(rpos.x);
         var _rDist = Math.abs(_rTarget - _rStartX);
@@ -813,6 +822,7 @@ async function runOutline360FaceProbe() {
         await sendCommand('G90 G38.2 Y' + _bTarget.toFixed(3) + ' F' + feed.toFixed(0), _bProbeTimeMs);
         await sleep(50);
         var bpos = await waitForIdleWithTimeout(_bProbeTimeMs);
+        outlineCheckStop(); // Cancel stale probe result if stop was pressed
         if (!bpos) bpos = await getWorkPosition();
         var _bEndY = Number(bpos.y);
         var _bDist = Math.abs(_bTarget - _bStartY);
@@ -852,6 +862,7 @@ async function runOutline360FaceProbe() {
         await sendCommand('G90 G38.2 Y' + _tTarget.toFixed(3) + ' F' + feed.toFixed(0), _tProbeTimeMs);
         await sleep(50);
         var tpos = await waitForIdleWithTimeout(_tProbeTimeMs);
+        outlineCheckStop(); // Cancel stale probe result if stop was pressed
         if (!tpos) tpos = await getWorkPosition();
         var _tEndY = Number(tpos.y);
         var _tDist = Math.abs(_tTarget - _tStartY);
@@ -885,12 +896,13 @@ async function runOutline360FaceProbe() {
       outlineAppendLog('Stopped by user.');
       outlineSetStatus('Stopped', 'warn');
       setFooterStatus('360 face probe stopped', 'warn');
+      // Safety retract/home is handled by stopNowAndSafeHome — do not call here.
     } else {
       outlineAppendLog('ERROR: ' + e.message);
       outlineSetStatus('Error', 'error');
       setFooterStatus('360 face probe error', 'error');
+      await _outlineSafetyRetract();
     }
-    await _outlineSafetyRetract();
   } finally {
     _outlineRunning  = false;
     _outlineStopFlag = false;
@@ -1154,6 +1166,7 @@ async function runOutlineSurfaceGridProbe() {
   _outlineRunning  = true;
   _outlineStopFlag = false;
   _stopRequested   = false;
+  smStopFlag       = false;
   _running         = true;
 
   var runBtn  = document.getElementById('outline-grid-run-btn');
@@ -1440,13 +1453,14 @@ async function runOutlineSurfaceGridProbe() {
       outlineAppendLog('Stopped by user.');
       outlineSetStatus('Stopped', 'warn');
       setFooterStatus('Outline grid probe stopped', 'warn');
+      // Safety retract/home is handled by stopNowAndSafeHome — do not call here.
     } else {
       outlineAppendLog('ERROR: ' + msg);
       outlineSetStatus('Error: ' + msg, 'error');
       setFooterStatus('Outline grid probe error: ' + msg, 'error');
       console.error('Outline surface grid probe error:', e);
+      await _outlineSafetyRetract();
     }
-    await _outlineSafetyRetract();
   } finally {
     _outlineRunning  = false;
     _outlineStopFlag = false;

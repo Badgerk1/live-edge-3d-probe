@@ -225,7 +225,7 @@ async function runFaceProbe(axis, _calledFromCombined){
   pluginDebug('runFaceProbe ENTER: axis=' + axis);
   if(_running){ logLine('face','Face probe skipped: another operation is still running.'); pluginDebug('runFaceProbe SKIP: _running=true'); setFooterStatus('Already running', 'warn'); return; }
   if(!validateSettings()){ logLine('face','Face probe skipped: settings validation failed — check Setup tab for warnings.'); pluginDebug('runFaceProbe SKIP: settings validation failed'); return; }
-  _running = true; _stopRequested = false;
+  _running = true; _stopRequested = false; smStopFlag = false; _outlineStopFlag = false;
   axis = String(axis || 'X').toUpperCase();
   document.getElementById('btn-stop-face').disabled = false;
   document.getElementById('btn-face-x').disabled = true;
@@ -1357,6 +1357,7 @@ async function runCombinedProbeMode(axis) {
   // Reset stop flags so a previously-stopped run does not block this one.
   smStopFlag = false;
   _stopRequested = false;
+  _outlineStopFlag = false;
   smLogProbe('=== 3D Live Edge Mesh Plugin ' + SM_VERSION + ' ===');
   smLogProbe('COMBINED: Starting combined probe (surface + face axis=' + axis + ')...');
   pluginDebug('runCombinedProbeMode ENTER: axis=' + axis);

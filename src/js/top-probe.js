@@ -406,6 +406,8 @@ async function smFinishMotion(travelFeed) {
 function runSurfaceProbing() {
   pluginDebug('runSurfaceProbing ENTER');
   smStopFlag = false;
+  _stopRequested   = false;
+  _outlineStopFlag = false;
   meshSubdivisionSpacing = (function(){ var el = document.getElementById('meshSubdivisionSpacing'); return el ? Number(el.value) : meshSubdivisionSpacing; })();
   // Clear any previous mesh data so the combined-mode callback correctly detects
   // whether THIS probe run succeeded (stale smMeshData would make it look like
