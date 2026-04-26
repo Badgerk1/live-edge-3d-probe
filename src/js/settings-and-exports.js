@@ -129,6 +129,7 @@ function getSettingsFromUI() {
     outlineGridXStep:            n('outlineGridXStep'),
     outlineGridYStep:            n('outlineGridYStep'),
     outlineSkipSurfaceProbe:     chk('outlineSkipSurfaceProbe'),
+    outlineForceRectangle:       chk('outlineForceRectangle'),
     autoHideStatusPanel:         chk('autoHideStatusPanel')
   };
 }
@@ -303,6 +304,7 @@ function loadSettings() {
   if (data.outlineGridXStep        != null) sv('outlineGridXStep',        data.outlineGridXStep);
   if (data.outlineGridYStep        != null) sv('outlineGridYStep',        data.outlineGridYStep);
   if (data.outlineSkipSurfaceProbe != null) sc('outlineSkipSurfaceProbe', data.outlineSkipSurfaceProbe);
+  if (data.outlineForceRectangle   != null) sc('outlineForceRectangle',   data.outlineForceRectangle);
   if (data.autoHideStatusPanel != null) sc('autoHideStatusPanel', data.autoHideStatusPanel);
   // Trigger dependent previews
   try { refreshFinishBehaviorPreview(); } catch(e) {}
