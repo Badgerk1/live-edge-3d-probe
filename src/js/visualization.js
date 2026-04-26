@@ -2267,48 +2267,68 @@ function _vizDrawOutlineCanvas() {
     if (nnArea > 0) nnOrdered.reverse(); // CCW → flip to CW
     dedupPts = nnOrdered;
 
-    // Smooth closed centripetal Catmull-Rom spline on canvas (alpha=0.5).
-    // Converts each segment directly to an exact cubic bezier via the centripetal-CR
-    // tangent formula — no polyline subdivision needed, giving a mathematically
-    // perfect smooth curve with a single bezierCurveTo call per segment.
-    function crBezier(p0, p1, p2, p3) {
-      function knot(a, b) {
-        var dx = b[0]-a[0], dy = b[1]-a[1];
-        return Math.pow(dx*dx + dy*dy, 0.25); // = dist^0.5
+    // Check if Force rectangle mode is enabled
+    var forceRect = (typeof _outlineSettings === 'function') ? _outlineSettings().forceRectangle : false;
+
+    if (forceRect && typeof _computeInscribedRectangle === 'function' && typeof _pointInPolygon === 'function') {
+      // Draw inscribed axis-aligned rectangle instead of spline
+      var rect = _computeInscribedRectangle(dedupPts);
+      if (rect) {
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.rect(cx(rect.xMin), cy(rect.yMax), (rect.xMax - rect.xMin) * scaleX, (rect.yMax - rect.yMin) * scaleY);
+        ctx.stroke();
+      } else {
+        forceRect = false; // fall through to spline
       }
-      var t0 = 0;
-      var t1 = t0 + Math.max(knot(p0, p1), 1e-4);
-      var t2 = t1 + Math.max(knot(p1, p2), 1e-4);
-      var t3 = t2 + Math.max(knot(p2, p3), 1e-4);
-      var dt = t2 - t1;
-      // Centripetal CR derivative at p1 and p2 (w.r.t. knot parameter t)
-      var T1x = (p1[0]-p0[0])/(t1-t0) - (p2[0]-p0[0])/(t2-t0) + (p2[0]-p1[0])/dt;
-      var T1y = (p1[1]-p0[1])/(t1-t0) - (p2[1]-p0[1])/(t2-t0) + (p2[1]-p1[1])/dt;
-      var T2x = (p2[0]-p1[0])/dt - (p3[0]-p1[0])/(t3-t1) + (p3[0]-p2[0])/(t3-t2);
-      var T2y = (p2[1]-p1[1])/dt - (p3[1]-p1[1])/(t3-t1) + (p3[1]-p2[1])/(t3-t2);
-      // Cubic bezier control points: cp1 = p1 + T1*dt/3,  cp2 = p2 - T2*dt/3
-      return [
-        [p1[0] + T1x*dt/3, p1[1] + T1y*dt/3],
-        [p2[0] - T2x*dt/3, p2[1] - T2y*dt/3]
-      ];
     }
-    var n = dedupPts.length;
-    function wIdx(i) { return ((i % n) + n) % n; }
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([]);
-    ctx.beginPath();
-    ctx.moveTo(cx(dedupPts[0][0]), cy(dedupPts[0][1]));
-    for (var k = 0; k < n; k++) {
-      var p0 = dedupPts[wIdx(k - 1)];
-      var p1 = dedupPts[wIdx(k)];
-      var p2 = dedupPts[wIdx(k + 1)];
-      var p3 = dedupPts[wIdx(k + 2)];
-      var bz = crBezier(p0, p1, p2, p3);
-      ctx.bezierCurveTo(cx(bz[0][0]), cy(bz[0][1]), cx(bz[1][0]), cy(bz[1][1]), cx(p2[0]), cy(p2[1]));
+
+    if (!forceRect) {
+      // Smooth closed centripetal Catmull-Rom spline on canvas (alpha=0.5).
+      // Converts each segment directly to an exact cubic bezier via the centripetal-CR
+      // tangent formula — no polyline subdivision needed, giving a mathematically
+      // perfect smooth curve with a single bezierCurveTo call per segment.
+      function crBezier(p0, p1, p2, p3) {
+        function knot(a, b) {
+          var dx = b[0]-a[0], dy = b[1]-a[1];
+          return Math.pow(dx*dx + dy*dy, 0.25); // = dist^0.5
+        }
+        var t0 = 0;
+        var t1 = t0 + Math.max(knot(p0, p1), 1e-4);
+        var t2 = t1 + Math.max(knot(p1, p2), 1e-4);
+        var t3 = t2 + Math.max(knot(p2, p3), 1e-4);
+        var dt = t2 - t1;
+        // Centripetal CR derivative at p1 and p2 (w.r.t. knot parameter t)
+        var T1x = (p1[0]-p0[0])/(t1-t0) - (p2[0]-p0[0])/(t2-t0) + (p2[0]-p1[0])/dt;
+        var T1y = (p1[1]-p0[1])/(t1-t0) - (p2[1]-p0[1])/(t2-t0) + (p2[1]-p1[1])/dt;
+        var T2x = (p2[0]-p1[0])/dt - (p3[0]-p1[0])/(t3-t1) + (p3[0]-p2[0])/(t3-t2);
+        var T2y = (p2[1]-p1[1])/dt - (p3[1]-p1[1])/(t3-t1) + (p3[1]-p2[1])/(t3-t2);
+        // Cubic bezier control points: cp1 = p1 + T1*dt/3,  cp2 = p2 - T2*dt/3
+        return [
+          [p1[0] + T1x*dt/3, p1[1] + T1y*dt/3],
+          [p2[0] - T2x*dt/3, p2[1] - T2y*dt/3]
+        ];
+      }
+      var n = dedupPts.length;
+      function wIdx(i) { return ((i % n) + n) % n; }
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(cx(dedupPts[0][0]), cy(dedupPts[0][1]));
+      for (var k = 0; k < n; k++) {
+        var p0 = dedupPts[wIdx(k - 1)];
+        var p1 = dedupPts[wIdx(k)];
+        var p2 = dedupPts[wIdx(k + 1)];
+        var p3 = dedupPts[wIdx(k + 2)];
+        var bz = crBezier(p0, p1, p2, p3);
+        ctx.bezierCurveTo(cx(bz[0][0]), cy(bz[0][1]), cx(bz[1][0]), cy(bz[1][1]), cx(p2[0]), cy(p2[1]));
+      }
+      ctx.closePath();
+      ctx.stroke();
     }
-    ctx.closePath();
-    ctx.stroke();
 
     // Small white dots at each point
     ctx.fillStyle = '#ffffff';

@@ -76,7 +76,8 @@ function _outlineSettings() {
     retractFeed:       gn('outlineRetractFeed',      600),
     clearZ:            gn('outlineClearZ',           5),
     probeDown:         gn('outlineProbeDown',        5),
-    skipSurfaceProbe:  gb('outlineSkipSurfaceProbe')
+    skipSurfaceProbe:  gb('outlineSkipSurfaceProbe'),
+    forceRectangle:    gb('outlineForceRectangle')
   };
 }
 
@@ -1160,6 +1161,43 @@ function _pointInPolygon(poly, x, y) {
   return inside;
 }
 
+// ── Compute largest axis-aligned inscribed rectangle inside polygon ───────────
+// Starts from the bounding box and shrinks each side inward in small steps
+// until all four corners are inside the polygon (conservative/inscribed result).
+// Returns {xMin, xMax, yMin, yMax} or null if no valid rectangle was found.
+function _computeInscribedRectangle(poly) {
+  if (!poly || poly.length < 3) return null;
+  var xs = poly.map(function(p) { return p[0]; });
+  var ys = poly.map(function(p) { return p[1]; });
+  var xMin = Math.min.apply(null, xs);
+  var xMax = Math.max.apply(null, xs);
+  var yMin = Math.min.apply(null, ys);
+  var yMax = Math.max.apply(null, ys);
+
+  var step = 0.25; // mm — inward shrink step per iteration
+  var maxIter = Math.ceil(Math.max(xMax - xMin, yMax - yMin) / step) * 2 + 4;
+
+  for (var iter = 0; iter < maxIter; iter++) {
+    if (xMin >= xMax || yMin >= yMax) return null;
+    var bl = _pointInPolygon(poly, xMin, yMin);
+    var br = _pointInPolygon(poly, xMax, yMin);
+    var tl = _pointInPolygon(poly, xMin, yMax);
+    var tr = _pointInPolygon(poly, xMax, yMax);
+    if (bl && br && tl && tr) break;
+    if (!bl || !tl) xMin += step;
+    if (!br || !tr) xMax -= step;
+    if (!bl || !br) yMin += step;
+    if (!tl || !tr) yMax -= step;
+  }
+
+  if (xMin >= xMax || yMin >= yMax) return null;
+  if (!_pointInPolygon(poly, xMin, yMin) || !_pointInPolygon(poly, xMax, yMin) ||
+      !_pointInPolygon(poly, xMin, yMax) || !_pointInPolygon(poly, xMax, yMax)) {
+    return null;
+  }
+  return { xMin: xMin, xMax: xMax, yMin: yMin, yMax: yMax };
+}
+
 // ── Outline Surface Grid Probe (full heightmap over outline bounds) ────────────
 async function runOutlineSurfaceGridProbe() {
   if (_outlineRunning) { outlineAppendLog('Already running.'); return; }
@@ -1680,47 +1718,65 @@ function exportOutlineSVG() {
     if (nnArea > 0) nnOrdered.reverse(); // CCW → flip to CW
     dedupPts = nnOrdered;
 
-    // Smooth closed centripetal Catmull-Rom spline (alpha=0.5).
-    // Converts each segment directly to an exact cubic bezier ('C' SVG command)
-    // using the centripetal-CR tangent formula — no polyline subdivision needed,
-    // giving a mathematically perfect smooth curve in the exported SVG.
-    function crBezier(p0, p1, p2, p3) {
-      // knot interval = (chord_length)^0.5 (centripetal, alpha=0.5)
-      function knot(a, b) {
-        var dx = b[0]-a[0], dy = b[1]-a[1];
-        return Math.pow(dx*dx + dy*dy, 0.25);
+    if (cfg.forceRectangle) {
+      // Force rectangle: compute inscribed axis-aligned rectangle and export as 4 straight lines.
+      var rect = _computeInscribedRectangle(dedupPts);
+      if (rect) {
+        var dRect = 'M ' + svgX(rect.xMin) + ',' + svgY(rect.yMin) +
+                    ' L ' + svgX(rect.xMax) + ',' + svgY(rect.yMin) +
+                    ' L ' + svgX(rect.xMax) + ',' + svgY(rect.yMax) +
+                    ' L ' + svgX(rect.xMin) + ',' + svgY(rect.yMax) +
+                    ' Z';
+        lines.push('  <path d="' + dRect + '" stroke="#000000" stroke-width="0.8" />');
+      } else {
+        outlineAppendLog('Force rectangle: could not compute inscribed rectangle; falling back to spline.');
+        cfg.forceRectangle = false; // fall through to spline below
       }
-      var t0 = 0;
-      var t1 = t0 + Math.max(knot(p0, p1), 1e-4);
-      var t2 = t1 + Math.max(knot(p1, p2), 1e-4);
-      var t3 = t2 + Math.max(knot(p2, p3), 1e-4);
-      var dt = t2 - t1;
-      // Centripetal CR derivative at p1 and p2 (w.r.t. knot parameter t)
-      var T1x = (p1[0]-p0[0])/(t1-t0) - (p2[0]-p0[0])/(t2-t0) + (p2[0]-p1[0])/dt;
-      var T1y = (p1[1]-p0[1])/(t1-t0) - (p2[1]-p0[1])/(t2-t0) + (p2[1]-p1[1])/dt;
-      var T2x = (p2[0]-p1[0])/dt - (p3[0]-p1[0])/(t3-t1) + (p3[0]-p2[0])/(t3-t2);
-      var T2y = (p2[1]-p1[1])/dt - (p3[1]-p1[1])/(t3-t1) + (p3[1]-p2[1])/(t3-t2);
-      // Cubic bezier control points: cp1 = p1 + T1*dt/3,  cp2 = p2 - T2*dt/3
-      return [
-        [p1[0] + T1x*dt/3, p1[1] + T1y*dt/3],
-        [p2[0] - T2x*dt/3, p2[1] - T2y*dt/3]
-      ];
     }
-    var n = dedupPts.length;
-    function wIdx(i) { return ((i % n) + n) % n; } // wrap index for closed loop
-    var dPoly = 'M ' + svgX(dedupPts[0][0]) + ',' + svgY(dedupPts[0][1]);
-    for (var k = 0; k < n; k++) {
-      var p0 = dedupPts[wIdx(k - 1)];
-      var p1 = dedupPts[wIdx(k)];
-      var p2 = dedupPts[wIdx(k + 1)];
-      var p3 = dedupPts[wIdx(k + 2)];
-      var bz = crBezier(p0, p1, p2, p3);
-      dPoly += ' C ' + svgX(bz[0][0]) + ',' + svgY(bz[0][1]) +
-               ' '   + svgX(bz[1][0]) + ',' + svgY(bz[1][1]) +
-               ' '   + svgX(p2[0])    + ',' + svgY(p2[1]);
+
+    if (!cfg.forceRectangle) {
+      // Smooth closed centripetal Catmull-Rom spline (alpha=0.5).
+      // Converts each segment directly to an exact cubic bezier ('C' SVG command)
+      // using the centripetal-CR tangent formula — no polyline subdivision needed,
+      // giving a mathematically perfect smooth curve in the exported SVG.
+      function crBezier(p0, p1, p2, p3) {
+        // knot interval = (chord_length)^0.5 (centripetal, alpha=0.5)
+        function knot(a, b) {
+          var dx = b[0]-a[0], dy = b[1]-a[1];
+          return Math.pow(dx*dx + dy*dy, 0.25);
+        }
+        var t0 = 0;
+        var t1 = t0 + Math.max(knot(p0, p1), 1e-4);
+        var t2 = t1 + Math.max(knot(p1, p2), 1e-4);
+        var t3 = t2 + Math.max(knot(p2, p3), 1e-4);
+        var dt = t2 - t1;
+        // Centripetal CR derivative at p1 and p2 (w.r.t. knot parameter t)
+        var T1x = (p1[0]-p0[0])/(t1-t0) - (p2[0]-p0[0])/(t2-t0) + (p2[0]-p1[0])/dt;
+        var T1y = (p1[1]-p0[1])/(t1-t0) - (p2[1]-p0[1])/(t2-t0) + (p2[1]-p1[1])/dt;
+        var T2x = (p2[0]-p1[0])/dt - (p3[0]-p1[0])/(t3-t1) + (p3[0]-p2[0])/(t3-t2);
+        var T2y = (p2[1]-p1[1])/dt - (p3[1]-p1[1])/(t3-t1) + (p3[1]-p2[1])/(t3-t2);
+        // Cubic bezier control points: cp1 = p1 + T1*dt/3,  cp2 = p2 - T2*dt/3
+        return [
+          [p1[0] + T1x*dt/3, p1[1] + T1y*dt/3],
+          [p2[0] - T2x*dt/3, p2[1] - T2y*dt/3]
+        ];
+      }
+      var n = dedupPts.length;
+      function wIdx(i) { return ((i % n) + n) % n; } // wrap index for closed loop
+      var dPoly = 'M ' + svgX(dedupPts[0][0]) + ',' + svgY(dedupPts[0][1]);
+      for (var k = 0; k < n; k++) {
+        var p0 = dedupPts[wIdx(k - 1)];
+        var p1 = dedupPts[wIdx(k)];
+        var p2 = dedupPts[wIdx(k + 1)];
+        var p3 = dedupPts[wIdx(k + 2)];
+        var bz = crBezier(p0, p1, p2, p3);
+        dPoly += ' C ' + svgX(bz[0][0]) + ',' + svgY(bz[0][1]) +
+                 ' '   + svgX(bz[1][0]) + ',' + svgY(bz[1][1]) +
+                 ' '   + svgX(p2[0])    + ',' + svgY(p2[1]);
+      }
+      dPoly += ' Z';
+      lines.push('  <path d="' + dPoly + '" stroke="#000000" stroke-width="0.8" />');
     }
-    dPoly += ' Z';
-    lines.push('  <path d="' + dPoly + '" stroke="#000000" stroke-width="0.8" />');
   }
 
   lines.push('</svg>');
