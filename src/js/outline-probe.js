@@ -57,13 +57,13 @@ function recoverOutlineLog() {
 function _outlineSettings() {
   function gn(id, def) { var el = document.getElementById(id); if (!el) return def; var v = Number(el.value); return isNaN(v) ? def : v; }
   function gb(id) { var el = document.getElementById(id); return el ? el.checked : false; }
-  return {
+  var cfg = {
     x0:                gn('outlineX0',               0),
     xLen:              gn('outlineXLen',             100),
     y0:                gn('outlineY0',               0),
     yLen:              gn('outlineYLen',             100),
-    yStep:             gn('outlineYStep',            5),
-    xStep:             gn('outlineXStep',            5),
+    xCount:            Math.max(2, gn('outlineXCount', 2)),
+    yCount:            Math.max(2, gn('outlineYCount', 2)),
     faceDepth:         gn('outlineFaceDepth',        3),
     faceFeed:          gn('outlineFaceFeed',         200),
     retractAbove:      gn('outlineRetractAbove',     2),
@@ -79,6 +79,47 @@ function _outlineSettings() {
     skipSurfaceProbe:  gb('outlineSkipSurfaceProbe'),
     forceRectangle:    gb('outlineForceRectangle')
   };
+  // Compute step spacing from count and length (count drives spacing, not the other way around)
+  cfg.xStep = cfg.xLen / (cfg.xCount - 1);
+  cfg.yStep = cfg.yLen / (cfg.yCount - 1);
+  return cfg;
+}
+
+// ── Update Outline Search Bounds count helper text ────────
+function updateOutlineCountHelpers() {
+  var xLen  = Number((document.getElementById('outlineXLen')   || {}).value) || 0;
+  var yLen  = Number((document.getElementById('outlineYLen')   || {}).value) || 0;
+  var xCount = Math.max(2, parseInt((document.getElementById('outlineXCount') || {}).value) || 2);
+  var yCount = Math.max(2, parseInt((document.getElementById('outlineYCount') || {}).value) || 2);
+  var xStep = xLen > 0 ? xLen / (xCount - 1) : 0;
+  var yStep = yLen > 0 ? yLen / (yCount - 1) : 0;
+  var xEl = document.getElementById('outlineXStepHelper');
+  var yEl = document.getElementById('outlineYStepHelper');
+  if (xEl) xEl.textContent = xStep > 0 ? 'Computed step: ' + xStep.toFixed(3) + 'mm' : 'Computed step: \u2014';
+  if (yEl) yEl.textContent = yStep > 0 ? 'Computed step: ' + yStep.toFixed(3) + 'mm' : 'Computed step: \u2014';
+}
+
+// ── Update Surface Grid Probe count helper text ────────────
+function updateOutlineGridCountHelpers() {
+  var xLen  = Number((document.getElementById('outlineXLen')   || {}).value) || 0;
+  var yLen  = Number((document.getElementById('outlineYLen')   || {}).value) || 0;
+  var xCount = Math.max(2, parseInt((document.getElementById('outlineGridXCount') || {}).value) || 2);
+  var yCount = Math.max(2, parseInt((document.getElementById('outlineGridYCount') || {}).value) || 2);
+  var sourceEl = document.getElementById('outlineGridSource');
+  var source   = sourceEl ? sourceEl.value : 'bounds';
+  var xEl = document.getElementById('outlineGridXStepHelper');
+  var yEl = document.getElementById('outlineGridYStepHelper');
+  if (source === 'detected') {
+    var xApprox = xLen > 0 ? xLen / (xCount - 1) : 0;
+    var yApprox = yLen > 0 ? yLen / (yCount - 1) : 0;
+    if (xEl) xEl.textContent = xApprox > 0 ? 'Computed step: ~' + xApprox.toFixed(3) + 'mm (approx, based on search bounds)' : 'Computed step: depends on detected outline';
+    if (yEl) yEl.textContent = yApprox > 0 ? 'Computed step: ~' + yApprox.toFixed(3) + 'mm (approx, based on search bounds)' : 'Computed step: depends on detected outline';
+  } else {
+    var xStep = xLen > 0 ? xLen / (xCount - 1) : 0;
+    var yStep = yLen > 0 ? yLen / (yCount - 1) : 0;
+    if (xEl) xEl.textContent = xStep > 0 ? 'Computed step: ' + xStep.toFixed(3) + 'mm' : 'Computed step: \u2014';
+    if (yEl) yEl.textContent = yStep > 0 ? 'Computed step: ' + yStep.toFixed(3) + 'mm' : 'Computed step: \u2014';
+  }
 }
 
 // ── Get/set surface Z from UI field ───────────────────────
@@ -1263,10 +1304,8 @@ async function runOutlineSurfaceGridProbe() {
     // Determine grid bounds: from detected outline (inset by margin) or fallback to search bounds
     var gridSource = (function() { var el = document.getElementById('outlineGridSource'); return el ? el.value : 'detected'; })();
     var gridMargin = (function() { var el = document.getElementById('outlineGridMargin'); return el ? (Number(el.value) || 2) : 2; })();
-    var gridXStep  = (function() { var el = document.getElementById('outlineGridXStep');  return el ? (Number(el.value) || 5) : 5; })();
-    var gridYStep  = (function() { var el = document.getElementById('outlineGridYStep');  return el ? (Number(el.value) || 5) : 5; })();
-    if (gridXStep <= 0) gridXStep = 5;
-    if (gridYStep <= 0) gridYStep = 5;
+    var gridXCount = (function() { var el = document.getElementById('outlineGridXCount'); return el ? Math.max(2, parseInt(el.value) || 2) : 2; })();
+    var gridYCount = (function() { var el = document.getElementById('outlineGridYCount'); return el ? Math.max(2, parseInt(el.value) || 2) : 2; })();
     var hasOutlineData = (outlineRowResults.length > 0 || outlineColResults.length > 0);
 
     var gridMinX, gridMaxX, gridMinY, gridMaxY;
@@ -1318,6 +1357,10 @@ async function runOutlineSurfaceGridProbe() {
     var xLen = gridMaxX - gridMinX;
     var yLen = gridMaxY - gridMinY;
 
+    // Compute step spacing from counts and actual grid bounds
+    var gridXStep = gridXCount > 1 ? xLen / (gridXCount - 1) : xLen;
+    var gridYStep = gridYCount > 1 ? yLen / (gridYCount - 1) : yLen;
+
     var gridCfg = {
       minX:       gridMinX,
       maxX:       gridMaxX,
@@ -1325,8 +1368,8 @@ async function runOutlineSurfaceGridProbe() {
       minY:       gridMinY,
       maxY:       gridMaxY,
       rowSpacing: gridYStep,
-      colCount:   Math.floor(xLen / gridXStep) + 1,
-      rowCount:   Math.floor(yLen / gridYStep) + 1
+      colCount:   gridXCount,
+      rowCount:   gridYCount
     };
 
     var totalPoints = gridCfg.colCount * gridCfg.rowCount;
@@ -1589,6 +1632,9 @@ function _showOutlineSurfExportPanel() {
     if (stlSmoothBtn) stlSmoothBtn.addEventListener('click', function() { flashButton(this); exportSurfaceSTLSmooth(); });
     // Show panel if mesh data is already present (e.g. after page reload with saved mesh)
     if (typeof smMeshData !== 'undefined' && smMeshData) _showOutlineSurfExportPanel();
+    // Initialise count helper text on page load
+    try { updateOutlineCountHelpers(); } catch(e) {}
+    try { updateOutlineGridCountHelpers(); } catch(e) {}
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', _wire);
