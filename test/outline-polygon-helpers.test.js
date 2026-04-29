@@ -399,5 +399,74 @@ rows3.forEach(function(ry) {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Tests: _ROW_BOUNDARY_EPS — first/last row Y offset in polygon mode
+// ═══════════════════════════════════════════════════════════════════════════════
+console.log('\nTest: row boundary epsilon — first/last row Y inset prevents degenerate span');
+// Rectangle polygon (inset polygon bounds: minY=0, maxY=80, 3 rows)
+// Without epsilon: row 0 at Y=0, row 2 at Y=80
+// With epsilon:    row 0 at Y=0+0.01=0.01, row 2 at Y=80-0.01=79.99
+var _ROW_BOUNDARY_EPS_TEST = 0.01;
+var SPAN_EPS_TEST = 0.05;
+var squarePoly = [[0,0],[0,80],[100,80],[100,0]]; // CW 100x80 rectangle
+var minY = 0, maxY = 80, rowCount = 3;
+var rowSpacing = (maxY - minY) / (rowCount - 1); // 40mm
+
+// Simulate the adjusted row Y computation for polygon mode
+function getAdjustedRowY(rowIdx, minYv, rowSpacingv, rowCountv) {
+  var y = minYv + rowIdx * rowSpacingv;
+  if (rowIdx === 0) y += _ROW_BOUNDARY_EPS_TEST;
+  else if (rowIdx === rowCountv - 1) y -= _ROW_BOUNDARY_EPS_TEST;
+  return y;
+}
+
+// Row 0 with epsilon should produce a non-degenerate span on the square polygon
+var row0Y = getAdjustedRowY(0, minY, rowSpacing, rowCount); // 0.01
+assert(row0Y > minY, 'row 0 Y is inset above minY (' + row0Y + ' > ' + minY + ')');
+var row0Span = _polyRowXSpanRobust(squarePoly, row0Y);
+assert(row0Span !== null, 'row 0 inset Y=' + row0Y + ' finds a valid span');
+if (row0Span !== null) {
+  var row0Width = row0Span.span.xRight - row0Span.span.xLeft;
+  assert(row0Width > SPAN_EPS_TEST, 'row 0 span is non-degenerate: width=' + row0Width.toFixed(3) + 'mm');
+  assertClose(row0Span.span.xLeft,   0, 0.1, 'row 0 inset: xLeft near 0');
+  assertClose(row0Span.span.xRight, 100, 0.1, 'row 0 inset: xRight near 100');
+}
+
+// Row 2 (last) with epsilon should produce a non-degenerate span
+var row2Y = getAdjustedRowY(2, minY, rowSpacing, rowCount); // 79.99
+assert(row2Y < maxY, 'row 2 Y is inset below maxY (' + row2Y + ' < ' + maxY + ')');
+var row2Span = _polyRowXSpanRobust(squarePoly, row2Y);
+assert(row2Span !== null, 'row 2 inset Y=' + row2Y + ' finds a valid span');
+if (row2Span !== null) {
+  var row2Width = row2Span.span.xRight - row2Span.span.xLeft;
+  assert(row2Width > SPAN_EPS_TEST, 'row 2 span is non-degenerate: width=' + row2Width.toFixed(3) + 'mm');
+  assert(!row2Span.retried, 'row 2 inset Y does not need retry (Y is inside polygon)');
+}
+
+// Middle row (row 1) should be unchanged
+var row1Y = getAdjustedRowY(1, minY, rowSpacing, rowCount); // 40
+assertClose(row1Y, 40, 1e-9, 'middle row Y is unchanged');
+
+console.log('\nTest: row boundary epsilon — round polygon (octagon) is unaffected');
+// For a round shape, first/last row Y values with epsilon should still find spans
+var r2 = 40, cx2 = 50, cy2 = 50;
+var octagon2 = [];
+for (var oi2 = 0; oi2 < 8; oi2++) {
+  var ang2 = (oi2 / 8) * 2 * Math.PI;
+  octagon2.push([cx2 + r2 * Math.cos(ang2), cy2 + r2 * Math.sin(ang2)]);
+}
+var octMinY = Math.min.apply(null, octagon2.map(function(p){return p[1];}));
+var octMaxY = Math.max.apply(null, octagon2.map(function(p){return p[1];}));
+var octRowSpacing = (octMaxY - octMinY) / 2; // 3 rows
+var octRow0Y = getAdjustedRowY(0, octMinY, octRowSpacing, 3);
+var octRow2Y = getAdjustedRowY(2, octMinY, octRowSpacing, 3);
+var octRow0Span = _polyRowXSpanRobust(octagon2, octRow0Y);
+var octRow2Span = _polyRowXSpanRobust(octagon2, octRow2Y);
+assert(octRow0Span !== null, 'octagon first row (inset Y) finds span');
+assert(octRow2Span !== null, 'octagon last row (inset Y) finds span');
+if (octRow0Span !== null) {
+  assert(octRow0Span.span.xRight - octRow0Span.span.xLeft > 0, 'octagon first row span is positive');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 console.log('\n--- Results: ' + passed + ' passed, ' + failed + ' failed ---');
 if (failed > 0) process.exit(1);
