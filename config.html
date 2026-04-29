@@ -12187,6 +12187,24 @@ function _polyRowXSpan(poly, targetY) {
   return { xLeft: Math.min.apply(null, xs), xRight: Math.max.apply(null, xs) };
 }
 
+// ── Robust span lookup: retries with Y±epsY when the primary scanline misses ──
+// Handles the common edge-case where a scanline coincides with a horizontal
+// polygon edge or vertex (classic scanline ambiguity for axis-aligned shapes).
+// Returns { span, retried, retryY } or null when no span is found after retries.
+var _SPAN_EPS_Y = 0.01; // mm — small offset for horizontal-edge retry
+function _polyRowXSpanRobust(poly, targetY, epsY) {
+  epsY = epsY || _SPAN_EPS_Y;
+  var span = _polyRowXSpan(poly, targetY);
+  if (span !== null) return { span: span, retried: false, retryY: null };
+  // Retry below the scanline first (most common for top-edge miss)
+  span = _polyRowXSpan(poly, targetY - epsY);
+  if (span !== null) return { span: span, retried: true, retryY: targetY - epsY };
+  // Retry above
+  span = _polyRowXSpan(poly, targetY + epsY);
+  if (span !== null) return { span: span, retried: true, retryY: targetY + epsY };
+  return null;
+}
+
 // ── Compute largest axis-aligned inscribed rectangle inside polygon ───────────
 // Starts from the bounding box and shrinks each side inward in small steps
 // until all four corners are inside the polygon (conservative/inscribed result).
@@ -12383,23 +12401,36 @@ async function runOutlineSurfaceGridProbe() {
       // polygon is available (fallback bounds mode).
       var rowXLeft  = gridCfg.minX;
       var rowXRight = gridCfg.maxX;
+      var rowIsDegenerate = false; // true when span width < SPAN_EPS (probe single point)
+      var SPAN_EPS = 0.05; // mm — threshold below which a span is treated as a single point
       if (gridInsetPoly !== null) {
-        var rowSpan = _polyRowXSpan(gridInsetPoly, rowY);
-        if (rowSpan === null) {
-          // No polygon intersection at this Y — row is entirely outside boundary; skip it.
+        var rowSpanResult = _polyRowXSpanRobust(gridInsetPoly, rowY);
+        if (rowSpanResult === null) {
+          // No polygon intersection at this Y even after Y±eps retries — skip row.
           outlineAppendLog('--- ROW ' + row + ' Y=' + rowY.toFixed(3) +
-            ': no polygon span at this Y \u2014 row skipped ---');
+            ': no polygon span at this Y (tried Y\u00b1' + _SPAN_EPS_Y + 'mm) \u2014 row skipped ---');
           skipped += gridCfg.colCount;
           outlineSetProgress((probed + skipped) / totalPoints * 100);
           continue;
         }
-        rowXLeft  = rowSpan.xLeft;
-        rowXRight = rowSpan.xRight;
+        if (rowSpanResult.retried) {
+          outlineAppendLog('ROW ' + row + ' Y=' + rowY.toFixed(3) +
+            ': no span at exact Y \u2014 using Y=' + rowSpanResult.retryY.toFixed(4) +
+            ' (horizontal-edge offset \u00b1' + _SPAN_EPS_Y + 'mm)');
+        }
+        rowXLeft  = rowSpanResult.span.xLeft;
+        rowXRight = rowSpanResult.span.xRight;
       }
       var rowColSpan = rowXRight - rowXLeft;
-      var rowDx = gridCfg.colCount > 1 ? rowColSpan / (gridCfg.colCount - 1) : 0;
-      outlineAppendLog('ROW span: xLeft=' + rowXLeft.toFixed(3) + ', xRight=' + rowXRight.toFixed(3) +
-        ', cols=' + gridCfg.colCount + ', dx=' + rowDx.toFixed(3));
+      rowIsDegenerate = rowColSpan < SPAN_EPS;
+      var rowDx = (!rowIsDegenerate && gridCfg.colCount > 1) ? rowColSpan / (gridCfg.colCount - 1) : 0;
+      if (rowIsDegenerate) {
+        outlineAppendLog('ROW span: xLeft=' + rowXLeft.toFixed(3) + ', xRight=' + rowXRight.toFixed(3) +
+          ', cols=' + gridCfg.colCount + ', dx=0 (degenerate span <' + SPAN_EPS + 'mm \u2014 single point only)');
+      } else {
+        outlineAppendLog('ROW span: xLeft=' + rowXLeft.toFixed(3) + ', xRight=' + rowXRight.toFixed(3) +
+          ', cols=' + gridCfg.colCount + ', dx=' + rowDx.toFixed(3));
+      }
 
       // B) Find nearest outline row result for this Y (for edge comparison logging)
       var nearestRowEdge = (function(targetY) {
@@ -12417,6 +12448,15 @@ async function runOutlineSurfaceGridProbe() {
       for (var step = 0; step < gridCfg.colCount; step++) {
         outlineCheckStop();
         var col = step;
+        // If span is degenerate (xLeft ≈ xRight), only probe the first column; skip the rest
+        // to avoid probing duplicate X positions for multiple columns.
+        if (rowIsDegenerate && col > 0) {
+          outlineAppendLog('SKIP [' + row + ',' + col + '] \u2014 degenerate span (same X as col 0; probing single point for this row)');
+          skipped++;
+          rowSkipped++;
+          outlineSetProgress((probed + skipped) / totalPoints * 100);
+          continue;
+        }
         // Column X is evenly spaced across this row's boundary span (left to right).
         var colX = gridCfg.colCount > 1 ? rowXLeft + col * rowDx : rowXLeft;
 
@@ -12506,8 +12546,8 @@ async function runOutlineSurfaceGridProbe() {
         var nextY = gridCfg.minY + (row + 1) * gridCfg.rowSpacing;
         var nextStartX = gridCfg.minX;
         if (gridInsetPoly !== null) {
-          var nextRowSpan = _polyRowXSpan(gridInsetPoly, nextY);
-          if (nextRowSpan !== null) nextStartX = nextRowSpan.xLeft;
+          var nextRowSpanResult = _polyRowXSpanRobust(gridInsetPoly, nextY);
+          if (nextRowSpanResult !== null) nextStartX = nextRowSpanResult.span.xLeft;
         }
         outlineAppendLog('ROW TRANSITION: row ' + row + ' done; moving to start of row ' + (row + 1) +
           ' X=' + nextStartX.toFixed(3) + ' Y=' + nextY.toFixed(3));
