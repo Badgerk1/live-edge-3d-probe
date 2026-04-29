@@ -1161,6 +1161,25 @@ function _pointInPolygon(poly, x, y) {
   return inside;
 }
 
+// ── Compute horizontal X span of polygon at a given Y (scanline intersection) ──
+// Casts a horizontal scanline at targetY, collects all edge crossing X values,
+// and returns {xLeft: min(xs), xRight: max(xs)}.
+// Returns null when fewer than 2 intersections are found (row outside polygon).
+function _polyRowXSpan(poly, targetY) {
+  var xs = [];
+  var n = poly.length;
+  for (var i = 0, j = n - 1; i < n; j = i++) {
+    var x0 = poly[j][0], y0 = poly[j][1];
+    var x1 = poly[i][0], y1 = poly[i][1];
+    if ((y0 <= targetY && y1 > targetY) || (y1 <= targetY && y0 > targetY)) {
+      var t = (targetY - y0) / (y1 - y0);
+      xs.push(x0 + t * (x1 - x0));
+    }
+  }
+  if (xs.length < 2) return null;
+  return { xLeft: Math.min.apply(null, xs), xRight: Math.max.apply(null, xs) };
+}
+
 // ── Compute largest axis-aligned inscribed rectangle inside polygon ───────────
 // Starts from the bounding box and shrinks each side inward in small steps
 // until all four corners are inside the polygon (conservative/inscribed result).
@@ -1321,7 +1340,8 @@ async function runOutlineSurfaceGridProbe() {
 
     outlineAppendLog('=== Outline Surface Grid Probe ===');
     outlineAppendLog('Bounds source: ' + (gridSourceUsed === 'detected' ? 'Detected Outline vector boundary (inset ' + gridMargin + 'mm)' : 'OUTLINE SEARCH BOUNDS (fallback)'));
-    outlineAppendLog('Grid: ' + gridCfg.colCount + 'x' + gridCfg.rowCount + ' = ' + totalPoints + ' points');
+    outlineAppendLog('Grid: ' + gridCfg.colCount + 'x' + gridCfg.rowCount + ' = ' + totalPoints + ' points' +
+      (gridInsetPoly !== null ? ' (per-row X span from polygon boundary)' : ''));
     outlineAppendLog('Bounds: X' + gridCfg.minX.toFixed(3) + '\u2192' + gridCfg.maxX.toFixed(3) +
       '  Y' + gridCfg.minY.toFixed(3) + '\u2192' + gridCfg.maxY.toFixed(3));
     outlineAppendLog('Surface Z: ' + surfZ.toFixed(3) + ' \u2192 clearanceZ=' + clearanceZ.toFixed(3) +
@@ -1347,6 +1367,31 @@ async function runOutlineSurfaceGridProbe() {
       outlineAppendLog('--- ROW ' + row + '/' + (gridCfg.rowCount - 1) +
         ' Y=' + rowY.toFixed(3) + ' (forward) ---');
 
+      // Compute per-row X span from the inset polygon boundary (scanline intersection).
+      // When using detected outline mode each row's probe columns are generated from
+      // xLeft to xRight so points start/end at the actual SVG boundary rather than
+      // the global bounding-box edges.  Falls back to global minX..maxX when no
+      // polygon is available (fallback bounds mode).
+      var rowXLeft  = gridCfg.minX;
+      var rowXRight = gridCfg.maxX;
+      if (gridInsetPoly !== null) {
+        var rowSpan = _polyRowXSpan(gridInsetPoly, rowY);
+        if (rowSpan === null) {
+          // No polygon intersection at this Y — row is entirely outside boundary; skip it.
+          outlineAppendLog('--- ROW ' + row + ' Y=' + rowY.toFixed(3) +
+            ': no polygon span at this Y \u2014 row skipped ---');
+          skipped += gridCfg.colCount;
+          outlineSetProgress((probed + skipped) / totalPoints * 100);
+          continue;
+        }
+        rowXLeft  = rowSpan.xLeft;
+        rowXRight = rowSpan.xRight;
+      }
+      var rowColSpan = rowXRight - rowXLeft;
+      var rowDx = gridCfg.colCount > 1 ? rowColSpan / (gridCfg.colCount - 1) : 0;
+      outlineAppendLog('ROW span: xLeft=' + rowXLeft.toFixed(3) + ', xRight=' + rowXRight.toFixed(3) +
+        ', cols=' + gridCfg.colCount + ', dx=' + rowDx.toFixed(3));
+
       // B) Find nearest outline row result for this Y (for edge comparison logging)
       var nearestRowEdge = (function(targetY) {
         if (!outlineRowResults || outlineRowResults.length === 0) return null;
@@ -1363,7 +1408,8 @@ async function runOutlineSurfaceGridProbe() {
       for (var step = 0; step < gridCfg.colCount; step++) {
         outlineCheckStop();
         var col = step;
-        var colX = gridCfg.minX + col * gridCfg.colSpacing;
+        // Column X is evenly spaced across this row's boundary span (left to right).
+        var colX = gridCfg.colCount > 1 ? rowXLeft + col * rowDx : rowXLeft;
 
         // B) Find nearest outline col result for this X (for edge comparison logging)
         var nearestColEdge = (function(targetX) {
@@ -1388,11 +1434,11 @@ async function runOutlineSurfaceGridProbe() {
             ' yTop='    + (nearestColEdge.hasTop    ? nearestColEdge.yTop.toFixed(3)    : 'n/a');
         }
 
-        // Point-in-polygon check: skip grid points that fall outside the inset
-        // outline boundary.  result[row][col] stays null (already initialised).
+        // Edge-case guard: column X was computed from the polygon span so it should be
+        // inside by construction; this check catches floating-point edge cases only.
         if (gridInsetPoly !== null && !_pointInPolygon(gridInsetPoly, colX, rowY)) {
           outlineAppendLog('SKIP [' + row + ',' + col + '] X' + colX.toFixed(3) + ' Y' + rowY.toFixed(3) +
-            ' \u2014 outside inset outline boundary' + edgeCtx);
+            ' \u2014 outside inset outline boundary (edge case)' + edgeCtx);
           skipped++;
           rowSkipped++;
           outlineSetProgress((probed + skipped) / totalPoints * 100);
@@ -1443,11 +1489,17 @@ async function runOutlineSurfaceGridProbe() {
       // B) Row end summary
       outlineAppendLog('--- ROW ' + row + ' done: ' + rowProbed + ' probed, ' + rowSkipped + ' skipped ---');
 
-      // Row transition: position at start of next row
+      // Row transition: position at start of next row.
+      // Use the next row's polygon boundary xLeft so the machine travels to the actual
+      // left edge of the outline rather than the global bounding-box minX.
       if (row + 1 < gridCfg.rowCount) {
         outlineCheckStop();
         var nextY = gridCfg.minY + (row + 1) * gridCfg.rowSpacing;
         var nextStartX = gridCfg.minX;
+        if (gridInsetPoly !== null) {
+          var nextRowSpan = _polyRowXSpan(gridInsetPoly, nextY);
+          if (nextRowSpan !== null) nextStartX = nextRowSpan.xLeft;
+        }
         outlineAppendLog('ROW TRANSITION: row ' + row + ' done; moving to start of row ' + (row + 1) +
           ' X=' + nextStartX.toFixed(3) + ' Y=' + nextY.toFixed(3));
         await _outlineAbsTravel(nextStartX, nextY, clearanceZ, travelFeed, travelFeed);
