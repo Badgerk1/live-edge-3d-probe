@@ -173,6 +173,18 @@ function _polyRowXSpan(poly, targetY) {
   return { xLeft: Math.min.apply(null, xs), xRight: Math.max.apply(null, xs) };
 }
 
+var _SPAN_EPS_Y = 0.01;
+function _polyRowXSpanRobust(poly, targetY, epsY) {
+  epsY = epsY || _SPAN_EPS_Y;
+  var span = _polyRowXSpan(poly, targetY);
+  if (span !== null) return { span: span, retried: false, retryY: null };
+  span = _polyRowXSpan(poly, targetY - epsY);
+  if (span !== null) return { span: span, retried: true, retryY: targetY - epsY };
+  span = _polyRowXSpan(poly, targetY + epsY);
+  if (span !== null) return { span: span, retried: true, retryY: targetY + epsY };
+  return null;
+}
+
 // ── Helper: shoelace signed area ──────────────────────────────────────────────
 function signedArea(poly) {
   var area = 0;
@@ -325,6 +337,66 @@ var insetSpan = _polyRowXSpan(insetRect5, 40);
 assert(insetSpan !== null, 'span found inside inset rectangle');
 assertClose(insetSpan.xLeft,  5,  0.5, 'inset rect xLeft ≈ 5mm');
 assertClose(insetSpan.xRight, 95, 0.5, 'inset rect xRight ≈ 95mm');
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Tests: _polyRowXSpanRobust
+// ═══════════════════════════════════════════════════════════════════════════════
+console.log('\nTest: _polyRowXSpanRobust — normal span, no retry needed');
+var robustMid = _polyRowXSpanRobust(spanRect, 40);
+assert(robustMid !== null, 'robust span found at mid-height');
+assert(!robustMid.retried, 'no retry needed at mid-height');
+assertClose(robustMid.span.xLeft,  10,  0.01, 'robust xLeft = left edge');
+assertClose(robustMid.span.xRight, 110, 0.01, 'robust xRight = right edge');
+
+console.log('\nTest: _polyRowXSpanRobust — scanline exactly on bottom edge (Y=5) — primary or retry finds span');
+// spanRect bottom edge is at Y=5; the half-open interval y0<=Y && y1>Y finds the
+// vertical edges adjacent to the bottom corners, so the primary scan succeeds.
+var robustBottom = _polyRowXSpanRobust(spanRect, 5);
+assert(robustBottom !== null, 'robust span found at bottom edge Y=5 (primary or retry)');
+assertClose(robustBottom.span.xLeft,  10,  0.1, 'bottom-edge: xLeft ≈ 10');
+assertClose(robustBottom.span.xRight, 110, 0.1, 'bottom-edge: xRight ≈ 110');
+
+console.log('\nTest: _polyRowXSpanRobust — scanline exactly on top edge (Y=85) requires retry');
+// At the top edge the half-open interval fails for both adjacent vertical edges,
+// so the primary scan returns null and the robust wrapper must retry at Y-eps.
+var robustTop = _polyRowXSpanRobust(spanRect, 85);
+assert(robustTop !== null, 'robust span found at top edge Y=85 via retry');
+assert(robustTop.retried, 'retry was used for top edge');
+assertClose(robustTop.span.xLeft,  10,  0.1, 'top-edge retry: xLeft ≈ 10');
+assertClose(robustTop.span.xRight, 110, 0.1, 'top-edge retry: xRight ≈ 110');
+
+console.log('\nTest: _polyRowXSpanRobust — returns null when scanline is well outside polygon');
+var robustAbove = _polyRowXSpanRobust(spanRect, 200);
+assert(robustAbove === null, 'null returned when well above polygon');
+var robustBelow = _polyRowXSpanRobust(spanRect, -10);
+assert(robustBelow === null, 'null returned when well below polygon');
+
+console.log('\nTest: _polyRowXSpanRobust — degenerate span detection (xRight - xLeft < SPAN_EPS)');
+// A very narrow triangle tip should produce a near-zero span close to the apex
+var SPAN_EPS = 0.05;
+// Isoceles triangle with apex at (50, 100) and base from (0,0) to (100,0)
+var triangle = [[0,0],[100,0],[50,100]];
+// At Y=99 the span should be very narrow (about 1mm wide)
+var tipSpan = _polyRowXSpan(triangle, 99);
+assert(tipSpan !== null, 'tip span found');
+var tipWidth = tipSpan.xRight - tipSpan.xLeft;
+assert(tipWidth < 2, 'tip span is very narrow (' + tipWidth.toFixed(3) + 'mm)');
+// Flag as degenerate if below SPAN_EPS
+if (tipWidth < SPAN_EPS) {
+  assert(tipWidth < SPAN_EPS, 'tip span is degenerate (<' + SPAN_EPS + 'mm)');
+}
+
+console.log('\nTest: _polyRowXSpanRobust — rectangle 3x3 grid: top/bottom rows find span');
+// Simulate a 3x3 surface grid on a 100×80 rectangle; rows at Y=0, 40, 80
+var gridRect = [[0,0],[0,80],[100,80],[100,0]]; // CW rectangle
+var rows3 = [0, 40, 80];
+rows3.forEach(function(ry) {
+  var r = _polyRowXSpanRobust(gridRect, ry);
+  assert(r !== null, '3x3 grid row Y=' + ry + ' finds a span (possibly via retry)');
+  if (r !== null) {
+    assert(r.span.xRight - r.span.xLeft > 90, 'span at Y=' + ry + ' is wide (' + (r.span.xRight - r.span.xLeft).toFixed(2) + 'mm)');
+  }
+});
 
 // ═══════════════════════════════════════════════════════════════════════════════
 console.log('\n--- Results: ' + passed + ' passed, ' + failed + ' failed ---');
