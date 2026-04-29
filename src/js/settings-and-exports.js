@@ -107,10 +107,10 @@ function getSettingsFromUI() {
     // Outline tab
     outlineX0:                   n('outlineX0'),
     outlineXLen:                 n('outlineXLen'),
-    outlineXStep:                n('outlineXStep'),
+    outlineXCount:               n('outlineXCount'),
     outlineY0:                   n('outlineY0'),
     outlineYLen:                 n('outlineYLen'),
-    outlineYStep:                n('outlineYStep'),
+    outlineYCount:               n('outlineYCount'),
     outlineSurfaceZ:             n('outlineSurfaceZ'),
     outlineFaceDepth:            n('outlineFaceDepth'),
     outlineFaceFeed:             n('outlineFaceFeed'),
@@ -126,8 +126,8 @@ function getSettingsFromUI() {
     outlineProbeDown:            n('outlineProbeDown'),
     outlineGridSource:           s('outlineGridSource'),
     outlineGridMargin:           n('outlineGridMargin'),
-    outlineGridXStep:            n('outlineGridXStep'),
-    outlineGridYStep:            n('outlineGridYStep'),
+    outlineGridXCount:           n('outlineGridXCount'),
+    outlineGridYCount:           n('outlineGridYCount'),
     outlineSkipSurfaceProbe:     chk('outlineSkipSurfaceProbe'),
     outlineForceRectangle:       chk('outlineForceRectangle'),
     autoHideStatusPanel:         chk('autoHideStatusPanel')
@@ -282,10 +282,16 @@ function loadSettings() {
   // Outline tab
   if (data.outlineX0          != null) sv('outlineX0',          data.outlineX0);
   if (data.outlineXLen        != null) sv('outlineXLen',        data.outlineXLen);
-  if (data.outlineXStep       != null) sv('outlineXStep',       data.outlineXStep);
+  // Load xCount; migrate from old xStep if needed
+  if (data.outlineXCount      != null) sv('outlineXCount',      Math.max(2, Math.round(data.outlineXCount)));
+  else if (data.outlineXStep  != null && data.outlineXLen != null && data.outlineXStep > 0)
+    sv('outlineXCount', Math.max(2, Math.round(data.outlineXLen / data.outlineXStep) + 1));
   if (data.outlineY0          != null) sv('outlineY0',          data.outlineY0);
   if (data.outlineYLen        != null) sv('outlineYLen',        data.outlineYLen);
-  if (data.outlineYStep       != null) sv('outlineYStep',       data.outlineYStep);
+  // Load yCount; migrate from old yStep if needed
+  if (data.outlineYCount      != null) sv('outlineYCount',      Math.max(2, Math.round(data.outlineYCount)));
+  else if (data.outlineYStep  != null && data.outlineYLen != null && data.outlineYStep > 0)
+    sv('outlineYCount', Math.max(2, Math.round(data.outlineYLen / data.outlineYStep) + 1));
   if (data.outlineSurfaceZ    != null) sv('outlineSurfaceZ',    data.outlineSurfaceZ);
   if (data.outlineFaceDepth   != null) sv('outlineFaceDepth',   data.outlineFaceDepth);
   if (data.outlineFaceFeed    != null) sv('outlineFaceFeed',    data.outlineFaceFeed);
@@ -301,8 +307,10 @@ function loadSettings() {
   if (data.outlineProbeDown   != null) sv('outlineProbeDown',   data.outlineProbeDown);
   if (data.outlineGridSource  != null) sv('outlineGridSource',  data.outlineGridSource);
   if (data.outlineGridMargin  != null) sv('outlineGridMargin',  data.outlineGridMargin);
-  if (data.outlineGridXStep        != null) sv('outlineGridXStep',        data.outlineGridXStep);
-  if (data.outlineGridYStep        != null) sv('outlineGridYStep',        data.outlineGridYStep);
+  if (data.outlineGridXCount  != null) sv('outlineGridXCount',  Math.max(2, Math.round(data.outlineGridXCount)));
+  else if (data.outlineGridXStep != null) sv('outlineGridXCount', 2); // can't reliably migrate without bounds
+  if (data.outlineGridYCount  != null) sv('outlineGridYCount',  Math.max(2, Math.round(data.outlineGridYCount)));
+  else if (data.outlineGridYStep != null) sv('outlineGridYCount', 2); // can't reliably migrate without bounds
   if (data.outlineSkipSurfaceProbe != null) sc('outlineSkipSurfaceProbe', data.outlineSkipSurfaceProbe);
   if (data.outlineForceRectangle   != null) sc('outlineForceRectangle',   data.outlineForceRectangle);
   if (data.autoHideStatusPanel != null) sc('autoHideStatusPanel', data.autoHideStatusPanel);
@@ -310,6 +318,8 @@ function loadSettings() {
   try { refreshFinishBehaviorPreview(); } catch(e) {}
   try { refreshTravelRecoveryPreview(); } catch(e) {}
   try { calcProbeAutoTotalLength(); } catch(e) {}
+  try { updateOutlineCountHelpers(); } catch(e) {}
+  try { updateOutlineGridCountHelpers(); } catch(e) {}
 }
 function resetSettings() {
   var defaults = {

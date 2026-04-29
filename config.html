@@ -1728,11 +1728,12 @@
           </div>
           <div class="field">
             <label>X Length (coords)</label>
-            <input type="number" id="outlineXLen" value="100" step="1" min="1" oninput="updateOutlineProbeCenter()">
+            <input type="number" id="outlineXLen" value="100" step="1" min="1" oninput="updateOutlineProbeCenter();updateOutlineCountHelpers();updateOutlineGridCountHelpers()">
           </div>
           <div class="field">
-            <label>X Step (coords)</label>
-            <input type="number" id="outlineXStep" value="5" step="0.5" min="0.5">
+            <label>X Count (cols)</label>
+            <input type="number" id="outlineXCount" value="2" step="1" min="2" oninput="updateOutlineCountHelpers()">
+            <span id="outlineXStepHelper" class="mini" style="display:block;margin-top:3px">Computed step: —</span>
           </div>
           <div class="field">
             <label>Y Origin (coords)</label>
@@ -1740,11 +1741,12 @@
           </div>
           <div class="field">
             <label>Y Length (coords)</label>
-            <input type="number" id="outlineYLen" value="100" step="1" min="1" oninput="updateOutlineProbeCenter()">
+            <input type="number" id="outlineYLen" value="100" step="1" min="1" oninput="updateOutlineProbeCenter();updateOutlineCountHelpers();updateOutlineGridCountHelpers()">
           </div>
           <div class="field">
-            <label>Y Step (coords)</label>
-            <input type="number" id="outlineYStep" value="5" step="0.5" min="0.5">
+            <label>Y Count (rows)</label>
+            <input type="number" id="outlineYCount" value="2" step="1" min="2" oninput="updateOutlineCountHelpers()">
+            <span id="outlineYStepHelper" class="mini" style="display:block;margin-top:3px">Computed step: —</span>
           </div>
         </div>
       </div>
@@ -1888,7 +1890,7 @@
         <div class="grid two" style="margin-bottom:8px">
           <div class="field">
             <label>Grid Source</label>
-            <select id="outlineGridSource">
+            <select id="outlineGridSource" onchange="updateOutlineGridCountHelpers()">
               <option value="detected">Detected Outline (auto-inset)</option>
               <option value="bounds">Outline Search Bounds</option>
             </select>
@@ -1898,12 +1900,14 @@
             <input type="number" id="outlineGridMargin" value="2" step="0.1" min="0">
           </div>
           <div class="field">
-            <label>Surface Grid X Step (mm)</label>
-            <input type="number" id="outlineGridXStep" value="5" step="0.1" min="0.1">
+            <label>Surface Grid X Count (cols)</label>
+            <input type="number" id="outlineGridXCount" value="2" step="1" min="2" oninput="updateOutlineGridCountHelpers()">
+            <span id="outlineGridXStepHelper" class="mini" style="display:block;margin-top:3px">Computed step: —</span>
           </div>
           <div class="field">
-            <label>Surface Grid Y Step (mm)</label>
-            <input type="number" id="outlineGridYStep" value="5" step="0.1" min="0.1">
+            <label>Surface Grid Y Count (rows)</label>
+            <input type="number" id="outlineGridYCount" value="2" step="1" min="2" oninput="updateOutlineGridCountHelpers()">
+            <span id="outlineGridYStepHelper" class="mini" style="display:block;margin-top:3px">Computed step: —</span>
           </div>
         </div>
         <div class="btn-row">
@@ -11019,13 +11023,13 @@ function recoverOutlineLog() {
 function _outlineSettings() {
   function gn(id, def) { var el = document.getElementById(id); if (!el) return def; var v = Number(el.value); return isNaN(v) ? def : v; }
   function gb(id) { var el = document.getElementById(id); return el ? el.checked : false; }
-  return {
+  var cfg = {
     x0:                gn('outlineX0',               0),
     xLen:              gn('outlineXLen',             100),
     y0:                gn('outlineY0',               0),
     yLen:              gn('outlineYLen',             100),
-    yStep:             gn('outlineYStep',            5),
-    xStep:             gn('outlineXStep',            5),
+    xCount:            Math.max(2, gn('outlineXCount', 2)),
+    yCount:            Math.max(2, gn('outlineYCount', 2)),
     faceDepth:         gn('outlineFaceDepth',        3),
     faceFeed:          gn('outlineFaceFeed',         200),
     retractAbove:      gn('outlineRetractAbove',     2),
@@ -11041,6 +11045,47 @@ function _outlineSettings() {
     skipSurfaceProbe:  gb('outlineSkipSurfaceProbe'),
     forceRectangle:    gb('outlineForceRectangle')
   };
+  // Compute step spacing from count and length (count drives spacing, not the other way around)
+  cfg.xStep = cfg.xLen / (cfg.xCount - 1);
+  cfg.yStep = cfg.yLen / (cfg.yCount - 1);
+  return cfg;
+}
+
+// ── Update Outline Search Bounds count helper text ────────
+function updateOutlineCountHelpers() {
+  var xLen  = Number((document.getElementById('outlineXLen')   || {}).value) || 0;
+  var yLen  = Number((document.getElementById('outlineYLen')   || {}).value) || 0;
+  var xCount = Math.max(2, parseInt((document.getElementById('outlineXCount') || {}).value) || 2);
+  var yCount = Math.max(2, parseInt((document.getElementById('outlineYCount') || {}).value) || 2);
+  var xStep = xLen > 0 ? xLen / (xCount - 1) : 0;
+  var yStep = yLen > 0 ? yLen / (yCount - 1) : 0;
+  var xEl = document.getElementById('outlineXStepHelper');
+  var yEl = document.getElementById('outlineYStepHelper');
+  if (xEl) xEl.textContent = xStep > 0 ? 'Computed step: ' + xStep.toFixed(3) + 'mm' : 'Computed step: \u2014';
+  if (yEl) yEl.textContent = yStep > 0 ? 'Computed step: ' + yStep.toFixed(3) + 'mm' : 'Computed step: \u2014';
+}
+
+// ── Update Surface Grid Probe count helper text ────────────
+function updateOutlineGridCountHelpers() {
+  var xLen  = Number((document.getElementById('outlineXLen')   || {}).value) || 0;
+  var yLen  = Number((document.getElementById('outlineYLen')   || {}).value) || 0;
+  var xCount = Math.max(2, parseInt((document.getElementById('outlineGridXCount') || {}).value) || 2);
+  var yCount = Math.max(2, parseInt((document.getElementById('outlineGridYCount') || {}).value) || 2);
+  var sourceEl = document.getElementById('outlineGridSource');
+  var source   = sourceEl ? sourceEl.value : 'bounds';
+  var xEl = document.getElementById('outlineGridXStepHelper');
+  var yEl = document.getElementById('outlineGridYStepHelper');
+  if (source === 'detected') {
+    var xApprox = xLen > 0 ? xLen / (xCount - 1) : 0;
+    var yApprox = yLen > 0 ? yLen / (yCount - 1) : 0;
+    if (xEl) xEl.textContent = xApprox > 0 ? 'Computed step: ~' + xApprox.toFixed(3) + 'mm (approx, based on search bounds)' : 'Computed step: depends on detected outline';
+    if (yEl) yEl.textContent = yApprox > 0 ? 'Computed step: ~' + yApprox.toFixed(3) + 'mm (approx, based on search bounds)' : 'Computed step: depends on detected outline';
+  } else {
+    var xStep = xLen > 0 ? xLen / (xCount - 1) : 0;
+    var yStep = yLen > 0 ? yLen / (yCount - 1) : 0;
+    if (xEl) xEl.textContent = xStep > 0 ? 'Computed step: ' + xStep.toFixed(3) + 'mm' : 'Computed step: \u2014';
+    if (yEl) yEl.textContent = yStep > 0 ? 'Computed step: ' + yStep.toFixed(3) + 'mm' : 'Computed step: \u2014';
+  }
 }
 
 // ── Get/set surface Z from UI field ───────────────────────
@@ -12123,6 +12168,25 @@ function _pointInPolygon(poly, x, y) {
   return inside;
 }
 
+// ── Compute horizontal X span of polygon at a given Y (scanline intersection) ──
+// Casts a horizontal scanline at targetY, collects all edge crossing X values,
+// and returns {xLeft: min(xs), xRight: max(xs)}.
+// Returns null when fewer than 2 intersections are found (row outside polygon).
+function _polyRowXSpan(poly, targetY) {
+  var xs = [];
+  var n = poly.length;
+  for (var i = 0, j = n - 1; i < n; j = i++) {
+    var x0 = poly[j][0], y0 = poly[j][1];
+    var x1 = poly[i][0], y1 = poly[i][1];
+    if ((y0 <= targetY && y1 > targetY) || (y1 <= targetY && y0 > targetY)) {
+      var t = (targetY - y0) / (y1 - y0);
+      xs.push(x0 + t * (x1 - x0));
+    }
+  }
+  if (xs.length < 2) return null;
+  return { xLeft: Math.min.apply(null, xs), xRight: Math.max.apply(null, xs) };
+}
+
 // ── Compute largest axis-aligned inscribed rectangle inside polygon ───────────
 // Starts from the bounding box and shrinks each side inward in small steps
 // until all four corners are inside the polygon (conservative/inscribed result).
@@ -12206,10 +12270,8 @@ async function runOutlineSurfaceGridProbe() {
     // Determine grid bounds: from detected outline (inset by margin) or fallback to search bounds
     var gridSource = (function() { var el = document.getElementById('outlineGridSource'); return el ? el.value : 'detected'; })();
     var gridMargin = (function() { var el = document.getElementById('outlineGridMargin'); return el ? (Number(el.value) || 2) : 2; })();
-    var gridXStep  = (function() { var el = document.getElementById('outlineGridXStep');  return el ? (Number(el.value) || 5) : 5; })();
-    var gridYStep  = (function() { var el = document.getElementById('outlineGridYStep');  return el ? (Number(el.value) || 5) : 5; })();
-    if (gridXStep <= 0) gridXStep = 5;
-    if (gridYStep <= 0) gridYStep = 5;
+    var gridXCount = (function() { var el = document.getElementById('outlineGridXCount'); return el ? Math.max(2, parseInt(el.value) || 2) : 2; })();
+    var gridYCount = (function() { var el = document.getElementById('outlineGridYCount'); return el ? Math.max(2, parseInt(el.value) || 2) : 2; })();
     var hasOutlineData = (outlineRowResults.length > 0 || outlineColResults.length > 0);
 
     var gridMinX, gridMaxX, gridMinY, gridMaxY;
@@ -12261,6 +12323,10 @@ async function runOutlineSurfaceGridProbe() {
     var xLen = gridMaxX - gridMinX;
     var yLen = gridMaxY - gridMinY;
 
+    // Compute step spacing from counts and actual grid bounds
+    var gridXStep = gridXCount > 1 ? xLen / (gridXCount - 1) : xLen;
+    var gridYStep = gridYCount > 1 ? yLen / (gridYCount - 1) : yLen;
+
     var gridCfg = {
       minX:       gridMinX,
       maxX:       gridMaxX,
@@ -12268,8 +12334,8 @@ async function runOutlineSurfaceGridProbe() {
       minY:       gridMinY,
       maxY:       gridMaxY,
       rowSpacing: gridYStep,
-      colCount:   Math.floor(xLen / gridXStep) + 1,
-      rowCount:   Math.floor(yLen / gridYStep) + 1
+      colCount:   gridXCount,
+      rowCount:   gridYCount
     };
 
     var totalPoints = gridCfg.colCount * gridCfg.rowCount;
@@ -12283,7 +12349,8 @@ async function runOutlineSurfaceGridProbe() {
 
     outlineAppendLog('=== Outline Surface Grid Probe ===');
     outlineAppendLog('Bounds source: ' + (gridSourceUsed === 'detected' ? 'Detected Outline vector boundary (inset ' + gridMargin + 'mm)' : 'OUTLINE SEARCH BOUNDS (fallback)'));
-    outlineAppendLog('Grid: ' + gridCfg.colCount + 'x' + gridCfg.rowCount + ' = ' + totalPoints + ' points');
+    outlineAppendLog('Grid: ' + gridCfg.colCount + 'x' + gridCfg.rowCount + ' = ' + totalPoints + ' points' +
+      (gridInsetPoly !== null ? ' (per-row X span from polygon boundary)' : ''));
     outlineAppendLog('Bounds: X' + gridCfg.minX.toFixed(3) + '\u2192' + gridCfg.maxX.toFixed(3) +
       '  Y' + gridCfg.minY.toFixed(3) + '\u2192' + gridCfg.maxY.toFixed(3));
     outlineAppendLog('Surface Z: ' + surfZ.toFixed(3) + ' \u2192 clearanceZ=' + clearanceZ.toFixed(3) +
@@ -12309,6 +12376,31 @@ async function runOutlineSurfaceGridProbe() {
       outlineAppendLog('--- ROW ' + row + '/' + (gridCfg.rowCount - 1) +
         ' Y=' + rowY.toFixed(3) + ' (forward) ---');
 
+      // Compute per-row X span from the inset polygon boundary (scanline intersection).
+      // When using detected outline mode each row's probe columns are generated from
+      // xLeft to xRight so points start/end at the actual SVG boundary rather than
+      // the global bounding-box edges.  Falls back to global minX..maxX when no
+      // polygon is available (fallback bounds mode).
+      var rowXLeft  = gridCfg.minX;
+      var rowXRight = gridCfg.maxX;
+      if (gridInsetPoly !== null) {
+        var rowSpan = _polyRowXSpan(gridInsetPoly, rowY);
+        if (rowSpan === null) {
+          // No polygon intersection at this Y — row is entirely outside boundary; skip it.
+          outlineAppendLog('--- ROW ' + row + ' Y=' + rowY.toFixed(3) +
+            ': no polygon span at this Y \u2014 row skipped ---');
+          skipped += gridCfg.colCount;
+          outlineSetProgress((probed + skipped) / totalPoints * 100);
+          continue;
+        }
+        rowXLeft  = rowSpan.xLeft;
+        rowXRight = rowSpan.xRight;
+      }
+      var rowColSpan = rowXRight - rowXLeft;
+      var rowDx = gridCfg.colCount > 1 ? rowColSpan / (gridCfg.colCount - 1) : 0;
+      outlineAppendLog('ROW span: xLeft=' + rowXLeft.toFixed(3) + ', xRight=' + rowXRight.toFixed(3) +
+        ', cols=' + gridCfg.colCount + ', dx=' + rowDx.toFixed(3));
+
       // B) Find nearest outline row result for this Y (for edge comparison logging)
       var nearestRowEdge = (function(targetY) {
         if (!outlineRowResults || outlineRowResults.length === 0) return null;
@@ -12325,7 +12417,8 @@ async function runOutlineSurfaceGridProbe() {
       for (var step = 0; step < gridCfg.colCount; step++) {
         outlineCheckStop();
         var col = step;
-        var colX = gridCfg.minX + col * gridCfg.colSpacing;
+        // Column X is evenly spaced across this row's boundary span (left to right).
+        var colX = gridCfg.colCount > 1 ? rowXLeft + col * rowDx : rowXLeft;
 
         // B) Find nearest outline col result for this X (for edge comparison logging)
         var nearestColEdge = (function(targetX) {
@@ -12350,11 +12443,11 @@ async function runOutlineSurfaceGridProbe() {
             ' yTop='    + (nearestColEdge.hasTop    ? nearestColEdge.yTop.toFixed(3)    : 'n/a');
         }
 
-        // Point-in-polygon check: skip grid points that fall outside the inset
-        // outline boundary.  result[row][col] stays null (already initialised).
+        // Edge-case guard: column X was computed from the polygon span so it should be
+        // inside by construction; this check catches floating-point edge cases only.
         if (gridInsetPoly !== null && !_pointInPolygon(gridInsetPoly, colX, rowY)) {
           outlineAppendLog('SKIP [' + row + ',' + col + '] X' + colX.toFixed(3) + ' Y' + rowY.toFixed(3) +
-            ' \u2014 outside inset outline boundary' + edgeCtx);
+            ' \u2014 outside inset outline boundary (edge case)' + edgeCtx);
           skipped++;
           rowSkipped++;
           outlineSetProgress((probed + skipped) / totalPoints * 100);
@@ -12405,11 +12498,17 @@ async function runOutlineSurfaceGridProbe() {
       // B) Row end summary
       outlineAppendLog('--- ROW ' + row + ' done: ' + rowProbed + ' probed, ' + rowSkipped + ' skipped ---');
 
-      // Row transition: position at start of next row
+      // Row transition: position at start of next row.
+      // Use the next row's polygon boundary xLeft so the machine travels to the actual
+      // left edge of the outline rather than the global bounding-box minX.
       if (row + 1 < gridCfg.rowCount) {
         outlineCheckStop();
         var nextY = gridCfg.minY + (row + 1) * gridCfg.rowSpacing;
         var nextStartX = gridCfg.minX;
+        if (gridInsetPoly !== null) {
+          var nextRowSpan = _polyRowXSpan(gridInsetPoly, nextY);
+          if (nextRowSpan !== null) nextStartX = nextRowSpan.xLeft;
+        }
         outlineAppendLog('ROW TRANSITION: row ' + row + ' done; moving to start of row ' + (row + 1) +
           ' X=' + nextStartX.toFixed(3) + ' Y=' + nextY.toFixed(3));
         await _outlineAbsTravel(nextStartX, nextY, clearanceZ, travelFeed, travelFeed);
@@ -12499,6 +12598,9 @@ function _showOutlineSurfExportPanel() {
     if (stlSmoothBtn) stlSmoothBtn.addEventListener('click', function() { flashButton(this); exportSurfaceSTLSmooth(); });
     // Show panel if mesh data is already present (e.g. after page reload with saved mesh)
     if (typeof smMeshData !== 'undefined' && smMeshData) _showOutlineSurfExportPanel();
+    // Initialise count helper text on page load
+    try { updateOutlineCountHelpers(); } catch(e) {}
+    try { updateOutlineGridCountHelpers(); } catch(e) {}
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', _wire);
@@ -12980,10 +13082,10 @@ function getSettingsFromUI() {
     // Outline tab
     outlineX0:                   n('outlineX0'),
     outlineXLen:                 n('outlineXLen'),
-    outlineXStep:                n('outlineXStep'),
+    outlineXCount:               n('outlineXCount'),
     outlineY0:                   n('outlineY0'),
     outlineYLen:                 n('outlineYLen'),
-    outlineYStep:                n('outlineYStep'),
+    outlineYCount:               n('outlineYCount'),
     outlineSurfaceZ:             n('outlineSurfaceZ'),
     outlineFaceDepth:            n('outlineFaceDepth'),
     outlineFaceFeed:             n('outlineFaceFeed'),
@@ -12999,8 +13101,8 @@ function getSettingsFromUI() {
     outlineProbeDown:            n('outlineProbeDown'),
     outlineGridSource:           s('outlineGridSource'),
     outlineGridMargin:           n('outlineGridMargin'),
-    outlineGridXStep:            n('outlineGridXStep'),
-    outlineGridYStep:            n('outlineGridYStep'),
+    outlineGridXCount:           n('outlineGridXCount'),
+    outlineGridYCount:           n('outlineGridYCount'),
     outlineSkipSurfaceProbe:     chk('outlineSkipSurfaceProbe'),
     outlineForceRectangle:       chk('outlineForceRectangle'),
     autoHideStatusPanel:         chk('autoHideStatusPanel')
@@ -13155,10 +13257,16 @@ function loadSettings() {
   // Outline tab
   if (data.outlineX0          != null) sv('outlineX0',          data.outlineX0);
   if (data.outlineXLen        != null) sv('outlineXLen',        data.outlineXLen);
-  if (data.outlineXStep       != null) sv('outlineXStep',       data.outlineXStep);
+  // Load xCount; migrate from old xStep if needed
+  if (data.outlineXCount      != null) sv('outlineXCount',      Math.max(2, Math.round(data.outlineXCount)));
+  else if (data.outlineXStep  != null && data.outlineXLen != null && data.outlineXStep > 0)
+    sv('outlineXCount', Math.max(2, Math.round(data.outlineXLen / data.outlineXStep) + 1));
   if (data.outlineY0          != null) sv('outlineY0',          data.outlineY0);
   if (data.outlineYLen        != null) sv('outlineYLen',        data.outlineYLen);
-  if (data.outlineYStep       != null) sv('outlineYStep',       data.outlineYStep);
+  // Load yCount; migrate from old yStep if needed
+  if (data.outlineYCount      != null) sv('outlineYCount',      Math.max(2, Math.round(data.outlineYCount)));
+  else if (data.outlineYStep  != null && data.outlineYLen != null && data.outlineYStep > 0)
+    sv('outlineYCount', Math.max(2, Math.round(data.outlineYLen / data.outlineYStep) + 1));
   if (data.outlineSurfaceZ    != null) sv('outlineSurfaceZ',    data.outlineSurfaceZ);
   if (data.outlineFaceDepth   != null) sv('outlineFaceDepth',   data.outlineFaceDepth);
   if (data.outlineFaceFeed    != null) sv('outlineFaceFeed',    data.outlineFaceFeed);
@@ -13174,8 +13282,10 @@ function loadSettings() {
   if (data.outlineProbeDown   != null) sv('outlineProbeDown',   data.outlineProbeDown);
   if (data.outlineGridSource  != null) sv('outlineGridSource',  data.outlineGridSource);
   if (data.outlineGridMargin  != null) sv('outlineGridMargin',  data.outlineGridMargin);
-  if (data.outlineGridXStep        != null) sv('outlineGridXStep',        data.outlineGridXStep);
-  if (data.outlineGridYStep        != null) sv('outlineGridYStep',        data.outlineGridYStep);
+  if (data.outlineGridXCount  != null) sv('outlineGridXCount',  Math.max(2, Math.round(data.outlineGridXCount)));
+  else if (data.outlineGridXStep != null) sv('outlineGridXCount', 2); // can't reliably migrate without bounds
+  if (data.outlineGridYCount  != null) sv('outlineGridYCount',  Math.max(2, Math.round(data.outlineGridYCount)));
+  else if (data.outlineGridYStep != null) sv('outlineGridYCount', 2); // can't reliably migrate without bounds
   if (data.outlineSkipSurfaceProbe != null) sc('outlineSkipSurfaceProbe', data.outlineSkipSurfaceProbe);
   if (data.outlineForceRectangle   != null) sc('outlineForceRectangle',   data.outlineForceRectangle);
   if (data.autoHideStatusPanel != null) sc('autoHideStatusPanel', data.autoHideStatusPanel);
@@ -13183,6 +13293,8 @@ function loadSettings() {
   try { refreshFinishBehaviorPreview(); } catch(e) {}
   try { refreshTravelRecoveryPreview(); } catch(e) {}
   try { calcProbeAutoTotalLength(); } catch(e) {}
+  try { updateOutlineCountHelpers(); } catch(e) {}
+  try { updateOutlineGridCountHelpers(); } catch(e) {}
 }
 function resetSettings() {
   var defaults = {

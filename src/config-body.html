@@ -1499,11 +1499,12 @@
           </div>
           <div class="field">
             <label>X Length (coords)</label>
-            <input type="number" id="outlineXLen" value="100" step="1" min="1" oninput="updateOutlineProbeCenter()">
+            <input type="number" id="outlineXLen" value="100" step="1" min="1" oninput="updateOutlineProbeCenter();updateOutlineCountHelpers();updateOutlineGridCountHelpers()">
           </div>
           <div class="field">
-            <label>X Step (coords)</label>
-            <input type="number" id="outlineXStep" value="5" step="0.5" min="0.5">
+            <label>X Count (cols)</label>
+            <input type="number" id="outlineXCount" value="2" step="1" min="2" oninput="updateOutlineCountHelpers()">
+            <span id="outlineXStepHelper" class="mini" style="display:block;margin-top:3px">Computed step: —</span>
           </div>
           <div class="field">
             <label>Y Origin (coords)</label>
@@ -1511,11 +1512,12 @@
           </div>
           <div class="field">
             <label>Y Length (coords)</label>
-            <input type="number" id="outlineYLen" value="100" step="1" min="1" oninput="updateOutlineProbeCenter()">
+            <input type="number" id="outlineYLen" value="100" step="1" min="1" oninput="updateOutlineProbeCenter();updateOutlineCountHelpers();updateOutlineGridCountHelpers()">
           </div>
           <div class="field">
-            <label>Y Step (coords)</label>
-            <input type="number" id="outlineYStep" value="5" step="0.5" min="0.5">
+            <label>Y Count (rows)</label>
+            <input type="number" id="outlineYCount" value="2" step="1" min="2" oninput="updateOutlineCountHelpers()">
+            <span id="outlineYStepHelper" class="mini" style="display:block;margin-top:3px">Computed step: —</span>
           </div>
         </div>
       </div>
@@ -1659,7 +1661,7 @@
         <div class="grid two" style="margin-bottom:8px">
           <div class="field">
             <label>Grid Source</label>
-            <select id="outlineGridSource">
+            <select id="outlineGridSource" onchange="updateOutlineGridCountHelpers()">
               <option value="detected">Detected Outline (auto-inset)</option>
               <option value="bounds">Outline Search Bounds</option>
             </select>
@@ -1669,12 +1671,14 @@
             <input type="number" id="outlineGridMargin" value="2" step="0.1" min="0">
           </div>
           <div class="field">
-            <label>Surface Grid X Step (mm)</label>
-            <input type="number" id="outlineGridXStep" value="5" step="0.1" min="0.1">
+            <label>Surface Grid X Count (cols)</label>
+            <input type="number" id="outlineGridXCount" value="2" step="1" min="2" oninput="updateOutlineGridCountHelpers()">
+            <span id="outlineGridXStepHelper" class="mini" style="display:block;margin-top:3px">Computed step: —</span>
           </div>
           <div class="field">
-            <label>Surface Grid Y Step (mm)</label>
-            <input type="number" id="outlineGridYStep" value="5" step="0.1" min="0.1">
+            <label>Surface Grid Y Count (rows)</label>
+            <input type="number" id="outlineGridYCount" value="2" step="1" min="2" oninput="updateOutlineGridCountHelpers()">
+            <span id="outlineGridYStepHelper" class="mini" style="display:block;margin-top:3px">Computed step: —</span>
           </div>
         </div>
         <div class="btn-row">
