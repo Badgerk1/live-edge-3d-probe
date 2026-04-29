@@ -1226,6 +1226,7 @@ function _polyRowXSpan(poly, targetY) {
 // polygon edge or vertex (classic scanline ambiguity for axis-aligned shapes).
 // Returns { span, retried, retryY } or null when no span is found after retries.
 var _SPAN_EPS_Y = 0.01; // mm — small offset for horizontal-edge retry
+var _ROW_BOUNDARY_EPS = 0.01; // mm — inset applied to first/last row Y in polygon mode
 function _polyRowXSpanRobust(poly, targetY, epsY) {
   epsY = epsY || _SPAN_EPS_Y;
   var span = _polyRowXSpan(poly, targetY);
@@ -1424,9 +1425,23 @@ async function runOutlineSurfaceGridProbe() {
     for (var row = 0; row < gridCfg.rowCount; row++) {
       outlineCheckStop();
       var rowY = gridCfg.minY + row * gridCfg.rowSpacing;
+      // When using detected polygon mode, slightly inset first and last row Y values
+      // to avoid landing exactly on the polygon's horizontal edges/vertices.
+      // The half-open scanline interval can produce a degenerate span (xLeft==xRight)
+      // or no span at all when the scanline coincides with a flat polygon edge.
+      var rowYInsetNote = '';
+      if (gridInsetPoly !== null) {
+        if (row === 0) {
+          rowY += _ROW_BOUNDARY_EPS;
+          rowYInsetNote = ' (+' + _ROW_BOUNDARY_EPS + 'mm boundary inset)';
+        } else if (row === gridCfg.rowCount - 1) {
+          rowY -= _ROW_BOUNDARY_EPS;
+          rowYInsetNote = ' (-' + _ROW_BOUNDARY_EPS + 'mm boundary inset)';
+        }
+      }
       // B) Row start log
       outlineAppendLog('--- ROW ' + row + '/' + (gridCfg.rowCount - 1) +
-        ' Y=' + rowY.toFixed(3) + ' (forward) ---');
+        ' Y=' + rowY.toFixed(3) + ' (forward)' + rowYInsetNote + ' ---');
 
       // Compute per-row X span from the inset polygon boundary (scanline intersection).
       // When using detected outline mode each row's probe columns are generated from
@@ -1577,13 +1592,16 @@ async function runOutlineSurfaceGridProbe() {
       // left edge of the outline rather than the global bounding-box minX.
       if (row + 1 < gridCfg.rowCount) {
         outlineCheckStop();
-        var nextY = gridCfg.minY + (row + 1) * gridCfg.rowSpacing;
+        var nextRowIdx = row + 1;
+        var nextY = gridCfg.minY + nextRowIdx * gridCfg.rowSpacing;
+        // Apply same boundary epsilon as the main row loop
+        if (gridInsetPoly !== null && nextRowIdx === gridCfg.rowCount - 1) nextY -= _ROW_BOUNDARY_EPS;
         var nextStartX = gridCfg.minX;
         if (gridInsetPoly !== null) {
           var nextRowSpanResult = _polyRowXSpanRobust(gridInsetPoly, nextY);
           if (nextRowSpanResult !== null) nextStartX = nextRowSpanResult.span.xLeft;
         }
-        outlineAppendLog('ROW TRANSITION: row ' + row + ' done; moving to start of row ' + (row + 1) +
+        outlineAppendLog('ROW TRANSITION: row ' + row + ' done; moving to start of row ' + nextRowIdx +
           ' X=' + nextStartX.toFixed(3) + ' Y=' + nextY.toFixed(3));
         await _outlineAbsTravel(nextStartX, nextY, clearanceZ, travelFeed, travelFeed);
         await smEnsureProbeClear(clearanceZ, travelFeed);
