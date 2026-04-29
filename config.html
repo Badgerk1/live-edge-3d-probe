@@ -12305,11 +12305,9 @@ async function runOutlineSurfaceGridProbe() {
     for (var row = 0; row < gridCfg.rowCount; row++) {
       outlineCheckStop();
       var rowY = gridCfg.minY + row * gridCfg.rowSpacing;
-      var reversed = (row % 2 !== 0);
-
       // B) Row start log
       outlineAppendLog('--- ROW ' + row + '/' + (gridCfg.rowCount - 1) +
-        ' Y=' + rowY.toFixed(3) + (reversed ? ' (reversed)' : ' (forward)') + ' ---');
+        ' Y=' + rowY.toFixed(3) + ' (forward) ---');
 
       // B) Find nearest outline row result for this Y (for edge comparison logging)
       var nearestRowEdge = (function(targetY) {
@@ -12326,7 +12324,7 @@ async function runOutlineSurfaceGridProbe() {
 
       for (var step = 0; step < gridCfg.colCount; step++) {
         outlineCheckStop();
-        var col = reversed ? (gridCfg.colCount - 1 - step) : step;
+        var col = step;
         var colX = gridCfg.minX + col * gridCfg.colSpacing;
 
         // B) Find nearest outline col result for this X (for edge comparison logging)
@@ -12411,7 +12409,7 @@ async function runOutlineSurfaceGridProbe() {
       if (row + 1 < gridCfg.rowCount) {
         outlineCheckStop();
         var nextY = gridCfg.minY + (row + 1) * gridCfg.rowSpacing;
-        var nextStartX = reversed ? gridCfg.minX : gridCfg.maxX;
+        var nextStartX = gridCfg.minX;
         outlineAppendLog('ROW TRANSITION: row ' + row + ' done; moving to start of row ' + (row + 1) +
           ' X=' + nextStartX.toFixed(3) + ' Y=' + nextY.toFixed(3));
         await _outlineAbsTravel(nextStartX, nextY, clearanceZ, travelFeed, travelFeed);
