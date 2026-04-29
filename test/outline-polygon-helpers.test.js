@@ -158,6 +158,21 @@ function _pointInPolygon(poly, x, y) {
   return inside;
 }
 
+function _polyRowXSpan(poly, targetY) {
+  var xs = [];
+  var n = poly.length;
+  for (var i = 0, j = n - 1; i < n; j = i++) {
+    var x0 = poly[j][0], y0 = poly[j][1];
+    var x1 = poly[i][0], y1 = poly[i][1];
+    if ((y0 <= targetY && y1 > targetY) || (y1 <= targetY && y0 > targetY)) {
+      var t = (targetY - y0) / (y1 - y0);
+      xs.push(x0 + t * (x1 - x0));
+    }
+  }
+  if (xs.length < 2) return null;
+  return { xLeft: Math.min.apply(null, xs), xRight: Math.max.apply(null, xs) };
+}
+
 // ── Helper: shoelace signed area ──────────────────────────────────────────────
 function signedArea(poly) {
   var area = 0;
@@ -262,6 +277,54 @@ var lShape = [[0,0],[0,100],[100,100],[100,50],[50,50],[50,0]];
 assert(_pointInPolygon(lShape, 25, 25),   'lower-left arm interior is inside');
 assert(_pointInPolygon(lShape, 75, 75),   'upper-right arm interior is inside');
 assert(!_pointInPolygon(lShape, 75, 25),  'missing quadrant (lower-right) is outside');
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Tests: _polyRowXSpan
+// ═══════════════════════════════════════════════════════════════════════════════
+console.log('\nTest: _polyRowXSpan — axis-aligned rectangle');
+// Rectangle from (10,5) to (110,85)
+var spanRect = [[10,5],[10,85],[110,85],[110,5]];
+var spanMid = _polyRowXSpan(spanRect, 40);
+assert(spanMid !== null, 'span found at mid-height of rectangle');
+assertClose(spanMid.xLeft,  10,  0.01, 'xLeft = left edge of rectangle');
+assertClose(spanMid.xRight, 110, 0.01, 'xRight = right edge of rectangle');
+
+console.log('\nTest: _polyRowXSpan — returns null above/below polygon');
+var spanAbove = _polyRowXSpan(spanRect, 90); // above yMax=85
+assert(spanAbove === null, 'null when scanline is above polygon');
+var spanBelow = _polyRowXSpan(spanRect, 3);  // below yMin=5
+assert(spanBelow === null, 'null when scanline is below polygon');
+
+console.log('\nTest: _polyRowXSpan — circle-like polygon (octagon)');
+// Approximate a circle with a regular octagon centred at (50,50) radius=40
+var r = 40, cx = 50, cy = 50;
+var octagon = [];
+for (var oi = 0; oi < 8; oi++) {
+  var ang = (oi / 8) * 2 * Math.PI;
+  octagon.push([cx + r * Math.cos(ang), cy + r * Math.sin(ang)]);
+}
+// At the centre Y, the span should be approximately 2*radius wide
+var spanCentre = _polyRowXSpan(octagon, cy);
+assert(spanCentre !== null, 'span found at centre of octagon');
+assert(spanCentre.xRight - spanCentre.xLeft > 70, 'octagon span at centre is close to diameter (' + (spanCentre.xRight - spanCentre.xLeft).toFixed(2) + 'mm)');
+// xLeft should be less than centre X and xRight greater
+assert(spanCentre.xLeft < cx, 'octagon xLeft is left of centre');
+assert(spanCentre.xRight > cx, 'octagon xRight is right of centre');
+
+console.log('\nTest: _polyRowXSpan — span narrows towards top of octagon');
+var spanNearTop = _polyRowXSpan(octagon, cy + r * 0.9);
+assert(spanNearTop !== null, 'span found near top of octagon');
+assert(spanNearTop.xRight - spanNearTop.xLeft < spanCentre.xRight - spanCentre.xLeft,
+  'span near top is narrower than at centre');
+
+console.log('\nTest: _polyRowXSpan — inset rectangle span');
+// 100×80 rect inset by 5mm → 90×70 inner rect
+var outerRect = [[0,0],[0,80],[100,80],[100,0]];
+var insetRect5 = _insetPolygon(outerRect, 5);
+var insetSpan = _polyRowXSpan(insetRect5, 40);
+assert(insetSpan !== null, 'span found inside inset rectangle');
+assertClose(insetSpan.xLeft,  5,  0.5, 'inset rect xLeft ≈ 5mm');
+assertClose(insetSpan.xRight, 95, 0.5, 'inset rect xRight ≈ 95mm');
 
 // ═══════════════════════════════════════════════════════════════════════════════
 console.log('\n--- Results: ' + passed + ' passed, ' + failed + ' failed ---');
