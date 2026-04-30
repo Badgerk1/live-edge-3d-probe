@@ -126,6 +126,7 @@ function getSettingsFromUI() {
     outlineProbeDown:            n('outlineProbeDown'),
     outlineGridSource:           s('outlineGridSource'),
     outlineGridMargin:           n('outlineGridMargin'),
+    outlineGridEdgeMarginMm:     n('outlineGridEdgeMarginMm'),
     outlineGridXCount:           n('outlineGridXCount'),
     outlineGridYCount:           n('outlineGridYCount'),
     outlineSkipSurfaceProbe:     chk('outlineSkipSurfaceProbe'),
@@ -307,6 +308,7 @@ function loadSettings() {
   if (data.outlineProbeDown   != null) sv('outlineProbeDown',   data.outlineProbeDown);
   if (data.outlineGridSource  != null) sv('outlineGridSource',  data.outlineGridSource);
   if (data.outlineGridMargin  != null) sv('outlineGridMargin',  data.outlineGridMargin);
+  if (data.outlineGridEdgeMarginMm != null) sv('outlineGridEdgeMarginMm', data.outlineGridEdgeMarginMm);
   if (data.outlineGridXCount  != null) sv('outlineGridXCount',  Math.max(2, Math.round(data.outlineGridXCount)));
   else if (data.outlineGridXStep != null) sv('outlineGridXCount', 2); // can't reliably migrate without bounds
   if (data.outlineGridYCount  != null) sv('outlineGridYCount',  Math.max(2, Math.round(data.outlineGridYCount)));
