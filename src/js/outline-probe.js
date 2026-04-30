@@ -1625,10 +1625,15 @@ async function runOutlineSurfaceGridProbe() {
     outlineSetStatus('Grid probe done \u2013 ' + probed + ' probed / ' + skipped + ' skipped', 'good');
     setFooterStatus('Outline surface grid probe complete', 'good');
 
-    // Finish motion: retract Z, then always return to work origin X0 Y0
+    // Finish motion: retract Z, then always return to work origin X0 Y0.
+    // finishRunMotion handles retract and optional XY return (per user setting).
+    // The explicit moveAbs(0,0) below ensures we always return to origin for the
+    // outline probe regardless of the global returnXYZero setting.
     await finishRunMotion('outline');
     outlineAppendLog('Returning to work origin X0 Y0\u2026');
-    await moveAbs(0, 0, null, travelFeed);
+    var homePos = await moveAbs(0, 0, null, travelFeed);
+    if (!homePos) homePos = await getWorkPosition();
+    outlineAppendLog('At work origin: X=' + homePos.x.toFixed(3) + ' Y=' + homePos.y.toFixed(3) + ' Z=' + homePos.z.toFixed(3));
 
     // Persist mesh and refresh UI (enables DXF/OBJ/STL exports and Apply tab)
     smSaveMeshToStorage();

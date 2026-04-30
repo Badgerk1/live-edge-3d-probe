@@ -468,5 +468,127 @@ if (octRow0Span !== null) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Tests: Centered row sampling — production formula y_i = minY + (i+0.5)*(h/n)
+// This is the formula used in runOutlineSurfaceGridProbe.  It ensures first/last
+// rows are always strictly inside [minY, maxY] and never land on the boundary.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Helper: compute centered row Y values (same formula as production code)
+function centeredRowY(rowIdx, minYv, height, rowCountv) {
+  return minYv + (rowIdx + 0.5) * (height / rowCountv);
+}
+
+// Helper: compute centered column X values (same formula as production code)
+function centeredColX(colIdx, xLeft, spanWidth, colCountv) {
+  if (colCountv === 1) return (xLeft + (xLeft + spanWidth)) / 2;
+  return xLeft + (colIdx + 0.5) * (spanWidth / colCountv);
+}
+
+console.log('\nTest: centered row sampling — 3-row rectangle: all rows strictly inside [minY, maxY]');
+// Rectangle 100x80 (minY=0, maxY=80), 3 rows:
+//   row 0: 0 + 0.5*(80/3) ≈ 13.33  (was 0 with old formula → boundary!)
+//   row 1: 0 + 1.5*(80/3) ≈ 40.00
+//   row 2: 0 + 2.5*(80/3) ≈ 66.67  (was 80 with old formula → boundary!)
+var csPoly = [[0,0],[0,80],[100,80],[100,0]]; // CW 100x80 rectangle
+var csMinY = 0, csMaxY = 80, csHeight = csMaxY - csMinY;
+var csRows3 = 3;
+for (var cri = 0; cri < csRows3; cri++) {
+  var csY = centeredRowY(cri, csMinY, csHeight, csRows3);
+  assert(csY > csMinY, 'centered row ' + cri + ' Y=' + csY.toFixed(4) + ' > minY=' + csMinY);
+  assert(csY < csMaxY, 'centered row ' + cri + ' Y=' + csY.toFixed(4) + ' < maxY=' + csMaxY);
+  var csSpan = _polyRowXSpanRobust(csPoly, csY);
+  assert(csSpan !== null, 'centered row ' + cri + ' (Y=' + csY.toFixed(3) + ') produces valid span');
+  if (csSpan !== null) {
+    var csWidth = csSpan.span.xRight - csSpan.span.xLeft;
+    assert(csWidth > 0.05, 'centered row ' + cri + ' span is non-degenerate: ' + csWidth.toFixed(3) + 'mm');
+    assert(!csSpan.retried, 'centered row ' + cri + ' does not need Y±eps retry (interior point)');
+  }
+}
+
+console.log('\nTest: centered row sampling — 5-row rectangle: all rows strictly inside [minY, maxY]');
+// Rectangle 304x234 (approximating user scenario), 5 rows:
+//   row 0: minY + 0.5*(234/5) = minY+23.4  ← previously ≈ minY (corner/degenerate!)
+//   row 4: minY + 4.5*(234/5) = maxY-23.4  ← previously ≈ maxY (corner/degenerate!)
+var cs5MinY = -0.084, cs5MaxY = 233.998, cs5Height = cs5MaxY - cs5MinY;
+// Use a simple axis-aligned rectangle matching the user's workpiece dimensions
+var cs5Poly = [
+  [cs5MinY, cs5MinY], // reuse as [x,y] placeholder — use actual representative polygon
+];
+// Build a representative inset rectangle: minX=−2, maxX=304, minY=−0.1, maxY=234
+var cs5Rect = [[-2,-0.1],[-2,234],[304,234],[304,-0.1]]; // CW rectangle
+var cs5Rows = 5;
+for (var cr5i = 0; cr5i < cs5Rows; cr5i++) {
+  var cs5Y = centeredRowY(cr5i, cs5MinY, cs5Height, cs5Rows);
+  assert(cs5Y > cs5MinY, '5-row: centered row ' + cr5i + ' Y=' + cs5Y.toFixed(3) + ' > minY=' + cs5MinY.toFixed(3));
+  assert(cs5Y < cs5MaxY, '5-row: centered row ' + cr5i + ' Y=' + cs5Y.toFixed(3) + ' < maxY=' + cs5MaxY.toFixed(3));
+  var cs5Span = _polyRowXSpanRobust(cs5Rect, cs5Y);
+  assert(cs5Span !== null, '5-row: centered row ' + cr5i + ' (Y=' + cs5Y.toFixed(3) + ') produces valid span on rectangle');
+  if (cs5Span !== null) {
+    var cs5Width = cs5Span.span.xRight - cs5Span.span.xLeft;
+    assert(cs5Width > 0.05, '5-row: centered row ' + cr5i + ' span is non-degenerate: ' + cs5Width.toFixed(3) + 'mm');
+  }
+}
+
+console.log('\nTest: centered row sampling — 4x5 grid (user scenario): all 5 rows produce wide spans');
+// 4 cols × 5 rows on inset polygon: minX=-1.978, maxX=304.013, minY=-0.084, maxY=233.998
+// Row Y values (centered):
+//   row 0: -0.084 + 0.5*(234.082/5) ≈  23.324  (was -0.074 boundary → tiny corner span!)
+//   row 1: -0.084 + 1.5*(234.082/5) ≈  70.141
+//   row 2: -0.084 + 2.5*(234.082/5) ≈ 116.957
+//   row 3: -0.084 + 3.5*(234.082/5) ≈ 163.773
+//   row 4: -0.084 + 4.5*(234.082/5) ≈ 210.590  (was 233.988 boundary → degenerate!)
+var userMinX = -1.978, userMaxX = 304.013;
+var userMinY = -0.084, userMaxY = 233.998;
+var userHeight = userMaxY - userMinY;
+var userPoly = [[userMinX,userMinY],[userMinX,userMaxY],[userMaxX,userMaxY],[userMaxX,userMinY]];
+var userRows = 5, userCols = 4;
+for (var uri = 0; uri < userRows; uri++) {
+  var urY = centeredRowY(uri, userMinY, userHeight, userRows);
+  assert(urY > userMinY, '4x5 user scenario: row ' + uri + ' Y=' + urY.toFixed(3) + ' strictly above minY');
+  assert(urY < userMaxY, '4x5 user scenario: row ' + uri + ' Y=' + urY.toFixed(3) + ' strictly below maxY');
+  var urSpan = _polyRowXSpanRobust(userPoly, urY);
+  assert(urSpan !== null, '4x5 user scenario: row ' + uri + ' Y=' + urY.toFixed(3) + ' has valid span');
+  if (urSpan !== null) {
+    var urWidth = urSpan.span.xRight - urSpan.span.xLeft;
+    // Full width of rectangle: ~306mm; expect non-degenerate wide span
+    assert(urWidth > 100, '4x5 user scenario: row ' + uri + ' span is wide: ' + urWidth.toFixed(3) + 'mm (not tiny corner)');
+  }
+}
+
+console.log('\nTest: centered column sampling — 4 cols formula produces correct X values');
+// xLeft=10, xRight=110, colCount=4: span=100mm, cellWidth=25mm
+//   col 0: x = 10 + 0.5*25 = 22.5
+//   col 1: x = 10 + 1.5*25 = 47.5
+//   col 2: x = 10 + 2.5*25 = 72.5
+//   col 3: x = 10 + 3.5*25 = 97.5
+var ccXLeft = 10, ccXRight = 110, ccSpanW = ccXRight - ccXLeft, ccCols = 4;
+var ccCellW = ccSpanW / ccCols;
+var expectedCols = [22.5, 47.5, 72.5, 97.5];
+for (var cci = 0; cci < ccCols; cci++) {
+  var ccX = centeredColX(cci, ccXLeft, ccSpanW, ccCols);
+  assertClose(ccX, expectedCols[cci], 1e-6, 'col ' + cci + ' centered X=' + ccX.toFixed(4) + ' (expected ' + expectedCols[cci] + ')');
+  // All centered col X values must be strictly inside [xLeft, xRight]
+  assert(ccX > ccXLeft,  'col ' + cci + ' X=' + ccX.toFixed(3) + ' > xLeft=' + ccXLeft);
+  assert(ccX < ccXRight, 'col ' + cci + ' X=' + ccX.toFixed(3) + ' < xRight=' + ccXRight);
+}
+
+console.log('\nTest: centered column sampling — single-column uses midpoint');
+// cols=1: x = (xLeft + xRight)/2 = 60
+var ccMid = centeredColX(0, 10, 100, 1);
+assertClose(ccMid, 60, 1e-6, 'single-column centred X = midpoint 60');
+
+console.log('\nTest: centered sampling — first/last rows are far from boundary (not corner-adjacent)');
+// With centered sampling, first/last rows must be at least height/(2*rows) away from boundary.
+// For 5 rows over height=80: each band=16mm, first row center=8mm from minY.
+var farTestHeight = 80, farTestRows = 5, farTestMinY = 0;
+var farTestBand = farTestHeight / farTestRows; // 16mm
+var farRow0Y = centeredRowY(0, farTestMinY, farTestHeight, farTestRows); // 8.0
+var farRowLastY = centeredRowY(farTestRows - 1, farTestMinY, farTestHeight, farTestRows); // 72.0
+assertClose(farRow0Y, farTestMinY + farTestBand / 2, 1e-6, 'first row Y = minY + band/2 (8mm from minY)');
+assertClose(farRowLastY, farTestMinY + farTestHeight - farTestBand / 2, 1e-6, 'last row Y = maxY - band/2 (8mm from maxY)');
+assert(farRow0Y - farTestMinY > 1.0, 'first centered row is >1mm above minY (not a corner)');
+assert((farTestMinY + farTestHeight) - farRowLastY > 1.0, 'last centered row is >1mm below maxY (not a corner)');
+
+// ═══════════════════════════════════════════════════════════════════════════════
 console.log('\n--- Results: ' + passed + ' passed, ' + failed + ' failed ---');
 if (failed > 0) process.exit(1);
