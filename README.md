@@ -275,6 +275,18 @@ ncSender (host application)
 
 `config.html` is the single self-contained HTML file that ncSender loads as the plugin UI. It is generated from smaller source files in the `src/` directory — **do not edit `config.html` directly**.
 
+### ⚠️ Required build step
+
+After changing **any** file under `src/`, you **must** run:
+
+```bash
+bash build.sh
+```
+
+and **commit the regenerated `config.html`** in the same PR. Failing to do so means the deployed plugin still runs old code, even after your source changes are merged.
+
+A CI check enforces this: every pull request that leaves `config.html` out of date with `src/` will **fail** automatically.
+
 ### Source files in `src/`
 
 | File | Contents |
@@ -324,13 +336,7 @@ If you change the width significantly, also update the `margin` on `#sm-pviz-pro
 }
 ```
 
-
-
-```bash
-./build.sh
-```
-
-This concatenates the source partials back into a single `config.html` that ncSender loads.
+Then run `bash build.sh` and commit the updated `config.html`.
 
 ---
 
