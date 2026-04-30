@@ -12039,10 +12039,18 @@ function _buildOutlinePolygon() {
     if (c.hasTop    && c.yTop    !== null) allPts.push([c.x, c.yTop]);
   });
 
+  // Use Euclidean distance for dedup so that near-corner pairs (e.g. a row
+  // xLeft and a col yTop that are <1 mm apart and both approximate the same
+  // physical corner) are merged into one vertex.  The old axis-aligned check
+  // (|Δx|<0.1 AND |Δy|<0.1) missed pairs like (0.088,232) and (0,232.587)
+  // which are only 0.59 mm apart but have |Δy|=0.587>0.1, leaving a short
+  // degenerate edge that distorts the inset polygon at that corner.
+  var _POLY_BUILD_DEDUP_SQ = 1.0 * 1.0; // 1 mm Euclidean dedup radius
   var dedupPts = [];
   allPts.forEach(function(pt) {
     var dup = dedupPts.some(function(p) {
-      return Math.abs(p[0] - pt[0]) < 0.1 && Math.abs(p[1] - pt[1]) < 0.1;
+      var ddx = p[0] - pt[0], ddy = p[1] - pt[1];
+      return ddx * ddx + ddy * ddy < _POLY_BUILD_DEDUP_SQ;
     });
     if (!dup) dedupPts.push(pt);
   });
@@ -12330,21 +12338,29 @@ async function runOutlineSurfaceGridProbe() {
         throw new Error('Inset margin ' + gridMargin + 'mm failed: ' + insetErr.message +
           ' \u2014 reduce Inset Margin or re-run Outline Scan');
       }
-      // Bounding box of the inset polygon
+      // Compute grid bounding box from the OUTER polygon minus gridMargin rather
+      // than from the inset polygon's own bounding box.  The inset polygon can
+      // have miter spikes at zig-zag corners that push its bbox vertices outside
+      // the expected inset distance (e.g. a spike to Y=234 when the outer top
+      // edge is at Y=232 with a 2 mm inset).  Using the outer bbox avoids those
+      // spikes, ensuring rows/cols are placed in the region where the inset
+      // polygon actually has full-width coverage.
       gridMinX = Infinity; gridMaxX = -Infinity;
       gridMinY = Infinity; gridMaxY = -Infinity;
-      gridInsetPoly.forEach(function(p) {
+      outlinePoly.forEach(function(p) {
         if (p[0] < gridMinX) gridMinX = p[0];
         if (p[0] > gridMaxX) gridMaxX = p[0];
         if (p[1] < gridMinY) gridMinY = p[1];
         if (p[1] > gridMaxY) gridMaxY = p[1];
       });
+      gridMinX += gridMargin; gridMaxX -= gridMargin;
+      gridMinY += gridMargin; gridMaxY -= gridMargin;
       if (gridMinX >= gridMaxX) throw new Error('Inset polygon X span is zero after ' + gridMargin + 'mm inset \u2014 reduce Inset Margin');
       if (gridMinY >= gridMaxY) throw new Error('Inset polygon Y span is zero after ' + gridMargin + 'mm inset \u2014 reduce Inset Margin');
       gridSourceUsed = 'detected';
       outlineAppendLog('Grid source: Detected Outline vector boundary (inset ' + gridMargin + 'mm) \u2014 ' +
         outlinePoly.length + ' polygon vertices from ' + outlineRowResults.length + ' rows / ' + outlineColResults.length + ' cols');
-      outlineAppendLog('Grid bounds from inset polygon: X' + gridMinX.toFixed(3) + '\u2192' + gridMaxX.toFixed(3) +
+      outlineAppendLog('Grid bounds from outline polygon \u00b1' + gridMargin + 'mm inset: X' + gridMinX.toFixed(3) + '\u2192' + gridMaxX.toFixed(3) +
         '  Y' + gridMinY.toFixed(3) + '\u2192' + gridMaxY.toFixed(3));
     } else {
       if (gridSource === 'detected') outlineAppendLog('Grid source: DETECTED OUTLINE requested but no outline scan data present \u2014 falling back to Outline Search Bounds.');
