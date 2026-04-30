@@ -1408,7 +1408,7 @@ async function runOutlineSurfaceGridProbe() {
     outlineAppendLog('=== Outline Surface Grid Probe ===');
     outlineAppendLog('Bounds source: ' + (gridSourceUsed === 'detected' ? 'Detected Outline vector boundary (inset ' + gridMargin + 'mm)' : 'OUTLINE SEARCH BOUNDS (fallback)'));
     outlineAppendLog('Grid: ' + gridCfg.colCount + 'x' + gridCfg.rowCount + ' = ' + totalPoints + ' points' +
-      (gridInsetPoly !== null ? ' (per-row X span from polygon boundary)' : ''));
+      (gridInsetPoly !== null ? ' (per-row X span from ' + gridInsetPoly.length + '-vertex inset polygon; inclusion: row-span + PIP epsilon=' + _POLY_EPSILON + 'mm)' : ''));
     outlineAppendLog('Bounds: X' + gridCfg.minX.toFixed(3) + '\u2192' + gridCfg.maxX.toFixed(3) +
       '  Y' + gridCfg.minY.toFixed(3) + '\u2192' + gridCfg.maxY.toFixed(3) +
       '  edgeMargin=' + gridEdgeMargin.toFixed(3) + 'mm  sampling=' + gridSamplingMode);
@@ -1444,9 +1444,13 @@ async function runOutlineSurfaceGridProbe() {
       // can cause the ray-casting point-in-polygon test to misclassify points as outside.
       // Nudge the first/last row Y inward by _ROW_BOUNDARY_EPS so the scanline is
       // clearly inside the polygon, preventing spurious "outside boundary" skips.
-      outlineAppendLog('Edge-inclusive polygon mode: applying Y boundary epsilon=' + _ROW_BOUNDARY_EPS.toFixed(4) +
-        'mm nudge to first/last row \u2014 effective Y range [' + (yEdge0 + _ROW_BOUNDARY_EPS).toFixed(4) +
-        ', ' + (yEdge1 - _ROW_BOUNDARY_EPS).toFixed(4) + ']');
+      // Inclusion guard: row-span acceptance (_POLY_EPSILON) takes precedence over full PIP.
+      outlineAppendLog('Edge-inclusive polygon mode: rowY nudge=' + _ROW_BOUNDARY_EPS.toFixed(4) +
+        'mm, effective Y range [' + (yEdge0 + _ROW_BOUNDARY_EPS).toFixed(4) +
+        ', ' + (yEdge1 - _ROW_BOUNDARY_EPS).toFixed(4) + ']' +
+        ', inclusion: row-span (eps=' + _POLY_EPSILON + 'mm) then PIP');
+    } else if (gridSamplingMode === 'edge-inclusive') {
+      outlineAppendLog('Edge-inclusive mode: effective Y range [' + yEdge0.toFixed(4) + ', ' + yEdge1.toFixed(4) + ']');
     }
 
     function _computeRowY(rowIdx, rowCount) {
@@ -1603,15 +1607,32 @@ async function runOutlineSurfaceGridProbe() {
             ' yTop='    + (nearestColEdge.hasTop    ? nearestColEdge.yTop.toFixed(3)    : 'n/a');
         }
 
-        // Edge-case guard: column X was computed from the polygon span so it should be
-        // inside by construction; this check catches floating-point edge cases only.
-        if (gridInsetPoly !== null && !_pointInPolygon(gridInsetPoly, colX, rowY)) {
-          outlineAppendLog('SKIP [' + row + ',' + col + '] X' + colX.toFixed(3) + ' Y' + rowY.toFixed(3) +
-            ' \u2014 outside inset outline boundary (edge case)' + edgeCtx);
-          skipped++;
-          rowSkipped++;
-          outlineSetProgress((probed + skipped) / totalPoints * 100);
-          continue;
+        // Edge-case guard: verify the point is inside the inset polygon boundary.
+        // PRIMARY CHECK: if column X falls within the row's polygon span [rowXLeft, rowXRight]
+        // (already validated by _polyRowXSpanRobust for this row Y), accept the point —
+        // it is inside by construction.  This prevents false-negative rejections from
+        // _pointInPolygon on irregular inset polygons: the greedy-NN ordering can create
+        // non-axis-aligned edges whose inset causes the PIP ray-cast to misclassify
+        // near-boundary points (e.g. the last row of an approximately-rectangular outline)
+        // as outside even when the row span correctly spans the polygon at this Y.
+        // FALLBACK: for points somehow outside the row span, run the full PIP check.
+        if (gridInsetPoly !== null) {
+          var insideByRowSpan = colX >= rowXLeft - _POLY_EPSILON && colX <= rowXRight + _POLY_EPSILON;
+          if (!insideByRowSpan) {
+            if (!_pointInPolygon(gridInsetPoly, colX, rowY)) {
+              outlineAppendLog('SKIP [' + row + ',' + col + '] X' + colX.toFixed(3) + ' Y' + rowY.toFixed(3) +
+                ' \u2014 outside inset outline boundary (edge case)' + edgeCtx);
+              skipped++;
+              rowSkipped++;
+              outlineSetProgress((probed + skipped) / totalPoints * 100);
+              continue;
+            }
+          } else if (!_pointInPolygon(gridInsetPoly, colX, rowY)) {
+            // Point is within row span but PIP says outside — known false-negative for
+            // irregular inset polygons.  Accept via row span and log for diagnostics.
+            outlineAppendLog('NOTE [' + row + ',' + col + '] X' + colX.toFixed(3) + ' Y' + rowY.toFixed(3) +
+              ' accepted via row-span (PIP false-negative suppressed; span eps=' + _POLY_EPSILON.toFixed(3) + 'mm)' + edgeCtx);
+          }
         }
 
         outlineAppendLog('Probing [' + row + ',' + col + '] X' + colX.toFixed(3) + ' Y' + rowY.toFixed(3) + edgeCtx);
