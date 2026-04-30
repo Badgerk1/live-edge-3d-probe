@@ -1004,6 +1004,9 @@ async function _outlinePlungeProbe(maxPlunge, probeFeed, clearanceZ) {
 // if no contact occurred within maxPlunge.  The caller is responsible for
 // retracting to clearanceZ when null is returned.
 async function _outlinePlungeProbeG383(maxPlunge, probeFeed, clearanceZ) {
+  // Extra idle wait before reading position to ensure the controller has settled after travel.
+  await sleep(50);
+  await waitForIdleWithTimeout(5000);
   var startPos = await getWorkPosition();
   var startZ   = startPos.z;
   var pinBefore = await smGetProbeTriggered();
@@ -1422,26 +1425,15 @@ async function runOutlineSurfaceGridProbe() {
     await sleep(50);
     await waitForIdleWithTimeout();
 
+    var SPAN_EPS = 0.05; // mm — threshold below which a span is treated as a single point
     for (var row = 0; row < gridCfg.rowCount; row++) {
       outlineCheckStop();
-      var rowY = gridCfg.minY + row * gridCfg.rowSpacing;
-      // When using detected polygon mode, slightly inset first and last row Y values
-      // to avoid landing exactly on the polygon's horizontal edges/vertices.
-      // The half-open scanline interval can produce a degenerate span (xLeft==xRight)
-      // or no span at all when the scanline coincides with a flat polygon edge.
-      var rowYInsetNote = '';
-      if (gridInsetPoly !== null) {
-        if (row === 0) {
-          rowY += _ROW_BOUNDARY_EPS;
-          rowYInsetNote = ' (+' + _ROW_BOUNDARY_EPS + 'mm boundary inset)';
-        } else if (row === gridCfg.rowCount - 1) {
-          rowY -= _ROW_BOUNDARY_EPS;
-          rowYInsetNote = ' (-' + _ROW_BOUNDARY_EPS + 'mm boundary inset)';
-        }
-      }
+      // Cell-centered row Y: y_i = minY + (i + 0.5) * (height / rows)
+      // Keeps first/last rows away from the polygon boundary, avoiding degenerate corner spans.
+      var rowY = gridCfg.minY + (row + 0.5) * (yLen / gridCfg.rowCount);
       // B) Row start log
       outlineAppendLog('--- ROW ' + row + '/' + (gridCfg.rowCount - 1) +
-        ' Y=' + rowY.toFixed(3) + ' (forward)' + rowYInsetNote + ' ---');
+        ' Y=' + rowY.toFixed(3) + ' (centered sampling) ---');
 
       // Compute per-row X span from the inset polygon boundary (scanline intersection).
       // When using detected outline mode each row's probe columns are generated from
@@ -1451,7 +1443,6 @@ async function runOutlineSurfaceGridProbe() {
       var rowXLeft  = gridCfg.minX;
       var rowXRight = gridCfg.maxX;
       var rowIsDegenerate = false; // true when span width < SPAN_EPS (probe single point)
-      var SPAN_EPS = 0.05; // mm — threshold below which a span is treated as a single point
       if (gridInsetPoly !== null) {
         var rowSpanResult = _polyRowXSpanRobust(gridInsetPoly, rowY);
         if (rowSpanResult === null) {
@@ -1472,13 +1463,15 @@ async function runOutlineSurfaceGridProbe() {
       }
       var rowColSpan = rowXRight - rowXLeft;
       rowIsDegenerate = rowColSpan < SPAN_EPS;
-      var rowDx = (!rowIsDegenerate && gridCfg.colCount > 1) ? rowColSpan / (gridCfg.colCount - 1) : 0;
+      // Cell-centered column width: x_j = xLeft + (j + 0.5) * cellWidth
+      // For single col or degenerate span, midpoint is used instead.
+      var rowCellWidth = (!rowIsDegenerate && gridCfg.colCount > 1) ? rowColSpan / gridCfg.colCount : rowColSpan;
       if (rowIsDegenerate) {
         outlineAppendLog('ROW span: xLeft=' + rowXLeft.toFixed(3) + ', xRight=' + rowXRight.toFixed(3) +
           ', cols=' + gridCfg.colCount + ', dx=0 (degenerate span <' + SPAN_EPS + 'mm \u2014 single point only)');
       } else {
         outlineAppendLog('ROW span: xLeft=' + rowXLeft.toFixed(3) + ', xRight=' + rowXRight.toFixed(3) +
-          ', cols=' + gridCfg.colCount + ', dx=' + rowDx.toFixed(3));
+          ', cols=' + gridCfg.colCount + ', dx=' + rowCellWidth.toFixed(3) + ' (centered sampling)');
       }
 
       // B) Find nearest outline row result for this Y (for edge comparison logging)
@@ -1506,8 +1499,14 @@ async function runOutlineSurfaceGridProbe() {
           outlineSetProgress((probed + skipped) / totalPoints * 100);
           continue;
         }
-        // Column X is evenly spaced across this row's boundary span (left to right).
-        var colX = gridCfg.colCount > 1 ? rowXLeft + col * rowDx : rowXLeft;
+        // Column X is at the center of each cell within the row span (centered sampling).
+        // For degenerate span or single col, use the midpoint of the span.
+        var colX;
+        if (rowIsDegenerate || gridCfg.colCount === 1) {
+          colX = (rowXLeft + rowXRight) / 2;
+        } else {
+          colX = rowXLeft + (col + 0.5) * rowCellWidth;
+        }
 
         // B) Find nearest outline col result for this X (for edge comparison logging)
         var nearestColEdge = (function(targetX) {
@@ -1548,13 +1547,12 @@ async function runOutlineSurfaceGridProbe() {
         // Lateral travel to next probe point using absolute-retract-then-XY pattern:
         // - row=0, step=0: machine is already at clearanceZ from the absolute retract above;
         //   use a plain XY move (no extra Z needed).
-        // - row>0, step=0: row-transition _outlineAbsTravel already positioned the machine here.
         // - all other points: coming from a probe contact (Z ≈ surfZ); _outlineAbsTravel
-        //   raises to clearanceZ (absolute) before moving laterally, matching the outline
-        //   edge scan pattern and avoiding the relative-lift overshoot of smSafeLateralMove.
+        //   raises to clearanceZ (absolute) before moving laterally.
+        // Always travel explicitly to each probe point so position is always fresh/correct.
         if (row === 0 && step === 0) {
           await moveAbs(colX, rowY, null, travelFeed);
-        } else if (!(step === 0 && row > 0)) {
+        } else {
           await _outlineAbsTravel(colX, rowY, clearanceZ, travelFeed, travelFeed);
         }
 
@@ -1587,19 +1585,25 @@ async function runOutlineSurfaceGridProbe() {
       // B) Row end summary
       outlineAppendLog('--- ROW ' + row + ' done: ' + rowProbed + ' probed, ' + rowSkipped + ' skipped ---');
 
-      // Row transition: position at start of next row.
-      // Use the next row's polygon boundary xLeft so the machine travels to the actual
-      // left edge of the outline rather than the global bounding-box minX.
+      // Row transition: retract Z and pre-position near start of next row.
+      // Uses the centered Y of the next row and the first centered column X within its span.
       if (row + 1 < gridCfg.rowCount) {
         outlineCheckStop();
         var nextRowIdx = row + 1;
-        var nextY = gridCfg.minY + nextRowIdx * gridCfg.rowSpacing;
-        // Apply same boundary epsilon as the main row loop
-        if (gridInsetPoly !== null && nextRowIdx === gridCfg.rowCount - 1) nextY -= _ROW_BOUNDARY_EPS;
+        // Cell-centered Y for next row
+        var nextY = gridCfg.minY + (nextRowIdx + 0.5) * (yLen / gridCfg.rowCount);
         var nextStartX = gridCfg.minX;
         if (gridInsetPoly !== null) {
           var nextRowSpanResult = _polyRowXSpanRobust(gridInsetPoly, nextY);
-          if (nextRowSpanResult !== null) nextStartX = nextRowSpanResult.span.xLeft;
+          if (nextRowSpanResult !== null) {
+            var nSpan = nextRowSpanResult.span;
+            var nSpanWidth = nSpan.xRight - nSpan.xLeft;
+            if (gridCfg.colCount === 1 || nSpanWidth < SPAN_EPS) {
+              nextStartX = (nSpan.xLeft + nSpan.xRight) / 2;
+            } else {
+              nextStartX = nSpan.xLeft + 0.5 * (nSpanWidth / gridCfg.colCount);
+            }
+          }
         }
         outlineAppendLog('ROW TRANSITION: row ' + row + ' done; moving to start of row ' + nextRowIdx +
           ' X=' + nextStartX.toFixed(3) + ' Y=' + nextY.toFixed(3));
