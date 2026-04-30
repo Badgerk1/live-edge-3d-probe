@@ -1329,6 +1329,7 @@ async function runOutlineSurfaceGridProbe() {
     var gridXCount = (function() { var el = document.getElementById('outlineGridXCount'); return el ? Math.max(2, parseInt(el.value) || 2) : 2; })();
     var gridYCount = (function() { var el = document.getElementById('outlineGridYCount'); return el ? Math.max(2, parseInt(el.value) || 2) : 2; })();
     var gridEdgeMargin = (function() { var el = document.getElementById('outlineGridEdgeMarginMm'); return el ? Math.max(0, Number(el.value) || 0) : 2; })();
+    var gridSamplingMode = (function() { var el = document.getElementById('outlineGridSamplingMode'); return el ? el.value : 'centered'; })();
     var hasOutlineData = (outlineRowResults.length > 0 || outlineColResults.length > 0);
 
     var gridMinX, gridMaxX, gridMinY, gridMaxY;
@@ -1410,7 +1411,7 @@ async function runOutlineSurfaceGridProbe() {
       (gridInsetPoly !== null ? ' (per-row X span from polygon boundary)' : ''));
     outlineAppendLog('Bounds: X' + gridCfg.minX.toFixed(3) + '\u2192' + gridCfg.maxX.toFixed(3) +
       '  Y' + gridCfg.minY.toFixed(3) + '\u2192' + gridCfg.maxY.toFixed(3) +
-      '  edgeMargin=' + gridEdgeMargin.toFixed(3) + 'mm');
+      '  edgeMargin=' + gridEdgeMargin.toFixed(3) + 'mm  sampling=' + gridSamplingMode);
     outlineAppendLog('Surface Z: ' + surfZ.toFixed(3) + ' \u2192 clearanceZ=' + clearanceZ.toFixed(3) +
       ' (surfZ + retractAbove=' + cfg.retractAbove.toFixed(3) + ')');
     outlineAppendLog('maxPlunge=' + maxPlunge.toFixed(3) + ' (retractAbove + probeDown=' + cfg.probeDown.toFixed(3) +
@@ -1429,7 +1430,8 @@ async function runOutlineSurfaceGridProbe() {
 
     var SPAN_EPS = 0.05; // mm — threshold below which a span is treated as a single point
 
-    // Apply Y edge margin: sample rows within [yEdge0, yEdge1] centered.
+    // Apply Y edge margin: sample rows within [yEdge0, yEdge1].
+    // Centered mode: rows at cell centres. Edge-inclusive mode: first/last rows at yEdge0/yEdge1.
     // If the margin makes the span degenerate, use a single row at the true Y center.
     var yEdge0 = gridCfg.minY + gridEdgeMargin;
     var yEdge1 = gridCfg.maxY - gridEdgeMargin;
@@ -1438,19 +1440,36 @@ async function runOutlineSurfaceGridProbe() {
       outlineAppendLog('Y edge margin=' + gridEdgeMargin.toFixed(3) + 'mm makes Y span degenerate \u2014 all rows will use single Y at center ' + ((gridCfg.minY + gridCfg.maxY) / 2).toFixed(3));
     }
 
+    function _computeRowY(rowIdx, rowCount) {
+      if (yEdgeDegenerate || rowCount === 1) return (gridCfg.minY + gridCfg.maxY) / 2;
+      if (gridSamplingMode === 'edge-inclusive') {
+        return yEdge0 + rowIdx * (yEdge1 - yEdge0) / (rowCount - 1);
+      }
+      // centered (default)
+      return yEdge0 + (rowIdx + 0.5) * ((yEdge1 - yEdge0) / rowCount);
+    }
+
+    function _computeColX(colIdx, colCount, x0, x1) {
+      if (x1 <= x0 || colCount === 1) return (x0 + x1) / 2;
+      if (gridSamplingMode === 'edge-inclusive') {
+        return x0 + colIdx * (x1 - x0) / (colCount - 1);
+      }
+      // centered (default)
+      return x0 + (colIdx + 0.5) * ((x1 - x0) / colCount);
+    }
+
     for (var row = 0; row < gridCfg.rowCount; row++) {
       outlineCheckStop();
-      // Cell-centered row Y within edge-margin-inset Y span.
-      // If Y span is degenerate after margin, all rows probe at the Y center.
+      // Compute row Y using current sampling mode
       var rowY;
       if (yEdgeDegenerate || gridCfg.rowCount === 1) {
         rowY = (gridCfg.minY + gridCfg.maxY) / 2;
       } else {
-        rowY = yEdge0 + (row + 0.5) * ((yEdge1 - yEdge0) / gridCfg.rowCount);
+        rowY = _computeRowY(row, gridCfg.rowCount);
       }
       // B) Row start log
       outlineAppendLog('--- ROW ' + row + '/' + (gridCfg.rowCount - 1) +
-        ' Y=' + rowY.toFixed(3) + ' (centered sampling, edgeMargin=' + gridEdgeMargin.toFixed(3) + 'mm) ---');
+        ' Y=' + rowY.toFixed(3) + ' (' + gridSamplingMode + ', edgeMargin=' + gridEdgeMargin.toFixed(3) + 'mm) ---');
 
       // Compute per-row X span from the inset polygon boundary (scanline intersection).
       // When using detected outline mode each row's probe columns are generated from
@@ -1487,10 +1506,12 @@ async function runOutlineSurfaceGridProbe() {
       var rowX1 = rowXRight - gridEdgeMargin;
       var rowMarginDegenerate = rowIsDegenerate || rowX1 <= rowX0;
 
-      // Cell-centered column width within margin-inset span (or full span if degenerate).
+      // Column step width for log display (centered: cell width; edge-inclusive: point-to-point distance).
       var rowCellWidth;
       if (rowMarginDegenerate) {
         rowCellWidth = 0;
+      } else if (gridSamplingMode === 'edge-inclusive') {
+        rowCellWidth = gridCfg.colCount > 1 ? (rowX1 - rowX0) / (gridCfg.colCount - 1) : 0;
       } else {
         rowCellWidth = (rowX1 - rowX0) / gridCfg.colCount;
       }
@@ -1504,7 +1525,7 @@ async function runOutlineSurfaceGridProbe() {
       } else {
         outlineAppendLog('ROW span: xLeft=' + rowXLeft.toFixed(3) + ', xRight=' + rowXRight.toFixed(3) +
           ', cols=' + gridCfg.colCount + ', dx=' + rowCellWidth.toFixed(3) +
-          ' (centered sampling, edgeMargin=' + gridEdgeMargin.toFixed(3) + 'mm)');
+          ' (' + gridSamplingMode + ', edgeMargin=' + gridEdgeMargin.toFixed(3) + 'mm)');
       }
 
       // B) Find nearest outline row result for this Y (for edge comparison logging)
@@ -1532,13 +1553,13 @@ async function runOutlineSurfaceGridProbe() {
           outlineSetProgress((probed + skipped) / totalPoints * 100);
           continue;
         }
-        // Column X: center of each cell within the edge-margin-inset span.
+        // Column X: position within the edge-margin-inset span using the current sampling mode.
         // For degenerate span (original or after margin), use the original span midpoint.
         var colX;
         if (rowMarginDegenerate) {
           colX = (rowXLeft + rowXRight) / 2;
         } else {
-          colX = rowX0 + (col + 0.5) * rowCellWidth;
+          colX = _computeColX(col, gridCfg.colCount, rowX0, rowX1);
         }
 
         // B) Find nearest outline col result for this X (for edge comparison logging)
@@ -1619,17 +1640,12 @@ async function runOutlineSurfaceGridProbe() {
       outlineAppendLog('--- ROW ' + row + ' done: ' + rowProbed + ' probed, ' + rowSkipped + ' skipped ---');
 
       // Row transition: retract Z and pre-position near start of next row.
-      // Uses the centered Y of the next row and the first centered column X within its span.
+      // Uses the Y of the next row and the first column X within its span (per sampling mode).
       if (row + 1 < gridCfg.rowCount) {
         outlineCheckStop();
         var nextRowIdx = row + 1;
-        // Cell-centered Y for next row (within edge-margin-inset Y span)
-        var nextY;
-        if (yEdgeDegenerate || gridCfg.rowCount === 1) {
-          nextY = (gridCfg.minY + gridCfg.maxY) / 2;
-        } else {
-          nextY = yEdge0 + (nextRowIdx + 0.5) * ((yEdge1 - yEdge0) / gridCfg.rowCount);
-        }
+        // Y for next row using current sampling mode
+        var nextY = _computeRowY(nextRowIdx, gridCfg.rowCount);
         var nextStartX = gridCfg.minX;
         if (gridInsetPoly !== null) {
           var nextRowSpanResult = _polyRowXSpanRobust(gridInsetPoly, nextY);
@@ -1640,7 +1656,7 @@ async function runOutlineSurfaceGridProbe() {
             if (nX1 <= nX0 || nSpan.xRight - nSpan.xLeft < SPAN_EPS) {
               nextStartX = (nSpan.xLeft + nSpan.xRight) / 2;
             } else {
-              nextStartX = nX0 + 0.5 * ((nX1 - nX0) / gridCfg.colCount);
+              nextStartX = _computeColX(0, gridCfg.colCount, nX0, nX1);
             }
           }
         }
