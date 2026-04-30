@@ -126,7 +126,6 @@ function getSettingsFromUI() {
     outlineProbeDown:            n('outlineProbeDown'),
     outlineGridSource:           s('outlineGridSource'),
     outlineGridMargin:           n('outlineGridMargin'),
-    outlineGridEdgeMarginMm:     n('outlineGridEdgeMarginMm'),
     outlineGridXCount:           n('outlineGridXCount'),
     outlineGridYCount:           n('outlineGridYCount'),
     outlineSkipSurfaceProbe:     chk('outlineSkipSurfaceProbe'),
@@ -308,7 +307,6 @@ function loadSettings() {
   if (data.outlineProbeDown   != null) sv('outlineProbeDown',   data.outlineProbeDown);
   if (data.outlineGridSource  != null) sv('outlineGridSource',  data.outlineGridSource);
   if (data.outlineGridMargin  != null) sv('outlineGridMargin',  data.outlineGridMargin);
-  if (data.outlineGridEdgeMarginMm != null) sv('outlineGridEdgeMarginMm', data.outlineGridEdgeMarginMm);
   if (data.outlineGridXCount  != null) sv('outlineGridXCount',  Math.max(2, Math.round(data.outlineGridXCount)));
   else if (data.outlineGridXStep != null) sv('outlineGridXCount', 2); // can't reliably migrate without bounds
   if (data.outlineGridYCount  != null) sv('outlineGridYCount',  Math.max(2, Math.round(data.outlineGridYCount)));
@@ -360,7 +358,6 @@ function resetSettings() {
     applyRefZ: 0, applySubdivide: true, applyFaceRefPos: 0, applyFaceAxis: 'Y', applyFaceUniform: true,
     // Outline tab
     outlineSkipSurfaceProbe: false,
-    outlineGridEdgeMarginMm: 2,
     autoHideStatusPanel: false
   };
   function sv(id, val) { var el = document.getElementById(id); if (el) el.value = val; }
@@ -457,7 +454,6 @@ function resetSettings() {
   sc('apply-face-uniform',         defaults.applyFaceUniform);
   // Outline tab
   sc('outlineSkipSurfaceProbe',    defaults.outlineSkipSurfaceProbe);
-  sv('outlineGridEdgeMarginMm',    defaults.outlineGridEdgeMarginMm);
   sc('autoHideStatusPanel',        defaults.autoHideStatusPanel);
   try { refreshFinishBehaviorPreview(); } catch(e) {}
   try { refreshTravelRecoveryPreview(); } catch(e) {}
