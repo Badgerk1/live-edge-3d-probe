@@ -399,55 +399,87 @@ rows3.forEach(function(ry) {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Tests: _ROW_BOUNDARY_EPS — first/last row Y offset in polygon mode
+// Tests: centered row Y sampling — y_i = gridMinY + (i + 0.5) * (yLen / rowCount)
+// This is the formula used by runOutlineSurfaceGridProbe since PR #275.
 // ═══════════════════════════════════════════════════════════════════════════════
-console.log('\nTest: row boundary epsilon — first/last row Y inset prevents degenerate span');
+console.log('\nTest: centered row Y sampling — square polygon 3 rows');
 // Rectangle polygon (inset polygon bounds: minY=0, maxY=80, 3 rows)
-// Without epsilon: row 0 at Y=0, row 2 at Y=80
-// With epsilon:    row 0 at Y=0+0.01=0.01, row 2 at Y=80-0.01=79.99
-var _ROW_BOUNDARY_EPS_TEST = 0.01;
+// Old boundary-epsilon approach: row Y at 0.01, 40, 79.99  (near edges)
+// New centered approach: row Y at 80/6≈13.33, 40, 80-80/6≈66.67  (deep inside)
 var SPAN_EPS_TEST = 0.05;
 var squarePoly = [[0,0],[0,80],[100,80],[100,0]]; // CW 100x80 rectangle
-var minY = 0, maxY = 80, rowCount = 3;
-var rowSpacing = (maxY - minY) / (rowCount - 1); // 40mm
+var centeredMinY = 0, centeredMaxY = 80, centeredRowCount = 3;
+var centeredYLen = centeredMaxY - centeredMinY; // 80mm
 
-// Simulate the adjusted row Y computation for polygon mode
-function getAdjustedRowY(rowIdx, minYv, rowSpacingv, rowCountv) {
-  var y = minYv + rowIdx * rowSpacingv;
-  if (rowIdx === 0) y += _ROW_BOUNDARY_EPS_TEST;
-  else if (rowIdx === rowCountv - 1) y -= _ROW_BOUNDARY_EPS_TEST;
-  return y;
+// Cell-centered row Y: y_i = minY + (i + 0.5) * (yLen / rowCount)
+function getCenteredRowY(rowIdx, minYv, yLenv, rowCountv) {
+  return minYv + (rowIdx + 0.5) * (yLenv / rowCountv);
 }
 
-// Row 0 with epsilon should produce a non-degenerate span on the square polygon
-var row0Y = getAdjustedRowY(0, minY, rowSpacing, rowCount); // 0.01
-assert(row0Y > minY, 'row 0 Y is inset above minY (' + row0Y + ' > ' + minY + ')');
-var row0Span = _polyRowXSpanRobust(squarePoly, row0Y);
-assert(row0Span !== null, 'row 0 inset Y=' + row0Y + ' finds a valid span');
-if (row0Span !== null) {
-  var row0Width = row0Span.span.xRight - row0Span.span.xLeft;
-  assert(row0Width > SPAN_EPS_TEST, 'row 0 span is non-degenerate: width=' + row0Width.toFixed(3) + 'mm');
-  assertClose(row0Span.span.xLeft,   0, 0.1, 'row 0 inset: xLeft near 0');
-  assertClose(row0Span.span.xRight, 100, 0.1, 'row 0 inset: xRight near 100');
+// All 3 rows should be inside the polygon and find non-degenerate full-width spans
+for (var cri = 0; cri < centeredRowCount; cri++) {
+  var cY = getCenteredRowY(cri, centeredMinY, centeredYLen, centeredRowCount);
+  assert(cY > centeredMinY && cY < centeredMaxY, 'centered row ' + cri + ' Y=' + cY.toFixed(3) + ' is strictly inside [' + centeredMinY + ', ' + centeredMaxY + ']');
+  var cSpan = _polyRowXSpanRobust(squarePoly, cY);
+  assert(cSpan !== null, 'centered row ' + cri + ' Y=' + cY.toFixed(3) + ' finds a span');
+  if (cSpan !== null) {
+    assert(!cSpan.retried, 'centered row ' + cri + ' does not need retry (Y is well inside polygon)');
+    var cWidth = cSpan.span.xRight - cSpan.span.xLeft;
+    assert(cWidth > SPAN_EPS_TEST, 'centered row ' + cri + ' span is non-degenerate: width=' + cWidth.toFixed(3) + 'mm');
+    assertClose(cSpan.span.xLeft,   0, 0.1, 'centered row ' + cri + ': xLeft near 0');
+    assertClose(cSpan.span.xRight, 100, 0.1, 'centered row ' + cri + ': xRight near 100');
+  }
 }
 
-// Row 2 (last) with epsilon should produce a non-degenerate span
-var row2Y = getAdjustedRowY(2, minY, rowSpacing, rowCount); // 79.99
-assert(row2Y < maxY, 'row 2 Y is inset below maxY (' + row2Y + ' < ' + maxY + ')');
-var row2Span = _polyRowXSpanRobust(squarePoly, row2Y);
-assert(row2Span !== null, 'row 2 inset Y=' + row2Y + ' finds a valid span');
-if (row2Span !== null) {
-  var row2Width = row2Span.span.xRight - row2Span.span.xLeft;
-  assert(row2Width > SPAN_EPS_TEST, 'row 2 span is non-degenerate: width=' + row2Width.toFixed(3) + 'mm');
-  assert(!row2Span.retried, 'row 2 inset Y does not need retry (Y is inside polygon)');
+// Verify spacing: rows should be evenly spaced at yLen/rowCount apart
+var centeredY0 = getCenteredRowY(0, centeredMinY, centeredYLen, centeredRowCount);
+var centeredY1 = getCenteredRowY(1, centeredMinY, centeredYLen, centeredRowCount);
+var centeredY2 = getCenteredRowY(2, centeredMinY, centeredYLen, centeredRowCount);
+assertClose(centeredY0, centeredYLen / 6,      1e-9, 'row 0 Y = minY + 0.5*(yLen/3) ≈ 13.333mm');
+assertClose(centeredY1, centeredYLen / 2,      1e-9, 'row 1 Y = minY + 1.5*(yLen/3) = 40mm (midpoint)');
+assertClose(centeredY2, 5 * centeredYLen / 6,  1e-9, 'row 2 Y = minY + 2.5*(yLen/3) ≈ 66.667mm');
+assertClose(centeredY1 - centeredY0, centeredYLen / centeredRowCount, 1e-9, 'row spacing = yLen/rowCount');
+assertClose(centeredY2 - centeredY1, centeredYLen / centeredRowCount, 1e-9, 'row spacing is uniform');
+
+// gridCfg accuracy: minY/maxY/rowSpacing should match actual probe positions
+var centeredGridCfgMinY     = centeredMinY + 0.5 * centeredYLen / centeredRowCount;
+var centeredGridCfgMaxY     = centeredMinY + (centeredRowCount - 0.5) * centeredYLen / centeredRowCount;
+var centeredGridCfgSpacing  = centeredYLen / centeredRowCount;
+assertClose(centeredGridCfgMinY,  centeredY0, 1e-9, 'gridCfg.minY equals row-0 centered Y');
+assertClose(centeredGridCfgMaxY,  centeredY2, 1e-9, 'gridCfg.maxY equals last-row centered Y');
+assertClose(centeredGridCfgSpacing, centeredY1 - centeredY0, 1e-9, 'gridCfg.rowSpacing matches actual row gap');
+
+// Verify that the downstream formula cfg.minY + i*cfg.rowSpacing = actual probe Y
+for (var dsRow = 0; dsRow < centeredRowCount; dsRow++) {
+  var dsActualY = getCenteredRowY(dsRow, centeredMinY, centeredYLen, centeredRowCount);
+  var dsCfgY    = centeredGridCfgMinY + dsRow * centeredGridCfgSpacing;
+  assertClose(dsCfgY, dsActualY, 1e-9, 'downstream formula: cfg.minY + ' + dsRow + ' * cfg.rowSpacing = row-' + dsRow + ' actual Y');
 }
 
-// Middle row (row 1) should be unchanged
-var row1Y = getAdjustedRowY(1, minY, rowSpacing, rowCount); // 40
-assertClose(row1Y, 40, 1e-9, 'middle row Y is unchanged');
+console.log('\nTest: centered row Y sampling — square polygon 5 rows (matches user bug report)');
+// 5-row grid over 234mm (matching the problematic log: Y range approx 0..234)
+var fiveRowMinY = 0, fiveRowMaxY = 234, fiveRowCount = 5;
+var fiveRowYLen = fiveRowMaxY - fiveRowMinY;
+var wideRect = [[0, fiveRowMinY], [0, fiveRowMaxY], [300, fiveRowMaxY], [300, fiveRowMinY]];
+for (var fri = 0; fri < fiveRowCount; fri++) {
+  var frY = getCenteredRowY(fri, fiveRowMinY, fiveRowYLen, fiveRowCount);
+  assert(frY > fiveRowMinY && frY < fiveRowMaxY, '5-row row ' + fri + ' Y=' + frY.toFixed(2) + ' is inside the polygon');
+  var frSpan = _polyRowXSpanRobust(wideRect, frY);
+  assert(frSpan !== null, '5-row row ' + fri + ' finds a span (not on boundary)');
+  if (frSpan !== null) {
+    assert(!frSpan.retried, '5-row row ' + fri + ' needs no retry (centered Y is well inside)');
+    assert(frSpan.span.xRight - frSpan.span.xLeft > 290, '5-row row ' + fri + ' has full-width span');
+  }
+}
+// First row should no longer be at/near the boundary (old bug: Y=-0.074 ≈ minY)
+var frFirstY = getCenteredRowY(0, fiveRowMinY, fiveRowYLen, fiveRowCount);
+assert(frFirstY > 20, 'first row Y=' + frFirstY.toFixed(2) + 'mm is well inside the polygon (not near boundary)');
+// Last row should no longer be at/near the boundary
+var frLastY = getCenteredRowY(fiveRowCount - 1, fiveRowMinY, fiveRowYLen, fiveRowCount);
+assert(frLastY < 214, 'last row Y=' + frLastY.toFixed(2) + 'mm is well inside the polygon (not near boundary)');
 
-console.log('\nTest: row boundary epsilon — round polygon (octagon) is unaffected');
-// For a round shape, first/last row Y values with epsilon should still find spans
+console.log('\nTest: centered row Y sampling — round polygon (octagon) all rows inside');
+// For a round shape, centered rows should always be inside
 var r2 = 40, cx2 = 50, cy2 = 50;
 var octagon2 = [];
 for (var oi2 = 0; oi2 < 8; oi2++) {
@@ -456,15 +488,14 @@ for (var oi2 = 0; oi2 < 8; oi2++) {
 }
 var octMinY = Math.min.apply(null, octagon2.map(function(p){return p[1];}));
 var octMaxY = Math.max.apply(null, octagon2.map(function(p){return p[1];}));
-var octRowSpacing = (octMaxY - octMinY) / 2; // 3 rows
-var octRow0Y = getAdjustedRowY(0, octMinY, octRowSpacing, 3);
-var octRow2Y = getAdjustedRowY(2, octMinY, octRowSpacing, 3);
-var octRow0Span = _polyRowXSpanRobust(octagon2, octRow0Y);
-var octRow2Span = _polyRowXSpanRobust(octagon2, octRow2Y);
-assert(octRow0Span !== null, 'octagon first row (inset Y) finds span');
-assert(octRow2Span !== null, 'octagon last row (inset Y) finds span');
-if (octRow0Span !== null) {
-  assert(octRow0Span.span.xRight - octRow0Span.span.xLeft > 0, 'octagon first row span is positive');
+var octYLen  = octMaxY - octMinY;
+for (var ocri = 0; ocri < 3; ocri++) {
+  var octY = getCenteredRowY(ocri, octMinY, octYLen, 3);
+  var octSpan = _polyRowXSpanRobust(octagon2, octY);
+  assert(octSpan !== null, 'octagon centered row ' + ocri + ' finds span');
+  if (octSpan !== null) {
+    assert(octSpan.span.xRight - octSpan.span.xLeft > 0, 'octagon centered row ' + ocri + ' span is positive');
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

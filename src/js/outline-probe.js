@@ -1229,7 +1229,6 @@ function _polyRowXSpan(poly, targetY) {
 // polygon edge or vertex (classic scanline ambiguity for axis-aligned shapes).
 // Returns { span, retried, retryY } or null when no span is found after retries.
 var _SPAN_EPS_Y = 0.01; // mm — small offset for horizontal-edge retry
-var _ROW_BOUNDARY_EPS = 0.01; // mm — inset applied to first/last row Y in polygon mode
 function _polyRowXSpanRobust(poly, targetY, epsY) {
   epsY = epsY || _SPAN_EPS_Y;
   var span = _polyRowXSpan(poly, targetY);
@@ -1379,16 +1378,20 @@ async function runOutlineSurfaceGridProbe() {
     var xLen = gridMaxX - gridMinX;
     var yLen = gridMaxY - gridMinY;
 
-    // Compute step spacing from counts and actual grid bounds
-    var gridXStep = gridXCount > 1 ? xLen / (gridXCount - 1) : xLen;
-    var gridYStep = gridYCount > 1 ? yLen / (gridYCount - 1) : yLen;
+    // Centered sampling: probe points are at band centers, not at the polygon boundary edges.
+    // The spacing stored in gridCfg equals the band height/width (yLen/rowCount, xLen/colCount)
+    // and minX/minY are the actual positions of the col-0/row-0 probe centers.
+    // This ensures all downstream consumers (compensation, DXF/OBJ/STL, visualization) map
+    // the stored Z values to the correct XY positions where data was actually collected.
+    var gridYStep = yLen / gridYCount;  // row band height = spacing between centered rows
+    var gridXStep = xLen / gridXCount;  // col band width = approx spacing between centered cols
 
     var gridCfg = {
-      minX:       gridMinX,
-      maxX:       gridMaxX,
+      minX:       gridMinX + 0.5 * gridXStep,  // X of col-0 center (approx; varies per row by polygon span)
+      maxX:       gridMinX + (gridXCount - 0.5) * gridXStep,  // X of last-col center (approx)
       colSpacing: gridXStep,
-      minY:       gridMinY,
-      maxY:       gridMaxY,
+      minY:       gridMinY + 0.5 * gridYStep,  // Y of row-0 center = gridMinY + 0.5*(yLen/rowCount)
+      maxY:       gridMinY + (gridYCount - 0.5) * gridYStep,  // Y of last-row center
       rowSpacing: gridYStep,
       colCount:   gridXCount,
       rowCount:   gridYCount
@@ -1407,8 +1410,10 @@ async function runOutlineSurfaceGridProbe() {
     outlineAppendLog('Bounds source: ' + (gridSourceUsed === 'detected' ? 'Detected Outline vector boundary (inset ' + gridMargin + 'mm)' : 'OUTLINE SEARCH BOUNDS (fallback)'));
     outlineAppendLog('Grid: ' + gridCfg.colCount + 'x' + gridCfg.rowCount + ' = ' + totalPoints + ' points' +
       (gridInsetPoly !== null ? ' (per-row X span from polygon boundary)' : ''));
-    outlineAppendLog('Bounds: X' + gridCfg.minX.toFixed(3) + '\u2192' + gridCfg.maxX.toFixed(3) +
-      '  Y' + gridCfg.minY.toFixed(3) + '\u2192' + gridCfg.maxY.toFixed(3));
+    outlineAppendLog('Probe area (polygon bbox): X' + gridMinX.toFixed(3) + '\u2192' + gridMaxX.toFixed(3) +
+      '  Y' + gridMinY.toFixed(3) + '\u2192' + gridMaxY.toFixed(3));
+    outlineAppendLog('Centered sampling — row-0 Y=' + gridCfg.minY.toFixed(3) + ', row-spacing=' + gridCfg.rowSpacing.toFixed(3) +
+      'mm, last-row Y=' + gridCfg.maxY.toFixed(3));
     outlineAppendLog('Surface Z: ' + surfZ.toFixed(3) + ' \u2192 clearanceZ=' + clearanceZ.toFixed(3) +
       ' (surfZ + retractAbove=' + cfg.retractAbove.toFixed(3) + ')');
     outlineAppendLog('maxPlunge=' + maxPlunge.toFixed(3) + ' (retractAbove + probeDown=' + cfg.probeDown.toFixed(3) +
@@ -1428,9 +1433,10 @@ async function runOutlineSurfaceGridProbe() {
     var SPAN_EPS = 0.05; // mm — threshold below which a span is treated as a single point
     for (var row = 0; row < gridCfg.rowCount; row++) {
       outlineCheckStop();
-      // Cell-centered row Y: y_i = minY + (i + 0.5) * (height / rows)
-      // Keeps first/last rows away from the polygon boundary, avoiding degenerate corner spans.
-      var rowY = gridCfg.minY + (row + 0.5) * (yLen / gridCfg.rowCount);
+      // Cell-centered row Y: y_i = gridMinY + (i + 0.5) * (height / rows)
+      // Uses gridMinY (polygon bounding-box bottom) directly so the formula is independent
+      // of gridCfg.minY, which now stores the centered row-0 position for downstream use.
+      var rowY = gridMinY + (row + 0.5) * (yLen / gridCfg.rowCount);
       // B) Row start log
       outlineAppendLog('--- ROW ' + row + '/' + (gridCfg.rowCount - 1) +
         ' Y=' + rowY.toFixed(3) + ' (centered sampling) ---');
@@ -1440,8 +1446,12 @@ async function runOutlineSurfaceGridProbe() {
       // xLeft to xRight so points start/end at the actual SVG boundary rather than
       // the global bounding-box edges.  Falls back to global minX..maxX when no
       // polygon is available (fallback bounds mode).
-      var rowXLeft  = gridCfg.minX;
-      var rowXRight = gridCfg.maxX;
+      // For the global fallback (no polygon), use the raw polygon bounding box so the
+      // centered col formula (rowXLeft + (col+0.5)*cellWidth) correctly centres columns
+      // within [gridMinX, gridMaxX].  In polygon mode these are overwritten by the actual
+      // scanline span from _polyRowXSpanRobust.
+      var rowXLeft  = gridMinX;
+      var rowXRight = gridMaxX;
       var rowIsDegenerate = false; // true when span width < SPAN_EPS (probe single point)
       if (gridInsetPoly !== null) {
         var rowSpanResult = _polyRowXSpanRobust(gridInsetPoly, rowY);
@@ -1590,9 +1600,9 @@ async function runOutlineSurfaceGridProbe() {
       if (row + 1 < gridCfg.rowCount) {
         outlineCheckStop();
         var nextRowIdx = row + 1;
-        // Cell-centered Y for next row
-        var nextY = gridCfg.minY + (nextRowIdx + 0.5) * (yLen / gridCfg.rowCount);
-        var nextStartX = gridCfg.minX;
+        // Cell-centered Y for next row — uses gridMinY directly (same as main row loop)
+        var nextY = gridMinY + (nextRowIdx + 0.5) * (yLen / gridCfg.rowCount);
+        var nextStartX = gridMinX;
         if (gridInsetPoly !== null) {
           var nextRowSpanResult = _polyRowXSpanRobust(gridInsetPoly, nextY);
           if (nextRowSpanResult !== null) {
