@@ -1443,7 +1443,13 @@ async function runOutlineSurfaceGridProbe() {
     function _computeRowY(rowIdx, rowCount) {
       if (yEdgeDegenerate || rowCount === 1) return (gridCfg.minY + gridCfg.maxY) / 2;
       if (gridSamplingMode === 'edge-inclusive') {
-        return yEdge0 + rowIdx * (yEdge1 - yEdge0) / (rowCount - 1);
+        var y = yEdge0 + rowIdx * (yEdge1 - yEdge0) / (rowCount - 1);
+        // Apply a tiny inward epsilon to the first/last row so the Y value never lands
+        // exactly on the polygon boundary, preventing PIP failures from floating-point
+        // precision near the inset outline edge.
+        if (rowIdx === 0) y += _ROW_BOUNDARY_EPS;
+        else if (rowIdx === rowCount - 1) y -= _ROW_BOUNDARY_EPS;
+        return y;
       }
       // centered (default)
       return yEdge0 + (rowIdx + 0.5) * ((yEdge1 - yEdge0) / rowCount);
@@ -1452,7 +1458,13 @@ async function runOutlineSurfaceGridProbe() {
     function _computeColX(colIdx, colCount, x0, x1) {
       if (x1 <= x0 || colCount === 1) return (x0 + x1) / 2;
       if (gridSamplingMode === 'edge-inclusive') {
-        return x0 + colIdx * (x1 - x0) / (colCount - 1);
+        var x = x0 + colIdx * (x1 - x0) / (colCount - 1);
+        // Apply a tiny inward epsilon to the first/last column so the X value never lands
+        // exactly on the per-row polygon span edge, preventing PIP failures from
+        // floating-point precision near the inset outline edge.
+        if (colIdx === 0) x += _ROW_BOUNDARY_EPS;
+        else if (colIdx === colCount - 1) x -= _ROW_BOUNDARY_EPS;
+        return x;
       }
       // centered (default)
       return x0 + (colIdx + 0.5) * ((x1 - x0) / colCount);
@@ -1469,7 +1481,9 @@ async function runOutlineSurfaceGridProbe() {
       }
       // B) Row start log
       outlineAppendLog('--- ROW ' + row + '/' + (gridCfg.rowCount - 1) +
-        ' Y=' + rowY.toFixed(3) + ' (' + gridSamplingMode + ', edgeMargin=' + gridEdgeMargin.toFixed(3) + 'mm) ---');
+        ' Y=' + rowY.toFixed(3) + ' (' + gridSamplingMode + ', edgeMargin=' + gridEdgeMargin.toFixed(3) + 'mm' +
+        (gridSamplingMode === 'edge-inclusive' && (row === 0 || row === gridCfg.rowCount - 1) ? ', eps=' + _ROW_BOUNDARY_EPS + 'mm inward' : '') +
+        ') ---');
 
       // Compute per-row X span from the inset polygon boundary (scanline intersection).
       // When using detected outline mode each row's probe columns are generated from
