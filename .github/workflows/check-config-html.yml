@@ -1,0 +1,32 @@
+name: Check config.html is up to date
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'build.sh'
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'build.sh'
+
+jobs:
+  check-config-html:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rebuild config.html
+        run: bash build.sh
+
+      - name: Check config.html is up to date
+        run: |
+          if ! git diff --exit-code config.html; then
+            echo ""
+            echo "❌ config.html is out of date!"
+            echo "   Run 'bash build.sh' locally and commit the updated config.html."
+            exit 1
+          fi
+          echo "✅ config.html is up to date."
