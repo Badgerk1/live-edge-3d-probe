@@ -1438,12 +1438,30 @@ async function runOutlineSurfaceGridProbe() {
     var yEdgeDegenerate = yEdge1 <= yEdge0;
     if (yEdgeDegenerate) {
       outlineAppendLog('Y edge margin=' + gridEdgeMargin.toFixed(3) + 'mm makes Y span degenerate \u2014 all rows will use single Y at center ' + ((gridCfg.minY + gridCfg.maxY) / 2).toFixed(3));
+    } else if (gridInsetPoly !== null && gridSamplingMode === 'edge-inclusive') {
+      // In edge-inclusive polygon mode the first/last row lands exactly at the polygon
+      // bounding-box boundary.  A floating-point scanline exactly on a polygon vertex
+      // can cause the ray-casting point-in-polygon test to misclassify points as outside.
+      // Nudge the first/last row Y inward by _ROW_BOUNDARY_EPS so the scanline is
+      // clearly inside the polygon, preventing spurious "outside boundary" skips.
+      outlineAppendLog('Edge-inclusive polygon mode: applying Y boundary epsilon=' + _ROW_BOUNDARY_EPS.toFixed(4) +
+        'mm nudge to first/last row \u2014 effective Y range [' + (yEdge0 + _ROW_BOUNDARY_EPS).toFixed(4) +
+        ', ' + (yEdge1 - _ROW_BOUNDARY_EPS).toFixed(4) + ']');
     }
 
     function _computeRowY(rowIdx, rowCount) {
       if (yEdgeDegenerate || rowCount === 1) return (gridCfg.minY + gridCfg.maxY) / 2;
       if (gridSamplingMode === 'edge-inclusive') {
-        return yEdge0 + rowIdx * (yEdge1 - yEdge0) / (rowCount - 1);
+        var y = yEdge0 + rowIdx * (yEdge1 - yEdge0) / (rowCount - 1);
+        // When probing inside an inset polygon, nudge the first and last row Y slightly
+        // inward (_ROW_BOUNDARY_EPS) so they don't fall exactly on the polygon bounding-box
+        // boundary.  This prevents floating-point / scanline vertex ambiguity in the
+        // point-in-polygon test from incorrectly classifying boundary-adjacent points as outside.
+        if (gridInsetPoly !== null) {
+          if (rowIdx === 0) y += _ROW_BOUNDARY_EPS;
+          else if (rowIdx === rowCount - 1) y -= _ROW_BOUNDARY_EPS;
+        }
+        return y;
       }
       // centered (default)
       return yEdge0 + (rowIdx + 0.5) * ((yEdge1 - yEdge0) / rowCount);
