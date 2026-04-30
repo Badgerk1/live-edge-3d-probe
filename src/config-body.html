@@ -1684,6 +1684,12 @@
             </select>
             <span class="mini" style="display:block;margin-top:3px;color:var(--muted)">Centered: points at cell centres. Edge-inclusive: first/last points land at the edge margin boundary — ideal for low-resolution grids.</span>
           </div>
+          <div class="field" style="grid-column:1 / -1">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+              <input type="checkbox" id="outlineForceRectangle" style="width:auto;margin:0" onchange="drawOutlineCanvas()">
+              <span><span class="tooltip">Force rectangular boundary<span class="tip-icon">?</span><span class="tip">ON: probe within a forced axis-aligned rectangle (bounding box of the detected outline) — use this for square/rectangular workpieces. OFF: follow the detected outline boundary (oval/irregular polygon) and probe only within the actual workpiece shape.</span></span></span>
+            </label>
+          </div>
           <div class="field">
             <label>Surface Grid X Count (cols)</label>
             <input type="number" id="outlineGridXCount" value="2" step="1" min="2" oninput="updateOutlineGridCountHelpers()">
@@ -1733,12 +1739,7 @@
       <div class="panel" data-panel-key="outline-preview">
         <div class="box-title">Outline Preview</div>
         <canvas id="outline-canvas" style="width:100%;border:1px solid var(--line);border-radius:8px;background:#0d111a;display:block;min-height:200px"></canvas>
-        <div style="margin-top:8px">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-            <input type="checkbox" id="outlineForceRectangle" style="width:auto;margin:0" onchange="drawOutlineCanvas()">
-            <span><span class="tooltip">Force rectangle<span class="tip-icon">?</span><span class="tip">When enabled, exports and previews the outline as an axis-aligned rectangle inscribed inside the detected outline. Useful for square/rectangular workpieces.</span></span></span>
-          </label>
-        </div>
+
         <div class="btn-row" style="margin-top:10px">
           <button class="btn ghost" onclick="flashSaveButton(this);exportOutlineSVG()">&#8659; Export SVG</button>
           <button class="btn ghost" onclick="flashSaveButton(this);exportOutlineJSON()">&#128190; Export JSON</button>

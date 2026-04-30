@@ -1394,6 +1394,18 @@ async function runOutlineSurfaceGridProbe() {
       outlineAppendLog('Grid bounds from Outline Search Bounds: X' + gridMinX.toFixed(3) + '\u2192' + gridMaxX.toFixed(3) + '  Y' + gridMinY.toFixed(3) + '\u2192' + gridMaxY.toFixed(3));
     }
 
+    // Apply Force rectangular boundary toggle: when ON with a detected outline,
+    // discard the polygon boundary and probe within the plain bounding-box rectangle.
+    // This is equivalent to not following the oval/irregular outline shape.
+    if (cfg.forceRectangle && gridInsetPoly !== null) {
+      gridInsetPoly = null;
+      outlineAppendLog('Boundary mode: forced-rectangle (polygon boundary discarded \u2014 probing full rectangular region)');
+    } else if (gridInsetPoly !== null) {
+      outlineAppendLog('Boundary mode: detected-outline (oval/polygon boundary active \u2014 points outside outline will be skipped)');
+    } else {
+      outlineAppendLog('Boundary mode: rectangular (search bounds or no outline data)');
+    }
+
     var xLen = gridMaxX - gridMinX;
     var yLen = gridMaxY - gridMinY;
 
