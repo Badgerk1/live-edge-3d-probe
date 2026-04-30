@@ -1328,6 +1328,7 @@ async function runOutlineSurfaceGridProbe() {
     var gridMargin = (function() { var el = document.getElementById('outlineGridMargin'); return el ? (Number(el.value) || 2) : 2; })();
     var gridXCount = (function() { var el = document.getElementById('outlineGridXCount'); return el ? Math.max(2, parseInt(el.value) || 2) : 2; })();
     var gridYCount = (function() { var el = document.getElementById('outlineGridYCount'); return el ? Math.max(2, parseInt(el.value) || 2) : 2; })();
+    var gridEdgeMarginMm = (function() { var el = document.getElementById('outlineGridEdgeMarginMm'); return el ? Math.max(0, Number(el.value) || 0) : 2.0; })();
     var hasOutlineData = (outlineRowResults.length > 0 || outlineColResults.length > 0);
 
     var gridMinX, gridMaxX, gridMinY, gridMaxY;
@@ -1409,6 +1410,7 @@ async function runOutlineSurfaceGridProbe() {
       (gridInsetPoly !== null ? ' (per-row X span from polygon boundary)' : ''));
     outlineAppendLog('Bounds: X' + gridCfg.minX.toFixed(3) + '\u2192' + gridCfg.maxX.toFixed(3) +
       '  Y' + gridCfg.minY.toFixed(3) + '\u2192' + gridCfg.maxY.toFixed(3));
+    outlineAppendLog('Edge margin: ' + gridEdgeMarginMm.toFixed(3) + 'mm (per-row X span inset on each side; 0 = full span)');
     outlineAppendLog('Surface Z: ' + surfZ.toFixed(3) + ' \u2192 clearanceZ=' + clearanceZ.toFixed(3) +
       ' (surfZ + retractAbove=' + cfg.retractAbove.toFixed(3) + ')');
     outlineAppendLog('maxPlunge=' + maxPlunge.toFixed(3) + ' (retractAbove + probeDown=' + cfg.probeDown.toFixed(3) +
@@ -1463,15 +1465,32 @@ async function runOutlineSurfaceGridProbe() {
       }
       var rowColSpan = rowXRight - rowXLeft;
       rowIsDegenerate = rowColSpan < SPAN_EPS;
-      // Cell-centered column width: x_j = xLeft + (j + 0.5) * cellWidth
-      // For single col or degenerate span, midpoint is used instead.
-      var rowCellWidth = (!rowIsDegenerate && gridCfg.colCount > 1) ? rowColSpan / gridCfg.colCount : rowColSpan;
+
+      // Apply edge margin to per-row X sampling range.
+      // Shrink [xLeft, xRight] inward by gridEdgeMarginMm on each side before placing columns.
+      // If the margin collapses the usable span, fall back to a single probe at the span center.
+      var sampledXLeft  = rowXLeft  + gridEdgeMarginMm;
+      var sampledXRight = rowXRight - gridEdgeMarginMm;
+      var marginCollapsed = !rowIsDegenerate && gridEdgeMarginMm > 0 && sampledXRight <= sampledXLeft;
+      var useSingleCenter = rowIsDegenerate || marginCollapsed;
+
+      // Cell-centered column width within the (margin-shrunken) usable span.
+      // For single col, degenerate span, or margin-collapsed span, midpoint is used instead.
+      var rowCellWidth;
+      if (useSingleCenter || gridCfg.colCount === 1) {
+        rowCellWidth = 0;
+      } else {
+        rowCellWidth = (sampledXRight - sampledXLeft) / gridCfg.colCount;
+      }
       if (rowIsDegenerate) {
         outlineAppendLog('ROW span: xLeft=' + rowXLeft.toFixed(3) + ', xRight=' + rowXRight.toFixed(3) +
           ', cols=' + gridCfg.colCount + ', dx=0 (degenerate span <' + SPAN_EPS + 'mm \u2014 single point only)');
+      } else if (marginCollapsed) {
+        outlineAppendLog('ROW span: xLeft=' + rowXLeft.toFixed(3) + ', xRight=' + rowXRight.toFixed(3) +
+          ', cols=' + gridCfg.colCount + ', dx=0 (span too small after edgeMargin=' + gridEdgeMarginMm.toFixed(3) + 'mm \u2014 probing center)');
       } else {
         outlineAppendLog('ROW span: xLeft=' + rowXLeft.toFixed(3) + ', xRight=' + rowXRight.toFixed(3) +
-          ', cols=' + gridCfg.colCount + ', dx=' + rowCellWidth.toFixed(3) + ' (centered sampling)');
+          ', cols=' + gridCfg.colCount + ', dx=' + rowCellWidth.toFixed(3) + ' (centered sampling, edgeMargin=' + gridEdgeMarginMm.toFixed(3) + 'mm)');
       }
 
       // B) Find nearest outline row result for this Y (for edge comparison logging)
@@ -1490,22 +1509,24 @@ async function runOutlineSurfaceGridProbe() {
       for (var step = 0; step < gridCfg.colCount; step++) {
         outlineCheckStop();
         var col = step;
-        // If span is degenerate (xLeft ≈ xRight), only probe the first column; skip the rest
-        // to avoid probing duplicate X positions for multiple columns.
-        if (rowIsDegenerate && col > 0) {
-          outlineAppendLog('SKIP [' + row + ',' + col + '] \u2014 degenerate span (same X as col 0; probing single point for this row)');
+        // If span is degenerate (xLeft ≈ xRight) or margin collapsed the span,
+        // only probe the first column (single point at center); skip the rest.
+        if (useSingleCenter && col > 0) {
+          outlineAppendLog('SKIP [' + row + ',' + col + '] \u2014 ' +
+            (rowIsDegenerate ? 'degenerate span' : 'span collapsed after edgeMargin') +
+            ' (same X as col 0; probing single point for this row)');
           skipped++;
           rowSkipped++;
           outlineSetProgress((probed + skipped) / totalPoints * 100);
           continue;
         }
-        // Column X is at the center of each cell within the row span (centered sampling).
-        // For degenerate span or single col, use the midpoint of the span.
+        // Column X: centered within the margin-shrunken span.
+        // For degenerate/collapsed span or single col, use the midpoint of the original span.
         var colX;
-        if (rowIsDegenerate || gridCfg.colCount === 1) {
+        if (useSingleCenter || gridCfg.colCount === 1) {
           colX = (rowXLeft + rowXRight) / 2;
         } else {
-          colX = rowXLeft + (col + 0.5) * rowCellWidth;
+          colX = sampledXLeft + (col + 0.5) * rowCellWidth;
         }
 
         // B) Find nearest outline col result for this X (for edge comparison logging)
@@ -1598,10 +1619,13 @@ async function runOutlineSurfaceGridProbe() {
           if (nextRowSpanResult !== null) {
             var nSpan = nextRowSpanResult.span;
             var nSpanWidth = nSpan.xRight - nSpan.xLeft;
-            if (gridCfg.colCount === 1 || nSpanWidth < SPAN_EPS) {
+            var nSampledLeft  = nSpan.xLeft  + gridEdgeMarginMm;
+            var nSampledRight = nSpan.xRight - gridEdgeMarginMm;
+            var nMarginCollapsed = gridEdgeMarginMm > 0 && nSampledRight <= nSampledLeft;
+            if (gridCfg.colCount === 1 || nSpanWidth < SPAN_EPS || nMarginCollapsed) {
               nextStartX = (nSpan.xLeft + nSpan.xRight) / 2;
             } else {
-              nextStartX = nSpan.xLeft + 0.5 * (nSpanWidth / gridCfg.colCount);
+              nextStartX = nSampledLeft + 0.5 * ((nSampledRight - nSampledLeft) / gridCfg.colCount);
             }
           }
         }
