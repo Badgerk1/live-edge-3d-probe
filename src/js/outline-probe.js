@@ -1328,6 +1328,7 @@ async function runOutlineSurfaceGridProbe() {
     var gridMargin = (function() { var el = document.getElementById('outlineGridMargin'); return el ? (Number(el.value) || 2) : 2; })();
     var gridXCount = (function() { var el = document.getElementById('outlineGridXCount'); return el ? Math.max(2, parseInt(el.value) || 2) : 2; })();
     var gridYCount = (function() { var el = document.getElementById('outlineGridYCount'); return el ? Math.max(2, parseInt(el.value) || 2) : 2; })();
+    var gridEdgeMargin = (function() { var el = document.getElementById('outlineGridEdgeMarginMm'); return el ? Math.max(0, Number(el.value) || 0) : 2; })();
     var hasOutlineData = (outlineRowResults.length > 0 || outlineColResults.length > 0);
 
     var gridMinX, gridMaxX, gridMinY, gridMaxY;
@@ -1408,7 +1409,8 @@ async function runOutlineSurfaceGridProbe() {
     outlineAppendLog('Grid: ' + gridCfg.colCount + 'x' + gridCfg.rowCount + ' = ' + totalPoints + ' points' +
       (gridInsetPoly !== null ? ' (per-row X span from polygon boundary)' : ''));
     outlineAppendLog('Bounds: X' + gridCfg.minX.toFixed(3) + '\u2192' + gridCfg.maxX.toFixed(3) +
-      '  Y' + gridCfg.minY.toFixed(3) + '\u2192' + gridCfg.maxY.toFixed(3));
+      '  Y' + gridCfg.minY.toFixed(3) + '\u2192' + gridCfg.maxY.toFixed(3) +
+      '  edgeMargin=' + gridEdgeMargin.toFixed(3) + 'mm');
     outlineAppendLog('Surface Z: ' + surfZ.toFixed(3) + ' \u2192 clearanceZ=' + clearanceZ.toFixed(3) +
       ' (surfZ + retractAbove=' + cfg.retractAbove.toFixed(3) + ')');
     outlineAppendLog('maxPlunge=' + maxPlunge.toFixed(3) + ' (retractAbove + probeDown=' + cfg.probeDown.toFixed(3) +
@@ -1426,14 +1428,29 @@ async function runOutlineSurfaceGridProbe() {
     await waitForIdleWithTimeout();
 
     var SPAN_EPS = 0.05; // mm — threshold below which a span is treated as a single point
+
+    // Apply Y edge margin: sample rows within [yEdge0, yEdge1] centered.
+    // If the margin makes the span degenerate, use a single row at the true Y center.
+    var yEdge0 = gridCfg.minY + gridEdgeMargin;
+    var yEdge1 = gridCfg.maxY - gridEdgeMargin;
+    var yEdgeDegenerate = yEdge1 <= yEdge0;
+    if (yEdgeDegenerate) {
+      outlineAppendLog('Y edge margin=' + gridEdgeMargin.toFixed(3) + 'mm makes Y span degenerate \u2014 all rows will use single Y at center ' + ((gridCfg.minY + gridCfg.maxY) / 2).toFixed(3));
+    }
+
     for (var row = 0; row < gridCfg.rowCount; row++) {
       outlineCheckStop();
-      // Cell-centered row Y: y_i = minY + (i + 0.5) * (height / rows)
-      // Keeps first/last rows away from the polygon boundary, avoiding degenerate corner spans.
-      var rowY = gridCfg.minY + (row + 0.5) * (yLen / gridCfg.rowCount);
+      // Cell-centered row Y within edge-margin-inset Y span.
+      // If Y span is degenerate after margin, all rows probe at the Y center.
+      var rowY;
+      if (yEdgeDegenerate || gridCfg.rowCount === 1) {
+        rowY = (gridCfg.minY + gridCfg.maxY) / 2;
+      } else {
+        rowY = yEdge0 + (row + 0.5) * ((yEdge1 - yEdge0) / gridCfg.rowCount);
+      }
       // B) Row start log
       outlineAppendLog('--- ROW ' + row + '/' + (gridCfg.rowCount - 1) +
-        ' Y=' + rowY.toFixed(3) + ' (centered sampling) ---');
+        ' Y=' + rowY.toFixed(3) + ' (centered sampling, edgeMargin=' + gridEdgeMargin.toFixed(3) + 'mm) ---');
 
       // Compute per-row X span from the inset polygon boundary (scanline intersection).
       // When using detected outline mode each row's probe columns are generated from
@@ -1463,15 +1480,31 @@ async function runOutlineSurfaceGridProbe() {
       }
       var rowColSpan = rowXRight - rowXLeft;
       rowIsDegenerate = rowColSpan < SPAN_EPS;
-      // Cell-centered column width: x_j = xLeft + (j + 0.5) * cellWidth
-      // For single col or degenerate span, midpoint is used instead.
-      var rowCellWidth = (!rowIsDegenerate && gridCfg.colCount > 1) ? rowColSpan / gridCfg.colCount : rowColSpan;
+
+      // Apply X edge margin within the per-row span.
+      // x0/x1 are the usable X bounds after inset; if they're degenerate, fall back to span center.
+      var rowX0 = rowXLeft + gridEdgeMargin;
+      var rowX1 = rowXRight - gridEdgeMargin;
+      var rowMarginDegenerate = rowIsDegenerate || rowX1 <= rowX0;
+
+      // Cell-centered column width within margin-inset span (or full span if degenerate).
+      var rowCellWidth;
+      if (rowMarginDegenerate) {
+        rowCellWidth = 0;
+      } else {
+        rowCellWidth = (rowX1 - rowX0) / gridCfg.colCount;
+      }
+
       if (rowIsDegenerate) {
         outlineAppendLog('ROW span: xLeft=' + rowXLeft.toFixed(3) + ', xRight=' + rowXRight.toFixed(3) +
           ', cols=' + gridCfg.colCount + ', dx=0 (degenerate span <' + SPAN_EPS + 'mm \u2014 single point only)');
+      } else if (rowMarginDegenerate) {
+        outlineAppendLog('ROW span: xLeft=' + rowXLeft.toFixed(3) + ', xRight=' + rowXRight.toFixed(3) +
+          ', cols=' + gridCfg.colCount + ', dx=0 (span too small after edgeMargin=' + gridEdgeMargin.toFixed(3) + 'mm \u2014 single point at span center)');
       } else {
         outlineAppendLog('ROW span: xLeft=' + rowXLeft.toFixed(3) + ', xRight=' + rowXRight.toFixed(3) +
-          ', cols=' + gridCfg.colCount + ', dx=' + rowCellWidth.toFixed(3) + ' (centered sampling)');
+          ', cols=' + gridCfg.colCount + ', dx=' + rowCellWidth.toFixed(3) +
+          ' (centered sampling, edgeMargin=' + gridEdgeMargin.toFixed(3) + 'mm)');
       }
 
       // B) Find nearest outline row result for this Y (for edge comparison logging)
@@ -1490,22 +1523,22 @@ async function runOutlineSurfaceGridProbe() {
       for (var step = 0; step < gridCfg.colCount; step++) {
         outlineCheckStop();
         var col = step;
-        // If span is degenerate (xLeft ≈ xRight), only probe the first column; skip the rest
-        // to avoid probing duplicate X positions for multiple columns.
-        if (rowIsDegenerate && col > 0) {
+        // If span is degenerate (xLeft ≈ xRight or too small after edge margin), only probe the
+        // first column; skip the rest to avoid probing duplicate X positions for this row.
+        if (rowMarginDegenerate && col > 0) {
           outlineAppendLog('SKIP [' + row + ',' + col + '] \u2014 degenerate span (same X as col 0; probing single point for this row)');
           skipped++;
           rowSkipped++;
           outlineSetProgress((probed + skipped) / totalPoints * 100);
           continue;
         }
-        // Column X is at the center of each cell within the row span (centered sampling).
-        // For degenerate span or single col, use the midpoint of the span.
+        // Column X: center of each cell within the edge-margin-inset span.
+        // For degenerate span (original or after margin), use the original span midpoint.
         var colX;
-        if (rowIsDegenerate || gridCfg.colCount === 1) {
+        if (rowMarginDegenerate) {
           colX = (rowXLeft + rowXRight) / 2;
         } else {
-          colX = rowXLeft + (col + 0.5) * rowCellWidth;
+          colX = rowX0 + (col + 0.5) * rowCellWidth;
         }
 
         // B) Find nearest outline col result for this X (for edge comparison logging)
@@ -1590,18 +1623,24 @@ async function runOutlineSurfaceGridProbe() {
       if (row + 1 < gridCfg.rowCount) {
         outlineCheckStop();
         var nextRowIdx = row + 1;
-        // Cell-centered Y for next row
-        var nextY = gridCfg.minY + (nextRowIdx + 0.5) * (yLen / gridCfg.rowCount);
+        // Cell-centered Y for next row (within edge-margin-inset Y span)
+        var nextY;
+        if (yEdgeDegenerate || gridCfg.rowCount === 1) {
+          nextY = (gridCfg.minY + gridCfg.maxY) / 2;
+        } else {
+          nextY = yEdge0 + (nextRowIdx + 0.5) * ((yEdge1 - yEdge0) / gridCfg.rowCount);
+        }
         var nextStartX = gridCfg.minX;
         if (gridInsetPoly !== null) {
           var nextRowSpanResult = _polyRowXSpanRobust(gridInsetPoly, nextY);
           if (nextRowSpanResult !== null) {
             var nSpan = nextRowSpanResult.span;
-            var nSpanWidth = nSpan.xRight - nSpan.xLeft;
-            if (gridCfg.colCount === 1 || nSpanWidth < SPAN_EPS) {
+            var nX0 = nSpan.xLeft + gridEdgeMargin;
+            var nX1 = nSpan.xRight - gridEdgeMargin;
+            if (nX1 <= nX0 || nSpan.xRight - nSpan.xLeft < SPAN_EPS) {
               nextStartX = (nSpan.xLeft + nSpan.xRight) / 2;
             } else {
-              nextStartX = nSpan.xLeft + 0.5 * (nSpanWidth / gridCfg.colCount);
+              nextStartX = nX0 + 0.5 * ((nX1 - nX0) / gridCfg.colCount);
             }
           }
         }
