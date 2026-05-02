@@ -442,6 +442,10 @@ function _updateStatusPanel(isAlarm) {
   var detailText = document.getElementById('plugin-alarm-detail-text');
 
   if (isAlarm) {
+    // Navigate to the Outline tab so the Unlock ($X) button is immediately visible,
+    // regardless of which tab the user was on when the alarm was triggered.
+    if (typeof switchTab === 'function') { try { switchTab('outline'); } catch(_e) {} }
+
     if (callout) {
       callout.style.background = 'rgba(220,50,50,0.12)';
       callout.style.borderColor = 'var(--bad,#d03030)';

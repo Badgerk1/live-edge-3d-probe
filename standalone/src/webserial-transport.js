@@ -325,11 +325,18 @@ function _wsParseStatus(line) {
 }
 
 // ── Override: _trySafeStopEndpoints ──────────────────────────────────────────
-// Sends GRBL real-time feed-hold byte directly instead of trying HTTP endpoints.
+// After a feed-hold (!) has already been sent by stopNowAndSafeHome, this
+// override sends a GRBL soft reset (Ctrl-X / 0x18) to discard the motion buffer
+// and return the controller to Idle.  A feed hold alone leaves the machine in
+// Hold indefinitely — only Ctrl-X or ~ can clear it, and ~ would resume buffered
+// moves (unsafe after a user Stop).  After the reset we wait 1.2 s to match the
+// standard GRBL startup time before the caller starts polling for state.
 async function _trySafeStopEndpoints(label) {
   try {
-    pluginDebug((label || 'STOP') + ': sending feed hold (0x21) via serial');
-    await _wsWriteRaw(_wsEncoder.encode('!'));
+    pluginDebug((label || 'STOP') + ': sending soft reset (0x18) to discard buffer via serial');
+    await _wsWriteRaw(new Uint8Array([0x18]));
+    // Give GRBL time to restart before the caller polls for state.
+    await sleep(1200);
     return true;
   } catch (e) {
     pluginDebug((label || 'STOP') + ': serial write error: ' + e.message);
