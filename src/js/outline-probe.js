@@ -76,6 +76,7 @@ function _outlineSettings() {
     retractFeed:       gn('outlineRetractFeed',      600),
     clearZ:            gn('outlineClearZ',           5),
     probeDown:         gn('outlineProbeDown',        5),
+    surfRefMaxPlunge:  gn('outlineSurfRefMaxPlunge', 200),
     skipSurfaceProbe:  gb('outlineSkipSurfaceProbe'),
     forceRectangle:    gb('outlineForceRectangle')
   };
@@ -208,8 +209,10 @@ async function runOutlineSurfaceProbe() {
     // 3. Read current work Z — this is the full travel distance available
     //    from machine ceiling to work zero. Probe the entire range so the
     //    probe finds the surface no matter how far down it is.
+    //    Use surfRefMaxPlunge as a minimum to handle the case where work
+    //    coordinates have not been set up (pos.z = 0 at ceiling).
     var pos = await getWorkPosition();
-    var fullPlunge = pos.z + 5;  // +5mm margin below work Z=0
+    var fullPlunge = Math.max(pos.z + 5, cfg.surfRefMaxPlunge);
     outlineAppendLog('PROBE: full Z plunge from Z=' + pos.z.toFixed(3) + ' distance=' + fullPlunge.toFixed(3));
 
     // 4. G38.2 plunge — stops on contact, errors only if nothing touched
