@@ -593,6 +593,8 @@
           </div>
           <div class="jog-actions">
             <button class="btn ghost" id="btn-refresh-position">&#10227; Refresh Position</button>
+            <button class="btn ghost" id="btn-home-machine">&#8962; Home Machine</button>
+            <button class="btn ghost" id="btn-set-xy-zero">&#9678; Set X/Y=0 Here</button>
             <button class="btn ghost" id="btn-set-z-zero">&#9660; Set Z=0 Here</button>
             <button class="btn ghost" id="btn-jog-work-zero">Go X0 Y0</button>
             <button class="btn ghost" id="btn-jog-safe-top">Raise to Machine Safe Z</button>
@@ -10249,6 +10251,22 @@ function smLoadSettings() {
   if(btnUseCurrentZHome) btnUseCurrentZHome.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-use-current-z-home clicked'); useCurrentZAsFinishHome(); });
   var btnRefreshPosition = document.getElementById('btn-refresh-position');
   if(btnRefreshPosition) btnRefreshPosition.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-refresh-position clicked'); refreshCurrentPosition(); });
+  var btnHomeMachine = document.getElementById('btn-home-machine');
+  if(btnHomeMachine) btnHomeMachine.addEventListener('click', function(){
+    flashButton(this);
+    pluginDebug('btn-home-machine clicked');
+    sendCommand('$H')
+      .then(function(){ setFooterStatus('Homing started — waiting for machine to finish.', 'ok'); refreshCurrentPosition(); })
+      .catch(function(e){ setFooterStatus('Home failed: ' + e.message, 'bad'); });
+  });
+  var btnSetXYZero = document.getElementById('btn-set-xy-zero');
+  if(btnSetXYZero) btnSetXYZero.addEventListener('click', function(){
+    flashButton(this);
+    pluginDebug('btn-set-xy-zero clicked');
+    sendCommand('G10 L20 P1 X0 Y0')
+      .then(function(){ setFooterStatus('X/Y zeroed at current position (X=0 Y=0 set here).', 'ok'); refreshCurrentPosition(); })
+      .catch(function(e){ setFooterStatus('Set X/Y=0 failed: ' + e.message, 'bad'); });
+  });
   var btnSetZZero = document.getElementById('btn-set-z-zero');
   if(btnSetZZero) btnSetZZero.addEventListener('click', function(){
     flashButton(this);
@@ -15502,6 +15520,8 @@ var BUTTONS = [
   { id: 'btn-check-homed' },
   { id: 'btn-use-current-z-home' },
   { id: 'btn-refresh-position' },
+  { id: 'btn-home-machine' },
+  { id: 'btn-set-xy-zero' },
   { id: 'btn-set-z-zero' },
   { id: 'btn-save-probe-mode' },
   { id: 'btn-save-surf-config' },

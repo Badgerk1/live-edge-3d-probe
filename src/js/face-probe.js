@@ -887,6 +887,22 @@ function smLoadSettings() {
   if(btnUseCurrentZHome) btnUseCurrentZHome.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-use-current-z-home clicked'); useCurrentZAsFinishHome(); });
   var btnRefreshPosition = document.getElementById('btn-refresh-position');
   if(btnRefreshPosition) btnRefreshPosition.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-refresh-position clicked'); refreshCurrentPosition(); });
+  var btnHomeMachine = document.getElementById('btn-home-machine');
+  if(btnHomeMachine) btnHomeMachine.addEventListener('click', function(){
+    flashButton(this);
+    pluginDebug('btn-home-machine clicked');
+    sendCommand('$H')
+      .then(function(){ setFooterStatus('Homing started — waiting for machine to finish.', 'ok'); refreshCurrentPosition(); })
+      .catch(function(e){ setFooterStatus('Home failed: ' + e.message, 'bad'); });
+  });
+  var btnSetXYZero = document.getElementById('btn-set-xy-zero');
+  if(btnSetXYZero) btnSetXYZero.addEventListener('click', function(){
+    flashButton(this);
+    pluginDebug('btn-set-xy-zero clicked');
+    sendCommand('G10 L20 P1 X0 Y0')
+      .then(function(){ setFooterStatus('X/Y zeroed at current position (X=0 Y=0 set here).', 'ok'); refreshCurrentPosition(); })
+      .catch(function(e){ setFooterStatus('Set X/Y=0 failed: ' + e.message, 'bad'); });
+  });
   var btnSetZZero = document.getElementById('btn-set-z-zero');
   if(btnSetZZero) btnSetZZero.addEventListener('click', function(){
     flashButton(this);
