@@ -756,7 +756,7 @@
       <div class="field"><label><span class="tooltip">Probe Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for the Z probe descent at each grid point. Slower rates improve accuracy; faster rates speed up large grids.</span></span></label><input type="number" id="sm-probeFeed" value="100" step="10" min="1"></div>
       <div class="field"><label><span class="tooltip">Travel Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for XY moves between grid probe points. Can be much faster than the probe feed.</span></span></label><input type="number" id="sm-travelFeed" value="2000" step="100" min="1"></div>
       <div class="field"><label><span class="tooltip">Clearance Z (coords)<span class="tip-icon">?</span><span class="tip">Z height above the reference Z to raise to before each XY travel move. Must be enough to clear any surface features.</span></span></label><input type="number" id="sm-clearanceZ" value="5" step="0.5" min="0.5"></div>
-      <div class="field"><label><span class="tooltip">Max Plunge (coords)<span class="tip-icon">?</span><span class="tip">Maximum Z distance to probe downward from the clearance height. Safety limit to prevent over-travel if the surface is missing.</span></span></label><input type="number" id="sm-maxPlunge" value="20" step="1" min="1"></div>
+      <div class="field"><label><span class="tooltip">Max Plunge (coords)<span class="tip-icon">?</span><span class="tip">Maximum Z distance to probe downward from the clearance height. Safety limit — set this larger than the greatest expected distance from the clearance height to the surface so the probe always reaches the workpiece.</span></span></label><input type="number" id="sm-maxPlunge" value="50" step="1" min="1"></div>
       <div class="field"><label><span class="tooltip">Reference Z (coords)<span class="tip-icon">?</span><span class="tip">Work Z coordinate used as the zero reference for surface compensation. Typically 0 (the programmed cutting depth).</span></span></label><input type="number" id="sm-referenceZ" value="0" step="0.1"></div>
     </div>
     <div class="btn-row" style="margin-top:10px">
@@ -905,7 +905,7 @@
         <div class="field"><label><span class="tooltip">Probe Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for the Z probe descent at each grid point. Slower rates improve accuracy; faster rates speed up large grids.</span></span></label><input type="number" id="fp-sm-probeFeed" value="100" step="10" min="1"></div>
         <div class="field"><label><span class="tooltip">Travel Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for XY moves between grid probe points. Can be much faster than the probe feed.</span></span></label><input type="number" id="fp-sm-travelFeed" value="2000" step="100" min="1"></div>
         <div class="field"><label><span class="tooltip">Clearance Z (coords)<span class="tip-icon">?</span><span class="tip">Z height above the reference Z to raise to before each XY travel move. Must be enough to clear any surface features.</span></span></label><input type="number" id="fp-sm-clearanceZ" value="5" step="0.5" min="0.5"></div>
-        <div class="field"><label><span class="tooltip">Max Plunge (coords)<span class="tip-icon">?</span><span class="tip">Maximum Z distance to probe downward from the clearance height. Safety limit to prevent over-travel if the surface is missing.</span></span></label><input type="number" id="fp-sm-maxPlunge" value="20" step="1" min="1"></div>
+        <div class="field"><label><span class="tooltip">Max Plunge (coords)<span class="tip-icon">?</span><span class="tip">Maximum Z distance to probe downward from the clearance height. Safety limit — set this larger than the greatest expected distance from the clearance height to the surface so the probe always reaches the workpiece.</span></span></label><input type="number" id="fp-sm-maxPlunge" value="50" step="1" min="1"></div>
         <div class="field"><label><span class="tooltip">Reference Z (coords)<span class="tip-icon">?</span><span class="tip">Work Z coordinate used as the zero reference for surface compensation. Typically 0 (the programmed cutting depth).</span></span></label><input type="number" id="fp-sm-referenceZ" value="0" step="0.1"></div>
       </div>
       <div class="btn-row" style="margin-top:10px">
@@ -1818,6 +1818,10 @@
           <div class="field">
             <label><span class="tooltip">Probe Down (coords)<span class="tip-icon">?</span><span class="tip">Maximum downward plunge depth for the center surface probe.</span></span></label>
             <input type="number" id="outlineProbeDown" value="5" step="0.5" min="0.5">
+          </div>
+          <div class="field">
+            <label><span class="tooltip">Surface Probe Search Depth (mm)<span class="tip-icon">?</span><span class="tip">Minimum Z distance the Surface Reference Probe will search downward from the machine ceiling. Increase this to match your machine&#39;s full Z travel so the probe always reaches the workpiece even when work coordinates are not pre-set. Default: 200.</span></span></label>
+            <input type="number" id="outlineSurfRefMaxPlunge" value="200" step="10" min="10">
           </div>
           <div class="field" style="grid-column:1 / -1">
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
@@ -2991,11 +2995,16 @@ async function jogResumeMotion(){
 }
 
 function getJogSettingsFromUI(){
+  function _num(id, fallback) {
+    var el = document.getElementById(id);
+    var v = el ? Number(el.value) : NaN;
+    return (isFinite(v) && v > 0) ? v : fallback;
+  }
   return {
-    stepXY: Number(document.getElementById('jogStepXY').value) || 0,
-    stepZ: Number(document.getElementById('jogStepZ').value) || 0,
-    feedXY: Number(document.getElementById('jogFeedXY').value) || 600,
-    feedZ: Number(document.getElementById('jogFeedZ').value) || 300
+    stepXY: _num('jogStepXY', 1),
+    stepZ:  _num('jogStepZ',  2),
+    feedXY: _num('jogFeedXY', 600),
+    feedZ:  _num('jogFeedZ',  300)
   };
 }
 
@@ -3003,29 +3012,37 @@ async function jogBy(dx, dy, dz){
   var jog = getJogSettingsFromUI();
   var feed = (dz != null && dx == null && dy == null) ? jog.feedZ : jog.feedXY;
   if (!isFinite(feed) || feed <= 0) feed = (dz != null) ? 300 : 600;
-  // Build $J= jog command (GRBL standard): $J=G91 X... Y... Z... F...
-  var cmd = '$J=G91';
+  // Use standard incremental G-code (G91 G1) instead of the GRBL-specific $J= command
+  // so the move works across all GRBL-compatible controllers and the NCSender API.
+  // G90 is queued immediately after so absolute mode is restored once the move finishes.
+  var cmd = 'G91 G1';
   if (dx != null) cmd += ' X' + Number(dx).toFixed(3);
   if (dy != null) cmd += ' Y' + Number(dy).toFixed(3);
   if (dz != null) cmd += ' Z' + Number(dz).toFixed(3);
   cmd += ' F' + Number(feed).toFixed(0);
+  var moveErr = null;
   try {
     await sendCommand(cmd);
-    var moved = [];
-    if (dx != null) moved.push('X ' + (dx > 0 ? '+' : '') + Number(dx).toFixed(3));
-    if (dy != null) moved.push('Y ' + (dy > 0 ? '+' : '') + Number(dy).toFixed(3));
-    if (dz != null) moved.push('Z ' + (dz > 0 ? '+' : '') + Number(dz).toFixed(3));
-    setFooterStatus('Jog complete: ' + moved.join('  '), 'good');
-    try {
-      var after = await getMachineSnapshot();
-      updateMachineHelperUI(after);
-    } catch(_e) {}
   } catch(e) {
-    setFooterStatus('Jog failed: ' + e.message, 'bad');
-    var el = document.getElementById('setup-status');
-    if (el) { el.textContent = 'Jog error: ' + e.message; el.className = 'status-line warn'; }
-    throw e;
+    moveErr = e;
   }
+  // Always restore absolute mode, whether or not the move succeeded.
+  try { await sendCommand('G90'); } catch(_e) {}
+  if (moveErr) {
+    setFooterStatus('Jog failed: ' + moveErr.message, 'bad');
+    var el = document.getElementById('setup-status');
+    if (el) { el.textContent = 'Jog error: ' + moveErr.message; el.className = 'status-line warn'; }
+    throw moveErr;
+  }
+  var moved = [];
+  if (dx != null) moved.push('X ' + (dx > 0 ? '+' : '') + Number(dx).toFixed(3));
+  if (dy != null) moved.push('Y ' + (dy > 0 ? '+' : '') + Number(dy).toFixed(3));
+  if (dz != null) moved.push('Z ' + (dz > 0 ? '+' : '') + Number(dz).toFixed(3));
+  setFooterStatus('Jog complete: ' + moved.join('  '), 'good');
+  try {
+    var after = await getMachineSnapshot();
+    updateMachineHelperUI(after);
+  } catch(_e) {}
 }
 
 // ── Button flash animation helper ─────────────────────────────────────────────
@@ -9009,8 +9026,11 @@ async function smPlungeProbe(maxPlunge, probeFeed) {
   // Record starting Z to detect contact via position change (reliable fallback when Pn clears on idle)
   var startPos = await getWorkPosition();
   var startZ = startPos.z;
-  // Issue the probe move and require contact within maxPlunge
-  var probeCmd = 'G91 G38.2 Z-' + maxPlunge.toFixed(3) + ' F' + probeFeed;
+  // Issue the probe move and require contact within maxPlunge.
+  // G38.3 is used instead of G38.2 so the controller does not alarm when the
+  // surface is not found within maxPlunge — the JS error handling below reports
+  // "No contact within max plunge" cleanly without needing an $X unlock cycle.
+  var probeCmd = 'G91 G38.3 Z-' + maxPlunge.toFixed(3) + ' F' + probeFeed;
   smLogProbe('[PLUGIN DEBUG] smPlungeProbe: sending command: ' + probeCmd);
   pluginDebug('smPlungeProbe: sending: ' + probeCmd);
   var _plungeStart = _smTimingEnabled ? Date.now() : 0;
@@ -11131,6 +11151,7 @@ function _outlineSettings() {
     retractFeed:       gn('outlineRetractFeed',      600),
     clearZ:            gn('outlineClearZ',           5),
     probeDown:         gn('outlineProbeDown',        5),
+    surfRefMaxPlunge:  gn('outlineSurfRefMaxPlunge', 200),
     skipSurfaceProbe:  gb('outlineSkipSurfaceProbe'),
     forceRectangle:    gb('outlineForceRectangle')
   };
@@ -11263,8 +11284,10 @@ async function runOutlineSurfaceProbe() {
     // 3. Read current work Z — this is the full travel distance available
     //    from machine ceiling to work zero. Probe the entire range so the
     //    probe finds the surface no matter how far down it is.
+    //    Use surfRefMaxPlunge as a minimum to handle the case where work
+    //    coordinates have not been set up (pos.z = 0 at ceiling).
     var pos = await getWorkPosition();
-    var fullPlunge = pos.z + 5;  // +5mm margin below work Z=0
+    var fullPlunge = Math.max(pos.z + 5, cfg.surfRefMaxPlunge);
     outlineAppendLog('PROBE: full Z plunge from Z=' + pos.z.toFixed(3) + ' distance=' + fullPlunge.toFixed(3));
 
     // 4. G38.2 plunge — stops on contact, errors only if nothing touched
@@ -13351,6 +13374,7 @@ function getSettingsFromUI() {
     outlineRetractFeed:          n('outlineRetractFeed'),
     outlineClearZ:               n('outlineClearZ'),
     outlineProbeDown:            n('outlineProbeDown'),
+    outlineSurfRefMaxPlunge:     n('outlineSurfRefMaxPlunge'),
     outlineGridSource:           s('outlineGridSource'),
     outlineGridMargin:           n('outlineGridMargin'),
     outlineGridEdgeMarginMm:     n('outlineGridEdgeMarginMm'),
@@ -13533,7 +13557,8 @@ function loadSettings() {
   if (data.outlineFastFeed    != null) sv('outlineFastFeed',    data.outlineFastFeed);
   if (data.outlineRetractFeed != null) sv('outlineRetractFeed', data.outlineRetractFeed);
   if (data.outlineClearZ      != null) sv('outlineClearZ',      data.outlineClearZ);
-  if (data.outlineProbeDown   != null) sv('outlineProbeDown',   data.outlineProbeDown);
+  if (data.outlineProbeDown        != null) sv('outlineProbeDown',        data.outlineProbeDown);
+  if (data.outlineSurfRefMaxPlunge != null) sv('outlineSurfRefMaxPlunge', data.outlineSurfRefMaxPlunge);
   if (data.outlineGridSource  != null) sv('outlineGridSource',  data.outlineGridSource);
   if (data.outlineGridMargin  != null) sv('outlineGridMargin',  data.outlineGridMargin);
   if (data.outlineGridEdgeMarginMm != null) sv('outlineGridEdgeMarginMm', data.outlineGridEdgeMarginMm);

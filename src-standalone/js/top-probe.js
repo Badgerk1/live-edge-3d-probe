@@ -237,8 +237,11 @@ async function smPlungeProbe(maxPlunge, probeFeed) {
   // Record starting Z to detect contact via position change (reliable fallback when Pn clears on idle)
   var startPos = await getWorkPosition();
   var startZ = startPos.z;
-  // Issue the probe move and require contact within maxPlunge
-  var probeCmd = 'G91 G38.2 Z-' + maxPlunge.toFixed(3) + ' F' + probeFeed;
+  // Issue the probe move and require contact within maxPlunge.
+  // G38.3 is used instead of G38.2 so the controller does not alarm when the
+  // surface is not found within maxPlunge — the JS error handling below reports
+  // "No contact within max plunge" cleanly without needing an $X unlock cycle.
+  var probeCmd = 'G91 G38.3 Z-' + maxPlunge.toFixed(3) + ' F' + probeFeed;
   smLogProbe('[PLUGIN DEBUG] smPlungeProbe: sending command: ' + probeCmd);
   pluginDebug('smPlungeProbe: sending: ' + probeCmd);
   var _plungeStart = _smTimingEnabled ? Date.now() : 0;
