@@ -1,0 +1,83 @@
+From d00be7b284b814464a91f9032bac329e2bdbe0fb Mon Sep 17 00:00:00 2001
+From: Claude Code <claude-code@anthropic.com>
+Date: Sat, 2 May 2026 19:14:07 +0000
+Subject: [PATCH] Change surface probe from G38.3 to G38.2 to match plugin
+ behavior
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This change makes the standalone version function identically to the
+live-edge-3d-probe plugin for surface probe operations.
+
+Changes:
+- Modified src-standalone/js/top-probe.js to use G38.2 instead of G38.3
+- Updated comment to reflect new behavior
+- Rebuilt standalone.html and standalone-ws.html
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
+---
+ src-standalone/js/top-probe.js | 7 +++----
+ standalone-ws.html             | 7 +++----
+ standalone.html                | 7 +++----
+ 3 files changed, 9 insertions(+), 12 deletions(-)
+
+diff --git a/src-standalone/js/top-probe.js b/src-standalone/js/top-probe.js
+index 34c81d9..2caeacd 100644
+--- a/src-standalone/js/top-probe.js
++++ b/src-standalone/js/top-probe.js
+@@ -238,10 +238,9 @@ async function smPlungeProbe(maxPlunge, probeFeed) {
+   var startPos = await getWorkPosition();
+   var startZ = startPos.z;
+   // Issue the probe move and require contact within maxPlunge.
+-  // G38.3 is used instead of G38.2 so the controller does not alarm when the
+-  // surface is not found within maxPlunge — the JS error handling below reports
+-  // "No contact within max plunge" cleanly without needing an $X unlock cycle.
+-  var probeCmd = 'G91 G38.3 Z-' + maxPlunge.toFixed(3) + ' F' + probeFeed;
++  // G38.2 is used to match the plugin behavior - controller will alarm if no contact
++  // is made within maxPlunge distance, providing immediate feedback of probe issues.
++  var probeCmd = 'G91 G38.2 Z-' + maxPlunge.toFixed(3) + ' F' + probeFeed;
+   smLogProbe('[PLUGIN DEBUG] smPlungeProbe: sending command: ' + probeCmd);
+   pluginDebug('smPlungeProbe: sending: ' + probeCmd);
+   var _plungeStart = _smTimingEnabled ? Date.now() : 0;
+diff --git a/standalone-ws.html b/standalone-ws.html
+index ec5490b..7baca92 100644
+--- a/standalone-ws.html
++++ b/standalone-ws.html
+@@ -9031,10 +9031,9 @@ async function smPlungeProbe(maxPlunge, probeFeed) {
+   var startPos = await getWorkPosition();
+   var startZ = startPos.z;
+   // Issue the probe move and require contact within maxPlunge.
+-  // G38.3 is used instead of G38.2 so the controller does not alarm when the
+-  // surface is not found within maxPlunge — the JS error handling below reports
+-  // "No contact within max plunge" cleanly without needing an $X unlock cycle.
+-  var probeCmd = 'G91 G38.3 Z-' + maxPlunge.toFixed(3) + ' F' + probeFeed;
++  // G38.2 is used to match the plugin behavior - controller will alarm if no contact
++  // is made within maxPlunge distance, providing immediate feedback of probe issues.
++  var probeCmd = 'G91 G38.2 Z-' + maxPlunge.toFixed(3) + ' F' + probeFeed;
+   smLogProbe('[PLUGIN DEBUG] smPlungeProbe: sending command: ' + probeCmd);
+   pluginDebug('smPlungeProbe: sending: ' + probeCmd);
+   var _plungeStart = _smTimingEnabled ? Date.now() : 0;
+diff --git a/standalone.html b/standalone.html
+index f91de89..bba780d 100644
+--- a/standalone.html
++++ b/standalone.html
+@@ -9031,10 +9031,9 @@ async function smPlungeProbe(maxPlunge, probeFeed) {
+   var startPos = await getWorkPosition();
+   var startZ = startPos.z;
+   // Issue the probe move and require contact within maxPlunge.
+-  // G38.3 is used instead of G38.2 so the controller does not alarm when the
+-  // surface is not found within maxPlunge — the JS error handling below reports
+-  // "No contact within max plunge" cleanly without needing an $X unlock cycle.
+-  var probeCmd = 'G91 G38.3 Z-' + maxPlunge.toFixed(3) + ' F' + probeFeed;
++  // G38.2 is used to match the plugin behavior - controller will alarm if no contact
++  // is made within maxPlunge distance, providing immediate feedback of probe issues.
++  var probeCmd = 'G91 G38.2 Z-' + maxPlunge.toFixed(3) + ' F' + probeFeed;
+   smLogProbe('[PLUGIN DEBUG] smPlungeProbe: sending command: ' + probeCmd);
+   pluginDebug('smPlungeProbe: sending: ' + probeCmd);
+   var _plungeStart = _smTimingEnabled ? Date.now() : 0;
+-- 
+2.53.0
+
