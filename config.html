@@ -756,7 +756,7 @@
       <div class="field"><label><span class="tooltip">Probe Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for the Z probe descent at each grid point. Slower rates improve accuracy; faster rates speed up large grids.</span></span></label><input type="number" id="sm-probeFeed" value="100" step="10" min="1"></div>
       <div class="field"><label><span class="tooltip">Travel Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for XY moves between grid probe points. Can be much faster than the probe feed.</span></span></label><input type="number" id="sm-travelFeed" value="2000" step="100" min="1"></div>
       <div class="field"><label><span class="tooltip">Clearance Z (coords)<span class="tip-icon">?</span><span class="tip">Z height above the reference Z to raise to before each XY travel move. Must be enough to clear any surface features.</span></span></label><input type="number" id="sm-clearanceZ" value="5" step="0.5" min="0.5"></div>
-      <div class="field"><label><span class="tooltip">Max Plunge (coords)<span class="tip-icon">?</span><span class="tip">Maximum Z distance to probe downward from the clearance height. Safety limit to prevent over-travel if the surface is missing.</span></span></label><input type="number" id="sm-maxPlunge" value="20" step="1" min="1"></div>
+      <div class="field"><label><span class="tooltip">Max Plunge (coords)<span class="tip-icon">?</span><span class="tip">Maximum Z distance to probe downward from the clearance height. Safety limit — set this larger than the greatest expected distance from the clearance height to the surface so the probe always reaches the workpiece.</span></span></label><input type="number" id="sm-maxPlunge" value="50" step="1" min="1"></div>
       <div class="field"><label><span class="tooltip">Reference Z (coords)<span class="tip-icon">?</span><span class="tip">Work Z coordinate used as the zero reference for surface compensation. Typically 0 (the programmed cutting depth).</span></span></label><input type="number" id="sm-referenceZ" value="0" step="0.1"></div>
     </div>
     <div class="btn-row" style="margin-top:10px">
@@ -905,7 +905,7 @@
         <div class="field"><label><span class="tooltip">Probe Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for the Z probe descent at each grid point. Slower rates improve accuracy; faster rates speed up large grids.</span></span></label><input type="number" id="fp-sm-probeFeed" value="100" step="10" min="1"></div>
         <div class="field"><label><span class="tooltip">Travel Feed (mm/min)<span class="tip-icon">?</span><span class="tip">Feed rate for XY moves between grid probe points. Can be much faster than the probe feed.</span></span></label><input type="number" id="fp-sm-travelFeed" value="2000" step="100" min="1"></div>
         <div class="field"><label><span class="tooltip">Clearance Z (coords)<span class="tip-icon">?</span><span class="tip">Z height above the reference Z to raise to before each XY travel move. Must be enough to clear any surface features.</span></span></label><input type="number" id="fp-sm-clearanceZ" value="5" step="0.5" min="0.5"></div>
-        <div class="field"><label><span class="tooltip">Max Plunge (coords)<span class="tip-icon">?</span><span class="tip">Maximum Z distance to probe downward from the clearance height. Safety limit to prevent over-travel if the surface is missing.</span></span></label><input type="number" id="fp-sm-maxPlunge" value="20" step="1" min="1"></div>
+        <div class="field"><label><span class="tooltip">Max Plunge (coords)<span class="tip-icon">?</span><span class="tip">Maximum Z distance to probe downward from the clearance height. Safety limit — set this larger than the greatest expected distance from the clearance height to the surface so the probe always reaches the workpiece.</span></span></label><input type="number" id="fp-sm-maxPlunge" value="50" step="1" min="1"></div>
         <div class="field"><label><span class="tooltip">Reference Z (coords)<span class="tip-icon">?</span><span class="tip">Work Z coordinate used as the zero reference for surface compensation. Typically 0 (the programmed cutting depth).</span></span></label><input type="number" id="fp-sm-referenceZ" value="0" step="0.1"></div>
       </div>
       <div class="btn-row" style="margin-top:10px">
@@ -9022,8 +9022,11 @@ async function smPlungeProbe(maxPlunge, probeFeed) {
   // Record starting Z to detect contact via position change (reliable fallback when Pn clears on idle)
   var startPos = await getWorkPosition();
   var startZ = startPos.z;
-  // Issue the probe move and require contact within maxPlunge
-  var probeCmd = 'G91 G38.2 Z-' + maxPlunge.toFixed(3) + ' F' + probeFeed;
+  // Issue the probe move and require contact within maxPlunge.
+  // G38.3 is used instead of G38.2 so the controller does not alarm when the
+  // surface is not found within maxPlunge — the JS error handling below reports
+  // "No contact within max plunge" cleanly without needing an $X unlock cycle.
+  var probeCmd = 'G91 G38.3 Z-' + maxPlunge.toFixed(3) + ' F' + probeFeed;
   smLogProbe('[PLUGIN DEBUG] smPlungeProbe: sending command: ' + probeCmd);
   pluginDebug('smPlungeProbe: sending: ' + probeCmd);
   var _plungeStart = _smTimingEnabled ? Date.now() : 0;
