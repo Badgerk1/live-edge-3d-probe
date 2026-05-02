@@ -825,7 +825,8 @@ function smLoadSettings() {
   setTimeout(function(){ try{ bindProbeDimensionUI(); applyProbeDimensionSettings(getSettingsFromUI()); loadProbeDimensions(); }catch(e){} }, 0);
   try{ loadPersistedLogs(); }catch(e){}
   try{ loadSettings(); }catch(e){}
-  try{ loadProbeResults(); }catch(e){}
+  // Do NOT restore probe results from previous session — Results tab starts empty on each restart.
+  // User can manually load saved results via the Edge Probe Results Storage buttons if needed.
   try{ updateEdgeProbeStorageUI(); }catch(e){}
   try{ renderWorkflowList(); }catch(e){}
   try{ populateSurfaceResults(); }catch(e){}

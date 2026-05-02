@@ -77,7 +77,7 @@ function checkStop(){
 // Clear all canvases and Three.js scenes to prevent stale visuals on restart
 function clearAllVisuals() {
   pluginDebug('clearAllVisuals: clearing all canvas and visualization state');
-  // Clear all canvas elements
+  // Clear all 2D canvas elements
   var canvasIds = [
     'sm-heatmap-canvas', 'face-heatmap-canvas', 'res-heatmap-canvas',
     'res-face-heatmap-canvas', 'relief-2d-canvas'
@@ -91,17 +91,14 @@ function clearAllVisuals() {
       }
     }
   });
-  // Clear Three.js scene containers
-  var threeContainers = ['relief-3d-scene', 'res-3d-scene', 'res-face-3d-scene'];
-  threeContainers.forEach(function(id) {
-    var el = document.getElementById(id);
-    if (el) {
-      // Remove all children except the canvas
-      while (el.firstChild) {
-        el.removeChild(el.firstChild);
-      }
-    }
-  });
+  // Dispose all Three.js WebGL renderers (cancels animation, frees GPU resources,
+  // removes canvas elements).  _threeDispose is defined in visualization.js and
+  // safe to call when no state exists for a given prefix.
+  try {
+    ['sm', 'res', 'surf', 'face', 'resface', 'comb', 'relief'].forEach(function(prefix) {
+      _threeDispose(prefix);
+    });
+  } catch(e) {}
   // Reset internal visualization state flags
   try {
     if (typeof _smHeatmapRendered !== 'undefined') _smHeatmapRendered = false;
@@ -1751,8 +1748,9 @@ function bindProbeDimensionUI(){
     updateSurfaceGridSizeDisplay();
   } catch(e){}
 
-  // Load saved mesh on startup
-  try { loadSurfaceMesh(); } catch(e){}
+  // Do NOT auto-load saved mesh on startup — Mesh Data tab starts empty on each restart.
+  // User can manually restore a saved mesh via the Load Mesh button if needed.
+  // try { loadSurfaceMesh(); } catch(e){}
 
   // G-code file reader (legacy sm-gcodeFile — no longer in DOM after Apply tab redesign, kept for safety)
   try {
