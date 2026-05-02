@@ -609,6 +609,19 @@ function zToColorRelief(t) {
   };
 }
 
+// Returns false if the element is inside a .tab-panel that is not currently active.
+// Used to skip expensive off-screen renders when a canvas lives in a hidden tab.
+function _isInActiveTabPanel(el) {
+  var node = el ? el.parentNode : null;
+  while (node && node !== document.body) {
+    if (node.classList && node.classList.contains('tab-panel')) {
+      return node.classList.contains('active');
+    }
+    node = node.parentNode;
+  }
+  return true; // no tab-panel ancestor found — assume visible
+}
+
 // renderReliefMap: renders a canvas-based topographic heatmap.
 // points: array of {px, py, val} where px/py are data coordinates and val is
 //         the value mapped to color (e.g. Z for surface, Y-contact for face).
@@ -907,9 +920,12 @@ function renderSurfaceReliefMap() {
   pluginDebug('renderSurfaceReliefMap: mode=surface projection=XY points=' + points.length + ' Z=' + zMin.toFixed(3) + ' to ' + zMax.toFixed(3));
   var reliefCfg = { xLabel: 'X (coords)', yLabel: 'Y (coords)', valueLabel: 'Z (coords)', gridCols: cfg.colCount, gridRows: cfg.rowCount };
   // Render to all surface relief canvas instances (Mesh Data tab, Probe tab, Results tab).
-  // Skip any canvas whose element is not in the DOM (e.g. if a tab has not yet been rendered).
+  // Skip any canvas whose element is not in the DOM or is inside an inactive tab panel
+  // to avoid the expensive pixel-loop render on every tab switch.
   ['surface-relief-canvas', 'sm-surface-relief-canvas', 'res-surface-relief-canvas'].forEach(function(canvasId) {
-    if (!document.getElementById(canvasId)) return;
+    var c = document.getElementById(canvasId);
+    if (!c) return;
+    if (!_isInActiveTabPanel(c)) return;
     var tooltipId = canvasId.replace('-canvas', '-tooltip');
     renderReliefMap(canvasId, tooltipId, points, reliefCfg);
   });
@@ -989,11 +1005,14 @@ function renderFaceReliefMap() {
   var reliefCfg = { xLabel: 'X (coords)', yLabel: 'Z depth (coords)', valueLabel: 'Y contact (coords)', gridCols: nCols, gridRows: nRows };
   // Render to all face relief canvas instances (Probe tab, Results tab, Mesh Data tab).
   // Show the Mesh Data tab face panel when face data is available.
-  // Skip any canvas whose element is not in the DOM (e.g. if a tab has not yet been rendered).
+  // Skip any canvas whose element is not in the DOM or is inside an inactive tab panel
+  // to avoid the expensive pixel-loop render on every tab switch.
   var surfFacePanel = document.getElementById('surf-face-relief-panel');
   if (surfFacePanel) surfFacePanel.style.display = '';
   ['face-relief-canvas', 'res-face-relief-canvas', 'surf-face-relief-canvas'].forEach(function(canvasId) {
-    if (!document.getElementById(canvasId)) return;
+    var c = document.getElementById(canvasId);
+    if (!c) return;
+    if (!_isInActiveTabPanel(c)) return;
     var tooltipId = canvasId.replace('-canvas', '-tooltip');
     renderReliefMap(canvasId, tooltipId, points, reliefCfg);
   });
