@@ -1581,6 +1581,10 @@
             <label><span class="tooltip">Probe Down (coords)<span class="tip-icon">?</span><span class="tip">Maximum downward plunge depth for the center surface probe.</span></span></label>
             <input type="number" id="outlineProbeDown" value="5" step="0.5" min="0.5">
           </div>
+          <div class="field">
+            <label><span class="tooltip">Surface Probe Search Depth (mm)<span class="tip-icon">?</span><span class="tip">Minimum Z distance the Surface Reference Probe will search downward from the machine ceiling. Increase this to match your machine&#39;s full Z travel so the probe always reaches the workpiece even when work coordinates are not pre-set. Default: 200.</span></span></label>
+            <input type="number" id="outlineSurfRefMaxPlunge" value="200" step="10" min="10">
+          </div>
           <div class="field" style="grid-column:1 / -1">
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
               <input type="checkbox" id="outlineSkipSurfaceProbe" style="width:auto;margin:0">
