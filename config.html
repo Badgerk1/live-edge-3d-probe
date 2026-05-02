@@ -2991,11 +2991,16 @@ async function jogResumeMotion(){
 }
 
 function getJogSettingsFromUI(){
+  function _num(id, fallback) {
+    var el = document.getElementById(id);
+    var v = el ? Number(el.value) : NaN;
+    return (isFinite(v) && v > 0) ? v : fallback;
+  }
   return {
-    stepXY: Number(document.getElementById('jogStepXY').value) || 0,
-    stepZ: Number(document.getElementById('jogStepZ').value) || 0,
-    feedXY: Number(document.getElementById('jogFeedXY').value) || 600,
-    feedZ: Number(document.getElementById('jogFeedZ').value) || 300
+    stepXY: _num('jogStepXY', 1),
+    stepZ:  _num('jogStepZ',  2),
+    feedXY: _num('jogFeedXY', 600),
+    feedZ:  _num('jogFeedZ',  300)
   };
 }
 
@@ -3003,29 +3008,37 @@ async function jogBy(dx, dy, dz){
   var jog = getJogSettingsFromUI();
   var feed = (dz != null && dx == null && dy == null) ? jog.feedZ : jog.feedXY;
   if (!isFinite(feed) || feed <= 0) feed = (dz != null) ? 300 : 600;
-  // Build $J= jog command (GRBL standard): $J=G91 X... Y... Z... F...
-  var cmd = '$J=G91';
+  // Use standard incremental G-code (G91 G1) instead of the GRBL-specific $J= command
+  // so the move works across all GRBL-compatible controllers and the NCSender API.
+  // G90 is queued immediately after so absolute mode is restored once the move finishes.
+  var cmd = 'G91 G1';
   if (dx != null) cmd += ' X' + Number(dx).toFixed(3);
   if (dy != null) cmd += ' Y' + Number(dy).toFixed(3);
   if (dz != null) cmd += ' Z' + Number(dz).toFixed(3);
   cmd += ' F' + Number(feed).toFixed(0);
+  var moveErr = null;
   try {
     await sendCommand(cmd);
-    var moved = [];
-    if (dx != null) moved.push('X ' + (dx > 0 ? '+' : '') + Number(dx).toFixed(3));
-    if (dy != null) moved.push('Y ' + (dy > 0 ? '+' : '') + Number(dy).toFixed(3));
-    if (dz != null) moved.push('Z ' + (dz > 0 ? '+' : '') + Number(dz).toFixed(3));
-    setFooterStatus('Jog complete: ' + moved.join('  '), 'good');
-    try {
-      var after = await getMachineSnapshot();
-      updateMachineHelperUI(after);
-    } catch(_e) {}
   } catch(e) {
-    setFooterStatus('Jog failed: ' + e.message, 'bad');
-    var el = document.getElementById('setup-status');
-    if (el) { el.textContent = 'Jog error: ' + e.message; el.className = 'status-line warn'; }
-    throw e;
+    moveErr = e;
   }
+  // Always restore absolute mode, whether or not the move succeeded.
+  try { await sendCommand('G90'); } catch(_e) {}
+  if (moveErr) {
+    setFooterStatus('Jog failed: ' + moveErr.message, 'bad');
+    var el = document.getElementById('setup-status');
+    if (el) { el.textContent = 'Jog error: ' + moveErr.message; el.className = 'status-line warn'; }
+    throw moveErr;
+  }
+  var moved = [];
+  if (dx != null) moved.push('X ' + (dx > 0 ? '+' : '') + Number(dx).toFixed(3));
+  if (dy != null) moved.push('Y ' + (dy > 0 ? '+' : '') + Number(dy).toFixed(3));
+  if (dz != null) moved.push('Z ' + (dz > 0 ? '+' : '') + Number(dz).toFixed(3));
+  setFooterStatus('Jog complete: ' + moved.join('  '), 'good');
+  try {
+    var after = await getMachineSnapshot();
+    updateMachineHelperUI(after);
+  } catch(_e) {}
 }
 
 // ── Button flash animation helper ─────────────────────────────────────────────
