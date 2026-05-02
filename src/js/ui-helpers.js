@@ -264,14 +264,16 @@ function populateSurfaceResults() {
   var resFaceRelief = document.getElementById('res-face-relief-panel');
   if (resFaceRelief) resFaceRelief.style.display = hasFace ? '' : 'none';
 
+  var _resFirstRender = !(_threeState['res'] && _threeState['res'].meshGroup);
   initResVizRotation();
-  resVizResetView();
+  if (_resFirstRender) resVizResetView();
   renderResVizMesh();
 
   // Always initialize and render face 3D view when the panel is shown
   if (hasAnyProbeData) {
+    var _resFaceFirstRender = !(_threeState['resface'] && _threeState['resface'].meshGroup);
     initResFaceVizRotation();
-    resFaceVizResetView();
+    if (_resFaceFirstRender) resFaceVizResetView();
     renderResFaceVizMesh();
   }
 

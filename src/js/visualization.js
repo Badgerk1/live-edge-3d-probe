@@ -1951,6 +1951,19 @@ function renderThreeUnified3D(prefix) {
   var exagId = (prefix === 'relief') ? 'relief-3d-z-exag' : prefix + '-z-exag';
   var zExag  = Number((document.getElementById(exagId) || {}).value) || 5;
 
+  var toggleEl = document.getElementById(prefix + '-contour-toggle');
+  var contourOn = !!(toggleEl && toggleEl.checked);
+  // Skip the expensive geometry rebuild when data and parameters haven't changed
+  // since the last render — just repaint the existing scene instead.
+  if (s.meshGroup &&
+      s._cacheGrid    === grid    &&
+      s._cacheRawFace === _rawFace &&
+      s._cacheZExag   === zExag   &&
+      s._cacheContour === contourOn) {
+    s.renderer.render(s.scene, s.camera);
+    return;
+  }
+
   // Compute global Z range
   var zMin = Infinity, zMax = -Infinity;
   if (hasSurface) {
@@ -1992,7 +2005,6 @@ function renderThreeUnified3D(prefix) {
   s.scene.add(group);
 
   // Optional contour lines
-  var toggleEl = document.getElementById(prefix + '-contour-toggle');
   if (toggleEl && toggleEl.checked) {
     var contourGroup = new THREE.Group();
     var anyContour = false;
@@ -2019,6 +2031,11 @@ function renderThreeUnified3D(prefix) {
   var mode = hasSurface && hasFace ? 'combined' : hasSurface ? 'surface' : 'face';
   var ptCount = (hasSurface ? cfg.colCount*cfg.rowCount : 0) + (hasFace ? faceWall.nCols*faceWall.nRows : 0);
   pluginDebug('renderThreeUnified3D(' + prefix + '): mode=' + mode + ' points=' + ptCount + ' Z=' + zMin.toFixed(3) + ' to ' + zMax.toFixed(3) + ' zExag=' + zExag);
+  // Store cache key so subsequent calls with unchanged data skip the rebuild.
+  s._cacheGrid    = grid;
+  s._cacheRawFace = _rawFace;
+  s._cacheZExag   = zExag;
+  s._cacheContour = contourOn;
 }
 
 // Save WebGL canvas as PNG (falls back to replay HTML if Three.js not active)
