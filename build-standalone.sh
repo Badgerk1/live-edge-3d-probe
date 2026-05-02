@@ -24,30 +24,32 @@
 # IMPORTANT
 # ─────────
 # • Do NOT edit standalone.html directly — your changes will be overwritten.
-# • Edit standalone/src/webserial-transport.js or any src/ file, then re-run.
+# • Edit standalone/src/webserial-transport.js or any src-standalone/ file, then re-run.
 # • This script never modifies config.html or any existing source file.
+# • The plugin source lives in src/ — do NOT mix standalone changes into src/.
+# • Standalone-specific changes belong in src-standalone/ only.
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
-cat src/config-header.html \
-    src/styles.css \
-    src/config-body.html \
-    src/js/core.js \
-    src/js/ui-helpers.js \
-    src/js/probe-engine.js \
-    src/js/visualization.js \
-    src/js/top-probe.js \
-    src/js/face-probe.js \
-    src/js/outline-probe.js \
-    src/js/finish-motion.js \
-    src/js/settings-and-exports.js \
-    src/js/diagnostics.js \
-    src/js/layout-editor.js \
+cat src-standalone/config-header.html \
+    src-standalone/styles.css \
+    src-standalone/config-body.html \
+    src-standalone/js/core.js \
+    src-standalone/js/ui-helpers.js \
+    src-standalone/js/probe-engine.js \
+    src-standalone/js/visualization.js \
+    src-standalone/js/top-probe.js \
+    src-standalone/js/face-probe.js \
+    src-standalone/js/outline-probe.js \
+    src-standalone/js/finish-motion.js \
+    src-standalone/js/settings-and-exports.js \
+    src-standalone/js/diagnostics.js \
+    src-standalone/js/layout-editor.js \
     standalone/src/webserial-transport.js \
-    src/config-footer.html \
+    src-standalone/config-footer.html \
     > standalone.html
 
 echo "standalone.html built successfully"
