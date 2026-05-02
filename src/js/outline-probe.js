@@ -1727,7 +1727,7 @@ async function runOutlineSurfaceGridProbe() {
     setFooterStatus('Outline surface grid probe complete', 'good');
 
     // Finish motion: retract Z, then always return to work origin X0 Y0
-    await finishRunMotion('outline');
+    await finishRunMotion('outline', travelFeed);
     outlineAppendLog('Returning to work origin X0 Y0\u2026');
     await moveAbs(0, 0, null, travelFeed);
 

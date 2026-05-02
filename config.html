@@ -1943,6 +1943,7 @@
         <div class="btn-row">
           <button id="outline-grid-run-btn" class="btn" onclick="flashButton(this);runOutlineSurfaceGridProbe()">&#9660;&#9660; Run Surface Grid Probe</button>
           <button id="outline-grid-stop-btn" class="btn warn" onclick="flashButton(this);stopOutlineScan()" disabled>&#9646;&#9646; Stop</button>
+          <button class="btn ghost" onclick="flashSaveButton(this);saveSettingsPartial(['outlineGridSource','outlineGridMargin','outlineGridEdgeMarginMm','outlineGridSamplingMode','outlineGridXCount','outlineGridYCount','outlineForceRectangle'])">&#128190; Save Settings</button>
         </div>
       </div>
 
@@ -12754,7 +12755,7 @@ async function runOutlineSurfaceGridProbe() {
     setFooterStatus('Outline surface grid probe complete', 'good');
 
     // Finish motion: retract Z, then always return to work origin X0 Y0
-    await finishRunMotion('outline');
+    await finishRunMotion('outline', travelFeed);
     outlineAppendLog('Returning to work origin X0 Y0\u2026');
     await moveAbs(0, 0, null, travelFeed);
 
@@ -13133,12 +13134,12 @@ function getMaxMeasuredSurfaceZ() {
 // Parameters:
 //   mode  – string key used for logLine ('face', 'top', etc.)
 //
-async function finishRunMotion(mode) {
+async function finishRunMotion(mode, feedOverride) {
   pluginDebug('finishRunMotion ENTER: mode=' + mode);
   var s = getSettingsFromUI();
   var clearanceOffset = Number(s.finishHomeZ);
   var returnXYZero    = !!s.returnToXYZero;
-  var feed            = s.faceRetractFeed || s.travelFeedRate || 600;
+  var feed            = feedOverride || s.faceRetractFeed || s.travelFeedRate || 600;
 
   // Guard: clearance offset must be a positive number.
   if (!isFinite(clearanceOffset) || clearanceOffset <= 0) {

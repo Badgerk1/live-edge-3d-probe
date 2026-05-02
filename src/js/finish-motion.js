@@ -48,12 +48,12 @@ function getMaxMeasuredSurfaceZ() {
 // Parameters:
 //   mode  – string key used for logLine ('face', 'top', etc.)
 //
-async function finishRunMotion(mode) {
+async function finishRunMotion(mode, feedOverride) {
   pluginDebug('finishRunMotion ENTER: mode=' + mode);
   var s = getSettingsFromUI();
   var clearanceOffset = Number(s.finishHomeZ);
   var returnXYZero    = !!s.returnToXYZero;
-  var feed            = s.faceRetractFeed || s.travelFeedRate || 600;
+  var feed            = feedOverride || s.faceRetractFeed || s.travelFeedRate || 600;
 
   // Guard: clearance offset must be a positive number.
   if (!isFinite(clearanceOffset) || clearanceOffset <= 0) {
