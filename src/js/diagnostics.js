@@ -56,6 +56,7 @@ var BUTTONS = [
   { id: 'btn-check-homed' },
   { id: 'btn-use-current-z-home' },
   { id: 'btn-refresh-position' },
+  { id: 'btn-set-z-zero' },
   { id: 'btn-save-probe-mode' },
   { id: 'btn-save-surf-config' },
   { id: 'sm-btn-save-settings' },

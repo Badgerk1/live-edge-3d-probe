@@ -593,6 +593,7 @@
           </div>
           <div class="jog-actions">
             <button class="btn ghost" id="btn-refresh-position">&#10227; Refresh Position</button>
+            <button class="btn ghost" id="btn-set-z-zero">&#9660; Set Z=0 Here</button>
             <button class="btn ghost" id="btn-jog-work-zero">Go X0 Y0</button>
             <button class="btn ghost" id="btn-jog-safe-top">Raise to Machine Safe Z</button>
           </div>
@@ -10248,6 +10249,14 @@ function smLoadSettings() {
   if(btnUseCurrentZHome) btnUseCurrentZHome.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-use-current-z-home clicked'); useCurrentZAsFinishHome(); });
   var btnRefreshPosition = document.getElementById('btn-refresh-position');
   if(btnRefreshPosition) btnRefreshPosition.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-refresh-position clicked'); refreshCurrentPosition(); });
+  var btnSetZZero = document.getElementById('btn-set-z-zero');
+  if(btnSetZZero) btnSetZZero.addEventListener('click', function(){
+    flashButton(this);
+    pluginDebug('btn-set-z-zero clicked');
+    sendCommand('G10 L20 P1 Z0')
+      .then(function(){ setFooterStatus('Z zeroed at current position (Z=0 set here).', 'ok'); refreshCurrentPosition(); })
+      .catch(function(e){ setFooterStatus('Set Z=0 failed: ' + e.message, 'bad'); });
+  });
   Array.prototype.forEach.call(document.querySelectorAll('.jog-pill[data-step]'), function(btn){
     btn.addEventListener('click', function(){ var step = btn.getAttribute('data-step'); pluginDebug('Jog step pill clicked: ' + step); setJogStepPreset(step); });
   });
@@ -15493,6 +15502,7 @@ var BUTTONS = [
   { id: 'btn-check-homed' },
   { id: 'btn-use-current-z-home' },
   { id: 'btn-refresh-position' },
+  { id: 'btn-set-z-zero' },
   { id: 'btn-save-probe-mode' },
   { id: 'btn-save-surf-config' },
   { id: 'sm-btn-save-settings' },

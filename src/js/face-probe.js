@@ -887,6 +887,14 @@ function smLoadSettings() {
   if(btnUseCurrentZHome) btnUseCurrentZHome.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-use-current-z-home clicked'); useCurrentZAsFinishHome(); });
   var btnRefreshPosition = document.getElementById('btn-refresh-position');
   if(btnRefreshPosition) btnRefreshPosition.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-refresh-position clicked'); refreshCurrentPosition(); });
+  var btnSetZZero = document.getElementById('btn-set-z-zero');
+  if(btnSetZZero) btnSetZZero.addEventListener('click', function(){
+    flashButton(this);
+    pluginDebug('btn-set-z-zero clicked');
+    sendCommand('G10 L20 P1 Z0')
+      .then(function(){ setFooterStatus('Z zeroed at current position (Z=0 set here).', 'ok'); refreshCurrentPosition(); })
+      .catch(function(e){ setFooterStatus('Set Z=0 failed: ' + e.message, 'bad'); });
+  });
   Array.prototype.forEach.call(document.querySelectorAll('.jog-pill[data-step]'), function(btn){
     btn.addEventListener('click', function(){ var step = btn.getAttribute('data-step'); pluginDebug('Jog step pill clicked: ' + step); setJogStepPreset(step); });
   });
