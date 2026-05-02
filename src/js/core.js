@@ -1751,8 +1751,9 @@ function bindProbeDimensionUI(){
     updateSurfaceGridSizeDisplay();
   } catch(e){}
 
-  // Load saved mesh on startup
-  try { loadSurfaceMesh(); } catch(e){}
+  // Do NOT auto-load saved mesh on startup — Mesh Data tab starts empty on each restart.
+  // User can manually restore a saved mesh via the Load Mesh button if needed.
+  // try { loadSurfaceMesh(); } catch(e){}
 
   // G-code file reader (legacy sm-gcodeFile — no longer in DOM after Apply tab redesign, kept for safety)
   try {
