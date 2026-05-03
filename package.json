@@ -1,0 +1,36 @@
+{
+  "name": "live-edge-3d-probe",
+  "version": "21.0.0",
+  "description": "Combined 3D Live Edge Mesh + Surface Mesh Probe for ncSender",
+  "scripts": {
+    "test": "npm run test:all",
+    "test:all": "npm run test:index && npm run test:existing",
+    "test:index": "npm run test:bounds && npm run test:interpolation && npm run test:compensation && npm run test:persistence",
+    "test:bounds": "node test/index-bounds-analysis.test.js",
+    "test:interpolation": "node test/index-interpolation.test.js",
+    "test:compensation": "node test/index-compensation.test.js",
+    "test:persistence": "node test/index-mesh-persistence.test.js",
+    "test:existing": "npm run test:face-probe && npm run test:outline && npm run test:viz && npm run test:mesh && npm run test:preflight && npm run test:sequence && npm run test:stl",
+    "test:face-probe": "node test/face-probe-progress.test.js",
+    "test:outline": "node test/outline-polygon-helpers.test.js",
+    "test:viz": "node test/visualization-fixes.test.js",
+    "test:mesh": "node test/smooth-mesh-export.test.js",
+    "test:preflight": "node test/override-preflight.test.js",
+    "test:sequence": "node test/face-probe-sequence.test.js",
+    "test:stl": "node test/smooth-outline-stl.test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Badgerk1/live-edge-3d-probe.git"
+  },
+  "keywords": [
+    "cnc",
+    "probing",
+    "grbl",
+    "ncsender",
+    "plugin"
+  ],
+  "author": "Badgerk1",
+  "license": "SEE LICENSE IN REPOSITORY",
+  "type": "module"
+}
