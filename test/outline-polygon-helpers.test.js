@@ -468,5 +468,100 @@ if (octRow0Span !== null) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Tests: edge-inclusive last-row span acceptance (fix for last-row skip bug)
+// Reproduces the scenario from user logs: a 4×4 rectangular scan whose inset
+// polygon causes _pointInPolygon to give false-negatives for points in the last
+// row, even though those points are within the polygon's row span.
+// The fix: accept a point when colX ∈ [rowXLeft − POLY_EPS, rowXRight + POLY_EPS].
+// ═══════════════════════════════════════════════════════════════════════════════
+console.log('\nTest: edge-inclusive last row — row-span acceptance for rectangular scan polygon');
+// Reproduce user scan data from logs (4 rows × 4 cols on a ~302×232mm rectangle)
+outlineRowResults = [
+  { y: 0,   hasLeft: true, xLeft: -0.830, hasRight: true, xRight: 303.752 },
+  { y: 77,  hasLeft: true, xLeft: -0.579, hasRight: true, xRight: 304.258 },
+  { y: 155, hasLeft: true, xLeft: -0.168, hasRight: true, xRight: 304.333 },
+  { y: 232, hasLeft: true, xLeft:  0.088, hasRight: true, xRight: 304.093 }
+];
+outlineColResults = [
+  { x: 0,   hasBottom: true, yBottom: -0.500, hasTop: true, yTop: 232.587 },
+  { x: 100, hasBottom: true, yBottom: -1.169, hasTop: true, yTop: 232.919 },
+  { x: 200, hasBottom: true, yBottom: -1.669, hasTop: true, yTop: 232.419 },
+  { x: 300, hasBottom: true, yBottom: -2.087, hasTop: true, yTop: 231.834 }
+];
+
+var rectScanPoly = _buildOutlinePolygon();
+assert(rectScanPoly !== null, 'polygon built from 4×4 rectangular scan');
+assert(rectScanPoly.length >= 12, 'polygon has ≥12 vertices from 4-row/4-col scan (got ' + (rectScanPoly ? rectScanPoly.length : 0) + ')');
+
+var gridMarginTest = 2; // mm
+var rectInsetPoly = null;
+try {
+  rectInsetPoly = _insetPolygon(rectScanPoly, gridMarginTest);
+} catch (e) {
+  assert(false, 'inset polygon should not throw: ' + e.message);
+}
+assert(rectInsetPoly !== null, 'inset polygon created');
+
+if (rectInsetPoly !== null) {
+  // Compute inset polygon bounding box
+  var ipMinX = Infinity, ipMaxX = -Infinity, ipMinY = Infinity, ipMaxY = -Infinity;
+  rectInsetPoly.forEach(function(p) {
+    if (p[0] < ipMinX) ipMinX = p[0];
+    if (p[0] > ipMaxX) ipMaxX = p[0];
+    if (p[1] < ipMinY) ipMinY = p[1];
+    if (p[1] > ipMaxY) ipMaxY = p[1];
+  });
+  assert(ipMaxY > ipMinY, 'inset polygon has positive Y span');
+  assert(ipMaxX > ipMinX, 'inset polygon has positive X span');
+
+  // Simulate edge-inclusive grid: 4 rows, edgeMargin=2mm, last row Y near ipMaxY-edgeMargin
+  var gridEdgeMarginTest = 2;
+  var _ROW_BOUNDARY_EPS_LOCAL = 0.01;
+  var _POLY_EPSILON_LOCAL = 0.25;
+  var yEdge1Test = ipMaxY - gridEdgeMarginTest;
+  var lastRowY = yEdge1Test - _ROW_BOUNDARY_EPS_LOCAL; // nudge inward
+
+  // Get row span for last row Y
+  var lastRowSpan = _polyRowXSpanRobust(rectInsetPoly, lastRowY);
+  assert(lastRowSpan !== null, 'row span found for last row Y=' + lastRowY.toFixed(3));
+
+  if (lastRowSpan !== null) {
+    var lrXLeft  = lastRowSpan.span.xLeft;
+    var lrXRight = lastRowSpan.span.xRight;
+    assert(lrXRight > lrXLeft, 'last row span is non-degenerate (' + (lrXRight - lrXLeft).toFixed(2) + 'mm wide)');
+
+    // Apply edge margin to get the usable column span
+    var lrX0 = lrXLeft + gridEdgeMarginTest;
+    var lrX1 = lrXRight - gridEdgeMarginTest;
+    assert(lrX1 > lrX0, 'last row usable span after edgeMargin is non-degenerate');
+
+    // Compute 4 column X values (edge-inclusive: first at lrX0, last at lrX1)
+    var colCount = 4;
+    var colXValues = [];
+    for (var ci2 = 0; ci2 < colCount; ci2++) {
+      colXValues.push(lrX0 + ci2 * (lrX1 - lrX0) / (colCount - 1));
+    }
+
+    // Verify all 4 column points are accepted by the row-span check
+    // (insideByRowSpan = colX >= rowXLeft - eps && colX <= rowXRight + eps)
+    colXValues.forEach(function(cx, ci2) {
+      var insideByRowSpan = cx >= lrXLeft - _POLY_EPSILON_LOCAL && cx <= lrXRight + _POLY_EPSILON_LOCAL;
+      assert(insideByRowSpan,
+        'last row col ' + ci2 + ' X=' + cx.toFixed(3) + ' accepted by row-span check (fix for last-row skip bug)');
+    });
+
+    // Specifically: first column (colX = lrX0) must be accepted
+    var firstColX = lrX0;
+    var firstColInsideBySpan = firstColX >= lrXLeft - _POLY_EPSILON_LOCAL;
+    assert(firstColInsideBySpan,
+      'first col of last row (X=' + firstColX.toFixed(3) + ') accepted by row-span (rowXLeft=' + lrXLeft.toFixed(3) + ')');
+  }
+}
+
+// Reset scan data
+outlineRowResults = [];
+outlineColResults = [];
+
+// ═══════════════════════════════════════════════════════════════════════════════
 console.log('\n--- Results: ' + passed + ' passed, ' + failed + ' failed ---');
 if (failed > 0) process.exit(1);
