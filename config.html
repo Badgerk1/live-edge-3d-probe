@@ -12572,6 +12572,24 @@ async function runOutlineSurfaceGridProbe() {
       return x0 + (colIdx + 0.5) * ((x1 - x0) / colCount);
     }
 
+    function _computeRowY(rowIdx, rowCount) {
+      if (yEdgeDegenerate || rowCount === 1) return (gridCfg.minY + gridCfg.maxY) / 2;
+      if (gridSamplingMode === 'edge-inclusive') {
+        return yEdge0 + rowIdx * (yEdge1 - yEdge0) / (rowCount - 1);
+      }
+      // centered (default)
+      return yEdge0 + (rowIdx + 0.5) * ((yEdge1 - yEdge0) / rowCount);
+    }
+
+    function _computeColX(colIdx, colCount, x0, x1) {
+      if (x1 <= x0 || colCount === 1) return (x0 + x1) / 2;
+      if (gridSamplingMode === 'edge-inclusive') {
+        return x0 + colIdx * (x1 - x0) / (colCount - 1);
+      }
+      // centered (default)
+      return x0 + (colIdx + 0.5) * ((x1 - x0) / colCount);
+    }
+
     for (var row = 0; row < gridCfg.rowCount; row++) {
       outlineCheckStop();
       // Compute row Y using current sampling mode
