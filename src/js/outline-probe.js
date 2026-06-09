@@ -149,8 +149,28 @@ async function _outlineMoveToZ(targetZ, feed) {
 async function _outlineSafetyRetract() {
   try {
     var safeFeed = Number((document.getElementById('outlineFastFeed') || {}).value) || 800;
-    outlineAppendLog('SAFETY RETRACT: Z to machine Z=0');
-    await moveMachineZAbs(0, safeFeed);
+    // Check homing status before deciding on the Z retract method.
+    // G53 machine-coordinate moves require the machine to be homed on GrblHAL/Grbl.
+    // After a probe alarm the controller clears the homed flag; issuing G53 when
+    // not homed returns error:9 — but the ncSender API still responds HTTP 200,
+    // making the failure completely silent and leaving the tool at the probed Z depth.
+    var _srSnap = null;
+    var _srHomed = false;
+    try { _srSnap = await getMachineSnapshot(); _srHomed = _srSnap.homed === true; } catch (_srse) {}
+    outlineAppendLog('SAFETY RETRACT: homed=' + _srHomed +
+      (_srSnap ? ' pos=' + _outlineFormatWorkPos(_srSnap) : ' (snapshot unavailable)'));
+    if (_srHomed) {
+      outlineAppendLog('SAFETY RETRACT: Z to machine Z=0 (G53, machine is homed)');
+      await moveMachineZAbs(0, safeFeed);
+    } else {
+      // Machine not homed (e.g. after probe alarm cleared homed flag) —
+      // G53 would silently fail (error:9).  Use relative lift instead.
+      outlineAppendLog('SAFETY RETRACT: relative Z lift 10mm (machine not homed \u2014 G53 would cause error:9)');
+      await sendCommand('G91 G1 Z10 F' + safeFeed.toFixed(0));
+      await sleep(50);
+      await waitForIdleWithTimeout(30000);
+      await sendCommand('G90');
+    }
     await sleep(50);
     await waitForIdleWithTimeout(30000);
     outlineAppendLog('SAFETY RETRACT: returning to X0 Y0');

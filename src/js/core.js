@@ -169,7 +169,11 @@ async function _trySafeStopEndpoints(label) {
  *     The panel provides a "Clear Hold (Stop)" button (calls safe-stop endpoints)
  *     and a clearly-labelled "Resume (~) — UNSAFE fallback" button.
  *  6. Sets _safetyMoveActive so checkStop() does NOT abort safety moves.
- *  7. Retracts Z to machineSafeTopZ (G53) at a controlled feed.
+ *  7. Retracts Z to machineSafeTopZ at a controlled feed.
+ *     Uses G53 (machine coordinates) only when the machine is confirmed homed.
+ *     Falls back to a relative 10 mm lift when homed is false or unknown — on
+ *     GrblHAL/Grbl, G53 without prior homing returns error:9 silently (the
+ *     ncSender API still responds HTTP 200), so the homing guard is mandatory.
  *  8. Returns to work X0 Y0 at a controlled feed.
  *  9. Clears _safetyMoveActive.
  *
@@ -343,13 +347,31 @@ async function stopNowAndSafeHome(reason) {
 
     try {
       var machineSafeZ = isFinite(Number(cfg.machineSafeTopZ)) ? Number(cfg.machineSafeTopZ) : null;
-      if (machineSafeZ !== null) {
-        // G53 machine-coordinate retract (same as jogRaiseToMachineSafeTop but without homed check).
+      // G53 machine-coordinate retract requires the machine to be homed.
+      // On GrblHAL (and standard Grbl) issuing G53 without prior homing returns error:9.
+      // The ncSender API still responds HTTP 200, making this failure completely silent —
+      // the machine stays at its current (potentially unsafe) Z position.
+      // Only use G53 when we can confirm homed===true; fall back to relative lift otherwise.
+      var _stopHomedState = null;
+      try {
+        var _stopHomingRaw = await _getState();
+        var _stopHomingMs  = _machineStateFrom(_stopHomingRaw);
+        _stopHomedState = _detectHomed(_stopHomingMs, _stopHomingRaw);
+      } catch (_shErr) {}
+
+      if (machineSafeZ !== null && _stopHomedState === true) {
+        // G53 machine-coordinate retract — safe because machine is confirmed homed.
+        _stopLog(label + ': retracting Z via G53 to machine Z=' + machineSafeZ.toFixed(3) + ' (homed)');
         await sendCommand('G53 G1 Z' + machineSafeZ.toFixed(3) + ' F' + retractFeed.toFixed(0));
         await sleep(100);
         await _waitForIdleOrStop(15000);
       } else {
-        // Fallback: relative lift of 10 mm in work coords.
+        if (machineSafeZ !== null && _stopHomedState !== true) {
+          // Machine not homed after stop/alarm — G53 would silently fail with error:9 on GrblHAL.
+          // Use relative lift instead so the Z retract still executes safely.
+          _stopLog(label + ': G53 Z retract skipped — machine not homed (homed=' + _stopHomedState + '); using relative lift to avoid error:9');
+        }
+        // Relative lift: safe even when machine has not been homed.
         await sendCommand('G91 G1 Z10 F' + retractFeed.toFixed(0));
         await sleep(100);
         await _waitForIdleOrStop(15000);
@@ -533,8 +555,24 @@ async function sendUnlockCommand() {
     }
 
     if (becameIdle) {
+      // Refresh the real controller position before running safety moves.
+      // After probe alarm + $X unlock, the ncSender cached WPos may still show
+      // stale (e.g. 0,0,0) data.  The status report after unlock contains the true
+      // position — log it so the user can see where the machine actually is.
+      try {
+        var _postUnlockSnap = await getMachineSnapshot();
+        updateMachineHelperUI(_postUnlockSnap);
+        pluginDebug('ALARM: post-unlock position: X=' + _postUnlockSnap.x.toFixed(3) +
+          ' Y=' + _postUnlockSnap.y.toFixed(3) + ' Z=' + _postUnlockSnap.z.toFixed(3) +
+          ' homed=' + _postUnlockSnap.homed +
+          ((_postUnlockSnap.alarmReason) ? ' alarmReason=' + _postUnlockSnap.alarmReason : ''));
+        setFooterStatus('ALARM: unlocked \u2014 pos X=' + _postUnlockSnap.x.toFixed(3) +
+          ' Y=' + _postUnlockSnap.y.toFixed(3) + ' Z=' + _postUnlockSnap.z.toFixed(3) +
+          ' homed=' + _postUnlockSnap.homed, 'warn');
+      } catch (_snapErr) {
+        pluginDebug('ALARM: post-unlock position read failed: ' + _snapErr.message);
+      }
       pluginDebug('ALARM: controller ready \u2014 auto-running safety moves');
-      setFooterStatus('ALARM: controller ready \u2014 auto-running safety moves', 'warn');
       await retrySafetyMoves();
     } else {
       pluginDebug('ALARM: controller not ready after timeout \u2014 manual retry required');
@@ -571,12 +609,19 @@ async function sendHomeCommand() {
  * Re-runs the safety retract/home sequence after ALARM has been cleared.
  * Called automatically after sendUnlockCommand() polls the controller to Idle.
  * Checks that the controller is no longer in ALARM or Hold before proceeding.
+ *
+ * G53 machine-coordinate retract is only issued when the machine is confirmed
+ * homed.  On GrblHAL/Grbl the machine loses its homed flag after certain alarms
+ * (e.g. probe-fault), causing G53 to return error:9 silently (the ncSender API
+ * still responds HTTP 200).  When homed is false/unknown we use a relative 10 mm
+ * lift instead so the Z retract still executes safely.
  */
 async function retrySafetyMoves() {
   pluginDebug('ALARM: retrying safety moves\u2026');
+  var _retryState, _retryMs, _retryHomed;
   try {
-    var _retryState = await _getState();
-    var _retryMs = _machineStateFrom(_retryState);
+    _retryState = await _getState();
+    _retryMs = _machineStateFrom(_retryState);
     var _retryStatus = String(_retryMs.status || '').toLowerCase();
     if (_retryStatus.indexOf('alarm') >= 0) {
       pluginDebug('retrySafetyMoves: still in ALARM \u2014 cannot retry yet');
@@ -588,6 +633,9 @@ async function retrySafetyMoves() {
       setFooterStatus('ALARM: still in Hold \u2014 clear Hold first', 'bad');
       return;
     }
+    // Capture homed status while we already have the state object.
+    _retryHomed = _detectHomed(_retryMs, _retryState);
+    pluginDebug('retrySafetyMoves: pre-retract homed=' + _retryHomed);
   } catch(e) {
     setFooterStatus('retrySafetyMoves: state check failed: ' + e.message, 'bad');
     return;
@@ -605,11 +653,21 @@ async function retrySafetyMoves() {
 
     try {
       var _retryMachineSafeZ = isFinite(Number(cfg.machineSafeTopZ)) ? Number(cfg.machineSafeTopZ) : null;
-      if (_retryMachineSafeZ !== null) {
+      // Only use G53 when the machine is confirmed homed.  After a probe alarm and
+      // $X unlock, GrblHAL clears the homed flag — G53 would silently fail (error:9)
+      // while the ncSender API returns HTTP 200, leaving the machine at its current Z.
+      if (_retryMachineSafeZ !== null && _retryHomed === true) {
+        pluginDebug('retrySafetyMoves: G53 Z retract to machine Z=' + _retryMachineSafeZ.toFixed(3) + ' (machine homed)');
+        setFooterStatus('ALARM: retracting Z via G53 to machine Z=' + _retryMachineSafeZ.toFixed(3) + '\u2026', 'warn');
         await sendCommand('G53 G1 Z' + _retryMachineSafeZ.toFixed(3) + ' F' + retractFeed.toFixed(0));
         await sleep(100);
         await _waitForIdleOrStop(15000);
       } else {
+        if (_retryMachineSafeZ !== null && _retryHomed !== true) {
+          // Machine not homed — G53 would return error:9 on GrblHAL/Grbl.
+          pluginDebug('retrySafetyMoves: G53 Z retract skipped \u2014 machine not homed (homed=' + _retryHomed + '); using relative lift to avoid error:9');
+          setFooterStatus('ALARM: machine not homed after unlock \u2014 relative Z lift instead of G53', 'warn');
+        }
         await sendCommand('G91 G1 Z10 F' + retractFeed.toFixed(0));
         await sleep(100);
         await _waitForIdleOrStop(15000);
@@ -1356,6 +1414,10 @@ async function probeSafeMove(x, y, z, feed){
 }
 
 async function moveMachineZAbs(z, feed){
+  // G53 requires the machine to be homed on GrblHAL/Grbl.
+  // Calling code should verify homed===true before calling this function;
+  // on GrblHAL, issuing G53 when not homed returns error:9 silently (the
+  // ncSender API responds HTTP 200 regardless of the controller's rejection).
   var cmd = 'G53 G1';
   if(z != null) cmd += ' Z' + Number(z).toFixed(3);
   if(feed != null && isFinite(Number(feed))) cmd += ' F' + Number(feed).toFixed(0);
