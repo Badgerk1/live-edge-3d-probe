@@ -11590,9 +11590,41 @@ async function runOutlineSurfaceProbe() {
     var probeTimeMs = Math.ceil((fullPlunge / cfg.probeFeed) * 60000) + 10000;
     var probeWaitMs = Math.max(30000, probeTimeMs + 2000);
     outlineAppendLog('PROBE: G91 G38.3 Z-' + fullPlunge.toFixed(3) + ' F' + cfg.probeFeed.toFixed(0) + ' timeout=' + probeTimeMs + 'ms');
-    await sendCommand('G91 G38.3 Z-' + fullPlunge.toFixed(3) + ' F' + cfg.probeFeed.toFixed(0), probeTimeMs);
-    await sleep(50);
-    var probeIdlePos = await waitForIdleWithTimeout(probeWaitMs);
+
+    // Use dedicated probe execution path with explicit alarm detection.
+    // If the controller transitions to Alarm during the probe move, surface the
+    // alarm reason and provide actionable guidance rather than reducing the
+    // failure to a generic no-motion or no-trigger diagnosis.
+    var probeIdlePos = null;
+    try {
+      await sendCommand('G91 G38.3 Z-' + fullPlunge.toFixed(3) + ' F' + cfg.probeFeed.toFixed(0), probeTimeMs);
+      await sleep(50);
+      probeIdlePos = await waitForIdleWithTimeout(probeWaitMs);
+    } catch (_p1ProbeErr) {
+      // Always restore absolute modal state before any further moves or retract.
+      try { await sendCommand('G90'); } catch (_p1g90Err) {}
+      if (_p1ProbeErr.message && _p1ProbeErr.message.toLowerCase().indexOf('alarm') !== -1) {
+        // Controller alarmed during the probe move — get a fresh snapshot to extract the alarm code/reason.
+        var _p1AlarmSnap = null;
+        try { _p1AlarmSnap = await getMachineSnapshot(); } catch (_p1SnapErr) {}
+        var _p1AlarmDetail = (_p1AlarmSnap && _p1AlarmSnap.alarmReason) ? String(_p1AlarmSnap.alarmReason) : '(reason unknown)';
+        outlineAppendLog('PROBE ALARM: controller entered alarm state during Phase 1 G38.3 probe — ' + _p1AlarmDetail);
+        if (_p1AlarmSnap) {
+          outlineAppendLog('PROBE ALARM DETAIL: ' + _outlineFormatMachineState(_p1AlarmSnap) +
+            ' pos=' + _outlineFormatWorkPos(_p1AlarmSnap));
+          outlineAppendLog('PROBE ALARM RAW: ' + _outlineFormatRawControllerState(_p1AlarmSnap.raw));
+        }
+        outlineAppendLog('PROBE ALARM GUIDANCE: This is a controller-side probe alarm, not a probe-wiring miss.' +
+          ' Common causes: Z soft limit hit before contact (check Surface Probe Max Search Distance and work Z origin),' +
+          ' probe pin already triggered before move (check wiring), or controller requires $X unlock before homing.');
+        throw new Error('Probe alarm during Phase 1 surface probe: ' + _p1AlarmDetail);
+      }
+      throw _p1ProbeErr;
+    }
+
+    // Restore absolute modal state after G91 probe command.
+    try { await sendCommand('G90'); } catch (_p1g90SuccErr) {}
+
     outlineAppendLog('PROBE WAIT-IDLE: ' + _outlineFormatWorkPos(probeIdlePos) + ' ' + _outlineFormatMachineState(probeIdlePos) +
       ' waitTimeout=' + probeWaitMs + 'ms');
     await sleep(80);
@@ -12413,7 +12445,31 @@ async function _outlinePlungeProbeG383(maxPlunge, probeFeed, clearanceZ) {
 
   await sendCommand('G91 G38.3 Z-' + maxPlunge.toFixed(4) + ' F' + probeFeed.toFixed(0), probeTimeMs);
   await sleep(50);
-  await waitForIdleWithTimeout(probeTimeMs);
+  try {
+    await waitForIdleWithTimeout(probeTimeMs);
+  } catch (_pgWaitErr) {
+    // Restore absolute modal state before any further moves.
+    try { await sendCommand('G90'); } catch (_pgG90Err) {}
+    if (_pgWaitErr.message && _pgWaitErr.message.toLowerCase().indexOf('alarm') !== -1) {
+      // Controller alarmed during the plunge — surface alarm code and position for diagnostics.
+      var _pgAlarmSnap = null;
+      try { _pgAlarmSnap = await getMachineSnapshot(); } catch (_pgSnapErr) {}
+      var _pgAlarmDetail = (_pgAlarmSnap && _pgAlarmSnap.alarmReason) ? String(_pgAlarmSnap.alarmReason) : '(reason unknown)';
+      outlineAppendLog('PROBE ALARM: controller alarmed during G38.3 grid plunge at X=' +
+        startPos.x.toFixed(3) + ' Y=' + startPos.y.toFixed(3) + ' — ' + _pgAlarmDetail);
+      if (_pgAlarmSnap) {
+        outlineAppendLog('PROBE ALARM DETAIL: ' + _outlineFormatMachineState(_pgAlarmSnap) +
+          ' pos=' + _outlineFormatWorkPos(_pgAlarmSnap));
+        outlineAppendLog('PROBE ALARM RAW: ' + _outlineFormatRawControllerState(_pgAlarmSnap.raw));
+      }
+      throw new Error('Probe alarm during grid plunge at X=' +
+        startPos.x.toFixed(3) + ' Y=' + startPos.y.toFixed(3) + ': ' + _pgAlarmDetail);
+    }
+    throw _pgWaitErr;
+  }
+
+  // Restore absolute modal state after G91 probe command.
+  try { await sendCommand('G90'); } catch (_pgG90SuccErr) {}
 
   var endPos   = await getWorkPosition();
   var traveled = startZ - endPos.z;
