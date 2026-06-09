@@ -2781,12 +2781,108 @@ async function sendCommand(gcode, timeoutMs){
 async function _getState(){
   var r = await fetch('/api/server-state');
   var state = await r.json();
-  pluginDebug('_getState raw: status=' + ((state.machineState || (state.cnc && state.cnc.machineState) || {}).status || 'n/a'));
+  var ms = _machineStateFrom(state);
+  pluginDebug('_getState raw: status=' + (ms.status || 'n/a') + ' WPos=' + String(ms.WPos || 'n/a') + ' MPos=' + String(ms.MPos || 'n/a'));
   return state;
 }
 
 function _machineStateFrom(state){
-  return state.machineState || (state.cnc && state.cnc.machineState) || {};
+  if(!state || typeof state !== 'object') return {};
+  var candidates = [
+    state.machineState,
+    state.cnc && state.cnc.machineState,
+    state.cnc && state.cnc.state,
+    state.cnc && state.cnc.status,
+    state.controller && state.controller.machineState,
+    state.controller && state.controller.state,
+    state.controller && state.controller.status,
+    state.grbl && state.grbl.machineState,
+    state.grbl
+  ];
+  var best = {};
+  var bestScore = -1;
+  for(var i = 0; i < candidates.length; i++){
+    var c = candidates[i];
+    if(!c || typeof c !== 'object') continue;
+    var normalized = _normalizeMachineState(c);
+    var score = _machineStateScore(normalized);
+    if(score > bestScore){
+      best = normalized;
+      bestScore = score;
+    }
+  }
+  return bestScore >= 0 ? best : {};
+}
+
+function _machineStateScore(ms){
+  if(!ms || typeof ms !== 'object') return -1;
+  var score = 0;
+  if(ms.status != null) score += 2;
+  if(ms.Pn != null) score += 1;
+  if(ms.WPos) score += 3;
+  if(ms.MPos) score += 3;
+  if(ms.WCO) score += 1;
+  var w = _parsePos(ms.WPos);
+  var m = _parsePos(ms.MPos);
+  if(w && (Math.abs(w.x) > 0.0005 || Math.abs(w.y) > 0.0005 || Math.abs(w.z) > 0.0005)) score += 4;
+  if(m && (Math.abs(m.x) > 0.0005 || Math.abs(m.y) > 0.0005 || Math.abs(m.z) > 0.0005)) score += 4;
+  return score;
+}
+
+function _pickMsField(ms, keys){
+  if(!ms || typeof ms !== 'object') return null;
+  for(var i = 0; i < keys.length; i++){
+    var v = ms[keys[i]];
+    if(v !== null && v !== undefined && v !== '') return v;
+  }
+  return null;
+}
+
+function _normalizeMsPos(v){
+  if(v === null || v === undefined) return null;
+  var p = _parsePos(v);
+  if(!p) return null;
+  return Number(p.x).toFixed(3) + ',' + Number(p.y).toFixed(3) + ',' + Number(p.z).toFixed(3);
+}
+
+function _normalizeMachineState(ms){
+  if(!ms || typeof ms !== 'object') return {};
+  var out = Object.assign({}, ms);
+  var status = _pickMsField(ms, ['status', 'Status', 'state', 'machineStatus']);
+  var probePins = _pickMsField(ms, ['Pn', 'pn', 'pins']);
+  var wPos = _normalizeMsPos(_pickMsField(ms, ['WPos', 'wPos', 'wpos', 'workPos', 'workPosition']));
+  var mPos = _normalizeMsPos(_pickMsField(ms, ['MPos', 'mPos', 'mpos', 'machinePos', 'machinePosition']));
+  var wco  = _normalizeMsPos(_pickMsField(ms, ['WCO', 'wco', 'workOffset', 'workCoordinateOffset']));
+  if(status != null) out.status = String(status);
+  if(probePins != null) out.Pn = String(probePins);
+  if(wPos) out.WPos = wPos;
+  if(mPos) out.MPos = mPos;
+  if(wco) out.WCO = wco;
+  return out;
+}
+
+function _machineAlarmReason(ms, state){
+  var parts = [];
+  function addCandidate(v){
+    if(v === null || v === undefined) return;
+    var text = String(v).trim();
+    if(!text) return;
+    var lower = text.toLowerCase();
+    if(lower.indexOf('alarm') >= 0 || lower.indexOf('error') >= 0) parts.push(text);
+  }
+  addCandidate(ms && ms.status);
+  addCandidate(ms && ms.alarm);
+  addCandidate(ms && ms.alarmMessage);
+  addCandidate(ms && ms.lastAlarm);
+  addCandidate(ms && ms.error);
+  addCandidate(ms && ms.lastError);
+  addCandidate(state && state.alarm);
+  addCandidate(state && state.alarmMessage);
+  addCandidate(state && state.lastAlarm);
+  addCandidate(state && state.error);
+  addCandidate(state && state.lastError);
+  if(parts.length === 0) return '';
+  return parts.filter(function(v, i, arr){ return arr.indexOf(v) === i; }).join(' | ');
 }
 
 function _detectHomed(ms, state){
@@ -2805,6 +2901,7 @@ async function getMachineSnapshot(){
   pluginDebug('getMachineSnapshot ENTER');
   var state = await _getState();
   var ms = _machineStateFrom(state);
+  var alarmReason = _machineAlarmReason(ms, state);
   var pos = await getWorkPosition();
   var m = _parsePos(ms.MPos);
   var wco = _parsePos(ms.WCO);
@@ -2821,13 +2918,14 @@ async function getMachineSnapshot(){
     machineZ: machine ? machine.z : null,
     status: pos.status || ms.status || 'Unknown',
     probeTriggered: !!pos.probeTriggered,
+    alarmReason: alarmReason || '',
     homed: _detectHomed(ms, state),
     feedOverridePct:    isFinite(_feedOvr)    ? _feedOvr    : null,
     rapidOverridePct:   isFinite(_rapidOvr)   ? _rapidOvr   : null,
     spindleOverridePct: isFinite(_spindleOvr) ? _spindleOvr : null,
     raw: ms
   };
-  pluginDebug('getMachineSnapshot EXIT: status=' + snap.status + ' pos=X' + snap.x + ' Y' + snap.y + ' Z' + snap.z + ' homed=' + snap.homed + ' probe=' + snap.probeTriggered + ' feedOvr=' + snap.feedOverridePct + '% rapidOvr=' + snap.rapidOverridePct + '% spindleOvr=' + snap.spindleOverridePct + '%');
+  pluginDebug('getMachineSnapshot EXIT: status=' + snap.status + ' pos=X' + snap.x + ' Y' + snap.y + ' Z' + snap.z + ' homed=' + snap.homed + ' probe=' + snap.probeTriggered + ' feedOvr=' + snap.feedOverridePct + '% rapidOvr=' + snap.rapidOverridePct + '% spindleOvr=' + snap.spindleOverridePct + '%' + (snap.alarmReason ? ' alarmReason="' + snap.alarmReason + '"' : ''));
   return snap;
 }
 
@@ -3160,8 +3258,18 @@ async function checkHomedStatus(){
 }
 
 function _parsePos(str){
-  if(!str || typeof str !== 'string') return null;
-  var p = str.split(',').map(function(v){ return parseFloat(v.trim()); });
+  if(str === null || str === undefined) return null;
+  if(Array.isArray(str)){
+    if(str.length < 3) return null;
+    var ax = Number(str[0]), ay = Number(str[1]), az = Number(str[2]);
+    return isFinite(ax) && isFinite(ay) && isFinite(az) ? {x:ax, y:ay, z:az} : null;
+  }
+  if(typeof str === 'object'){
+    var ox = Number(str.x), oy = Number(str.y), oz = Number(str.z);
+    return isFinite(ox) && isFinite(oy) && isFinite(oz) ? {x:ox, y:oy, z:oz} : null;
+  }
+  if(typeof str !== 'string') return null;
+  var p = str.split(',').map(function(v){ return parseFloat(String(v).trim()); });
   return p.length >= 3 && p.every(function(v){ return !isNaN(v); }) ? {x:p[0], y:p[1], z:p[2]} : null;
 }
 
@@ -3170,11 +3278,12 @@ async function getWorkPosition(){
   var ms = _machineStateFrom(state);
   var status = ms.status || 'Unknown';
   var probeTriggered = (ms.Pn || '').indexOf('P') >= 0;
+  var alarmReason = _machineAlarmReason(ms, state);
   var w = _parsePos(ms.WPos);
-  if(w) return {x:w.x, y:w.y, z:w.z, status: status, probeTriggered: probeTriggered};
+  if(w) return {x:w.x, y:w.y, z:w.z, status: status, probeTriggered: probeTriggered, alarmReason: alarmReason};
   var m = _parsePos(ms.MPos), wco = _parsePos(ms.WCO);
-  if(m && wco) return {x:m.x-wco.x, y:m.y-wco.y, z:m.z-wco.z, status: status, probeTriggered: probeTriggered};
-  if(m) return {x:m.x, y:m.y, z:m.z, status: status, probeTriggered: probeTriggered};
+  if(m && wco) return {x:m.x-wco.x, y:m.y-wco.y, z:m.z-wco.z, status: status, probeTriggered: probeTriggered, alarmReason: alarmReason};
+  if(m) return {x:m.x, y:m.y, z:m.z, status: status, probeTriggered: probeTriggered, alarmReason: alarmReason};
   throw new Error('Could not read current position from ncSender');
 }
 
@@ -3215,7 +3324,11 @@ async function waitForIdle(){
       if(m) return {x:m.x, y:m.y, z:m.z, status: status, probeTriggered: !!(ms.Pn && ms.Pn.indexOf('P') !== -1)};
       return null;
     }
-    if(status === 'alarm'){ pluginDebug('waitForIdle ERROR: machine in alarm state'); throw new Error('Machine in alarm state'); }
+    if(status === 'alarm'){
+      var alarmReason = _machineAlarmReason(ms, state);
+      pluginDebug('waitForIdle ERROR: machine in alarm state' + (alarmReason ? ' reason="' + alarmReason + '"' : ''));
+      throw new Error('Machine in alarm state' + (alarmReason ? ': ' + alarmReason : ''));
+    }
   }
   pluginDebug('waitForIdle TIMEOUT: machine never reached idle');
   throw new Error('Timeout waiting for Idle');
@@ -3906,8 +4019,6 @@ function pluginCleanupOnClose() {
 // which can clear the controller's homed state even when the user only
 // closed the UI panel after successfully unlocking with $X.
 // Cleanup is triggered explicitly by the plugin host via index.js onUnload.
-
-
 // ── Tab switching ─────────────────────────────────────────────────────────────
 function switchTab(id){
   pluginDebug('switchTab: switching to tab "' + id + '"');
@@ -11252,7 +11363,9 @@ function _outlineFormatWorkPos(pos) {
 
 function _outlineFormatMachineState(pos) {
   if (!pos) return 'status=unknown probe=unknown';
-  return 'status=' + String(pos.status || 'unknown') + ' probe=' + !!pos.probeTriggered;
+  var status = 'status=' + String(pos.status || 'unknown') + ' probe=' + !!pos.probeTriggered;
+  if (pos.alarmReason) status += ' alarm=' + String(pos.alarmReason);
+  return status;
 }
 
 function _outlineFormatMachinePos(pos) {
@@ -11262,11 +11375,13 @@ function _outlineFormatMachinePos(pos) {
 
 function _outlineFormatRawControllerState(raw) {
   if (!raw) return 'rawStatus=unknown rawWPos=n/a rawMPos=n/a rawWCO=n/a rawPn=';
+  var alarmText = raw.alarmMessage || raw.lastAlarm || raw.alarm || raw.lastError || raw.error || '';
   return 'rawStatus=' + String(raw.status || 'unknown') +
     ' rawWPos=' + String(raw.WPos || 'n/a') +
     ' rawMPos=' + String(raw.MPos || 'n/a') +
     ' rawWCO=' + String(raw.WCO || 'n/a') +
-    ' rawPn=' + String(raw.Pn || '');
+    ' rawPn=' + String(raw.Pn || '') +
+    (alarmText ? ' rawAlarm=' + String(alarmText) : '');
 }
 
 function _outlineValidateCenterTravel(pos, targetX, targetY, tolerance) {

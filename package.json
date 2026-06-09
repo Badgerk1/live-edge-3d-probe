@@ -15,7 +15,7 @@
     "test:outline": "node test/outline-polygon-helpers.test.js && node test/outline-surface-probe-phase1.test.js",
     "test:viz": "node test/visualization-fixes.test.js",
     "test:mesh": "node test/smooth-mesh-export.test.js",
-    "test:preflight": "node test/override-preflight.test.js",
+    "test:preflight": "node test/override-preflight.test.js && node test/core-machine-state.test.js",
     "test:sequence": "node test/face-probe-sequence.test.js",
     "test:stl": "node test/smooth-outline-stl.test.js"
   },
