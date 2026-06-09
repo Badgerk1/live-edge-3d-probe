@@ -85,6 +85,8 @@ var outlineProbeSource = fs.readFileSync(new URL('../src/js/outline-probe.js', i
 var validateSurfaceProbeResult = loadFunction(outlineProbeSource, '_outlineValidateSurfaceProbeResult');
 var getZMoveDirection = loadFunction(outlineProbeSource, '_outlineGetZMoveDirection');
 var formatWorkPos = loadFunction(outlineProbeSource, '_outlineFormatWorkPos');
+var formatMachineState = loadFunction(outlineProbeSource, '_outlineFormatMachineState');
+var formatRawControllerState = loadFunction(outlineProbeSource, '_outlineFormatRawControllerState');
 var validateCenterTravel = loadFunction(outlineProbeSource, '_outlineValidateCenterTravel');
 var buildCenterTravelWarning = new Function('_outlineValidateCenterTravel', '_outlineFormatWorkPos', extractFunction(outlineProbeSource, '_outlineBuildCenterTravelWarning') + '\nreturn _outlineBuildCenterTravelWarning;')(validateCenterTravel, formatWorkPos);
 
@@ -129,6 +131,32 @@ assert(/WARNING: center travel verification mismatch/.test(centerWarning), 'warn
 assert(/reported work position may be stale after move/.test(centerWarning), 'warning explains stale position source');
 assert(/continuing with probe/.test(centerWarning), 'warning confirms the probe sequence continues');
 assert(/target X=304.800 Y=138.110/.test(centerWarning), 'warning keeps explicit center target in the log');
+
+console.log('\nTest: machine state formatter includes alarm reason when present');
+var stateWithAlarm = formatMachineState({ status: 'alarm', probeTriggered: false, alarmReason: 'Probe fail' });
+assert(/alarm=Probe fail/.test(stateWithAlarm), 'alarm reason is included in machine state log');
+assert(/status=alarm/.test(stateWithAlarm), 'status field is present in machine state log');
+
+var stateNoAlarm = formatMachineState({ status: 'idle', probeTriggered: true });
+assert(!/alarm=/.test(stateNoAlarm), 'alarm= field is absent when there is no alarm reason');
+assert(/probe=true/.test(stateNoAlarm), 'probe triggered flag is included in state log');
+
+console.log('\nTest: raw controller state formatter surfaces alarm message');
+var rawWithAlarm = formatRawControllerState({ status: 'Alarm', alarmMessage: 'Alarm:5 Probe fail', WPos: '0,0,0', MPos: null, WCO: null, Pn: '' });
+assert(/rawAlarm=Alarm:5 Probe fail/.test(rawWithAlarm), 'raw alarm message is surfaced in controller state log');
+assert(/rawStatus=Alarm/.test(rawWithAlarm), 'raw status is included in controller state log');
+
+var rawNoAlarm = formatRawControllerState({ status: 'Idle', WPos: '10,20,5', MPos: null, WCO: null, Pn: 'P' });
+assert(!/rawAlarm=/.test(rawNoAlarm), 'rawAlarm= field is absent when there is no alarm message');
+assert(/rawWPos=10,20,5/.test(rawNoAlarm), 'raw WPos is surfaced in controller state log');
+
+console.log('\nTest: no-motion result (alarm-like symptom) yields non-generic error distinguishable from full-travel miss');
+var alarmLikeNoMotion = validateSurfaceProbeResult({ z: 5 }, { z: 5 }, false, false, 165);
+assert(!alarmLikeNoMotion.ok, 'no-motion alarm-like result is rejected');
+assert(alarmLikeNoMotion.noMotion, 'no-motion flag set for alarm-like case');
+assert(!alarmLikeNoMotion.fullTravelMiss, 'full-travel miss flag clear when machine did not move at all');
+assert(/no Z motion/.test(alarmLikeNoMotion.error) || /no probe trigger/.test(alarmLikeNoMotion.error),
+  'error message distinguishes no-motion from full-travel miss');
 
 console.log('\n--- Results: ' + passed + ' passed, ' + failed + ' failed ---');
 process.exit(failed > 0 ? 1 : 0);
