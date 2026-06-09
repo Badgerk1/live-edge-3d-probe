@@ -11284,11 +11284,11 @@ async function runOutlineSurfaceProbe() {
     var fullPlunge = Math.max(1, cfg.surfaceProbeMaxSearch);
     outlineAppendLog('PROBE: full Z plunge from Z=' + startPos.z.toFixed(3) + ' max search distance=' + fullPlunge.toFixed(3));
 
-    // 4. G38.2 plunge — stops on contact, errors only if nothing touched
+    // 4. G38.3 plunge — no controller alarm on no-contact; detect miss by distance + pin state
     // Calculate timeout: travel time at probe feed rate + 10s buffer
     var probeTimeMs = Math.ceil((fullPlunge / cfg.probeFeed) * 60000) + 10000;
-    outlineAppendLog('PROBE: G91 G38.2 Z-' + fullPlunge.toFixed(3) + ' F' + cfg.probeFeed.toFixed(0) + ' timeout=' + probeTimeMs + 'ms');
-    await sendCommand('G91 G38.2 Z-' + fullPlunge.toFixed(3) + ' F' + cfg.probeFeed.toFixed(0), probeTimeMs);
+    outlineAppendLog('PROBE: G91 G38.3 Z-' + fullPlunge.toFixed(3) + ' F' + cfg.probeFeed.toFixed(0) + ' timeout=' + probeTimeMs + 'ms');
+    await sendCommand('G91 G38.3 Z-' + fullPlunge.toFixed(3) + ' F' + cfg.probeFeed.toFixed(0), probeTimeMs);
     await sleep(50);
     await waitForIdleWithTimeout(30000);
 
