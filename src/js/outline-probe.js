@@ -76,6 +76,7 @@ function _outlineSettings() {
     retractFeed:       gn('outlineRetractFeed',      600),
     clearZ:            gn('outlineClearZ',           5),
     probeDown:         gn('outlineProbeDown',        5),
+    surfaceProbeMaxSearch: gn('outlineSurfaceProbeMaxSearch', 165),
     skipSurfaceProbe:  gb('outlineSkipSurfaceProbe'),
     forceRectangle:    gb('outlineForceRectangle')
   };
@@ -205,12 +206,11 @@ async function runOutlineSurfaceProbe() {
     outlineAppendLog('TRAVEL: diagonal to center X=' + cx.toFixed(3) + ' Y=' + cy.toFixed(3) + ' at F' + cfg.fastFeed);
     await moveAbs(cx, cy, null, cfg.fastFeed);
 
-    // 3. Read current work Z — this is the full travel distance available
-    //    from machine ceiling to work zero. Probe the entire range so the
-    //    probe finds the surface no matter how far down it is.
-    var pos = await getWorkPosition();
-    var fullPlunge = pos.z + 5;  // +5mm margin below work Z=0
-    outlineAppendLog('PROBE: full Z plunge from Z=' + pos.z.toFixed(3) + ' distance=' + fullPlunge.toFixed(3));
+    // 3. Use configured max search distance for the full plunge — avoids
+    //    deriving distance from work Z (which may read 0 after retract to machine ceiling).
+    var startPos = await getWorkPosition();
+    var fullPlunge = Math.max(1, cfg.surfaceProbeMaxSearch);
+    outlineAppendLog('PROBE: full Z plunge from Z=' + startPos.z.toFixed(3) + ' max search distance=' + fullPlunge.toFixed(3));
 
     // 4. G38.2 plunge — stops on contact, errors only if nothing touched
     // Calculate timeout: travel time at probe feed rate + 10s buffer
@@ -222,9 +222,9 @@ async function runOutlineSurfaceProbe() {
 
     var endPos = await getWorkPosition();
     var pinTriggered = await smGetProbeTriggered();
-    var distTraveled = pos.z - endPos.z;
+    var distTraveled = startPos.z - endPos.z;
     outlineAppendLog('PROBE RESULT: pinTriggered=' + pinTriggered +
-      ' startZ=' + pos.z.toFixed(3) + ' endZ=' + endPos.z.toFixed(3) + ' traveled=' + distTraveled.toFixed(3));
+      ' startZ=' + startPos.z.toFixed(3) + ' endZ=' + endPos.z.toFixed(3) + ' traveled=' + distTraveled.toFixed(3));
 
     if (!pinTriggered && distTraveled >= (fullPlunge - 0.5)) {
       throw new Error('Surface probe: No contact in full Z travel range (' + fullPlunge.toFixed(1) + 'mm)');
