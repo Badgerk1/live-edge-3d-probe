@@ -178,6 +178,21 @@ function _outlineFormatWorkPos(pos) {
   return 'X=' + Number(pos.x).toFixed(3) + ' Y=' + Number(pos.y).toFixed(3) + ' Z=' + Number(pos.z).toFixed(3);
 }
 
+function _outlineFormatMachineState(pos) {
+  if (!pos) return 'status=unknown probe=unknown';
+  return 'status=' + String(pos.status || 'unknown') + ' probe=' + !!pos.probeTriggered;
+}
+
+function _outlineValidateCenterTravel(pos, targetX, targetY, tolerance) {
+  var dx = Math.abs(Number(pos.x) - Number(targetX));
+  var dy = Math.abs(Number(pos.y) - Number(targetY));
+  return {
+    ok: dx <= tolerance && dy <= tolerance,
+    dx: dx,
+    dy: dy
+  };
+}
+
 function _outlineGetZMoveDirection(startZ, targetZ) {
   if (targetZ > startZ + 0.001) return 'upward';
   if (targetZ < startZ - 0.001) return 'downward';
@@ -235,30 +250,57 @@ async function runOutlineSurfaceProbe() {
     //    Use moveAbs NOT smSafeLateralMove (which tries relative Z lift → soft limit alarm at ceiling).
     var cx = cfg.x0 + cfg.xLen / 2;
     var cy = cfg.y0 + cfg.yLen / 2;
+    var centerTolerance = 0.5;
     outlineAppendLog('TRAVEL: diagonal to center X=' + cx.toFixed(3) + ' Y=' + cy.toFixed(3) + ' at F' + cfg.fastFeed);
-    await moveAbs(cx, cy, null, cfg.fastFeed);
+    var centerMovePos = await moveAbs(cx, cy, null, cfg.fastFeed);
+    outlineAppendLog('TRAVEL END: moveAbs returned ' + _outlineFormatWorkPos(centerMovePos) + ' ' + _outlineFormatMachineState(centerMovePos));
+    await sleep(80);
+    var centerFreshPos = await getWorkPosition();
+    var centerCheck = _outlineValidateCenterTravel(centerFreshPos, cx, cy, centerTolerance);
+    outlineAppendLog('TRAVEL VERIFY: fresh work position ' + _outlineFormatWorkPos(centerFreshPos) + ' ' + _outlineFormatMachineState(centerFreshPos));
+    outlineAppendLog('TRAVEL VERIFY: center delta dx=' + centerCheck.dx.toFixed(3) + ' dy=' + centerCheck.dy.toFixed(3) +
+      ' tolerance=' + centerTolerance.toFixed(3) + ' ok=' + centerCheck.ok);
+    if (!centerCheck.ok) {
+      await waitForIdleWithTimeout(30000);
+      await sleep(80);
+      centerFreshPos = await getWorkPosition();
+      centerCheck = _outlineValidateCenterTravel(centerFreshPos, cx, cy, centerTolerance);
+      outlineAppendLog('TRAVEL VERIFY RETRY: fresh work position ' + _outlineFormatWorkPos(centerFreshPos) + ' ' + _outlineFormatMachineState(centerFreshPos));
+      outlineAppendLog('TRAVEL VERIFY RETRY: center delta dx=' + centerCheck.dx.toFixed(3) + ' dy=' + centerCheck.dy.toFixed(3) +
+        ' tolerance=' + centerTolerance.toFixed(3) + ' ok=' + centerCheck.ok);
+      if (!centerCheck.ok) {
+        throw new Error('Center travel failed: target X=' + cx.toFixed(3) + ' Y=' + cy.toFixed(3) +
+          ', actual ' + _outlineFormatWorkPos(centerFreshPos) + ', tolerance=' + centerTolerance.toFixed(3));
+      }
+    }
 
     // 3. Use configured max search distance for the full plunge — avoids
     //    deriving distance from work Z (which may read 0 after retract to machine ceiling).
-    var startPos = await getWorkPosition();
+    var startPos = centerFreshPos || await getWorkPosition();
     var pinBefore = await smGetProbeTriggered();
     var fullPlunge = Math.max(1, cfg.surfaceProbeMaxSearch);
     outlineAppendLog('PROBE START: work position ' + _outlineFormatWorkPos(startPos));
+    outlineAppendLog('PROBE START: machine state ' + _outlineFormatMachineState(startPos));
     outlineAppendLog('PROBE PIN STATE: before=' + pinBefore);
     outlineAppendLog('PROBE: full Z plunge from Z=' + startPos.z.toFixed(3) + ' max search distance=' + fullPlunge.toFixed(3));
 
     // 4. G38.3 plunge — no controller alarm on no-contact; detect miss by distance + pin state
     // Calculate timeout: travel time at probe feed rate + 10s buffer
     var probeTimeMs = Math.ceil((fullPlunge / cfg.probeFeed) * 60000) + 10000;
+    var probeWaitMs = Math.max(30000, probeTimeMs + 2000);
     outlineAppendLog('PROBE: G91 G38.3 Z-' + fullPlunge.toFixed(3) + ' F' + cfg.probeFeed.toFixed(0) + ' timeout=' + probeTimeMs + 'ms');
     await sendCommand('G91 G38.3 Z-' + fullPlunge.toFixed(3) + ' F' + cfg.probeFeed.toFixed(0), probeTimeMs);
     await sleep(50);
-    await waitForIdleWithTimeout(30000);
+    var probeIdlePos = await waitForIdleWithTimeout(probeWaitMs);
+    outlineAppendLog('PROBE WAIT-IDLE: ' + _outlineFormatWorkPos(probeIdlePos) + ' ' + _outlineFormatMachineState(probeIdlePos) +
+      ' waitTimeout=' + probeWaitMs + 'ms');
+    await sleep(80);
 
     var endPos = await getWorkPosition();
     var pinAfter = await smGetProbeTriggered();
     var probeResult = _outlineValidateSurfaceProbeResult(startPos, endPos, pinBefore, pinAfter, fullPlunge);
     outlineAppendLog('PROBE END: work position ' + _outlineFormatWorkPos(endPos));
+    outlineAppendLog('PROBE END: machine state ' + _outlineFormatMachineState(endPos));
     outlineAppendLog('PROBE PIN STATE: after=' + pinAfter);
     outlineAppendLog('PROBE RESULT: pinBefore=' + probeResult.pinBefore +
       ' pinAfter=' + probeResult.pinAfter +

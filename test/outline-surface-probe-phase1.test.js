@@ -84,6 +84,7 @@ function loadFunction(source, name) {
 var outlineProbeSource = fs.readFileSync(new URL('../src/js/outline-probe.js', import.meta.url), 'utf8');
 var validateSurfaceProbeResult = loadFunction(outlineProbeSource, '_outlineValidateSurfaceProbeResult');
 var getZMoveDirection = loadFunction(outlineProbeSource, '_outlineGetZMoveDirection');
+var validateCenterTravel = loadFunction(outlineProbeSource, '_outlineValidateCenterTravel');
 
 console.log('=== outline-surface-probe-phase1 tests ===');
 
@@ -110,6 +111,15 @@ console.log('\nTest: retract logging direction is explicit');
 assert(getZMoveDirection(0, 2) === 'upward', 'upward retract is labeled upward');
 assert(getZMoveDirection(2, 0) === 'downward', 'downward retract is labeled downward');
 assert(getZMoveDirection(2, 2) === 'level', 'same-height retract is labeled level');
+
+console.log('\nTest: center travel verification requires target tolerance');
+var centered = validateCenterTravel({ x: 304.75, y: 138.20 }, 304.80, 138.11, 0.5);
+assert(centered.ok, 'position inside tolerance is accepted as centered');
+assert(centered.dx <= 0.5 && centered.dy <= 0.5, 'center deltas are computed from X/Y target');
+
+var offCenter = validateCenterTravel({ x: 300, y: 138.11 }, 304.80, 138.11, 0.5);
+assert(!offCenter.ok, 'position outside tolerance is rejected before probe start');
+assert(offCenter.dx > 0.5, 'off-center X delta is reported');
 
 console.log('\n--- Results: ' + passed + ' passed, ' + failed + ' failed ---');
 process.exit(failed > 0 ? 1 : 0);
