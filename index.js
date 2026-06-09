@@ -326,6 +326,166 @@ async function loadMeshFromFile() {
 let lastProcessedTimestamp = 0;
 let checkIntervalId = null;
 let __edgeProbeTimer = null;
+let _settingsTickRunning = false;
+let _settingsTickQueued = false;
+
+function setSettingsPatch(ctx, updates) {
+  const latest = ctx.getSettings() || {};
+  ctx.setSettings({
+    ...latest,
+    ...updates
+  });
+}
+
+async function processSettingsTick(ctx) {
+  const settings = ctx.getSettings() || {};
+
+  if (settings.applyCompensation && settings.applyTimestamp && settings.applyTimestamp > lastProcessedTimestamp) {
+    ctx.log('Processing applyCompensation request, timestamp:', settings.applyTimestamp);
+    lastProcessedTimestamp = settings.applyTimestamp;
+
+    const mesh = settings.meshData?.mesh || currentMesh;
+    const gridParams = settings.meshData?.gridParams || meshGridParams;
+
+    if (!mesh || !gridParams) {
+      ctx.log('No mesh data available for compensation');
+      setSettingsPatch(ctx, {
+        applyCompensation: false,
+        lastApplyResult: { success: false, error: 'No mesh data available' }
+      });
+      return;
+    }
+
+    // Update in-memory mesh
+    if (settings.meshData) {
+      currentMesh = settings.meshData.mesh;
+      meshGridParams = settings.meshData.gridParams;
+    }
+
+    try {
+      const cacheFilePath = path.join(getUserDataDir(), 'gcode-cache', 'current.gcode');
+      const gcodeContent = await fs.readFile(cacheFilePath, 'utf8');
+
+      const referenceZ = settings.referenceZ ?? 0;
+      ctx.log('Applying Z compensation with referenceZ:', referenceZ);
+      ctx.log('Grid:', gridParams.cols, 'x', gridParams.rows);
+
+      const compensatedGcode = applyZCompensation(gcodeContent, mesh, gridParams, referenceZ);
+
+      const serverState = ctx.getServerState();
+      const originalFilename = serverState?.jobLoaded?.filename || 'program.nc';
+      const outputFilename = originalFilename.replace(/\.[^.]+$/, '') + '_compensated.nc';
+
+      ctx.log('Loading compensated file:', outputFilename);
+
+      const response = await fetch('http://localhost:8090/api/gcode-files/load-temp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: compensatedGcode,
+          filename: outputFilename,
+          sourceFile: originalFilename
+        })
+      });
+
+      if (response.ok) {
+        ctx.log('Compensation applied successfully');
+        setSettingsPatch(ctx, {
+          applyCompensation: false,
+          lastApplyResult: { success: true, filename: outputFilename }
+        });
+      } else {
+        ctx.log('Failed to load compensated file:', response.status);
+        setSettingsPatch(ctx, {
+          applyCompensation: false,
+          lastApplyResult: { success: false, error: 'Failed to load compensated file' }
+        });
+      }
+    } catch (error) {
+      ctx.log('Apply compensation error:', error.message);
+      setSettingsPatch(ctx, {
+        applyCompensation: false,
+        lastApplyResult: { success: false, error: error.message }
+      });
+    }
+  }
+
+  // Handle saveMeshFile requests
+  if (settings.saveMeshFile && settings.meshData) {
+    try {
+      currentMesh = settings.meshData.mesh;
+      meshGridParams = settings.meshData.gridParams;
+      const filePath = await saveMeshToFile(currentMesh, meshGridParams);
+      ctx.log('Mesh saved to file:', filePath);
+      setSettingsPatch(ctx, { saveMeshFile: false });
+    } catch (error) {
+      ctx.log('Failed to save mesh file:', error.message);
+      setSettingsPatch(ctx, { saveMeshFile: false });
+    }
+  }
+
+  // Handle loadMeshFile requests
+  if (settings.loadMeshFile) {
+    try {
+      const { mesh: loadedMesh, gridParams: loadedParams } = await loadMeshFromFile();
+      currentMesh = loadedMesh;
+      meshGridParams = loadedParams;
+      ctx.log('Loaded mesh from file:', loadedParams.cols, 'x', loadedParams.rows);
+      setSettingsPatch(ctx, {
+        loadMeshFile: false,
+        meshData: { mesh: currentMesh, gridParams: meshGridParams },
+        lastLoadResult: { success: true, cols: loadedParams.cols, rows: loadedParams.rows }
+      });
+    } catch (error) {
+      ctx.log('Failed to load mesh from file:', error.message);
+      setSettingsPatch(ctx, {
+        loadMeshFile: false,
+        lastLoadResult: { success: false, error: error.message }
+      });
+    }
+  }
+
+  // Handle analyzeGCode requests
+  if (settings.analyzeGCode && settings.analyzeTimestamp && settings.analyzeTimestamp > (settings.lastAnalyzeTimestamp || 0)) {
+    try {
+      const cacheFilePath = path.join(getUserDataDir(), 'gcode-cache', 'current.gcode');
+      const gcodeContent = await fs.readFile(cacheFilePath, 'utf8');
+      const bounds = analyzeGCodeBounds(gcodeContent);
+      ctx.log('G-code bounds:', JSON.stringify(bounds));
+      setSettingsPatch(ctx, {
+        analyzeGCode: false,
+        lastAnalyzeTimestamp: settings.analyzeTimestamp,
+        gcodeBounds: bounds
+      });
+    } catch (error) {
+      ctx.log('Failed to analyze G-code:', error.message);
+      setSettingsPatch(ctx, {
+        analyzeGCode: false,
+        lastAnalyzeTimestamp: settings.analyzeTimestamp,
+        gcodeBounds: null
+      });
+    }
+  }
+}
+
+async function runSettingsTick(ctx) {
+  if (_settingsTickRunning) {
+    _settingsTickQueued = true;
+    return;
+  }
+  _settingsTickRunning = true;
+  try {
+    await processSettingsTick(ctx);
+  } catch (error) {
+    // Ignore check errors
+  } finally {
+    _settingsTickRunning = false;
+    if (_settingsTickQueued) {
+      _settingsTickQueued = false;
+      void runSettingsTick(ctx);
+    }
+  }
+}
 
 export async function onLoad(ctx) {
   ctx.log('3D Live Edge Mesh Combined v21.0.0 plugin loaded');
@@ -340,155 +500,11 @@ export async function onLoad(ctx) {
     // No saved mesh — that's fine
   }
 
-  // Periodically check for applyCompensation flag in settings
-  checkIntervalId = setInterval(async () => {
-    try {
-      const settings = ctx.getSettings() || {};
-
-      if (settings.applyCompensation && settings.applyTimestamp && settings.applyTimestamp > lastProcessedTimestamp) {
-        ctx.log('Processing applyCompensation request, timestamp:', settings.applyTimestamp);
-        lastProcessedTimestamp = settings.applyTimestamp;
-
-        const mesh = settings.meshData?.mesh || currentMesh;
-        const gridParams = settings.meshData?.gridParams || meshGridParams;
-
-        if (!mesh || !gridParams) {
-          ctx.log('No mesh data available for compensation');
-          ctx.setSettings({
-            ...settings,
-            applyCompensation: false,
-            lastApplyResult: { success: false, error: 'No mesh data available' }
-          });
-          return;
-        }
-
-        // Update in-memory mesh
-        if (settings.meshData) {
-          currentMesh = settings.meshData.mesh;
-          meshGridParams = settings.meshData.gridParams;
-        }
-
-        try {
-          const cacheFilePath = path.join(getUserDataDir(), 'gcode-cache', 'current.gcode');
-          const gcodeContent = await fs.readFile(cacheFilePath, 'utf8');
-
-          const referenceZ = settings.referenceZ ?? 0;
-          ctx.log('Applying Z compensation with referenceZ:', referenceZ);
-          ctx.log('Grid:', gridParams.cols, 'x', gridParams.rows);
-
-          const compensatedGcode = applyZCompensation(gcodeContent, mesh, gridParams, referenceZ);
-
-          const serverState = ctx.getServerState();
-          const originalFilename = serverState?.jobLoaded?.filename || 'program.nc';
-          const outputFilename = originalFilename.replace(/\.[^.]+$/, '') + '_compensated.nc';
-
-          ctx.log('Loading compensated file:', outputFilename);
-
-          const response = await fetch('http://localhost:8090/api/gcode-files/load-temp', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              content: compensatedGcode,
-              filename: outputFilename,
-              sourceFile: originalFilename
-            })
-          });
-
-          if (response.ok) {
-            ctx.log('Compensation applied successfully');
-            ctx.setSettings({
-              ...settings,
-              applyCompensation: false,
-              lastApplyResult: { success: true, filename: outputFilename }
-            });
-          } else {
-            ctx.log('Failed to load compensated file:', response.status);
-            ctx.setSettings({
-              ...settings,
-              applyCompensation: false,
-              lastApplyResult: { success: false, error: 'Failed to load compensated file' }
-            });
-          }
-        } catch (error) {
-          ctx.log('Apply compensation error:', error.message);
-          ctx.setSettings({
-            ...settings,
-            applyCompensation: false,
-            lastApplyResult: { success: false, error: error.message }
-          });
-        }
-      }
-
-      // Handle saveMeshFile requests
-      if (settings.saveMeshFile && settings.meshData) {
-        try {
-          currentMesh = settings.meshData.mesh;
-          meshGridParams = settings.meshData.gridParams;
-          const filePath = await saveMeshToFile(currentMesh, meshGridParams);
-          ctx.log('Mesh saved to file:', filePath);
-          ctx.setSettings({
-            ...settings,
-            saveMeshFile: false
-          });
-        } catch (error) {
-          ctx.log('Failed to save mesh file:', error.message);
-          ctx.setSettings({
-            ...settings,
-            saveMeshFile: false
-          });
-        }
-      }
-
-      // Handle loadMeshFile requests
-      if (settings.loadMeshFile) {
-        try {
-          const { mesh: loadedMesh, gridParams: loadedParams } = await loadMeshFromFile();
-          currentMesh = loadedMesh;
-          meshGridParams = loadedParams;
-          ctx.log('Loaded mesh from file:', loadedParams.cols, 'x', loadedParams.rows);
-          ctx.setSettings({
-            ...settings,
-            loadMeshFile: false,
-            meshData: { mesh: currentMesh, gridParams: meshGridParams },
-            lastLoadResult: { success: true, cols: loadedParams.cols, rows: loadedParams.rows }
-          });
-        } catch (error) {
-          ctx.log('Failed to load mesh from file:', error.message);
-          ctx.setSettings({
-            ...settings,
-            loadMeshFile: false,
-            lastLoadResult: { success: false, error: error.message }
-          });
-        }
-      }
-
-      // Handle analyzeGCode requests
-      if (settings.analyzeGCode && settings.analyzeTimestamp && settings.analyzeTimestamp > (settings.lastAnalyzeTimestamp || 0)) {
-        try {
-          const cacheFilePath = path.join(getUserDataDir(), 'gcode-cache', 'current.gcode');
-          const gcodeContent = await fs.readFile(cacheFilePath, 'utf8');
-          const bounds = analyzeGCodeBounds(gcodeContent);
-          ctx.log('G-code bounds:', JSON.stringify(bounds));
-          ctx.setSettings({
-            ...settings,
-            analyzeGCode: false,
-            lastAnalyzeTimestamp: settings.analyzeTimestamp,
-            gcodeBounds: bounds
-          });
-        } catch (error) {
-          ctx.log('Failed to analyze G-code:', error.message);
-          ctx.setSettings({
-            ...settings,
-            analyzeGCode: false,
-            lastAnalyzeTimestamp: settings.analyzeTimestamp,
-            gcodeBounds: null
-          });
-        }
-      }
-    } catch (error) {
-      // Ignore check errors
-    }
+  // Poll bridge to settings API; run non-overlapping ticks to avoid stale races.
+  checkIntervalId = setInterval(() => {
+    void runSettingsTick(ctx);
   }, 500);
+  void runSettingsTick(ctx);
 }
 
 export async function onUnload(ctx) {
@@ -499,6 +515,8 @@ export async function onUnload(ctx) {
     clearInterval(checkIntervalId);
     checkIntervalId = null;
   }
+  _settingsTickRunning = false;
+  _settingsTickQueued = false;
 
   ctx.log('3D Live Edge Mesh Combined v21.0.0 plugin unloaded');
 }

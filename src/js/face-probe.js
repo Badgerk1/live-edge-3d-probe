@@ -817,6 +817,73 @@ function smLoadSettings() {
   try { updateSurfaceGridSizeDisplay(); } catch(e) { console.warn('[smLoadSettings] updateSurfaceGridSizeDisplay error:', e); }
 }
 
+function bindClickById(id, handler, opts) {
+  var el = document.getElementById(id);
+  if (!el) {
+    if (opts && opts.warnIfMissing) {
+      pluginDebug('init: missing control #' + id + ' (feature: ' + (opts.feature || 'unspecified') + ')');
+    }
+    return null;
+  }
+  if (el._le3dpBoundClick) return el;
+  el._le3dpBoundClick = true;
+  el.addEventListener('click', handler);
+  return el;
+}
+
+function bindTabButtons() {
+  document.querySelectorAll('.tab[data-tab]').forEach(function(t){
+    if (t._le3dpBoundTab) return;
+    t._le3dpBoundTab = true;
+    t.addEventListener('click', function(){
+      var tabId = t.getAttribute('data-tab');
+      pluginDebug('Tab button clicked: ' + tabId);
+      if(tabId) switchTab(tabId);
+    });
+  });
+}
+
+function bindLayoutButtons() {
+  bindClickById('layout-edit-toggle', function(){ toggleLayoutEdit(); });
+  bindClickById('layout-reset-btn', function(){ resetCurrentTabLayout(); });
+}
+
+function bindWorkflowButtons() {
+  var workflowControlIds = [
+    'workflow-list',
+    'workflow-name',
+    'btn-save-workflow',
+    'btn-load-workflow',
+    'btn-export-workflows',
+    'btn-import-workflows'
+  ];
+  var presentCount = workflowControlIds.filter(function(id){
+    return !!document.getElementById(id);
+  }).length;
+  if (!presentCount) {
+    pluginDebug('init: workflow controls not present in markup; workflow actions are disabled');
+  }
+
+  bindClickById('btn-save-workflow', function(){ flashSaveButton(this); pluginDebug('btn-save-workflow clicked'); saveWorkflow(); }, { warnIfMissing: true, feature: 'workflow' });
+  bindClickById('btn-load-workflow', function(){ flashButton(this); pluginDebug('btn-load-workflow clicked'); loadWorkflow(); }, { warnIfMissing: true, feature: 'workflow' });
+  bindClickById('btn-export-workflows', function(){ flashButton(this); pluginDebug('btn-export-workflows clicked'); exportWorkflows(); }, { warnIfMissing: true, feature: 'workflow' });
+  bindClickById('btn-import-workflows', function(){ flashButton(this); pluginDebug('btn-import-workflows clicked'); importWorkflows(); }, { warnIfMissing: true, feature: 'workflow' });
+
+  var wfList = document.getElementById('workflow-list');
+  if (wfList && !wfList._le3dpBoundWorkflowList) {
+    wfList._le3dpBoundWorkflowList = true;
+    wfList.addEventListener('click', function(e){
+      var btn = e.target.closest('button');
+      if(!btn) return;
+      var name = btn.getAttribute('data-wf-name');
+      if(!name) return;
+      pluginDebug('Workflow list click: name="' + name + '" action=' + (btn.classList.contains('wf-load') ? 'load' : 'delete'));
+      if(btn.classList.contains('wf-load')) _loadWorkflowByName(name);
+      else if(btn.classList.contains('wf-delete')) deleteWorkflow(name);
+    });
+  }
+}
+
 (function init(){
   pluginDebug('init: plugin initializing');
   // Clear any stale visuals from a previous session/reload
@@ -859,14 +926,9 @@ function smLoadSettings() {
   try{ updateOutlineProbeCenter(); }catch(e){}
   try{ initLayoutEditor(); }catch(e){ console.warn('Layout editor init error:', e); }
 
-  // Tab buttons
-  document.querySelectorAll('.tab').forEach(function(t){
-    t.addEventListener('click', function(){
-      var tabId = t.getAttribute('data-tab');
-      pluginDebug('Tab button clicked: ' + tabId);
-      if(tabId) switchTab(tabId);
-    });
-  });
+  // Core navigation / layout controls
+  bindTabButtons();
+  bindLayoutButtons();
 
   // Setup buttons
   var btnSave = document.getElementById('btn-save-settings');
@@ -1025,32 +1087,11 @@ function smLoadSettings() {
   });
 
   // Actions / workflow buttons
-  var btnSaveWf = document.getElementById('btn-save-workflow');
-  if(btnSaveWf) btnSaveWf.addEventListener('click', function(){ flashSaveButton(this); pluginDebug('btn-save-workflow clicked'); saveWorkflow(); });
-  var btnLoadWf = document.getElementById('btn-load-workflow');
-  if(btnLoadWf) btnLoadWf.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-load-workflow clicked'); loadWorkflow(); });
-  var btnExportWf = document.getElementById('btn-export-workflows');
-  if(btnExportWf) btnExportWf.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-export-workflows clicked'); exportWorkflows(); });
-  var btnImportWf = document.getElementById('btn-import-workflows');
-  if(btnImportWf) btnImportWf.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-import-workflows clicked'); importWorkflows(); });
+  bindWorkflowButtons();
   var btnSaveAllLogs = document.getElementById('btn-save-all-logs');
   if(btnSaveAllLogs) btnSaveAllLogs.addEventListener('click', function(){ flashSaveButton(this); pluginDebug('btn-save-all-logs clicked'); saveAllLogs(); });
   var btnClearAll2 = document.getElementById('btn-clear-all-results-2');
   if(btnClearAll2) btnClearAll2.addEventListener('click', function(){ flashButton(this); pluginDebug('btn-clear-all-results-2 clicked'); clearAllResults(); });
-
-  // Workflow list — event delegation for dynamically generated Load/Delete buttons
-  var wfList = document.getElementById('workflow-list');
-  if(wfList){
-    wfList.addEventListener('click', function(e){
-      var btn = e.target.closest('button');
-      if(!btn) return;
-      var name = btn.getAttribute('data-wf-name');
-      if(!name) return;
-      pluginDebug('Workflow list click: name="' + name + '" action=' + (btn.classList.contains('wf-load') ? 'load' : 'delete'));
-      if(btn.classList.contains('wf-load')) _loadWorkflowByName(name);
-      else if(btn.classList.contains('wf-delete')) deleteWorkflow(name);
-    });
-  }
 
   // Mesh Data Management buttons
   var btnSaveMeshFile = document.getElementById('btn-save-mesh-file');
@@ -1688,4 +1729,3 @@ async function _combinedFinalPark() {
     pluginDebug('_combinedFinalPark Z lift failed: ' + (zErr && zErr.message ? zErr.message : String(zErr)));
   }
 }
-
