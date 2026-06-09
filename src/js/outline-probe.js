@@ -173,6 +173,38 @@ async function _outlineAbsTravel(targetX, targetY, safeTravelZ, fastFeed, retrac
   await moveAbs(targetX, targetY, null, fastFeed);
 }
 
+function _outlineFormatWorkPos(pos) {
+  if (!pos) return 'X=NaN Y=NaN Z=NaN';
+  return 'X=' + Number(pos.x).toFixed(3) + ' Y=' + Number(pos.y).toFixed(3) + ' Z=' + Number(pos.z).toFixed(3);
+}
+
+function _outlineGetZMoveDirection(startZ, targetZ) {
+  if (targetZ > startZ + 0.001) return 'upward';
+  if (targetZ < startZ - 0.001) return 'downward';
+  return 'level';
+}
+
+function _outlineValidateSurfaceProbeResult(startPos, endPos, pinBefore, pinAfter, fullPlunge) {
+  var distTraveled = Number(startPos.z) - Number(endPos.z);
+  var noMotion = Math.abs(distTraveled) < 0.05;
+  var fullTravelMiss = distTraveled >= (fullPlunge - 0.5);
+  var error = '';
+  if (!pinAfter && noMotion) {
+    error = 'Surface probe failed: no Z motion and no probe trigger detected; aborting before retract';
+  } else if (!pinAfter && fullTravelMiss) {
+    error = 'Surface probe: No contact in full Z travel range (' + fullPlunge.toFixed(1) + 'mm)';
+  }
+  return {
+    ok: !error,
+    error: error,
+    pinBefore: !!pinBefore,
+    pinAfter: !!pinAfter,
+    distTraveled: distTraveled,
+    noMotion: noMotion,
+    fullTravelMiss: fullTravelMiss
+  };
+}
+
 // ── Phase 1: Surface reference probe ─────────────────────
 async function runOutlineSurfaceProbe() {
   if (_outlineRunning) { outlineAppendLog('Already running.'); return; }
@@ -209,7 +241,10 @@ async function runOutlineSurfaceProbe() {
     // 3. Use configured max search distance for the full plunge — avoids
     //    deriving distance from work Z (which may read 0 after retract to machine ceiling).
     var startPos = await getWorkPosition();
+    var pinBefore = await smGetProbeTriggered();
     var fullPlunge = Math.max(1, cfg.surfaceProbeMaxSearch);
+    outlineAppendLog('PROBE START: work position ' + _outlineFormatWorkPos(startPos));
+    outlineAppendLog('PROBE PIN STATE: before=' + pinBefore);
     outlineAppendLog('PROBE: full Z plunge from Z=' + startPos.z.toFixed(3) + ' max search distance=' + fullPlunge.toFixed(3));
 
     // 4. G38.3 plunge — no controller alarm on no-contact; detect miss by distance + pin state
@@ -221,14 +256,19 @@ async function runOutlineSurfaceProbe() {
     await waitForIdleWithTimeout(30000);
 
     var endPos = await getWorkPosition();
-    var pinTriggered = await smGetProbeTriggered();
-    var distTraveled = startPos.z - endPos.z;
-    outlineAppendLog('PROBE RESULT: pinTriggered=' + pinTriggered +
-      ' startZ=' + startPos.z.toFixed(3) + ' endZ=' + endPos.z.toFixed(3) + ' traveled=' + distTraveled.toFixed(3));
+    var pinAfter = await smGetProbeTriggered();
+    var probeResult = _outlineValidateSurfaceProbeResult(startPos, endPos, pinBefore, pinAfter, fullPlunge);
+    outlineAppendLog('PROBE END: work position ' + _outlineFormatWorkPos(endPos));
+    outlineAppendLog('PROBE PIN STATE: after=' + pinAfter);
+    outlineAppendLog('PROBE RESULT: pinBefore=' + probeResult.pinBefore +
+      ' pinAfter=' + probeResult.pinAfter +
+      ' startZ=' + startPos.z.toFixed(3) +
+      ' endZ=' + endPos.z.toFixed(3) +
+      ' traveled=' + probeResult.distTraveled.toFixed(3) +
+      ' noMotion=' + probeResult.noMotion +
+      ' fullTravelMiss=' + probeResult.fullTravelMiss);
 
-    if (!pinTriggered && distTraveled >= (fullPlunge - 0.5)) {
-      throw new Error('Surface probe: No contact in full Z travel range (' + fullPlunge.toFixed(1) + 'mm)');
-    }
+    if (!probeResult.ok) throw new Error(probeResult.error);
 
     var surfZ = endPos.z;
     outlineAppendLog('Surface Z established: ' + surfZ.toFixed(4));
@@ -237,9 +277,15 @@ async function runOutlineSurfaceProbe() {
     outlineSetProgress(50);
 
     // 5. Retract to surfZ + retractAbove — gives proper clearance for diagonal return
+    var retractStartPos = await getWorkPosition();
     var retractZ = surfZ + cfg.retractAbove;
-    outlineAppendLog('RETRACT: Z to surfZ+retractAbove=' + retractZ.toFixed(3) + ' at F' + cfg.retractFeed);
+    var retractDirection = _outlineGetZMoveDirection(retractStartPos.z, retractZ);
+    outlineAppendLog('RETRACT START: work position ' + _outlineFormatWorkPos(retractStartPos));
+    outlineAppendLog('RETRACT TARGET: Z=' + retractZ.toFixed(3) + ' at F' + cfg.retractFeed.toFixed(0) +
+      ' direction=' + retractDirection + ' from current Z=' + retractStartPos.z.toFixed(3));
     await smRetractToZ(retractZ, cfg.retractFeed);
+    var retractEndPos = await getWorkPosition();
+    outlineAppendLog('RETRACT END: work position ' + _outlineFormatWorkPos(retractEndPos));
 
     // 6. Diagonal return to X0 Y0
     outlineAppendLog('TRAVEL: diagonal return to X0 Y0 at F' + cfg.fastFeed);
