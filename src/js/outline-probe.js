@@ -180,7 +180,9 @@ function _outlineFormatWorkPos(pos) {
 
 function _outlineFormatMachineState(pos) {
   if (!pos) return 'status=unknown probe=unknown';
-  return 'status=' + String(pos.status || 'unknown') + ' probe=' + !!pos.probeTriggered;
+  var status = 'status=' + String(pos.status || 'unknown') + ' probe=' + !!pos.probeTriggered;
+  if (pos.alarmReason) status += ' alarm=' + String(pos.alarmReason);
+  return status;
 }
 
 function _outlineFormatMachinePos(pos) {
@@ -190,11 +192,13 @@ function _outlineFormatMachinePos(pos) {
 
 function _outlineFormatRawControllerState(raw) {
   if (!raw) return 'rawStatus=unknown rawWPos=n/a rawMPos=n/a rawWCO=n/a rawPn=';
+  var alarmText = raw.alarmMessage || raw.lastAlarm || raw.alarm || raw.lastError || raw.error || '';
   return 'rawStatus=' + String(raw.status || 'unknown') +
     ' rawWPos=' + String(raw.WPos || 'n/a') +
     ' rawMPos=' + String(raw.MPos || 'n/a') +
     ' rawWCO=' + String(raw.WCO || 'n/a') +
-    ' rawPn=' + String(raw.Pn || '');
+    ' rawPn=' + String(raw.Pn || '') +
+    (alarmText ? ' rawAlarm=' + String(alarmText) : '');
 }
 
 function _outlineValidateCenterTravel(pos, targetX, targetY, tolerance) {
