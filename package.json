@@ -12,7 +12,7 @@
     "test:persistence": "node test/index-mesh-persistence.test.js",
     "test:existing": "npm run test:face-probe && npm run test:outline && npm run test:viz && npm run test:mesh && npm run test:preflight && npm run test:sequence && npm run test:stl",
     "test:face-probe": "node test/face-probe-progress.test.js",
-    "test:outline": "node test/outline-polygon-helpers.test.js",
+    "test:outline": "node test/outline-polygon-helpers.test.js && node test/outline-surface-probe-phase1.test.js",
     "test:viz": "node test/visualization-fixes.test.js",
     "test:mesh": "node test/smooth-mesh-export.test.js",
     "test:preflight": "node test/override-preflight.test.js",
