@@ -185,6 +185,7 @@ On completion the probe always returns to work origin **X0 Y0**, and the resulti
 | Surface Probe Feed | Feed rate for Z-axis plunge probes |
 | Fast Feed / Travel | Feed rate for rapid travel moves |
 | **Skip Surface Probe** | When enabled, bypasses the surface step-probe phase after finding the near edge. The scan travels directly to the far end and back-probes for the opposing edge. Faster for workpieces with predictable far-edge positions; Overshoot, Z Step Probe Depth, and Surface Probe Feed are unused in this mode. |
+| **Surface Probe Max Search Distance** | Maximum downward search distance (mm) used by the Phase 1 Surface Reference Probe. The machine retracts to machine Z=0, then plunges up to this distance looking for the workpiece surface. Set this to at least the full Z travel of your machine (default 165 mm) so the probe always reaches the surface regardless of work-coordinate origin. |
 
 #### Crash Recovery
 - Every log line is auto-saved to `localStorage`. The **Recover Last Log** button reloads the log after an E-stop or browser crash so diagnostics are never lost.

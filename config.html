@@ -1819,6 +1819,10 @@
             <label><span class="tooltip">Probe Down (coords)<span class="tip-icon">?</span><span class="tip">Maximum downward plunge depth for the center surface probe.</span></span></label>
             <input type="number" id="outlineProbeDown" value="5" step="0.5" min="0.5">
           </div>
+          <div class="field">
+            <label><span class="tooltip">Surface Probe Max Search Distance (mm)<span class="tip-icon">?</span><span class="tip">Maximum downward search distance used by the Outline Surface Probe in Phase 1. The machine retracts to Z=0 then plunges up to this distance looking for the surface. Set to at least the full Z travel of your machine (e.g. 165 mm) so the probe always reaches the workpiece regardless of work-coordinate origin.</span></span></label>
+            <input type="number" id="outlineSurfaceProbeMaxSearch" value="165" step="1" min="5">
+          </div>
           <div class="field" style="grid-column:1 / -1">
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
               <input type="checkbox" id="outlineSkipSurfaceProbe" style="width:auto;margin:0">
@@ -11144,6 +11148,7 @@ function _outlineSettings() {
     retractFeed:       gn('outlineRetractFeed',      600),
     clearZ:            gn('outlineClearZ',           5),
     probeDown:         gn('outlineProbeDown',        5),
+    surfaceProbeMaxSearch: gn('outlineSurfaceProbeMaxSearch', 165),
     skipSurfaceProbe:  gb('outlineSkipSurfaceProbe'),
     forceRectangle:    gb('outlineForceRectangle')
   };
@@ -11273,12 +11278,11 @@ async function runOutlineSurfaceProbe() {
     outlineAppendLog('TRAVEL: diagonal to center X=' + cx.toFixed(3) + ' Y=' + cy.toFixed(3) + ' at F' + cfg.fastFeed);
     await moveAbs(cx, cy, null, cfg.fastFeed);
 
-    // 3. Read current work Z — this is the full travel distance available
-    //    from machine ceiling to work zero. Probe the entire range so the
-    //    probe finds the surface no matter how far down it is.
-    var pos = await getWorkPosition();
-    var fullPlunge = pos.z + 5;  // +5mm margin below work Z=0
-    outlineAppendLog('PROBE: full Z plunge from Z=' + pos.z.toFixed(3) + ' distance=' + fullPlunge.toFixed(3));
+    // 3. Use configured max search distance for the full plunge — avoids
+    //    deriving distance from work Z (which may read 0 after retract to machine ceiling).
+    var startPos = await getWorkPosition();
+    var fullPlunge = Math.max(1, cfg.surfaceProbeMaxSearch);
+    outlineAppendLog('PROBE: full Z plunge from Z=' + startPos.z.toFixed(3) + ' max search distance=' + fullPlunge.toFixed(3));
 
     // 4. G38.2 plunge — stops on contact, errors only if nothing touched
     // Calculate timeout: travel time at probe feed rate + 10s buffer
@@ -11290,9 +11294,9 @@ async function runOutlineSurfaceProbe() {
 
     var endPos = await getWorkPosition();
     var pinTriggered = await smGetProbeTriggered();
-    var distTraveled = pos.z - endPos.z;
+    var distTraveled = startPos.z - endPos.z;
     outlineAppendLog('PROBE RESULT: pinTriggered=' + pinTriggered +
-      ' startZ=' + pos.z.toFixed(3) + ' endZ=' + endPos.z.toFixed(3) + ' traveled=' + distTraveled.toFixed(3));
+      ' startZ=' + startPos.z.toFixed(3) + ' endZ=' + endPos.z.toFixed(3) + ' traveled=' + distTraveled.toFixed(3));
 
     if (!pinTriggered && distTraveled >= (fullPlunge - 0.5)) {
       throw new Error('Surface probe: No contact in full Z travel range (' + fullPlunge.toFixed(1) + 'mm)');
