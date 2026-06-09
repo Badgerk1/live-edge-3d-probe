@@ -84,7 +84,9 @@ function loadFunction(source, name) {
 var outlineProbeSource = fs.readFileSync(new URL('../src/js/outline-probe.js', import.meta.url), 'utf8');
 var validateSurfaceProbeResult = loadFunction(outlineProbeSource, '_outlineValidateSurfaceProbeResult');
 var getZMoveDirection = loadFunction(outlineProbeSource, '_outlineGetZMoveDirection');
+var formatWorkPos = loadFunction(outlineProbeSource, '_outlineFormatWorkPos');
 var validateCenterTravel = loadFunction(outlineProbeSource, '_outlineValidateCenterTravel');
+var buildCenterTravelWarning = new Function('_outlineValidateCenterTravel', '_outlineFormatWorkPos', extractFunction(outlineProbeSource, '_outlineBuildCenterTravelWarning') + '\nreturn _outlineBuildCenterTravelWarning;')(validateCenterTravel, formatWorkPos);
 
 console.log('=== outline-surface-probe-phase1 tests ===');
 
@@ -120,6 +122,13 @@ assert(centered.dx <= 0.5 && centered.dy <= 0.5, 'center deltas are computed fro
 var offCenter = validateCenterTravel({ x: 300, y: 138.11 }, 304.80, 138.11, 0.5);
 assert(!offCenter.ok, 'position outside tolerance is rejected before probe start');
 assert(offCenter.dx > 0.5, 'off-center X delta is reported');
+
+console.log('\nTest: center travel mismatch becomes warning-only diagnostic');
+var centerWarning = buildCenterTravelWarning({ x: 0, y: 0, z: 0 }, 304.80, 138.11, 0.5);
+assert(/WARNING: center travel verification mismatch/.test(centerWarning), 'warning identifies center verification mismatch');
+assert(/reported work position may be stale after move/.test(centerWarning), 'warning explains stale position source');
+assert(/continuing with probe/.test(centerWarning), 'warning confirms the probe sequence continues');
+assert(/target X=304.800 Y=138.110/.test(centerWarning), 'warning keeps explicit center target in the log');
 
 console.log('\n--- Results: ' + passed + ' passed, ' + failed + ' failed ---');
 process.exit(failed > 0 ? 1 : 0);

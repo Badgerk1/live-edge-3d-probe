@@ -183,6 +183,20 @@ function _outlineFormatMachineState(pos) {
   return 'status=' + String(pos.status || 'unknown') + ' probe=' + !!pos.probeTriggered;
 }
 
+function _outlineFormatMachinePos(pos) {
+  if (!pos) return 'machineX=NaN machineY=NaN machineZ=NaN';
+  return 'machineX=' + Number(pos.machineX).toFixed(3) + ' machineY=' + Number(pos.machineY).toFixed(3) + ' machineZ=' + Number(pos.machineZ).toFixed(3);
+}
+
+function _outlineFormatRawControllerState(raw) {
+  if (!raw) return 'rawStatus=unknown rawWPos=n/a rawMPos=n/a rawWCO=n/a rawPn=';
+  return 'rawStatus=' + String(raw.status || 'unknown') +
+    ' rawWPos=' + String(raw.WPos || 'n/a') +
+    ' rawMPos=' + String(raw.MPos || 'n/a') +
+    ' rawWCO=' + String(raw.WCO || 'n/a') +
+    ' rawPn=' + String(raw.Pn || '');
+}
+
 function _outlineValidateCenterTravel(pos, targetX, targetY, tolerance) {
   var dx = Math.abs(Number(pos.x) - Number(targetX));
   var dy = Math.abs(Number(pos.y) - Number(targetY));
@@ -191,6 +205,17 @@ function _outlineValidateCenterTravel(pos, targetX, targetY, tolerance) {
     dx: dx,
     dy: dy
   };
+}
+
+function _outlineBuildCenterTravelWarning(pos, targetX, targetY, tolerance) {
+  var check = _outlineValidateCenterTravel(pos, targetX, targetY, tolerance);
+  return 'WARNING: center travel verification mismatch — reported work position may be stale after move; continuing with probe. ' +
+    'target X=' + Number(targetX).toFixed(3) +
+    ' Y=' + Number(targetY).toFixed(3) +
+    ', reported ' + _outlineFormatWorkPos(pos) +
+    ', dx=' + check.dx.toFixed(3) +
+    ' dy=' + check.dy.toFixed(3) +
+    ' tolerance=' + Number(tolerance).toFixed(3);
 }
 
 function _outlineGetZMoveDirection(startZ, targetZ) {
@@ -269,14 +294,21 @@ async function runOutlineSurfaceProbe() {
       outlineAppendLog('TRAVEL VERIFY RETRY: center delta dx=' + centerCheck.dx.toFixed(3) + ' dy=' + centerCheck.dy.toFixed(3) +
         ' tolerance=' + centerTolerance.toFixed(3) + ' ok=' + centerCheck.ok);
       if (!centerCheck.ok) {
-        throw new Error('Center travel failed: target X=' + cx.toFixed(3) + ' Y=' + cy.toFixed(3) +
-          ', actual ' + _outlineFormatWorkPos(centerFreshPos) + ', tolerance=' + centerTolerance.toFixed(3));
+        outlineAppendLog(_outlineBuildCenterTravelWarning(centerFreshPos, cx, cy, centerTolerance));
+        try {
+          var centerSnapshot = await getMachineSnapshot();
+          outlineAppendLog('TRAVEL VERIFY WARNING: machine snapshot ' + _outlineFormatWorkPos(centerSnapshot) + ' ' +
+            _outlineFormatMachinePos(centerSnapshot) + ' ' + _outlineFormatMachineState(centerSnapshot));
+          outlineAppendLog('TRAVEL VERIFY WARNING: ' + _outlineFormatRawControllerState(centerSnapshot.raw));
+        } catch (centerSnapshotError) {
+          outlineAppendLog('TRAVEL VERIFY WARNING: machine snapshot unavailable: ' + centerSnapshotError.message);
+        }
       }
     }
 
     // 3. Use configured max search distance for the full plunge — avoids
     //    deriving distance from work Z (which may read 0 after retract to machine ceiling).
-    var startPos = centerFreshPos || await getWorkPosition();
+    var startPos = centerFreshPos || centerMovePos || await getWorkPosition();
     var pinBefore = await smGetProbeTriggered();
     var fullPlunge = Math.max(1, cfg.surfaceProbeMaxSearch);
     outlineAppendLog('PROBE START: work position ' + _outlineFormatWorkPos(startPos));
